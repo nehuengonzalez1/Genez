@@ -18,6 +18,24 @@
 
 const MINUTOS_MAXIMO = 30;
 
+/* Id de la cuenta, para distinguir lo que entra de lo que sale.
+   /v1/payments/search devuelve todas las operaciones de la cuenta, así que una
+   transferencia enviada figura igual que una recibida. La diferencia está en
+   quién cobra: si collector_id es esta cuenta, entró plata. Se cachea entre
+   invocaciones para no pedirlo en cada sondeo. */
+let _idCuenta = null;
+
+async function idCuenta(token) {
+  if (_idCuenta) return _idCuenta;
+  const r = await fetch("https://api.mercadopago.com/users/me", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) return null;
+  const d = await r.json();
+  _idCuenta = d.id != null ? String(d.id) : null;
+  return _idCuenta;
+}
+
 function normalizar(p) {
   return {
     id: String(p.id),
@@ -77,7 +95,15 @@ export default async function handler(req, res) {
     }
     if (error) return res.status(502).json({ configurado: true, pagos: [], error: { message: error } });
 
-    const aprobados = results.filter((p) => p.status === "approved");
+    const yo = await idCuenta(token);
+    const entrante = (p) => {
+      if (p.status !== "approved") return false;
+      if (!yo) return true;                                  // sin id, no se filtra
+      if (String(p.collector_id) !== yo) return false;       // no soy quien cobra: es un pago mío
+      if (p.payer && String(p.payer.id) === yo) return false; // movimiento entre mis propias cuentas
+      return true;
+    };
+    const aprobados = results.filter(entrante);
     const respuesta = {
       configurado: true,
       pagos: aprobados.map(normalizar),
@@ -88,9 +114,12 @@ export default async function handler(req, res) {
       respuesta.debug = {
         campoUsado,
         totalDevuelto: results.length,
+        cuenta: yo,
         operaciones: results.map((p) => ({
           id: String(p.id), status: p.status, operation_type: p.operation_type,
-          payment_type_id: p.payment_type_id, payment_method_id: p.payment_method_id,
+          collector_id: p.collector_id != null ? String(p.collector_id) : null,
+          payer_id: p.payer && p.payer.id != null ? String(p.payer.id) : null,
+          entrante: entrante(p),
           monto: p.transaction_amount, fecha: p.date_approved || p.date_created,
         })),
       };
