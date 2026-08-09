@@ -4249,49 +4249,40 @@ function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaja, toas
    13 ter. AVISO DE COBRO POR MERCADO PAGO
    ============================================================ */
 
-function AvisoCobro({ cobros, onCerrar, esperado }) {
-  if (!cobros.length) return null;
-  const c = cobros[0];
-  const coincide = esperado > 0 && Math.abs(c.monto - esperado) < 1;
+/* Tarjeta chica, abajo a la derecha: avisa sin frenar la caja. El cajero
+   puede seguir cobrando al cliente siguiente mientras aparece.             */
+function TarjetaCobro({ c, onCerrar }) {
+  const [saliendo, setSaliendo] = useState(false);
+  useEffect(() => {
+    const a = setTimeout(() => setSaliendo(true), 14000);
+    const b = setTimeout(() => onCerrar(c.id), 14500);
+    return () => { clearTimeout(a); clearTimeout(b); };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-emerald-950/80 backdrop-blur-sm" onClick={onCerrar} />
-      <div className="relative w-full max-w-lg bg-white rounded-3xl overflow-hidden shadow-2xl">
-        <div className="bg-emerald-600 text-white px-6 py-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mx-auto">
-            <Bell size={28} />
-          </div>
-          <div className="text-[11px] uppercase tracking-widest font-bold text-emerald-100 mt-3">
-            Cobro recibido en Mercado Pago
-          </div>
-          <div className="f-d text-6xl mt-1 tabular-nums">{money(c.monto)}</div>
-          {c.pagador && <div className="text-emerald-100 mt-1">de {c.pagador}</div>}
-        </div>
-        <div className="p-5">
-          {coincide && (
-            <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 text-center font-semibold">
-              Coincide con el total de la venta que estás cobrando.
-            </div>
-          )}
-          {esperado > 0 && !coincide && (
-            <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-center">
-              La venta en pantalla es de {money(esperado)}. Revisá antes de entregar.
-            </div>
-          )}
-          <div className="text-xs text-stone-400 text-center">
-            {new Date(c.fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
-            {c.detalle ? ` · ${c.detalle}` : ""} · ya quedó registrado en caja
-          </div>
-          {cobros.length > 1 && (
-            <div className="text-xs text-stone-500 text-center mt-2">
-              Hay {cobros.length - 1} cobro{cobros.length > 2 ? "s" : ""} más esperando.
-            </div>
-          )}
-          <Boton variant="dark" size="lg" className="w-full mt-4" onClick={onCerrar}>
-            Entendido <Tecla>Enter</Tecla>
-          </Boton>
+    <div className={`w-72 bg-white border border-emerald-300 rounded-2xl shadow-xl overflow-hidden transition-all duration-500 ${saliendo ? "opacity-0 translate-x-6" : "opacity-100"}`}>
+      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white">
+        <Bell size={14} className="shrink-0" />
+        <span className="text-[10px] uppercase tracking-widest font-bold flex-1">Cobro recibido</span>
+        <button onClick={() => onCerrar(c.id)} className="text-white/70 hover:text-white"><X size={14} /></button>
+      </div>
+      <div className="px-3 py-2.5">
+        <div className="f-d text-3xl tabular-nums text-emerald-700 leading-none">{money(c.monto)}</div>
+        <div className="text-[11px] text-stone-400 mt-1.5">
+          Mercado Pago · {new Date(c.fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} · ya está en caja
         </div>
       </div>
+    </div>
+  );
+}
+
+function AvisoCobro({ cobros, onCerrar }) {
+  if (!cobros.length) return null;
+  return (
+    <div className="fixed bottom-24 md:bottom-20 right-5 z-[60] flex flex-col gap-2 items-end pointer-events-none">
+      {cobros.slice(-4).map((c) => (
+        <div key={c.id} className="pointer-events-auto"><TarjetaCobro c={c} onCerrar={onCerrar} /></div>
+      ))}
     </div>
   );
 }
@@ -4419,13 +4410,6 @@ export default function App() {
     const id = setInterval(consultar, 6000);
     return () => { vivo = false; clearInterval(id); };
   }, [mp.activo, mp.voz, ajustes.sonido]);
-
-  useEffect(() => {
-    if (!cobrosMP.length) return;
-    const h = (e) => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); setCobrosMP((x) => x.slice(1)); } };
-    window.addEventListener("keydown", h, true);
-    return () => window.removeEventListener("keydown", h, true);
-  }, [cobrosMP.length]);
 
   const simularCobro = () => recibirCobro({
     id: "sim-" + uid(),
@@ -4605,7 +4589,7 @@ export default function App() {
       </div>
       )}
 
-      <AvisoCobro cobros={cobrosMP} onCerrar={() => setCobrosMP((x) => x.slice(1))} esperado={0} />
+      <AvisoCobro cobros={cobrosMP} onCerrar={(id) => setCobrosMP((x) => x.filter((c) => c.id !== id))} />
 
       <FormProducto abierto={!!altaProd} inicial={altaProd} productos={productos} provs={provs}
         onClose={() => setAltaProd(null)}
