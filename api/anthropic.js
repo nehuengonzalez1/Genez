@@ -15,6 +15,7 @@
  */
 
 const MAX_TOKENS = 2000;
+const MARCA_BUILD = "diag-1";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -30,8 +31,17 @@ export default async function handler(req, res) {
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) {
+    // Diagnóstico temporal: nunca expone valores, solo nombres parecidos y
+    // longitudes, para distinguir "no se desplegó" de "está mal cargada".
+    const parecidos = Object.keys(process.env).filter((n) => /anthro|claude|api_key/i.test(n));
     return res.status(503).json({
       error: { message: "Falta la variable ANTHROPIC_API_KEY en Vercel. El resto del sistema funciona igual: los diagnósticos se calculan en el navegador." },
+      diagnostico: {
+        marca: MARCA_BUILD,
+        variablesParecidas: parecidos.map((n) => `${n} (${String(process.env[n] || "").length} caracteres)`),
+        entorno: process.env.VERCEL_ENV || "desconocido",
+        despliegue: (process.env.VERCEL_DEPLOYMENT_ID || "").slice(-8),
+      },
     });
   }
 
