@@ -4,7 +4,7 @@ import {
   Sparkles, Settings, Search, Plus, Minus, Trash2, X, Check, AlertTriangle,
   TrendingDown, TrendingUp, Printer, MessageCircle, Mail, QrCode, ArrowRight,
   Clock, ChevronLeft, ChevronRight, FileText, Store, Percent, CalendarDays,
-  CircleDollarSign, ArrowDownRight, ArrowUpRight, Send, Loader2, ClipboardList, Camera, Upload, FileImage, ScanLine, Volume2, VolumeX, Phone, Bike, PackageCheck
+  CircleDollarSign, ArrowDownRight, ArrowUpRight, Send, Loader2, ClipboardList, Camera, Upload, FileImage, Bell, BellOff, Volume2 as Vol2, ScanLine, Volume2, VolumeX, Phone, Bike, PackageCheck
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell
@@ -385,6 +385,47 @@ const API_MODELO = (typeof window !== "undefined" && window.__API_MODELO__) || "
 /* Un código de barras tiene 6 dígitos o más; una cantidad, 4 o menos (y puede
    llevar decimales para los pesables). Con esa frontera se puede escribir la
    cantidad en el mismo campo donde se escanea, sin ambigüedad.              */
+/* La síntesis de voz lee "24.500" de forma irregular según el navegador, así
+   que el monto se convierte a palabras antes de mandarlo a hablar.          */
+const UNIDADES = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez",
+  "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"];
+const DECENAS = ["", "", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
+const CENTENAS = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos",
+  "seiscientos", "setecientos", "ochocientos", "novecientos"];
+
+function menosDeMil(n) {
+  if (n === 0) return "";
+  if (n === 100) return "cien";
+  const c = Math.floor(n / 100), r = n % 100;
+  let out = CENTENAS[c];
+  if (r) {
+    let resto;
+    if (r < 20) resto = UNIDADES[r];
+    else if (r < 30) resto = r === 20 ? "veinte" : "veinti" + UNIDADES[r - 20];
+    else {
+      const d = Math.floor(r / 10), u = r % 10;
+      resto = DECENAS[d] + (u ? " y " + UNIDADES[u] : "");
+    }
+    out = out ? out + " " + resto : resto;
+  }
+  return out;
+}
+
+function numeroALetras(n) {
+  n = Math.round(Math.abs(Number(n) || 0));
+  if (n === 0) return "cero";
+  const millones = Math.floor(n / 1000000);
+  const miles = Math.floor((n % 1000000) / 1000);
+  const resto = n % 1000;
+  const partes = [];
+  if (millones === 1) partes.push("un millón");
+  else if (millones > 1) partes.push(menosDeMil(millones) + " millones");
+  if (miles === 1) partes.push("mil");
+  else if (miles > 1) partes.push(menosDeMil(miles) + " mil");
+  if (resto) partes.push(menosDeMil(resto));
+  return partes.join(" ").replace("uno mil", "un mil").trim();
+}
+
 function esCantidad(t) {
   return /^\d{1,4}([.,]\d{1,3})?$/.test(String(t).trim());
 }
@@ -753,6 +794,41 @@ function beep(ok = true, activo = true) {
     g.gain.exponentialRampToValueAtTime(0.0001, _ac.currentTime + (ok ? 0.08 : 0.3));
     o.start(); o.stop(_ac.currentTime + (ok ? 0.09 : 0.32));
   } catch (e) { /* sin audio disponible */ }
+}
+
+/* Aviso sonoro de cobro: dos notas ascendentes, distintas del beep del
+   lector para que no se confundan a tres metros del mostrador.              */
+function campanita(activo = true) {
+  if (!activo) return;
+  try {
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1318.5].forEach((f, i) => {
+      const o = _ac.createOscillator(), g = _ac.createGain();
+      o.connect(g); g.connect(_ac.destination);
+      o.type = "sine";
+      o.frequency.value = f;
+      const t0 = _ac.currentTime + i * 0.16;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.14, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.42);
+      o.start(t0); o.stop(t0 + 0.45);
+    });
+  } catch (e) { /* sin audio disponible */ }
+}
+
+function hablar(texto, activo = true) {
+  if (!activo) return;
+  try {
+    const s = window.speechSynthesis;
+    if (!s) return;
+    s.cancel();
+    const u = new SpeechSynthesisUtterance(texto);
+    u.lang = "es-AR";
+    u.rate = 0.98;
+    const voz = s.getVoices().find((v) => /es[-_]AR/i.test(v.lang)) || s.getVoices().find((v) => /^es/i.test(v.lang));
+    if (voz) u.voice = voz;
+    s.speak(u);
+  } catch (e) { /* sin voz disponible */ }
 }
 
 function imprimir(toast) {
@@ -3905,7 +3981,7 @@ function Asistente({ k, ins, ir, negocio }) {
    13. AJUSTES
    ============================================================ */
 
-function Ajustes({ ajustes, setAjustes, productos, toast }) {
+function Ajustes({ ajustes, setAjustes, productos, toast, mp, setMp, simularCobro }) {
   return (
     <div className="max-w-2xl space-y-4">
       <Card className="p-5">
@@ -3969,6 +4045,58 @@ function Ajustes({ ajustes, setAjustes, productos, toast }) {
         <p className="text-xs text-stone-400 mt-3">
           La pistola funciona como un teclado. El sistema reconoce la ráfaga de tecleo y el Enter final, así que se puede disparar sin clickear ningún campo.
         </p>
+      </Card>
+
+      <Card className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="f-d text-lg">Avisos de Mercado Pago</h3>
+            <p className="text-sm text-stone-500 mt-1">
+              Cuando entra una transferencia o un pago por QR, salta un cartel, suena una campanita y una voz dice el monto en voz alta.
+              El cobro queda registrado en caja solo.
+            </p>
+          </div>
+          <button onClick={() => setMp({ ...mp, activo: !mp.activo })}
+            className={`shrink-0 flex items-center gap-2 text-sm font-semibold ${mp.activo ? "text-emerald-700" : "text-stone-400"}`}>
+            {mp.activo ? <Bell size={16} /> : <BellOff size={16} />}
+            {mp.activo ? "Activo" : "Apagado"}
+          </button>
+        </div>
+
+        <div className={`mt-3 rounded-xl p-3 text-sm border ${
+          mp.configurado === null ? "bg-stone-50 border-stone-200 text-stone-500"
+          : mp.configurado ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+          : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+          {mp.configurado === null ? "Consultando el estado de la conexión…"
+            : mp.configurado
+              ? <>Conectado a Mercado Pago. Consultando cada 6 segundos{mp.ultimoChequeo ? ` · último chequeo ${mp.ultimoChequeo.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}.</>
+              : <>Todavía sin conectar: falta cargar <strong>MP_ACCESS_TOKEN</strong> en Vercel. El aviso se puede probar igual con el botón de abajo.</>}
+          {mp.error && <div className="text-xs mt-1 opacity-80">{mp.error}</div>}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 mt-3">
+          <button onClick={() => setMp({ ...mp, voz: !mp.voz })}
+            className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900">
+            {mp.voz ? <Vol2 size={16} className="text-orange-500" /> : <VolumeX size={16} />}
+            Leer el monto en voz alta: <strong>{mp.voz ? "sí" : "no"}</strong>
+          </button>
+          <Boton size="sm" variant="ghost" className="ml-auto" onClick={simularCobro}>
+            <Bell size={14} /> Probar el aviso
+          </Boton>
+        </div>
+
+        <details className="mt-4 text-sm">
+          <summary className="cursor-pointer text-stone-600 font-semibold">Cómo conectar la cuenta</summary>
+          <ol className="list-decimal ml-5 mt-2 space-y-1 text-stone-600">
+            <li>Entrá a <span className="f-m text-xs">mercadopago.com.ar/developers</span> con la cuenta del negocio y creá una aplicación.</li>
+            <li>Copiá el <strong>Access Token de producción</strong> (empieza con APP_USR).</li>
+            <li>En Vercel, Settings → Environment Variables, creá <span className="f-m text-xs">MP_ACCESS_TOKEN</span> en Production.</li>
+            <li>Volvé a desplegar. Este panel va a pasar a "Conectado" solo.</li>
+          </ol>
+          <p className="text-xs text-stone-400 mt-2">
+            La API de Mercado Pago no tiene costo. El token nunca llega al navegador: se usa del lado del servidor.
+          </p>
+        </details>
       </Card>
 
       <Card className="p-5">
@@ -4118,6 +4246,57 @@ function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaja, toas
 }
 
 /* ============================================================
+   13 ter. AVISO DE COBRO POR MERCADO PAGO
+   ============================================================ */
+
+function AvisoCobro({ cobros, onCerrar, esperado }) {
+  if (!cobros.length) return null;
+  const c = cobros[0];
+  const coincide = esperado > 0 && Math.abs(c.monto - esperado) < 1;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-emerald-950/80 backdrop-blur-sm" onClick={onCerrar} />
+      <div className="relative w-full max-w-lg bg-white rounded-3xl overflow-hidden shadow-2xl">
+        <div className="bg-emerald-600 text-white px-6 py-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mx-auto">
+            <Bell size={28} />
+          </div>
+          <div className="text-[11px] uppercase tracking-widest font-bold text-emerald-100 mt-3">
+            Cobro recibido en Mercado Pago
+          </div>
+          <div className="f-d text-6xl mt-1 tabular-nums">{money(c.monto)}</div>
+          {c.pagador && <div className="text-emerald-100 mt-1">de {c.pagador}</div>}
+        </div>
+        <div className="p-5">
+          {coincide && (
+            <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 text-center font-semibold">
+              Coincide con el total de la venta que estás cobrando.
+            </div>
+          )}
+          {esperado > 0 && !coincide && (
+            <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-center">
+              La venta en pantalla es de {money(esperado)}. Revisá antes de entregar.
+            </div>
+          )}
+          <div className="text-xs text-stone-400 text-center">
+            {new Date(c.fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+            {c.detalle ? ` · ${c.detalle}` : ""} · ya quedó registrado en caja
+          </div>
+          {cobros.length > 1 && (
+            <div className="text-xs text-stone-500 text-center mt-2">
+              Hay {cobros.length - 1} cobro{cobros.length > 2 ? "s" : ""} más esperando.
+            </div>
+          )}
+          <Boton variant="dark" size="lg" className="w-full mt-4" onClick={onCerrar}>
+            Entendido <Tecla>Enter</Tecla>
+          </Boton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    14. APP
    ============================================================ */
 
@@ -4177,6 +4356,11 @@ export default function App() {
     return () => { pila.current = pila.current.filter((f) => f !== fn); };
   }, []);
 
+  const [cobrosMP, setCobrosMP] = useState([]);
+  const [mp, setMp] = useState({ activo: true, voz: true, configurado: null, ultimoChequeo: null, error: null });
+  const vistos = useRef(new Set());
+  const desde = useRef(new Date().toISOString());
+
   const toast = (texto, tono = "ok") => {
     const id = uid();
     setToasts((t) => [...t, { id, texto, tono }]);
@@ -4205,6 +4389,51 @@ export default function App() {
     ps.forEach((p) => movCaja({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}` }));
     return t;
   };
+
+  // Un cobro que entra: suena, se lee en voz alta, se muestra y se registra.
+  const recibirCobro = (c) => {
+    if (vistos.current.has(c.id)) return;
+    vistos.current.add(c.id);
+    setCobrosMP((x) => [...x, c]);
+    campanita(ajustes.sonido);
+    hablar(`Recibiste ${numeroALetras(c.monto)} pesos${c.pagador ? ", de " + c.pagador : ""}`, mp.voz && ajustes.sonido);
+    movCaja({ tipo: "ingreso", medio: "mp", monto: c.monto, detalle: `Mercado Pago${c.pagador ? " · " + c.pagador : ""}` });
+  };
+
+  useEffect(() => {
+    if (!mp.activo) return;
+    let vivo = true;
+    const consultar = async () => {
+      try {
+        const r = await fetch(`/api/mp/pagos?desde=${encodeURIComponent(desde.current)}`);
+        const d = await r.json();
+        if (!vivo) return;
+        setMp((m) => ({ ...m, configurado: !!d.configurado, ultimoChequeo: new Date(), error: d.error ? d.error.message : null }));
+        (d.pagos || []).slice().reverse().forEach(recibirCobro);
+        if (d.consultadoHasta) desde.current = d.consultadoHasta;
+      } catch (e) {
+        if (vivo) setMp((m) => ({ ...m, configurado: false, error: "Sin conexión con el servidor." }));
+      }
+    };
+    consultar();
+    const id = setInterval(consultar, 6000);
+    return () => { vivo = false; clearInterval(id); };
+  }, [mp.activo, mp.voz, ajustes.sonido]);
+
+  useEffect(() => {
+    if (!cobrosMP.length) return;
+    const h = (e) => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); setCobrosMP((x) => x.slice(1)); } };
+    window.addEventListener("keydown", h, true);
+    return () => window.removeEventListener("keydown", h, true);
+  }, [cobrosMP.length]);
+
+  const simularCobro = () => recibirCobro({
+    id: "sim-" + uid(),
+    monto: [4500, 12300, 24500, 8750, 51200][Math.floor(Math.random() * 5)],
+    fecha: new Date().toISOString(),
+    pagador: ["Marta Gómez", "Rubén Ledesma", "Nico", ""][Math.floor(Math.random() * 4)],
+    detalle: "Simulación",
+  });
 
   const ir = (t, f) => { setVista("panel"); setTab(t); setFoco(f || null); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const cobrar_ = () => { setVista("cobro"); window.scrollTo({ top: 0 }); };
@@ -4371,10 +4600,12 @@ export default function App() {
           )}
           {tab === "reportes" && <Reportes productos={productos} k={k} ir={ir} />}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
-          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} toast={toast} />}
+          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
         </main>
       </div>
       )}
+
+      <AvisoCobro cobros={cobrosMP} onCerrar={() => setCobrosMP((x) => x.slice(1))} esperado={0} />
 
       <FormProducto abierto={!!altaProd} inicial={altaProd} productos={productos} provs={provs}
         onClose={() => setAltaProd(null)}
