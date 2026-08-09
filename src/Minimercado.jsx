@@ -4396,7 +4396,7 @@ export default function App() {
     vistos.current.add(c.id);
     setCobrosMP((x) => [...x, c]);
     campanita(ajustes.sonido);
-    hablar(`Recibiste ${numeroALetras(c.monto)} pesos${c.pagador ? ", de " + c.pagador : ""}`, mp.voz && ajustes.sonido);
+    hablar(`Recibiste un pago de ${numeroALetras(c.monto)} pesos`, mp.voz && ajustes.sonido);
     movCaja({ tipo: "ingreso", medio: "mp", monto: c.monto, detalle: `Mercado Pago${c.pagador ? " · " + c.pagador : ""}` });
   };
 
