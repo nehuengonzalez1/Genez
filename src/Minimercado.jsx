@@ -785,7 +785,7 @@ let _ac = null;
 function beep(ok = true, activo = true) {
   if (!activo) return;
   try {
-    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (!audio()) return;
     const o = _ac.createOscillator(), g = _ac.createGain();
     o.connect(g); g.connect(_ac.destination);
     o.type = "square";
@@ -798,16 +798,28 @@ function beep(ok = true, activo = true) {
 
 /* Aviso sonoro de cobro: dos notas ascendentes, distintas del beep del
    lector para que no se confundan a tres metros del mostrador.              */
-function campanita(activo = true) {
-  if (!activo) return;
+/* Chrome suspende el AudioContext cuando la pestaña pasa a segundo plano o
+   tras un rato sin uso. Si se programan notas sobre un contexto suspendido no
+   suena nada, así que hay que despertarlo en cada aviso.                     */
+function audio() {
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (_ac.state === "suspended") _ac.resume();
+    return _ac;
+  } catch (e) { return null; }
+}
+
+function campanita(activo = true) {
+  if (!activo) return;
+  const ac = audio();
+  if (!ac) return;
+  try {
     [880, 1318.5].forEach((f, i) => {
-      const o = _ac.createOscillator(), g = _ac.createGain();
-      o.connect(g); g.connect(_ac.destination);
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
       o.type = "sine";
       o.frequency.value = f;
-      const t0 = _ac.currentTime + i * 0.16;
+      const t0 = ac.currentTime + 0.05 + i * 0.16;
       g.gain.setValueAtTime(0.0001, t0);
       g.gain.exponentialRampToValueAtTime(0.14, t0 + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.42);
@@ -816,18 +828,32 @@ function campanita(activo = true) {
   } catch (e) { /* sin audio disponible */ }
 }
 
+/* Ojo con cancel(): si entran dos cobros seguidos, el segundo cortaba al
+   primero y Chrome puede quedar en pausa y no volver a hablar nunca más.
+   Sin cancel, los avisos se encolan y se escuchan todos.                     */
 function hablar(texto, activo = true) {
   if (!activo) return;
   try {
     const s = window.speechSynthesis;
     if (!s) return;
-    s.cancel();
-    const u = new SpeechSynthesisUtterance(texto);
-    u.lang = "es-AR";
-    u.rate = 0.98;
-    const voz = s.getVoices().find((v) => /es[-_]AR/i.test(v.lang)) || s.getVoices().find((v) => /^es/i.test(v.lang));
-    if (voz) u.voice = voz;
-    s.speak(u);
+    s.resume();
+    let dicho = false;
+    const decir = () => {
+      if (dicho) return;
+      dicho = true;
+      const u = new SpeechSynthesisUtterance(texto);
+      u.lang = "es-AR";
+      u.rate = 0.98;
+      const voces = s.getVoices();
+      const voz = voces.find((v) => /es[-_]AR/i.test(v.lang)) || voces.find((v) => /^es/i.test(v.lang));
+      if (voz) u.voice = voz;
+      s.speak(u);
+    };
+    // Las voces cargan de forma asíncrona la primera vez.
+    if (!s.getVoices().length) {
+      s.addEventListener("voiceschanged", decir, { once: true });
+      setTimeout(decir, 300);
+    } else decir();
   } catch (e) { /* sin voz disponible */ }
 }
 
@@ -4350,7 +4376,8 @@ export default function App() {
   const [cobrosMP, setCobrosMP] = useState([]);
   const [mp, setMp] = useState({ activo: true, voz: true, configurado: null, ultimoChequeo: null, error: null });
   const vistos = useRef(new Set());
-  const desde = useRef(new Date().toISOString());
+  const primeraVuelta = useRef(true);
+  const abiertoDesde = useRef(Date.now());
 
   const toast = (texto, tono = "ok") => {
     const id = uid();
@@ -4384,6 +4411,10 @@ export default function App() {
   // Un cobro que entra: suena, se lee en voz alta, se muestra y se registra.
   const recibirCobro = (c) => {
     if (vistos.current.has(c.id)) return;
+    // Solo se anuncia lo que entró después de abrir la caja. Sin esto, un pago
+    // anterior que Mercado Pago indexa con demora sonaría como si fuera nuevo.
+    const cuando = new Date(c.fecha).getTime();
+    if (isFinite(cuando) && cuando < abiertoDesde.current) { vistos.current.add(c.id); return; }
     vistos.current.add(c.id);
     setCobrosMP((x) => [...x, c]);
     campanita(ajustes.sonido);
@@ -4391,24 +4422,46 @@ export default function App() {
     movCaja({ tipo: "ingreso", medio: "mp", monto: c.monto, detalle: `Mercado Pago${c.pagador ? " · " + c.pagador : ""}` });
   };
 
+  /* Se consulta siempre una ventana de los últimos minutos, no "lo nuevo desde
+     la última vez". Mercado Pago tarda unos segundos en indexar el pago: con
+     una ventana que avanza, el aviso aparece justo después de que la ventana
+     pasó de largo y se pierde para siempre. Con ventana fija y solapada, el
+     pago se ve igual aunque llegue tarde, y los repetidos los filtra `vistos`.
+     La primera vuelta se marca como vista sin avisar, para no gritar cobros
+     viejos al abrir la caja. */
   useEffect(() => {
     if (!mp.activo) return;
     let vivo = true;
     const consultar = async () => {
       try {
-        const r = await fetch(`/api/mp/pagos?desde=${encodeURIComponent(desde.current)}`);
+        const desde = new Date(Date.now() - 5 * 60000).toISOString();
+        const r = await fetch(`/api/mp/pagos?desde=${encodeURIComponent(desde)}&t=${Date.now()}`);
         const d = await r.json();
         if (!vivo) return;
         setMp((m) => ({ ...m, configurado: !!d.configurado, ultimoChequeo: new Date(), error: d.error ? d.error.message : null }));
-        (d.pagos || []).slice().reverse().forEach(recibirCobro);
-        if (d.consultadoHasta) desde.current = d.consultadoHasta;
+        const pagos = (d.pagos || []).slice().reverse();
+        if (primeraVuelta.current) {
+          pagos.forEach((p) => vistos.current.add(p.id));
+          primeraVuelta.current = false;
+        } else {
+          pagos.forEach(recibirCobro);
+        }
       } catch (e) {
         if (vivo) setMp((m) => ({ ...m, configurado: false, error: "Sin conexión con el servidor." }));
       }
     };
     consultar();
     const id = setInterval(consultar, 6000);
-    return () => { vivo = false; clearInterval(id); };
+    // Chrome frena los temporizadores en pestañas de fondo: al volver a la
+    // pestaña se consulta enseguida en vez de esperar el próximo turno.
+    const alVolver = () => { if (document.visibilityState === "visible") consultar(); };
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("focus", alVolver);
+    return () => {
+      vivo = false; clearInterval(id);
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("focus", alVolver);
+    };
   }, [mp.activo, mp.voz, ajustes.sonido]);
 
   const simularCobro = () => recibirCobro({
