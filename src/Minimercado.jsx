@@ -857,8 +857,53 @@ function hablar(texto, activo = true) {
   } catch (e) { /* sin voz disponible */ }
 }
 
-function imprimir(toast) {
-  try { window.print(); } catch (e) { toast && toast("La vista previa no permite imprimir. En el sistema sale por la comandera.", "mal"); }
+/* Imprimir la comandera.
+   Antes se ocultaba la app con CSS y se imprimía la página. Eso fallaba por
+   dos motivos: el papel salía en A4 con márgenes enormes, y el ticket estaba
+   posicionado como "fixed", lo que hace que el navegador lo repita en TODAS
+   las hojas. Por eso salían dos.
+   Ahora el ticket se imprime en un documento propio, dentro de un iframe
+   invisible, con el tamaño de papel declarado. Sale una sola hoja del ancho
+   del rollo y del alto exacto del contenido. */
+function escaparHTML(t) {
+  return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function imprimirComandera(lineas, ancho, qrSemilla, toast) {
+  try {
+    const mm = ancho === 58 ? 58 : 80;
+    const cuerpo = escaparHTML(lineas.join("\n"));
+    const qr = qrSemilla
+      ? `<div class="qr">${svgQR(qrSemilla, mm === 58 ? 18 : 22)}</div>`
+      : "";
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Ticket</title><style>
+      @page { size: ${mm}mm auto; margin: 0; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      body { width: ${mm}mm; }
+      pre { margin: 0; padding: ${mm === 58 ? "2mm 1.5mm" : "3mm 2.5mm"}; white-space: pre;
+            font-family: "Courier New", ui-monospace, monospace;
+            font-size: ${mm === 58 ? "8.6pt" : "9.2pt"}; line-height: 1.3; color: #000; }
+      .qr { text-align: center; padding-bottom: 4mm; }
+      .qr svg { display: inline-block; }
+    </style></head><body><pre>${cuerpo}</pre>${qr}</body></html>`;
+
+    const marco = document.createElement("iframe");
+    marco.setAttribute("aria-hidden", "true");
+    marco.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+    marco.onload = () => {
+      try {
+        marco.contentWindow.focus();
+        marco.contentWindow.print();
+      } catch (e) {
+        toast && toast("El navegador bloqueó la impresión.", "mal");
+      }
+      setTimeout(() => { try { marco.remove(); } catch (e) {} }, 2000);
+    };
+    document.body.appendChild(marco);
+    marco.srcdoc = html;
+  } catch (e) {
+    toast && toast(`No se pudo imprimir: ${e.message}`, "mal");
+  }
 }
 
 /* --- Comandera térmica -------------------------------------------------
@@ -897,19 +942,35 @@ function armarLineas(W, bloques) {
   return out;
 }
 
-function PseudoQR({ semilla, size = 84 }) {
+function celdasQR(semilla) {
   const n = 21;
   let h = 0;
   for (let i = 0; i < String(semilla).length; i++) h = (h * 31 + String(semilla).charCodeAt(i)) >>> 0;
-  const celdas = [];
   const rnd = mulberry32(h);
+  const out = [];
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
     const esquina = (x < 7 && y < 7) || (x > n - 8 && y < 7) || (x < 7 && y > n - 8);
     const anillo = esquina && (x % 6 === 0 || y % 6 === 0 || (x > 1 && x < 5 && y > 1 && y < 5) ||
       ((x > n - 7 && x < n - 2) && y > 1 && y < 5) || (x > 1 && x < 5 && y > n - 7 && y < n - 2));
-    if (esquina ? anillo : rnd() > 0.55) celdas.push(<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" />);
+    if (esquina ? anillo : rnd() > 0.55) out.push([x, y]);
   }
-  return <svg viewBox={`0 0 ${n} ${n}`} width={size} height={size} shapeRendering="crispEdges" fill="currentColor">{celdas}</svg>;
+  return { n, celdas: out };
+}
+
+function PseudoQR({ semilla, size = 84 }) {
+  const { n, celdas } = celdasQR(semilla);
+  return (
+    <svg viewBox={`0 0 ${n} ${n}`} width={size} height={size} shapeRendering="crispEdges" fill="currentColor">
+      {celdas.map(([x, y]) => <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" />)}
+    </svg>
+  );
+}
+
+/* El mismo QR, como texto, para el documento de impresión. */
+function svgQR(semilla, mm) {
+  const { n, celdas } = celdasQR(semilla);
+  const rects = celdas.map(([x, y]) => `<rect x="${x}" y="${y}" width="1" height="1"/>`).join("");
+  return `<svg viewBox="0 0 ${n} ${n}" width="${mm}mm" height="${mm}mm" shape-rendering="crispEdges" fill="#000" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
 }
 
 function Comandera({ lineas, ancho, qr, className = "" }) {
@@ -1583,7 +1644,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
         if (e.key === "Enter" || e.key === "Escape") return nuevaVenta();
         const k = e.key.toLowerCase();
         if (k === "t") return setVerTicket(true);
-        if (k === "i") { setVerTicket(true); return setTimeout(() => imprimir(toast), 60); }
+        if (k === "i") return imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ajustes.arca ? ticket.cae : null, toast);
         if (k === "w") return toast("Comprobante enviado por WhatsApp.");
         if (k === "e") return toast("Comprobante enviado por email.");
       }
@@ -1976,7 +2037,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
           <div className="p-5">
             <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-2">¿Querés comprobante?</div>
             <div className="grid grid-cols-4 gap-1.5">
-              {[[Printer, "Imprimir", "I", () => { setVerTicket(true); setTimeout(() => imprimir(toast), 60); }],
+              {[[Printer, "Imprimir", "I", () => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ajustes.arca ? ticket.cae : null, toast)],
                 [FileText, "Ver ticket", "T", () => setVerTicket(true)],
                 [MessageCircle, "WhatsApp", "W", () => toast("Comprobante enviado por WhatsApp.")],
                 [Mail, "Email", "E", () => toast("Comprobante enviado por email.")]].map(([I, n, k2, fn]) => (
@@ -1993,11 +2054,11 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
       {verTicket && ticket && (
         <Modal open onClose={() => setVerTicket(false)} ancho="max-w-md">
           <div className="p-5">
-            <div className="print-area bg-stone-100 rounded-xl p-3 overflow-auto">
+            <div className="bg-stone-100 rounded-xl p-3 overflow-auto">
               <Comandera lineas={ticketVenta(ticket, ajustes, W)} ancho={ajustes.ancho} qr={ajustes.arca ? ticket.cae : null} className="py-2 shadow-sm" />
             </div>
             <div className="grid grid-cols-2 gap-1.5 mt-3 no-print">
-              <Boton variant="ghost" onClick={() => imprimir(toast)}><Printer size={15} /> Imprimir</Boton>
+              <Boton variant="ghost" onClick={() => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ajustes.arca ? ticket.cae : null, toast)}><Printer size={15} /> Imprimir</Boton>
               <Boton variant="dark" onClick={() => setVerTicket(false)}>Cerrar</Boton>
             </div>
           </div>
@@ -2045,7 +2106,7 @@ function TicketModal({ t, onClose, ajustes, toast }) {
   if (!t) return null;
   const W = ajustes.ancho === 58 ? 32 : 48;
   const acciones = [
-    { i: Printer, n: "Imprimir", fn: () => imprimir(toast) },
+    { i: Printer, n: "Imprimir", fn: () => imprimirComandera(ticketVenta(t, ajustes, W), ajustes.ancho, ajustes.arca ? t.cae : null, toast) },
     { i: MessageCircle, n: "WhatsApp", fn: () => toast("Comprobante enviado por WhatsApp.") },
     { i: Mail, n: "Email", fn: () => toast("Comprobante enviado por email.") },
     { i: QrCode, n: "QR", fn: () => toast("QR en pantalla para el cliente.") },
@@ -2060,7 +2121,7 @@ function TicketModal({ t, onClose, ajustes, toast }) {
           </div>
           <span className="text-[11px] text-stone-400">Comandera {ajustes.ancho} mm</span>
         </div>
-        <div className="print-area bg-stone-100 rounded-xl p-3 mt-4 overflow-auto">
+        <div className="bg-stone-100 rounded-xl p-3 mt-4 overflow-auto">
           <Comandera lineas={ticketVenta(t, ajustes, W)} ancho={ajustes.ancho}
             qr={ajustes.arca ? t.cae : null} className="py-2 shadow-sm" />
         </div>
@@ -3805,7 +3866,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
               ))}
             </ul>
           ) : (
-            <div className="print-area bg-stone-100 rounded-xl p-3 mt-4 overflow-auto">
+            <div className="bg-stone-100 rounded-xl p-3 mt-4 overflow-auto">
               <Comandera lineas={comandaPicking({ ...ped, items }, W)} ancho={ajustes.ancho} className="py-2 shadow-sm" />
             </div>
           )}
@@ -3816,7 +3877,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
           )}
           {!libre && (
             <div className="grid grid-cols-2 gap-1.5 mt-4">
-              <Boton variant="ghost" onClick={() => imprimir(toast)}><Printer size={15} /> Imprimir comanda</Boton>
+              <Boton variant="ghost" onClick={() => imprimirComandera(comandaPicking({ ...ped, items }, W), ajustes.ancho, null, toast)}><Printer size={15} /> Imprimir comanda</Boton>
               <Boton variant="ghost" onClick={() => toast(`Aviso enviado a ${ped.cliente} por WhatsApp.`)}><MessageCircle size={15} /> Avisar al cliente</Boton>
             </div>
           )}
@@ -4762,13 +4823,9 @@ export default function App() {
         ::-webkit-scrollbar { width: 10px; height: 10px; }
         ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-        @media print {
-          @page { margin: 3mm; }
-          body * { visibility: hidden !important; }
-          .print-area, .print-area * { visibility: visible !important; }
-          .print-area { position: fixed !important; left: 0 !important; top: 0 !important; background: #fff !important; padding: 0 !important; border-radius: 0 !important; }
-          .no-print { display: none !important; }
-        }
+        /* La impresión se hace en un documento aparte (ver imprimirComandera),
+           así que acá no hace falta ocultar nada. */
+        @media print { .no-print { display: none !important; } }
       `}</style>
 
       {/* ============ PANTALLA DE COBRO (la de todo el día) ============ */}
