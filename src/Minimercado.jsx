@@ -4,7 +4,7 @@ import {
   Sparkles, Settings, Search, Plus, Minus, Trash2, X, Check, AlertTriangle,
   TrendingDown, TrendingUp, Printer, MessageCircle, Mail, QrCode, ArrowRight,
   Clock, ChevronLeft, ChevronRight, FileText, Store, Percent, CalendarDays,
-  CircleDollarSign, ArrowDownRight, ArrowUpRight, Send, Loader2, ClipboardList, Camera, Upload, FileImage, Bell, BellOff, Volume2 as Vol2, ScanLine, Volume2, VolumeX, Phone, Bike, PackageCheck
+  CircleDollarSign, ArrowDownRight, ArrowUpRight, Send, Loader2, ClipboardList, Camera, Upload, FileImage, Bell, BellOff, Volume2 as Vol2, Camera as Cam, CameraOff, Zap, ZapOff, ScanLine, Volume2, VolumeX, Phone, Bike, PackageCheck
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell
@@ -716,9 +716,9 @@ function Modal({ open, onClose, children, ancho = "max-w-lg" }) {
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
       <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`relative w-full ${ancho} bg-white rounded-2xl border border-stone-200 shadow-xl max-h-[88vh] overflow-auto`}>{children}</div>
+      <div className={`relative w-full ${ancho} bg-white rounded-t-3xl md:rounded-2xl border border-stone-200 shadow-xl max-h-[92vh] md:max-h-[88vh] overflow-auto seguro-abajo`}>{children}</div>
     </div>
   );
 }
@@ -1118,6 +1118,8 @@ function Inicio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar }) {
    ============================================================ */
 
 function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) {
+  const [camara, setCamara] = useState(false);
+  const [codigo, setCodigo] = useState("");
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
@@ -1128,11 +1130,11 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
     if (!abierto) return;
     setNombre((inicial && inicial.nombre) || "");
     setPrecio(""); setCosto(""); setPrecio2("");
+    setCodigo((inicial && inicial.barcode) || "");
     setTimeout(() => ref.current && ref.current.focus(), 30);
   }, [abierto, inicial]);
 
   if (!abierto) return null;
-  const codigo = (inicial && inicial.barcode) || "";
   const margen = Number(precio) && Number(costo) ? (Number(precio) - Number(costo)) / Number(precio) : null;
 
   const crear = (agregar) => {
@@ -1146,13 +1148,25 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
     if (e.key === "Enter") { e.preventDefault(); crear(!!Number(precio)); }
   };
 
+  if (camara) {
+    return <EscanerCamara abierto onCerrar={() => setCamara(false)} titulo="Leé el código del producto"
+      onLeer={(cod) => { setCodigo(cod); setCamara(false); }} />;
+  }
+
   return (
     <Overlay ancho="max-w-md">
       <div className="bg-orange-500 text-white px-5 py-3.5">
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-orange-100">
           <ScanLine size={13} /> Producto nuevo
         </div>
-        <div className="f-d text-xl mt-0.5">{codigo ? `Código ${codigo}` : "Sin código de barras"}</div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <div className="f-d text-xl flex-1">{codigo ? `Código ${codigo}` : "Sin código de barras"}</div>
+          {!codigo && (
+            <button onClick={() => setCamara(true)} className="flex items-center gap-1.5 text-xs font-semibold bg-white/20 active:bg-white/30 rounded-xl px-2.5 py-1.5">
+              <Cam size={14} /> Leer
+            </button>
+          )}
+        </div>
       </div>
       <div className="p-5" onKeyDown={teclas}>
         <p className="text-sm text-stone-600">
@@ -1210,11 +1224,150 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
   );
 }
 
+/* --- Lector por cámara -------------------------------------------------
+   Para el que no tiene pistola. Usa BarcodeDetector, que viene en Chrome de
+   Android y no pesa nada. Safari todavía no lo trae, así que ahí se carga
+   ZXing bajo demanda: solo lo descarga quien lo necesita.
+   Sigue leyendo sin cerrarse, para poder cargar varios productos seguidos.  */
+function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el código" }) {
+  const video = useRef(null);
+  const [estado, setEstado] = useState("iniciando");   // iniciando | leyendo | error
+  const [detalle, setDetalle] = useState("");
+  const [ultimo, setUltimo] = useState(null);
+  const [linterna, setLinterna] = useState(false);
+  const pista = useRef(null);
+  const ultimoCodigo = useRef({ cod: "", t: 0 });
+
+  useEffect(() => {
+    if (!abierto) return;
+    let vivo = true;
+    let stream = null, timer = null, controles = null;
+
+    const manejar = (cod) => {
+      const limpio = String(cod || "").trim();
+      if (!limpio) return;
+      const ahora = Date.now();
+      // Un código se lee muchas veces por segundo: se ignora el repetido.
+      if (ultimoCodigo.current.cod === limpio && ahora - ultimoCodigo.current.t < 1800) return;
+      ultimoCodigo.current = { cod: limpio, t: ahora };
+      setUltimo(limpio);
+      try { navigator.vibrate && navigator.vibrate(40); } catch (e) {}
+      onLeer(limpio);
+    };
+
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+          audio: false,
+        });
+        if (!vivo) { stream.getTracks().forEach((t) => t.stop()); return; }
+        pista.current = stream.getVideoTracks()[0];
+        if (video.current) {
+          video.current.srcObject = stream;
+          await video.current.play().catch(() => {});
+        }
+
+        if ("BarcodeDetector" in window) {
+          const det = new window.BarcodeDetector({
+            formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "itf"],
+          });
+          setEstado("leyendo");
+          timer = setInterval(async () => {
+            if (!vivo || !video.current || video.current.readyState < 2) return;
+            try {
+              const r = await det.detect(video.current);
+              if (r && r.length) manejar(r[0].rawValue);
+            } catch (e) { /* fotograma sin código */ }
+          }, 220);
+        } else {
+          // Safari y navegadores viejos: se trae el lector solo si hace falta.
+          setDetalle("Preparando el lector…");
+          const mod = await import(/* @vite-ignore */ "https://esm.sh/@zxing/browser@0.1.5");
+          if (!vivo) return;
+          const lector = new mod.BrowserMultiFormatReader();
+          controles = await lector.decodeFromVideoElement(video.current, (res) => {
+            if (res) manejar(res.getText());
+          });
+          setDetalle(""); setEstado("leyendo");
+        }
+      } catch (e) {
+        if (!vivo) return;
+        setEstado("error");
+        setDetalle(
+          e && e.name === "NotAllowedError"
+            ? "No diste permiso para usar la cámara. Habilitalo desde el candado de la barra de direcciones."
+            : e && e.name === "NotFoundError"
+              ? "Este dispositivo no tiene cámara disponible."
+              : `No se pudo abrir la cámara: ${e && e.message ? e.message : "error desconocido"}`
+        );
+      }
+    })();
+
+    return () => {
+      vivo = false;
+      if (timer) clearInterval(timer);
+      try { controles && controles.stop && controles.stop(); } catch (e) {}
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    };
+  }, [abierto]);
+
+  const cambiarLinterna = async () => {
+    try {
+      const t = pista.current;
+      if (!t) return;
+      const caps = t.getCapabilities ? t.getCapabilities() : {};
+      if (!caps.torch) return;
+      await t.applyConstraints({ advanced: [{ torch: !linterna }] });
+      setLinterna((v) => !v);
+    } catch (e) { /* sin linterna */ }
+  };
+
+  if (!abierto) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black flex flex-col">
+      <div className="flex items-center gap-3 px-4 py-3 text-white bg-black/80">
+        <Cam size={18} className="text-orange-400 shrink-0" />
+        <span className="font-semibold text-sm flex-1">{titulo}</span>
+        <button onClick={cambiarLinterna} className="p-2 text-white/70 active:text-white" title="Linterna">
+          {linterna ? <Zap size={18} /> : <ZapOff size={18} />}
+        </button>
+        <button onClick={onCerrar} className="p-2 text-white/70 active:text-white"><X size={20} /></button>
+      </div>
+
+      <div className="relative flex-1 overflow-hidden">
+        <video ref={video} playsInline muted autoPlay className="absolute inset-0 w-full h-full object-cover" />
+        {estado === "leyendo" && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-[78%] max-w-sm aspect-[5/3] border-2 border-orange-400 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+          </div>
+        )}
+        {estado !== "leyendo" && (
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
+            <div className="text-white">
+              {estado === "error" ? <CameraOff size={30} className="mx-auto text-red-400" /> : <Loader2 size={30} className="mx-auto animate-spin text-orange-400" />}
+              <p className="text-sm mt-3 max-w-xs">{detalle || "Encendiendo la cámara…"}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="px-4 py-3 bg-black/85 text-center seguro-abajo">
+        {ultimo
+          ? <p className="f-m text-sm text-emerald-400">Leído: {ultimo}</p>
+          : <p className="text-xs text-white/60">Acercá el código de barras al recuadro</p>}
+        <p className="text-[11px] text-white/40 mt-1">Podés seguir escaneando: la ventana no se cierra sola</p>
+      </div>
+    </div>
+  );
+}
+
 function Overlay({ children, ancho = "max-w-xl" }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
       <div className="absolute inset-0 bg-stone-900/70 backdrop-blur-[3px]" />
-      <div className={`relative w-full ${ancho} bg-white rounded-2xl border border-stone-200 shadow-2xl overflow-hidden`}>{children}</div>
+      <div className={`relative w-full ${ancho} bg-white rounded-t-3xl md:rounded-2xl border border-stone-200 shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto seguro-abajo`}>{children}</div>
     </div>
   );
 }
@@ -1243,6 +1396,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   const [ayuda, setAyuda] = useState(false);
   const [alta, setAlta] = useState(null);
   const [ultimo, setUltimo] = useState(null);
+  const [camara, setCamara] = useState(false);
   const inp = useRef(null);
   const inpMonto = useRef(null);
   const inpMix = useRef(null);
@@ -1278,7 +1432,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
     const p = productos.find((x) => x.barcode === cod);
     if (p) { add(p); beep(true, ajustes.sonido); }
     else { beep(false, ajustes.sonido); setAlta({ barcode: cod }); }
-  }, enCarga && !alta);
+  }, enCarga && !alta && !camara);
 
   useEffect(() => {
     if (!pendiente) return;
@@ -1368,7 +1522,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   // ---- Teclado ----
   useEffect(() => {
     const h = (e) => {
-      if (alta) return;
+      if (alta || camara) return;
       if (e.key === "F1") { e.preventDefault(); return setAyuda((a) => !a); }
       if (ayuda) { if (e.key === "Escape") { e.preventDefault(); setAyuda(false); } return; }
 
@@ -1436,7 +1590,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -1481,6 +1635,11 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
             <input ref={inp} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} onKeyDown={onKeyInput}
               placeholder="Escaneá o escribí el nombre · Enter con el campo vacío cobra"
               className="f-m flex-1 bg-transparent text-white placeholder-stone-500 text-base outline-none py-1" autoFocus />
+            <button onClick={() => setCamara(true)}
+              className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-white bg-white/10 active:bg-white/20 border border-white/20 rounded-xl px-2.5 py-2"
+              title="Leer con la cámara">
+              <Cam size={16} className="text-orange-400" /> <span className="hidden sm:inline">Cámara</span>
+            </button>
             <Tecla>Enter</Tecla>
           </div>
           {cantidadPendiente && (
@@ -1520,7 +1679,32 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
 
         <Card className="overflow-hidden">
           {cart.length === 0 ? <Vacio>El ticket está vacío. Escaneá el primer producto.</Vacio> : (
-            <table className="w-full text-sm">
+          <>
+            {/* En celular no entra una tabla de cinco columnas: va como lista */}
+            <ul className="md:hidden divide-y divide-stone-100">
+              {lineas.map((l, i) => (
+                <li key={l.pid} className={`px-3 py-2.5 ${i === lineas.length - 1 ? "bg-orange-50/40" : ""}`}>
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-stone-900 leading-snug">{l.nombre}</div>
+                      <div className="f-m text-[11px] text-stone-400 mt-0.5">
+                        {l.lista === 2 && <span className="line-through mr-1">{money(l.precio)}</span>}
+                        <span className={l.lista === 2 ? "text-emerald-700 font-semibold" : ""}>{money(l.unit)}</span> c/u
+                        {l.lista === 2 && <span className="ml-1 text-emerald-700 font-bold">L2</span>}
+                      </div>
+                    </div>
+                    <div className="f-m text-base font-semibold shrink-0">{money(l.importe)}</div>
+                    <button onClick={() => quitar(l.pid)} className="text-stone-300 active:text-red-600 shrink-0 p-1"><Trash2 size={16} /></button>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button onClick={() => setQty(l.pid, l.qty - (l.unidad === "kg" ? 0.25 : 1))} className="w-10 h-10 rounded-xl border border-stone-200 flex items-center justify-center active:bg-stone-100"><Minus size={16} /></button>
+                    <span className="f-m w-14 text-center text-base">{l.unidad === "kg" ? l.qty.toFixed(2) : l.qty}</span>
+                    <button onClick={() => setQty(l.pid, l.qty + (l.unidad === "kg" ? 0.25 : 1))} className="w-10 h-10 rounded-xl border border-stone-200 flex items-center justify-center active:bg-stone-100"><Plus size={16} /></button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <table className="hidden md:table w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
                   <th className="px-4 py-2 font-semibold">Producto</th>
@@ -1568,6 +1752,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
                 ))}
               </tbody>
             </table>
+          </>
           )}
         </Card>
 
@@ -1577,14 +1762,28 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
           </p>
         )}
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+        <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
           {ATAJOS.map(([t, n]) => (
             <span key={t} className="flex items-center gap-1.5 text-[11px] text-stone-400"><Tecla>{t}</Tecla> {n}</span>
           ))}
         </div>
       </div>
 
-      <div className="space-y-3 lg:sticky lg:top-4">
+      {/* En celular el total y el botón de cobrar viven fijos al pie, al alcance del pulgar */}
+      {cart.length > 0 && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 px-3 py-2.5 seguro-abajo shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{cart.length} productos</div>
+              <div className="f-d text-2xl leading-none">{money(total)}</div>
+              {ahorroTotal > 0 && <div className="text-[11px] text-emerald-700">−{money(ahorroTotal)} por cantidad</div>}
+            </div>
+            <Boton onClick={irAPago} size="lg" className="flex-1 justify-center">Cobrar</Boton>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3 lg:sticky lg:top-4 pb-24 md:pb-0">
         <Card className="p-4">
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-stone-500">{cart.length} productos</span>
@@ -1805,6 +2004,14 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
         </Modal>
       )}
 
+      <EscanerCamara abierto={camara} onCerrar={() => setCamara(false)}
+        titulo="Escaneá los productos"
+        onLeer={(cod) => {
+          const p = productos.find((x) => x.barcode === cod);
+          if (p) { add(p); beep(true, ajustes.sonido); toast(`${p.nombre} · ${money(p.precio)}`); }
+          else { beep(false, ajustes.sonido); setCamara(false); setAlta({ barcode: cod }); }
+        }} />
+
       <AltaRapida abierto={!!alta} inicial={alta} productos={productos} ajustes={ajustes}
         onClose={() => { setAlta(null); setQ(""); }} onCrear={crearAlVuelo} />
 
@@ -1924,7 +2131,7 @@ function FormProducto({ abierto, inicial, productos, provs, onGuardar, onClose }
           </Campo>
         </div>
 
-        <div className="grid md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Campo label="Costo">
             <input value={d.costo || ""} onChange={(e) => set("costo", e.target.value.replace(/\D/g, ""))} className={`${inputCls} f-m text-right`} />
           </Campo>
@@ -1958,7 +2165,7 @@ function FormProducto({ abierto, inicial, productos, provs, onGuardar, onClose }
           </div>
         )}
 
-        <div className="grid md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Campo label="Stock actual">
             <input value={d.stock || ""} onChange={(e) => set("stock", e.target.value.replace(/[^\d.]/g, ""))} className={`${inputCls} f-m text-right`} />
           </Campo>
@@ -2115,11 +2322,42 @@ function Productos({ productos, setProductos, toast, focoInicial, provs }) {
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${filtro === k ? "bg-stone-900 text-white border-stone-900" : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"}`}>{n}</button>
         ))}
         <span className="text-xs text-stone-400 self-center ml-1">{nf.format(lista.length)} productos</span>
-        <Boton size="sm" className="ml-auto" onClick={() => setAlta({})}><Plus size={14} /> Nuevo producto</Boton>
+        <Boton size="sm" className="ml-auto shrink-0" onClick={() => setAlta({})}><Plus size={14} /> <span className="hidden sm:inline">Nuevo producto</span><span className="sm:hidden">Nuevo</span></Boton>
       </div>
 
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Siete columnas no entran en un celular: mismos datos, otra forma */}
+        <ul className="md:hidden divide-y divide-stone-100">
+          {visibles.map((p) => {
+            const m = p.precio ? (p.precio - p.costo) / p.precio : 0;
+            const cob = p.vel > 0 ? p.stock / p.vel : 99;
+            const faltan = faltantesProducto(p);
+            return (
+              <li key={p.id}>
+                <button onClick={() => setAbierto(p.id)} className="w-full text-left px-3 py-2.5 active:bg-orange-50/60">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-stone-900 leading-snug">{p.nombre}</div>
+                      <div className="f-m text-[11px] text-stone-400">{p.categoria}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="f-m text-sm font-semibold">{p.precio ? money(p.precio) : <span className="text-amber-600 text-xs">sin precio</span>}</div>
+                      {p.precio2 && <div className="text-[10px] text-emerald-600">L2 {money(p.precio2)}</div>}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px]">
+                    <span className="f-m text-stone-500">Stock <span className={cob < 4 ? "text-red-600 font-semibold" : "text-stone-700"}>{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span></span>
+                    <span className="f-m text-stone-500">Costo {money(p.costo)}</span>
+                    {p.precio > 0 && <span className={`f-m ${m < 0.14 ? "text-red-600" : m < 0.22 ? "text-amber-600" : "text-emerald-600"}`}>{pct(m, 0)}</span>}
+                    <span className="f-m text-stone-400">{nf.format(p.u30)} u/mes</span>
+                    {faltan.length > 0 && <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">incompleta</span>}
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200 bg-stone-50">
@@ -2462,7 +2700,7 @@ function Stock({ productos, setProductos, k, toast }) {
 function TablaSimple({ cols, filas, vacio }) {
   if (!filas.length) return <Vacio>{vacio}</Vacio>;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
       <table className="w-full text-sm min-w-[680px]">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
@@ -2733,7 +2971,7 @@ function CargarCompra({ productos, setProductos, movCaja, toast, provs, setProvs
               y van a aparecer en el aviso de fichas incompletas.
             </div>
           )}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto [-webkit-overflow-scrolling:touch] -mx-4 px-4 md:mx-0 md:px-0">
             <table className="w-full text-sm min-w-[880px]">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
@@ -3288,6 +3526,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
   const [q, setQ] = useState("");
   const [cerrando, setCerrando] = useState(false);
   const [ticket, setTicket] = useState(null);
+  const [camara, setCamara] = useState(false);
   const libre = !!ped.libre;
 
   useEffect(() => {
@@ -3348,7 +3587,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
     setUltimo({ pid: l.pid, nombre: l.nombre, preparado: nuevos[i].preparado, pedido: l.pedido, unidad: l.unidad });
   };
 
-  useScanHandler(registrar, !cerrando && !ticket);
+  useScanHandler(registrar, !cerrando && !ticket && !camara);
 
   const agregarExtra = (p) => {
     const nuevos = [...items, { pid: p.id, nombre: p.nombre, barcode: p.barcode, precio: p.precio, unidad: p.unidad, pedido: 1, preparado: 1, faltante: 0, extra: true }];
@@ -3440,6 +3679,10 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
         <div className="flex items-center justify-center gap-2 text-white/70 text-[11px] uppercase tracking-widest font-semibold">
           <ScanLine size={14} /> {libre ? "Pistola activa · cargá el changuito" : "Pistola activa · dispará sobre el producto"}
         </div>
+        <button onClick={() => setCamara(true)}
+          className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-white/15 active:bg-white/25 border border-white/25 rounded-xl px-3 py-1.5">
+          <Cam size={14} /> Usar la cámara
+        </button>
         {error ? (
           <>
             <div className="f-d text-white text-xl mt-2">{error.msg}</div>
@@ -3531,7 +3774,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
         </div>
       </Card>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 sticky bottom-20 md:bottom-4 bg-white border border-stone-200 rounded-2xl p-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 sticky bottom-24 md:bottom-4 bg-white border border-stone-200 rounded-2xl p-3 shadow-sm z-30">
         <div className="text-sm">
           <span className="text-stone-500">{libre ? "Total " : "Preparado "}</span><span className="f-d text-xl">{money(monto)}</span>
           {faltantes.length > 0 && <span className="text-red-600 text-xs font-semibold ml-2">{faltantes.length} sin stock</span>}
@@ -3593,6 +3836,10 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
           </div>
         </div>
       </Modal>
+
+      <EscanerCamara abierto={camara} onCerrar={() => setCamara(false)}
+        titulo={libre ? "Cargá el changuito" : `Preparando ${ped.nro}`}
+        onLeer={(cod) => registrar(cod)} />
 
       <TicketModal t={ticket} onClose={() => { setTicket(null); volver(); }} ajustes={ajustes} toast={toast} />
     </div>
@@ -4222,7 +4469,7 @@ function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaja, toas
           <button onClick={onClose} className="text-stone-400 hover:text-stone-900"><X size={18} /></button>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 mt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
           {[["Stock", p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)], ["Alcanza", cobertura > 90 ? "+90 d" : `${Math.round(cobertura)} d`],
             ["Precio", money(p.precio)], ["Margen", pct(m, 0)]].map(([l, v]) => (
             <div key={l} className="bg-stone-50 rounded-xl p-2 text-center">
@@ -4286,7 +4533,7 @@ function TarjetaCobro({ c, onCerrar }) {
   }, []);
 
   return (
-    <div className={`w-72 bg-white border border-emerald-300 rounded-2xl shadow-xl overflow-hidden transition-all duration-500 ${saliendo ? "opacity-0 translate-x-6" : "opacity-100"}`}>
+    <div className={`w-[calc(100vw-2.5rem)] max-w-xs md:w-72 bg-white border border-emerald-300 rounded-2xl shadow-xl overflow-hidden transition-all duration-500 ${saliendo ? "opacity-0 translate-x-6" : "opacity-100"}`}>
       <div className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white">
         <Bell size={14} className="shrink-0" />
         <span className="text-[10px] uppercase tracking-widest font-bold flex-1">Cobro recibido</span>
@@ -4305,7 +4552,7 @@ function TarjetaCobro({ c, onCerrar }) {
 function AvisoCobro({ cobros, onCerrar }) {
   if (!cobros.length) return null;
   return (
-    <div className="fixed bottom-24 md:bottom-20 right-5 z-[60] flex flex-col gap-2 items-end pointer-events-none">
+    <div className="fixed bottom-28 md:bottom-20 right-4 md:right-5 z-[60] flex flex-col gap-2 items-end pointer-events-none">
       {cobros.slice(-4).map((c) => (
         <div key={c.id} className="pointer-events-auto"><TarjetaCobro c={c} onCerrar={onCerrar} /></div>
       ))}
@@ -4507,6 +4754,11 @@ export default function App() {
         .f-d { font-family: 'Bricolage Grotesque', 'Inter Tight', sans-serif; font-weight: 700; letter-spacing: -0.02em; }
         .f-m { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
         input, select, button { font-family: inherit; }
+        /* iOS hace zoom si un campo tiene menos de 16px: se fuerza en pantallas chicas */
+        @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } }
+        .seguro-abajo { padding-bottom: env(safe-area-inset-bottom, 0px); }
+        .bajo-seguro { bottom: calc(env(safe-area-inset-bottom, 0px)); }
+        html { -webkit-text-size-adjust: 100%; }
         ::-webkit-scrollbar { width: 10px; height: 10px; }
         ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
@@ -4532,10 +4784,10 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-5 ml-auto order-3 md:order-2 w-full md:w-auto">
+              <div className="flex items-center gap-4 md:gap-5 ml-auto order-3 md:order-2 w-full md:w-auto overflow-x-auto">
                 {[["Vendido hoy", money(ventasHoy)], ["Tickets", nf.format(ticketsHoy)],
                   ["Caja", caja.abierta ? "abierta" : "cerrada"]].map(([l, v]) => (
-                  <div key={l}>
+                  <div key={l} className="shrink-0">
                     <div className="text-[9px] uppercase tracking-widest text-stone-500 font-bold">{l}</div>
                     <div className="f-m text-sm">{v}</div>
                   </div>
@@ -4556,7 +4808,7 @@ export default function App() {
               aPanel={() => { setVista("panel"); setTab("inicio"); }} />
           </main>
 
-          <footer className="px-4 py-2 text-center text-[11px] text-stone-400 border-t border-stone-200 bg-white">
+          <footer className="hidden md:block px-4 py-2 text-center text-[11px] text-stone-400 border-t border-stone-200 bg-white">
             F1 muestra todos los atajos · F2 cobra · F10 abre el Panel
           </footer>
         </div>
@@ -4597,7 +4849,7 @@ export default function App() {
         </aside>
 
         {/* Navegación móvil */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 overflow-x-auto">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 overflow-x-auto seguro-abajo">
           <div className="flex">
             <button onClick={cobrar_} className="flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 text-white bg-orange-500">
               <Barcode size={17} /> Cobrar
@@ -4613,8 +4865,8 @@ export default function App() {
 
         <main className="flex-1 min-w-0 p-4 md:p-6 pb-24 md:pb-8">
           <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
-            <div>
-              <h1 className="f-d text-2xl">{titulo}</h1>
+            <div className="min-w-0">
+              <h1 className="f-d text-xl md:text-2xl">{titulo}</h1>
               <p className="text-sm text-stone-500">{bajada}</p>
             </div>
             <div className="flex items-center gap-2 text-xs text-stone-500">
@@ -4657,7 +4909,7 @@ export default function App() {
         vender={(p) => { setFicha(null); setPendientePOS({ id: p.id, t: Date.now() }); cobrar_(); }}
         verFicha={(p) => { setFicha(null); ir("productos"); }} />
 
-      <div className="fixed bottom-20 md:bottom-5 right-5 z-50 space-y-2">
+      <div className="fixed bottom-44 md:bottom-5 right-4 md:right-5 z-50 space-y-2 max-w-[calc(100vw-2rem)]">
         {toasts.map((t) => (
           <div key={t.id} className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl shadow-lg border ${t.tono === "mal" ? "bg-red-600 text-white border-red-700" : "bg-stone-900 text-white border-stone-800"}`}>
             {t.tono === "mal" ? <AlertTriangle size={15} /> : <Check size={15} className="text-emerald-400" />} {t.texto}
