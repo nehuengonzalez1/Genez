@@ -4,7 +4,7 @@ import {
   Sparkles, Settings, Search, Plus, Minus, Trash2, X, Check, AlertTriangle,
   TrendingDown, TrendingUp, Printer, MessageCircle, Mail, QrCode, ArrowRight,
   Clock, ChevronLeft, ChevronRight, FileText, Store, Percent, CalendarDays,
-  CircleDollarSign, ArrowDownRight, ArrowUpRight, Send, Loader2, ClipboardList, Camera, Upload, FileImage, Bell, BellOff, Volume2 as Vol2, Camera as Cam, CameraOff, Zap, ZapOff, ScanLine, Volume2, VolumeX, Phone, Bike, PackageCheck
+  CircleDollarSign, ArrowDownRight, ArrowUpRight, Send, Loader2, ClipboardList, Camera, Upload, FileImage, Bell, BellOff, Volume2 as Vol2, Camera as Cam, CameraOff, Users, Zap, ZapOff, ScanLine, Volume2, VolumeX, Phone, Bike, PackageCheck
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell
@@ -526,6 +526,46 @@ const MEDIOS_INICIALES = [
   { k: "transferencia", n: "Transferencia", tasa: 0, recargo: false, activo: true },
 ];
 
+/* --- Régimen fiscal ----------------------------------------------------
+   Qué comprobante se puede emitir no lo decide el cajero: lo determina la
+   condición del que vende cruzada con la del que compra.
+   Un monotributista siempre emite C. Un responsable inscripto emite A si le
+   vende a otro responsable inscripto, y B en los demás casos.              */
+const CONDICIONES = [
+  { k: "RI", n: "Responsable Inscripto", corto: "Resp. Inscripto" },
+  { k: "MONOTRIBUTO", n: "Monotributista", corto: "Monotributo" },
+  { k: "EXENTO", n: "IVA Exento", corto: "Exento" },
+  { k: "CF", n: "Consumidor Final", corto: "Cons. Final" },
+];
+
+const condicionNombre = (k) => (CONDICIONES.find((c) => c.k === k) || { n: k || "—" }).n;
+
+function letraComprobante(emisor, cliente) {
+  if (emisor === "MONOTRIBUTO" || emisor === "EXENTO") return "C";
+  return cliente === "RI" ? "A" : "B";
+}
+
+/* La factura A discrimina el IVA; en B y C va incluido en el precio. */
+function discriminaIVA(letra) {
+  return letra === "A";
+}
+
+const FISCAL_INICIAL = {
+  razonSocial: "Minimercado El Progreso",
+  cuit: "30-71234567-4",
+  condicion: "RI",
+  iibb: "901-234567-8",
+  inicio: "01/03/2019",
+  puntoVenta: "0001",
+  domicilio: "Av. San Martín 1204 · Caseros",
+};
+
+const CLIENTES_INICIALES = [
+  { id: "c1", razonSocial: "Almacén de Vicky", doc: "27-31456789-4", tipoDoc: "CUIT", condicion: "RI", domicilio: "Sarmiento 88", email: "", tel: "11 4478-9032" },
+  { id: "c2", razonSocial: "Rotisería Don Luis", doc: "20-28765432-1", tipoDoc: "CUIT", condicion: "MONOTRIBUTO", domicilio: "Belgrano 415", email: "", tel: "" },
+  { id: "c3", razonSocial: "Marta Gómez", doc: "27.345.678", tipoDoc: "DNI", condicion: "CF", domicilio: "Rivadavia 2140", email: "", tel: "11 5031-7742" },
+];
+
 function mediosDe(ajustes) {
   const ms = (ajustes && ajustes.medios) || MEDIOS_INICIALES;
   return ms.filter((m) => m.activo !== false);
@@ -1039,38 +1079,65 @@ function Comandera({ lineas, ancho, qr, className = "" }) {
 }
 
 function ticketVenta(t, ajustes, W) {
+  const f = ajustes.fiscal || FISCAL_INICIAL;
+  const cli = t.cliente || null;
+  const letra = t.fiscal ? letraComprobante(f.condicion, cli ? cli.condicion : "CF") : null;
+  const discrimina = letra && discriminaIVA(letra);
+
   const b = [
-    { t: "c", v: ajustes.negocio.toUpperCase() },
-    { t: "c", v: "Av. San Martin 1204 - Caseros" },
-    { t: "c", v: `CUIT ${ajustes.cuit}` },
-    { t: "c", v: t.fiscal ? "IVA RESPONSABLE INSCRIPTO" : "NO VALIDO COMO FACTURA" },
-    { t: "sep", c: "=" },
-    { t: "c", v: t.fiscal ? "FACTURA B" : "TICKET DE VENTA" },
-    { t: "lr", a: `Nro ${t.nro}`, b: `${fdatel(HOY)} ${t.hora}` },
-    { t: "sep" },
+    { t: "c", v: (f.razonSocial || ajustes.negocio).toUpperCase() },
+    { t: "c", v: f.domicilio || "" },
+    { t: "c", v: `CUIT ${f.cuit}` },
+    { t: "c", v: t.fiscal ? condicionNombre(f.condicion).toUpperCase() : "NO VALIDO COMO FACTURA" },
   ];
+  if (t.fiscal && f.iibb) b.push({ t: "c", v: `IIBB ${f.iibb}  Inicio ${f.inicio || ""}`.trim() });
+  b.push({ t: "sep", c: "=" });
+  b.push({ t: "c", v: t.fiscal ? `FACTURA ${letra}` : "TICKET DE VENTA" });
+  b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${fdatel(HOY)} ${t.hora}` });
+
+  if (t.fiscal) {
+    b.push({ t: "sep" });
+    b.push({ t: "w", v: `CLIENTE: ${(cli ? cli.razonSocial : "CONSUMIDOR FINAL").toUpperCase()}` });
+    if (cli) {
+      b.push({ t: "v", v: `${cli.tipoDoc || "CUIT"} ${cli.doc}` });
+      b.push({ t: "w", v: condicionNombre(cli.condicion).toUpperCase() });
+      if (cli.domicilio) b.push({ t: "w", v: cli.domicilio.toUpperCase() });
+    }
+  }
+
+  b.push({ t: "sep" });
   for (const l of t.items) {
     b.push({ t: "w", v: l.nombre.toUpperCase() });
-    const cant = l.unidad === "kg" ? `${l.qty.toFixed(3)} kg x ${money(l.precio)}` : `${l.qty} x ${money(l.precio)}`;
-    b.push({ t: "lr", a: "  " + cant, b: money(l.precio * l.qty) });
+    // En factura A los importes van sin IVA, porque se discrimina al pie.
+    const unit = discrimina ? l.precio / 1.21 : l.precio;
+    const cant = l.unidad === "kg" ? `${l.qty.toFixed(3)} kg x ${money(unit)}` : `${l.qty} x ${money(unit)}`;
+    b.push({ t: "lr", a: "  " + cant, b: money(unit * l.qty) });
     if (l.lista) b.push({ t: "v", v: `  ${String(l.listaNombre || "PRECIO ESPECIAL").toUpperCase()}` });
   }
+
   b.push({ t: "sep" });
-  b.push({ t: "lr", a: "SUBTOTAL", b: money(t.sub) });
-  if (t.desc > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc) });
-  if (t.recargo > 0) b.push({ t: "lr", a: `RECARGO ${t.recargoNombre || ""}`.trim(), b: "+" + money(t.recargo) });
+  if (discrimina) {
+    const neto = t.total / 1.21;
+    b.push({ t: "lr", a: "SUBTOTAL NETO", b: money(neto) });
+    b.push({ t: "lr", a: "IVA 21%", b: money(t.total - neto) });
+  } else {
+    b.push({ t: "lr", a: "SUBTOTAL", b: money(t.sub) });
+    if (t.desc > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc) });
+    if (t.recargo > 0) b.push({ t: "lr", a: `RECARGO ${t.recargoNombre || ""}`.trim(), b: "+" + money(t.recargo) });
+  }
   b.push({ t: "sep", c: "=" });
   b.push({ t: "lr", a: "TOTAL", b: money(t.total) });
   b.push({ t: "sep", c: "=" });
+
   const pagos = t.pagos && t.pagos.length ? t.pagos : [{ medio: t.medio, monto: t.total }];
   pagos.forEach((p) => b.push({ t: "lr", a: medioPorK(ajustes, p.medio).n.toUpperCase(), b: money(p.monto) }));
   if (t.recibe) {
     b.push({ t: "lr", a: "RECIBIDO EN EFECTIVO", b: money(t.recibe) });
     b.push({ t: "lr", a: "VUELTO", b: money(t.vuelto != null ? t.vuelto : t.recibe - t.total) });
   }
+
   if (t.fiscal) {
     b.push({ t: "b" });
-    b.push({ t: "lr", a: `IVA 21%`, b: money(t.total - t.total / 1.21) });
     b.push({ t: "c", v: `CAE ${t.cae}` });
     b.push({ t: "c", v: `Vto CAE ${fdatel(addDays(HOY, 10))}` });
   }
@@ -1615,6 +1682,45 @@ function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el códig
   );
 }
 
+function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
+  const [q, setQ] = useState("");
+  const [nuevo, setNuevo] = useState(false);
+  const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const lista = q.trim().length >= 1
+    ? clientes.filter((c) => norm(c.razonSocial).includes(norm(q)) || String(c.doc || "").includes(q.trim()))
+    : clientes.slice(0, 8);
+
+  if (nuevo) {
+    return <FormCliente abierto inicial={{ razonSocial: q }} onCerrar={() => setNuevo(false)} onGuardar={(d) => onCrear(d)} />;
+  }
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5">
+        <h3 className="f-d text-lg">¿A quién se le factura?</h3>
+        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Nombre o CUIT"
+          className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm mt-3 outline-none focus:border-orange-400" />
+        <button onClick={() => onElegir(null)} className="w-full text-left px-3 py-2.5 mt-3 rounded-xl border border-stone-200 hover:bg-stone-50">
+          <span className="text-sm font-semibold">Consumidor final</span>
+          <span className="block text-[11px] text-stone-400">Sin datos del cliente</span>
+        </button>
+        <ul className="mt-2 border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-64 overflow-auto">
+          {lista.map((c) => (
+            <li key={c.id}>
+              <button onClick={() => onElegir(c)} className="w-full text-left px-3 py-2 hover:bg-stone-50">
+                <div className="text-sm font-medium">{c.razonSocial}</div>
+                <div className="f-m text-[11px] text-stone-400">{c.tipoDoc} {c.doc} · {condicionNombre(c.condicion)}</div>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {lista.length === 0 && <p className="text-sm text-stone-400 text-center py-3">No hay coincidencias.</p>}
+        <Boton variant="ghost" className="w-full mt-3" onClick={() => setNuevo(true)}><Plus size={15} /> Cargar un cliente nuevo</Boton>
+      </div>
+    </Modal>
+  );
+}
+
 function Overlay({ children, ancho = "max-w-xl" }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
@@ -1633,7 +1739,7 @@ const ATAJOS = [
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
-function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel }) {
+function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, setClientes }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → monto → fin
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -1731,6 +1837,9 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   const medio = medios[medioSel] || medios[0];
 
   const [fiscal, setFiscal] = useState(!!ajustes.arca);
+  const [cliente, setCliente] = useState(null);
+  const [buscarCliente, setBuscarCliente] = useState(false);
+  const letra = letraComprobante((ajustes.fiscal || FISCAL_INICIAL).condicion, cliente ? cliente.condicion : "CF");
   const rec = conRecargo(total, medio);
   const totalFinal = rec.total;
   // El vuelto se calcula sobre el total con recargo, así que va después.
@@ -1739,7 +1848,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   const irAPago = () => {
     if (!cart.length) return;
     setMedioSel(0); setRecibe(""); setPagos([]); setMontoMix("");
-    setFiscal(!!ajustes.arca);
+    setFiscal(!!ajustes.arca); setCliente(null);
     setPaso("pago");
   };
 
@@ -1771,7 +1880,8 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
     const m = medioPorK(ajustes, k);
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
     const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
-      recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "", fiscal });
+      recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
+      fiscal, cliente });
     if (vueltoDado != null) t.vuelto = vueltoDado;
     setProductos((ps) => ps.map((p) => {
       const l = lineas.find((x) => x.pid === p.id);
@@ -1782,14 +1892,14 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   };
 
   const nuevaVenta = () => {
-    setCart([]); setDesc(0); setRecibe(""); setMedioSel(0); setPagos([]); setMontoMix(""); setUltimo(null);
+    setCart([]); setDesc(0); setRecibe(""); setMedioSel(0); setPagos([]); setMontoMix(""); setUltimo(null); setCliente(null);
     setTicket(null); setVerTicket(false); setPaso("carga");
   };
 
   // ---- Teclado ----
   useEffect(() => {
     const h = (e) => {
-      if (alta || camara) return;
+      if (alta || camara || buscarCliente) return;
       if (e.key === "F1") { e.preventDefault(); return setAyuda((a) => !a); }
       if (ayuda) { if (e.key === "Escape") { e.preventDefault(); setAyuda(false); } return; }
 
@@ -1857,7 +1967,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -2094,9 +2204,23 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
               <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">¿Cómo paga?</span>
               <div className="flex rounded-xl border border-stone-200 overflow-hidden text-xs font-semibold">
                 <button onClick={() => setFiscal(false)} className={`px-3 py-1.5 ${!fiscal ? "bg-stone-900 text-white" : "text-stone-500"}`}>Ticket</button>
-                <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-stone-900 text-white" : "text-stone-500"}`}>Factura</button>
+                <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-stone-900 text-white" : "text-stone-500"}`}>Factura {fiscal ? letra : ""}</button>
               </div>
             </div>
+
+            {fiscal && (
+              <button onClick={() => setBuscarCliente(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-left">
+                <Users size={16} className="text-stone-400 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold truncate">{cliente ? cliente.razonSocial : "Consumidor final"}</span>
+                  <span className="block text-[11px] text-stone-400">
+                    {cliente ? `${cliente.tipoDoc} ${cliente.doc} · ${condicionNombre(cliente.condicion)}` : "Sin identificar · toca para elegir un cliente"}
+                  </span>
+                </span>
+                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border bg-stone-900 text-white border-stone-900 shrink-0">{letra}</span>
+              </button>
+            )}
             <ul className="space-y-1.5">
               {medios.map((m, i) => (
                 <li key={m.k}>
@@ -2125,6 +2249,12 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
             </p>
           </div>
         </Overlay>
+      )}
+
+      {buscarCliente && (
+        <BuscarCliente clientes={clientes} onCerrar={() => setBuscarCliente(false)}
+          onElegir={(c) => { setCliente(c); setBuscarCliente(false); }}
+          onCrear={(d) => { const nuevo = { ...d, id: "c" + uid() }; setClientes((cs) => [...cs, nuevo]); setCliente(nuevo); setBuscarCliente(false); toast(`${d.razonSocial} agregado.`); }} />
       )}
 
       {/* ---------- Ventana 2b: efectivo ---------- */}
@@ -4446,6 +4576,133 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
 }
 
 /* ============================================================
+   9 ter. CLIENTES
+   ============================================================ */
+
+function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
+  const [d, setD] = useState({});
+  useEffect(() => { if (abierto) setD({ tipoDoc: "CUIT", condicion: "CF", ...(inicial || {}) }); }, [abierto, inicial]);
+  if (!abierto) return null;
+  const set = (c, v) => setD((x) => ({ ...x, [c]: v }));
+  const necesitaCuit = d.condicion === "RI" || d.condicion === "MONOTRIBUTO" || d.condicion === "EXENTO";
+  const faltaCuit = necesitaCuit && (!d.doc || d.tipoDoc !== "CUIT");
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-lg">
+      <div className="p-5">
+        <h3 className="f-d text-lg">{d.id ? "Editar cliente" : "Nuevo cliente"}</h3>
+        <div className="space-y-3 mt-4">
+          <Campo label="Razón social o nombre">
+            <input value={d.razonSocial || ""} onChange={(e) => set("razonSocial", e.target.value)} autoFocus className={inputCls} />
+          </Campo>
+          <Campo label="Condición frente al IVA">
+            <select value={d.condicion} onChange={(e) => set("condicion", e.target.value)} className={inputCls}>
+              {CONDICIONES.map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
+            </select>
+          </Campo>
+          <div className="grid grid-cols-3 gap-3">
+            <Campo label="Tipo">
+              <select value={d.tipoDoc} onChange={(e) => set("tipoDoc", e.target.value)} className={inputCls}>
+                <option>CUIT</option><option>DNI</option><option>CUIL</option>
+              </select>
+            </Campo>
+            <label className="block col-span-2">
+              <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Número</span>
+              <input value={d.doc || ""} onChange={(e) => set("doc", e.target.value)} className={`${inputCls} f-m`} />
+            </label>
+          </div>
+          <Campo label="Domicilio"><input value={d.domicilio || ""} onChange={(e) => set("domicilio", e.target.value)} className={inputCls} /></Campo>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo label="Email"><input value={d.email || ""} onChange={(e) => set("email", e.target.value)} className={inputCls} /></Campo>
+            <Campo label="Teléfono"><input value={d.tel || ""} onChange={(e) => set("tel", e.target.value)} className={`${inputCls} f-m`} /></Campo>
+          </div>
+        </div>
+
+        {faltaCuit && (
+          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 mt-4">
+            Un {condicionNombre(d.condicion).toLowerCase()} necesita CUIT para que la factura sea válida.
+            Sin eso, la venta va a salir como Factura B.
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
+          <Boton onClick={() => onGuardar(d)} disabled={!d.razonSocial}><Check size={15} /> Guardar</Boton>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function Clientes({ clientes, setClientes, tickets, ajustes, toast }) {
+  const [q, setQ] = useState("");
+  const [alta, setAlta] = useState(null);
+  const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const lista = q.trim().length >= 2
+    ? clientes.filter((c) => norm(c.razonSocial).includes(norm(q)) || String(c.doc || "").includes(q.trim()))
+    : clientes;
+  const emisor = (ajustes.fiscal || FISCAL_INICIAL).condicion;
+
+  const facturadoA = (id) => tickets.filter((t) => t.cliente && t.cliente.id === id).reduce((s, t) => s + t.total, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o CUIT"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-stone-200 rounded-xl outline-none focus:border-orange-400 bg-white" />
+        </div>
+        <Boton size="sm" onClick={() => setAlta({})}><Plus size={14} /> Nuevo cliente</Boton>
+      </div>
+
+      <Card className="overflow-hidden">
+        {lista.length === 0 ? <Vacio>No hay clientes cargados. Los necesitás solo para emitir facturas: la venta al mostrador no requiere ninguno.</Vacio> : (
+          <ul className="divide-y divide-stone-100">
+            {lista.map((c) => {
+              const letra = letraComprobante(emisor, c.condicion);
+              const total = facturadoA(c.id);
+              return (
+                <li key={c.id}>
+                  <button onClick={() => setAlta(c)} className="w-full text-left px-4 py-3 hover:bg-stone-50 flex flex-wrap items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-stone-900">{c.razonSocial}</div>
+                      <div className="f-m text-[11px] text-stone-400">
+                        {c.tipoDoc} {c.doc || "sin número"} · {condicionNombre(c.condicion)}
+                        {c.tel ? ` · ${c.tel}` : ""}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${
+                      letra === "A" ? "bg-stone-900 text-white border-stone-900" : "bg-stone-100 text-stone-600 border-stone-200"}`}>
+                      Factura {letra}
+                    </span>
+                    {total > 0 && <span className="f-m text-sm text-stone-500">{money(total)}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+
+      <p className="text-xs text-stone-500">
+        La letra la calcula el sistema: sos <strong>{condicionNombre(emisor)}</strong>, así que a un responsable inscripto
+        le emitís {letraComprobante(emisor, "RI")} y al resto {letraComprobante(emisor, "CF")}.
+        Se cambia en Ajustes, en Datos fiscales.
+      </p>
+
+      <FormCliente abierto={!!alta} inicial={alta} onCerrar={() => setAlta(null)}
+        onGuardar={(d) => {
+          if (d.id) setClientes((cs) => cs.map((c) => (c.id === d.id ? { ...c, ...d } : c)));
+          else setClientes((cs) => [...cs, { ...d, id: "c" + uid() }]);
+          setAlta(null);
+          toast(`${d.razonSocial} guardado.`);
+        }} />
+    </div>
+  );
+}
+
+/* ============================================================
    10. CAJA
    ============================================================ */
 
@@ -4854,21 +5111,64 @@ function Asistente({ k, ins, ir, negocio }) {
    ============================================================ */
 
 function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, mp, setMp, simularCobro }) {
+  const f = ajustes.fiscal || FISCAL_INICIAL;
+  const setFiscal = (cambios) => setAjustes({ ...ajustes, fiscal: { ...f, ...cambios } });
   return (
     <div className="max-w-2xl space-y-4">
       <Card className="p-5">
-        <h3 className="f-d text-lg">Datos del negocio</h3>
+        <h3 className="f-d text-lg">Datos fiscales</h3>
+        <p className="text-sm text-stone-500 mt-1">
+          Tu condición determina qué comprobantes podés emitir, y el sistema la aplica sola.
+          Un monotributista emite siempre Factura C. Un responsable inscripto emite A cuando le vende a otro
+          responsable inscripto, y B en los demás casos.
+        </p>
+
         <div className="grid md:grid-cols-2 gap-3 mt-4">
-          <label className="text-sm">
-            <span className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold">Nombre</span>
-            <input value={ajustes.negocio} onChange={(e) => setAjustes({ ...ajustes, negocio: e.target.value })}
-              className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm mt-1 outline-none focus:border-orange-400" />
-          </label>
-          <label className="text-sm">
-            <span className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold">CUIT</span>
-            <input value={ajustes.cuit} onChange={(e) => setAjustes({ ...ajustes, cuit: e.target.value })}
-              className="f-m w-full border border-stone-200 rounded-xl px-3 py-2 text-sm mt-1 outline-none focus:border-orange-400" />
-          </label>
+          <Campo label="Razón social">
+            <input value={f.razonSocial || ""} onChange={(e) => setFiscal({ razonSocial: e.target.value })} className={inputCls} />
+          </Campo>
+          <Campo label="Condición frente al IVA">
+            <select value={f.condicion} onChange={(e) => setFiscal({ condicion: e.target.value })} className={inputCls}>
+              {CONDICIONES.filter((c) => c.k !== "CF").map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
+            </select>
+          </Campo>
+          <Campo label="CUIT">
+            <input value={f.cuit || ""} onChange={(e) => setFiscal({ cuit: e.target.value })} className={`${inputCls} f-m`} />
+          </Campo>
+          <Campo label="Ingresos Brutos">
+            <input value={f.iibb || ""} onChange={(e) => setFiscal({ iibb: e.target.value })} className={`${inputCls} f-m`} />
+          </Campo>
+          <Campo label="Inicio de actividades">
+            <input value={f.inicio || ""} onChange={(e) => setFiscal({ inicio: e.target.value })} placeholder="01/03/2019" className={`${inputCls} f-m`} />
+          </Campo>
+          <Campo label="Punto de venta">
+            <input value={f.puntoVenta || ""} onChange={(e) => setFiscal({ puntoVenta: e.target.value })} className={`${inputCls} f-m`} />
+          </Campo>
+          <div className="md:col-span-2">
+            <Campo label="Domicilio comercial">
+              <input value={f.domicilio || ""} onChange={(e) => setFiscal({ domicilio: e.target.value })} className={inputCls} />
+            </Campo>
+          </div>
+          <div className="md:col-span-2">
+            <Campo label="Nombre en pantalla (no sale en los comprobantes)">
+              <input value={ajustes.negocio} onChange={(e) => setAjustes({ ...ajustes, negocio: e.target.value })} className={inputCls} />
+            </Campo>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm">
+          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-1.5">Qué vas a emitir</div>
+          <ul className="space-y-1 text-stone-600">
+            <li>A un <strong>responsable inscripto</strong>: Factura <strong>{letraComprobante(f.condicion, "RI")}</strong>
+              {discriminaIVA(letraComprobante(f.condicion, "RI")) ? ", con IVA discriminado al pie." : ", con IVA incluido en el precio."}</li>
+            <li>A un <strong>consumidor final</strong> o monotributista: Factura <strong>{letraComprobante(f.condicion, "CF")}</strong>, con IVA incluido.</li>
+          </ul>
+          {f.condicion !== "RI" && (
+            <p className="text-xs text-stone-500 mt-2">
+              Como {condicionNombre(f.condicion).toLowerCase()} no discriminás IVA, así que la Factura A no aplica
+              aunque el cliente sea responsable inscripto.
+            </p>
+          )}
         </div>
       </Card>
 
@@ -5267,6 +5567,7 @@ function AvisoCobro({ cobros, onCerrar }) {
 const NAV = [
   { k: "inicio", n: "Inicio", i: LayoutDashboard },
   { k: "pedidos", n: "Pedidos", i: ClipboardList },
+  { k: "clientes", n: "Clientes", i: Users },
   { k: "productos", n: "Productos", i: Package },
   { k: "stock", n: "Stock", i: Boxes },
   { k: "compras", n: "Compras", i: Truck },
@@ -5279,6 +5580,7 @@ const NAV = [
 const TITULOS = {
   inicio: ["Inicio", "Cómo viene el negocio hoy"],
   pedidos: ["Pedidos", "Preparación con pistola y control de faltantes"],
+  clientes: ["Clientes", "Para emitir facturas A, B o C según corresponda"],
   productos: ["Productos", "Costos, precios y margen de todo tu catálogo"],
   stock: ["Stock", "Qué reponer, qué vence y qué no se mueve"],
   compras: ["Compras", "Cargar remitos, pedidos sugeridos y proveedores"],
@@ -5297,8 +5599,9 @@ export default function App() {
   const [pedidos, setPedidos] = useState([]);
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
   const [provs, setProvs] = useState(PROV_INFO);
+  const [clientes, setClientes] = useState(CLIENTES_INICIALES);
   const [altaProd, setAltaProd] = useState(null);
-  const [ajustes, setAjustes] = useState({ negocio: "Minimercado El Progreso", cuit: "30-71234567-4", arca: false, medios: MEDIOS_INICIALES, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
+  const [ajustes, setAjustes] = useState({ negocio: "Minimercado El Progreso", cuit: "30-71234567-4", arca: false, medios: MEDIOS_INICIALES, fiscal: FISCAL_INICIAL, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
   const [toasts, setToasts] = useState([]);
 
   const hoyDiario = DATA.diario[DATA.diario.length - 1];
@@ -5340,7 +5643,7 @@ export default function App() {
     movimientos: [...c.movimientos, { id: uid(), hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), ...m }],
   }));
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente }) => {
     const nro = `0001-${String(48210 + tickets.length + 1).padStart(8, "0")}`;
     const ps = pagos && pagos.length ? pagos : [{ medio, monto: total }];
     const t = {
@@ -5348,6 +5651,7 @@ export default function App() {
       hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
       items, sub, desc, total, medio: ps[0].medio, pagos: ps, ganancia, recibe: recibe || null,
       recargo: recargo || 0, recargoNombre: recargoNombre || "", fiscal: fiscal != null ? fiscal : !!ajustes.arca,
+      cliente: cliente || null,
     };
     setTickets((x) => [t, ...x]);
     // Un movimiento de caja por medio de pago: así el arqueo y el reporte
@@ -5502,7 +5806,7 @@ export default function App() {
           <main className="flex-1 p-3 md:p-5">
             <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
               toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
-              aPanel={() => { setVista("panel"); setTab("inicio"); }} />
+              aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} setClientes={setClientes} />
           </main>
 
           <footer className="hidden md:block px-4 py-2 text-center text-[11px] text-stone-400 border-t border-stone-200 bg-white">
@@ -5576,6 +5880,7 @@ export default function App() {
 
           {tab === "inicio" && <Inicio k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy} ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
+          {tab === "clientes" && <Clientes clientes={clientes} setClientes={setClientes} tickets={tickets} ajustes={ajustes} toast={toast} />}
           {tab === "productos" && <Productos key={foco || "todos"} productos={productos} setProductos={setProductos} toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes} />}
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
           {tab === "compras" && <Compras productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
