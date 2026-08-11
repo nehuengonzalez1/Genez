@@ -4,7 +4,7 @@ import {
   Sparkles, Settings, Search, Plus, Minus, Trash2, X, Check, AlertTriangle,
   TrendingDown, TrendingUp, Printer, MessageCircle, Mail, QrCode, ArrowRight,
   Clock, ChevronLeft, ChevronRight, FileText, Store, Percent, CalendarDays,
-  CircleDollarSign, ArrowDownRight, ArrowUpRight, Send, Loader2, ClipboardList, Camera, Upload, FileImage, Bell, BellOff, Volume2 as Vol2, Camera as Cam, CameraOff, Users, Zap, ZapOff, ScanLine, Volume2, VolumeX, Phone, Bike, PackageCheck
+  CircleDollarSign, ArrowDownRight, ArrowUpRight, Send, Loader2, ClipboardList, Camera, Upload, FileImage, Bell, BellOff, Volume2 as Vol2, Camera as Cam, CameraOff, Users, Sun, Moon, Zap, ZapOff, ScanLine, Volume2, VolumeX, Phone, Bike, PackageCheck
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell
@@ -808,7 +808,7 @@ function Modal({ open, onClose, children, ancho = "max-w-lg" }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
       <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`relative w-full ${ancho} bg-white rounded-t-3xl md:rounded-2xl border border-stone-200 shadow-xl max-h-[92vh] md:max-h-[88vh] overflow-auto seguro-abajo`}>{children}</div>
+      <div className={`relative w-full ${ancho} bg-white text-stone-900 rounded-t-3xl md:rounded-2xl border border-stone-200 shadow-xl max-h-[92vh] md:max-h-[88vh] overflow-auto seguro-abajo`}>{children}</div>
     </div>
   );
 }
@@ -1725,7 +1725,7 @@ function Overlay({ children, ancho = "max-w-xl" }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
       <div className="absolute inset-0 bg-stone-900/70 backdrop-blur-[3px]" />
-      <div className={`relative w-full ${ancho} bg-white rounded-t-3xl md:rounded-2xl border border-stone-200 shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto seguro-abajo`}>{children}</div>
+      <div className={`relative w-full ${ancho} bg-white text-stone-900 rounded-t-3xl md:rounded-2xl border border-stone-200 shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto seguro-abajo`}>{children}</div>
     </div>
   );
 }
@@ -5708,7 +5708,7 @@ function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar })
           <div className="flex flex-wrap gap-1.5">
             {alcance.length === 0 && <span className="text-sm text-stone-400">Ningún módulo: el comercio no tiene contratado nada de lo que este rol alcanza.</span>}
             {alcance.map((k) => (
-              <span key={k} className="text-[11px] px-2 py-0.5 rounded-lg bg-white border border-stone-200">{(MODULOS.find((m) => m.k === k) || {}).n}</span>
+              <span key={k} className="text-[11px] px-2 py-0.5 rounded-lg bg-white border border-stone-200 text-stone-700">{(MODULOS.find((m) => m.k === k) || {}).n}</span>
             ))}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[11px] text-stone-500">
@@ -5728,7 +5728,7 @@ function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar })
   );
 }
 
-function PanelValik({ sesion, comercios, setComercios, onEntrarComo, onSalir }) {
+function PanelValik({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema }) {
   const [abierto, setAbierto] = useState(null);       // comercio en detalle
   const [altaUsuario, setAltaUsuario] = useState(null);
   const [altaComercio, setAltaComercio] = useState(false);
@@ -5751,6 +5751,7 @@ function PanelValik({ sesion, comercios, setComercios, onEntrarComo, onSalir }) 
         <span className="text-[10px] uppercase tracking-widest text-orange-400 font-bold border border-orange-500/40 rounded px-1.5 py-0.5">Administración</span>
         <div className="ml-auto flex items-center gap-3">
           <span className="text-sm text-stone-400 hidden sm:block">{sesion.nombre}</span>
+          <BotonTema tema={tema} setTema={setTema} oscuroFijo />
           <button onClick={onSalir} className="text-sm text-stone-400 hover:text-white">Salir</button>
         </div>
       </header>
@@ -5903,6 +5904,22 @@ function PanelValik({ sesion, comercios, setComercios, onEntrarComo, onSalir }) 
   );
 }
 
+function BotonTema({ tema, setTema, oscuroFijo = false }) {
+  const oscuro = tema === "oscuro";
+  return (
+    <button
+      onClick={() => setTema(oscuro ? "claro" : "oscuro")}
+      title={oscuro ? "Pasar a modo claro" : "Pasar a modo oscuro"}
+      aria-label={oscuro ? "Pasar a modo claro" : "Pasar a modo oscuro"}
+      className={`shrink-0 w-9 h-9 rounded-xl border flex items-center justify-center transition-colors ${
+        oscuroFijo
+          ? "border-stone-700 text-stone-400 hover:text-white hover:border-stone-600"
+          : "border-stone-200 text-stone-500 hover:text-stone-900 hover:bg-stone-50"}`}>
+      {oscuro ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
+}
+
 function LogoValik({ size = 40, claro = false }) {
   return (
     <svg viewBox="0 0 64 64" width={size} height={size} aria-label="Valik">
@@ -6008,7 +6025,7 @@ const TITULOS = {
   ajustes: ["Ajustes", "Configuración del negocio y del sistema"],
 };
 
-function Sistema({ sesion, onSalir, setComercios }) {
+function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const { modulos, permisos, esPlataforma } = permisosDe(sesion);
   const puedeVer = (k) => k === "inicio" || modulos.includes(k);
   const [vista, setVista] = useState(modulos.includes("cobro") ? "cobro" : "panel");
@@ -6190,6 +6207,38 @@ function Sistema({ sesion, onSalir, setComercios }) {
         /* La impresión se hace en un documento aparte (ver imprimirComandera),
            así que acá no hace falta ocultar nada. */
         @media print { .no-print { display: none !important; } }
+
+        /* --- Modo oscuro -------------------------------------------------
+           El sistema tiene miles de clases de color escritas a mano. En vez
+           de duplicarlas todas, se remapean acá los tonos que realmente se
+           usan. Un solo lugar para mantener, y el resto del código no se
+           entera de que existe un tema.                                    */
+        .tema-oscuro { color-scheme: dark; }
+        .tema-oscuro .bg-stone-50, .tema-oscuro .hover\:bg-stone-50:hover { background-color: #1c1917 !important; }
+        .tema-oscuro .bg-white { background-color: #1c1917 !important; }
+        .tema-oscuro .bg-stone-100, .tema-oscuro .hover\:bg-stone-200:hover { background-color: #292524 !important; }
+        .tema-oscuro .bg-stone-200 { background-color: #44403c !important; }
+        .tema-oscuro .text-stone-900 { color: #fafaf9 !important; }
+        .tema-oscuro .text-stone-800, .tema-oscuro .text-stone-700 { color: #e7e5e4 !important; }
+        .tema-oscuro .text-stone-600, .tema-oscuro .text-stone-500 { color: #a8a29e !important; }
+        .tema-oscuro .text-stone-400, .tema-oscuro .text-stone-300 { color: #78716c !important; }
+        .tema-oscuro .border-stone-200, .tema-oscuro .border-stone-100 { border-color: #292524 !important; }
+        .tema-oscuro .divide-stone-100 > * + *, .tema-oscuro .divide-stone-200 > * + * { border-color: #292524 !important; }
+        .tema-oscuro .focus\:border-orange-400:focus { border-color: #fb923c !important; }
+        /* Los fondos suaves de aviso pierden contraste en oscuro */
+        .tema-oscuro .bg-amber-50 { background-color: #2b1f0a !important; }
+        .tema-oscuro .bg-emerald-50 { background-color: #04231a !important; }
+        .tema-oscuro .bg-red-50 { background-color: #2a0f0f !important; }
+        .tema-oscuro .bg-orange-50 { background-color: #2a1608 !important; }
+        .tema-oscuro .text-amber-800, .tema-oscuro .text-amber-700 { color: #fcd34d !important; }
+        .tema-oscuro .text-emerald-800, .tema-oscuro .text-emerald-700 { color: #6ee7b7 !important; }
+        .tema-oscuro .text-red-800, .tema-oscuro .text-red-700, .tema-oscuro .text-red-600 { color: #fca5a5 !important; }
+        .tema-oscuro .border-amber-200 { border-color: #78350f !important; }
+        .tema-oscuro .border-emerald-200 { border-color: #065f46 !important; }
+        .tema-oscuro .border-red-200 { border-color: #7f1d1d !important; }
+        .tema-oscuro .border-orange-200 { border-color: #7c2d12 !important; }
+        .tema-oscuro .shadow-sm, .tema-oscuro .shadow-lg, .tema-oscuro .shadow-xl { box-shadow: 0 1px 3px rgba(0,0,0,.5) !important; }
+        .tema-oscuro body, .tema-oscuro .bg-stone-25 { background-color: #0c0a09 !important; }
       `}</style>
 
       {/* ============ PANTALLA DE COBRO (la de todo el día) ============ */}
@@ -6294,7 +6343,8 @@ function Sistema({ sesion, onSalir, setComercios }) {
               <CalendarDays size={14} /> {fdatel(HOY)}
               <span className="text-stone-300">·</span>
               <span className="f-m">{money(ventasHoy)} hoy</span>
-              <Boton size="sm" variant="dark" className="ml-2 md:hidden" onClick={cobrar_}><Barcode size={14} /> Cobrar</Boton>
+              <BotonTema tema={tema} setTema={setTema} />
+              <Boton size="sm" variant="dark" className="md:hidden" onClick={cobrar_}><Barcode size={14} /> Cobrar</Boton>
             </div>
           </header>
 
@@ -6350,12 +6400,15 @@ function Sistema({ sesion, onSalir, setComercios }) {
 export default function App() {
   const [comercios, setComercios] = useState(COMERCIOS_INICIALES);
   const [sesion, setSesion] = useState(null);
+  const [tema, setTema] = useState("claro");
+  const envolver = (hijo) => <div className={tema === "oscuro" ? "tema-oscuro min-h-screen bg-stone-950" : ""}>{hijo}</div>;
 
-  if (!sesion) return <Login comercios={comercios} onEntrar={setSesion} />;
+  if (!sesion) return envolver(<Login comercios={comercios} onEntrar={setSesion} />);
 
   if (sesion.tipo === "plataforma" && !sesion.viendo) {
-    return (
+    return envolver(
       <PanelValik
+        tema={tema} setTema={setTema}
         sesion={sesion}
         comercios={comercios}
         setComercios={setComercios}
@@ -6371,9 +6424,10 @@ export default function App() {
     ? { tipo: "comercio", comercio, rol: "dueno", nombre: sesion.nombre, usuario: sesion.usuario }
     : sesion;
 
-  return (
+  return envolver(
     <Sistema
       key={comercio.id}
+      tema={tema} setTema={setTema}
       sesion={sesionSistema}
       setComercios={setComercios}
       onSalir={() => setSesion(sesion.viendo ? { ...sesion, viendo: null } : null)}
