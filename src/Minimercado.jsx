@@ -2491,6 +2491,7 @@ function FormProveedor({ abierto, inicial, onGuardar, onClose }) {
 function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes }) {
   const [alta, setAlta] = useState(null);
   const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
+  const [modoPrecios, setModoPrecios] = useState(false);
   const [leyendo, setLeyendo] = useState(false);
   const archivo = useRef(null);
   const [q, setQ] = useState("");
@@ -2564,6 +2565,14 @@ function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${filtro === k ? "bg-stone-900 text-white border-stone-900" : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"}`}>{n}</button>
         ))}
         <span className="text-xs text-stone-400 self-center ml-1">{nf.format(lista.length)} productos</span>
+        {modoPrecios && (
+          <span className="text-xs text-stone-500 basis-full sm:basis-auto">
+            Editando precios: cada cambio se guarda solo. El porcentaje debajo es el margen.
+          </span>
+        )}
+        <Boton size="sm" variant={modoPrecios ? "dark" : "ghost"} onClick={() => setModoPrecios((v) => !v)}>
+          <Percent size={14} /> <span className="hidden sm:inline">{modoPrecios ? "Salir de precios" : "Editar precios"}</span>
+        </Boton>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           <input ref={archivo} type="file" accept=".xlsx,.xls,.csv" className="hidden"
             onChange={async (e) => {
@@ -2589,7 +2598,7 @@ function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes
 
       <Card className="overflow-hidden">
         {/* Siete columnas no entran en un celular: mismos datos, otra forma */}
-        <ul className="md:hidden divide-y divide-stone-100">
+        <ul className={`${modoPrecios ? "hidden" : "md:hidden"} divide-y divide-stone-100`}>
           {visibles.map((p) => {
             const m = p.precio ? (p.precio - p.costo) / p.precio : 0;
             const cob = p.vel > 0 ? p.stock / p.vel : 99;
@@ -2621,6 +2630,63 @@ function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes
             );
           })}
         </ul>
+        {modoPrecios ? (
+          <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+            <table className="w-full text-sm min-w-[680px]">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200 bg-stone-50">
+                  <th className="px-4 py-2.5 font-semibold">Producto</th>
+                  <th className="px-2 py-2.5 font-semibold text-right w-24">Costo</th>
+                  <th className="px-2 py-2.5 font-semibold text-right w-32">General</th>
+                  {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
+                    <th key={l.id} className="px-2 py-2.5 font-semibold text-right w-32">
+                      {l.nombre}<div className="font-normal normal-case text-[10px] text-stone-400">desde {l.umbral} u</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {visibles.map((p) => {
+                  const mg = (v) => (Number(v) > 0 ? (Number(v) - p.costo) / Number(v) : null);
+                  const celda = (valor, alGuardar) => {
+                    const m2 = mg(valor);
+                    return (
+                      <td className="px-2 py-1.5 text-right">
+                        <input value={valor || ""} onChange={(e) => alGuardar(Number(e.target.value.replace(/\D/g, "")))}
+                          placeholder="—"
+                          className={`f-m w-24 text-right border rounded-lg px-2 py-1 text-sm outline-none focus:border-orange-400 ${
+                            m2 != null && m2 < 0.08 ? "border-red-300 bg-red-50" : "border-stone-200"}`} />
+                        {m2 != null && <div className={`text-[10px] ${m2 < 0.08 ? "text-red-600" : "text-stone-400"}`}>{pct(m2, 0)}</div>}
+                      </td>
+                    );
+                  };
+                  return (
+                    <tr key={p.id} className="hover:bg-stone-50">
+                      <td className="px-4 py-1.5">
+                        <div className="font-medium text-stone-900">{p.nombre}</div>
+                        <div className="f-m text-[11px] text-stone-400">{p.categoria}</div>
+                      </td>
+                      <td className="px-2 py-1.5 text-right f-m text-stone-500">{money(p.costo)}</td>
+                      {celda(p.precio, (n) => actualizar(p.id, { precio: n }))}
+                      {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
+                        <React.Fragment key={l.id}>
+                          {celda((p.precios || {})[l.id], (n) => {
+                            const cp = { ...(p.precios || {}) };
+                            if (n > 0) cp[l.id] = n; else delete cp[l.id];
+                            actualizar(p.id, { precios: cp });
+                          })}
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {(ajustes.listas || []).filter((l) => l.activa !== false).length === 0 && (
+              <Vacio>No hay listas creadas. Creá una en Ajustes para poder cargarle precios.</Vacio>
+            )}
+          </div>
+        ) : (
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
             <thead>
@@ -2678,6 +2744,7 @@ function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes
             </tbody>
           </table>
         </div>
+        )}
         {lista.length === 0 && <Vacio>No hay productos con esos filtros. Probá con otra búsqueda.</Vacio>}
         {paginas > 1 && (
           <div className="flex items-center justify-between px-4 py-2.5 border-t border-stone-200 text-xs text-stone-500">
@@ -2690,7 +2757,7 @@ function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes
         )}
       </Card>
 
-      <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} editar={(p) => { setAbierto(null); setAlta(p); }} />
+      <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} />
 
       <ImportarPlanilla resumen={planilla} listas={ajustes.listas || []} onCerrar={() => setPlanilla(null)}
         onAplicar={() => {
@@ -2854,7 +2921,7 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
   );
 }
 
-function FichaProducto({ p, onClose, actualizar, editar }) {
+function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
   const [precio, setPrecio] = useState("");
   useEffect(() => { if (p) setPrecio(String(p.precio)); }, [p && p.id]);
   if (!p) return null;
@@ -2927,9 +2994,54 @@ function FichaProducto({ p, onClose, actualizar, editar }) {
           </ResponsiveContainer>
         </div>
 
+        {(ajustes && ajustes.listas ? ajustes.listas : []).filter((l) => l.activa !== false).length > 0 && (
+          <div className="border border-stone-200 rounded-xl p-4">
+            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Precios por lista</div>
+            <ul className="divide-y divide-stone-100">
+              <li className="flex items-center gap-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">Precio general</div>
+                  <div className="text-[11px] text-stone-400">siempre · margen {pct(m, 0)}</div>
+                </div>
+                <span className="f-m text-sm w-28 text-right">{money(p.precio)}</span>
+              </li>
+              {ajustes.listas.filter((l) => l.activa !== false).map((l) => {
+                const v = (p.precios || {})[l.id] || "";
+                const sug = Math.round((p.precio * (1 - (ajustes.desc2 || 10) / 100)) / 10) * 10;
+                const mv = Number(v) > 0 ? (Number(v) - p.costo) / Number(v) : null;
+                return (
+                  <li key={l.id} className="flex items-center gap-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">{l.nombre}</div>
+                      <div className="text-[11px] text-stone-400">
+                        desde {l.umbral} u
+                        {mv != null && <span className={mv < 0.08 ? " text-red-600" : ""}> · margen {pct(mv, 0)}</span>}
+                        {!v && p.precio > 0 && (
+                          <button onClick={() => actualizar(p.id, { precios: { ...(p.precios || {}), [l.id]: sug } }, `${l.nombre}: ${money(sug)}`)}
+                            className="ml-1 font-semibold text-orange-600 hover:underline">poner {money(sug)}</button>
+                        )}
+                      </div>
+                    </div>
+                    <input value={v}
+                      onChange={(e) => {
+                        const n = Number(e.target.value.replace(/\D/g, ""));
+                        const cp = { ...(p.precios || {}) };
+                        if (n > 0) cp[l.id] = n; else delete cp[l.id];
+                        actualizar(p.id, { precios: cp });
+                      }}
+                      placeholder="—"
+                      className="f-m w-28 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-[11px] text-stone-400 mt-2">Vacío significa que este producto no entra en esa lista.</p>
+          </div>
+        )}
+
         <div className="grid md:grid-cols-2 gap-4">
           <div className="border border-stone-200 rounded-xl p-4">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Cambiar precio</div>
+            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Cambiar precio general</div>
             <div className="flex gap-2">
               <input value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
                 className="f-m flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400" />
