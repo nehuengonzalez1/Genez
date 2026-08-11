@@ -5587,10 +5587,10 @@ function AvisoCobro({ cobros, onCerrar }) {
    ============================================================ */
 
 /* ============================================================
-   0. VALIK · plataforma, comercios, roles y permisos
+   0. GENEZ · plataforma, comercios, roles y permisos
    ============================================================
 
-   El sistema del comercio es un inquilino dentro de Valik. Quién entra
+   El sistema del comercio es un inquilino dentro de Genez. Quién entra
    determina a qué comercio accede, qué módulos ve y qué puede hacer adentro.
 
    Hoy los datos viven en memoria: alcanza para mostrar el producto completo,
@@ -5739,7 +5739,7 @@ function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar })
   );
 }
 
-function PanelValik({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema }) {
+function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema }) {
   const [abierto, setAbierto] = useState(null);       // comercio en detalle
   const [altaUsuario, setAltaUsuario] = useState(null);
   const [altaComercio, setAltaComercio] = useState(false);
@@ -5757,8 +5757,7 @@ function PanelValik({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
   return (
     <div className="min-h-screen bg-stone-950 text-white">
       <header className="border-b border-stone-800 px-4 md:px-6 py-3 flex items-center gap-3">
-        <LogoValik size={32} claro />
-        <span className="f-d text-xl tracking-tight">valik</span>
+        <LogoGenez size={34} claro conNombre />
         <span className="text-[10px] uppercase tracking-widest text-orange-400 font-bold border border-orange-500/40 rounded px-1.5 py-0.5">Administración</span>
         <div className="ml-auto flex items-center gap-3">
           <span className="text-sm text-stone-400 hidden sm:block">{sesion.nombre}</span>
@@ -5931,13 +5930,26 @@ function BotonTema({ tema, setTema, oscuroFijo = false }) {
   );
 }
 
-function LogoValik({ size = 40, claro = false }) {
+/* El isotipo va incrustado como imagen para no depender de archivos sueltos
+   que se puedan perder al mover el proyecto. Dos versiones del mismo trazo:
+   oscura para fondos claros y clara para fondos oscuros. La palabra GENEZ va
+   como texto, así se mantiene nítida a cualquier tamaño. */
+const GENEZ_OSCURO = "data:image/png;base64,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";
+const GENEZ_CLARO = "data:image/png;base64,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";
+
+function LogoGenez({ size = 40, claro = false, conNombre = false }) {
+  const marca = (
+    <img src={claro ? GENEZ_CLARO : GENEZ_OSCURO} alt="Genez"
+      width={size} height={size} style={{ width: size, height: size, objectFit: "contain" }} />
+  );
+  if (!conNombre) return marca;
   return (
-    <svg viewBox="0 0 64 64" width={size} height={size} aria-label="Valik">
-      <rect width="64" height="64" rx="16" fill={claro ? "#FFFFFF" : "#0F0F0F"} />
-      <path d="M17 27.5 L29.5 45.5" stroke={claro ? "#0F0F0F" : "#FFFFFF"} strokeWidth="6.5" strokeLinecap="round" fill="none" />
-      <path d="M29.5 45.5 L48 17" stroke="#F97316" strokeWidth="6.5" strokeLinecap="round" fill="none" />
-    </svg>
+    <span className="flex items-center gap-2.5">
+      {marca}
+      <span className="f-d tracking-tight leading-none" style={{ fontSize: size * 0.72 }}>
+        gene<span className="text-orange-500">z</span>
+      </span>
+    </span>
   );
 }
 
@@ -5970,8 +5982,7 @@ function Login({ comercios, onEntrar }) {
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3">
-            <LogoValik size={44} claro />
-            <span className="f-d text-3xl tracking-tight">valik</span>
+            <LogoGenez size={52} claro conNombre />
           </div>
           <p className="text-stone-400 text-sm mt-3">Sistemas de gestión para comercios.</p>
 
@@ -6418,7 +6429,7 @@ export default function App() {
 
   if (sesion.tipo === "plataforma" && !sesion.viendo) {
     return envolver(
-      <PanelValik
+      <PanelGenez
         tema={tema} setTema={setTema}
         sesion={sesion}
         comercios={comercios}
