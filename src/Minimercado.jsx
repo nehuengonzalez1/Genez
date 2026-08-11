@@ -5739,10 +5739,11 @@ function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar })
   );
 }
 
-function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema }) {
+function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema, imagenFondo, setImagenFondo }) {
   const [abierto, setAbierto] = useState(null);       // comercio en detalle
   const [altaUsuario, setAltaUsuario] = useState(null);
   const [altaComercio, setAltaComercio] = useState(false);
+  const archivoFondo = useRef(null);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const c = comercios.find((x) => x.id === abierto) || null;
 
@@ -5805,6 +5806,50 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                 </button>
               ))}
             </div>
+
+            <section className="mt-8">
+              <h2 className="text-[11px] uppercase tracking-widest text-stone-500 font-bold mb-2">Imagen del login</h2>
+              <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
+                <div className="flex flex-wrap items-start gap-4">
+                  <div className="w-40 h-28 rounded-xl overflow-hidden border border-stone-800 shrink-0 relative bg-stone-950">
+                    {imagenFondo
+                      ? <img src={imagenFondo} alt="Fondo del login" className="w-full h-full object-cover" />
+                      : <div className="absolute inset-0 flex items-center justify-center text-[11px] text-stone-600 text-center px-2">Panel generado por el sistema</div>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-stone-400">
+                      Podés reemplazar el panel izquierdo del login por una imagen propia. Se recorta al centro,
+                      así que dejá los bordes sin nada importante.
+                    </p>
+                    <ul className="text-[11px] text-stone-500 mt-2 space-y-0.5">
+                      <li><strong className="text-stone-400">Medida ideal:</strong> 1400 × 2000 px (vertical, proporción 7:10).</li>
+                      <li><strong className="text-stone-400">Zona segura:</strong> los 200 px del borde derecho se funden con el fondo.</li>
+                      <li><strong className="text-stone-400">Peso:</strong> hasta 2 MB. JPG o PNG.</li>
+                      <li>En celular no se muestra: ahí el login va a pantalla completa.</li>
+                    </ul>
+                    <div className="flex items-center gap-2 mt-3">
+                      <input ref={archivoFondo} type="file" accept="image/*" className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files[0]; e.target.value = "";
+                          if (!f) return;
+                          if (f.size > 2 * 1024 * 1024) return alert("La imagen supera los 2 MB. Reducila y volvé a intentar.");
+                          const lector = new FileReader();
+                          lector.onload = () => setImagenFondo(lector.result);
+                          lector.readAsDataURL(f);
+                        }} />
+                      <button onClick={() => archivoFondo.current && archivoFondo.current.click()}
+                        className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-stone-950 font-bold rounded-xl px-3.5 py-2 text-sm">
+                        <Upload size={15} /> Cargar imagen
+                      </button>
+                      {imagenFondo && (
+                        <button onClick={() => setImagenFondo(null)}
+                          className="text-sm text-stone-400 hover:text-white px-2">Volver al panel del sistema</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
           </>
         ) : (
           <>
@@ -5981,53 +6026,97 @@ function LogoGenez({ size = 40, claro = false, conNombre = false }) {
   );
 }
 
-/* Panel hexagonal del login. Va dibujado en SVG y no como imagen: pesa unos
-   pocos kilobytes, se adapta a cualquier tamaño de pantalla sin pixelarse, y
-   el resplandor naranja se puede mover cambiando un solo punto.            */
-function FondoHexagonal() {
-  const filas = 9, columnas = 7, r = 62;
-  const ancho = Math.sqrt(3) * r, alto = 2 * r;
-  const centro = { x: 210, y: 500 };   // desde acá irradia la luz
+/* Panel hexagonal del login.
+   El relieve se logra con dos cosas: un degradado diagonal por celda (claro
+   arriba-izquierda, oscuro abajo-derecha para los salientes, invertido para
+   los hundidos) y una sombra propia en el borde inferior. Cada hexágono
+   recibe una profundidad al azar pero estable, así el panel no "baila" entre
+   recargas.
+   Se puede reemplazar por una imagen propia desde Ajustes de la plataforma. */
+function FondoHexagonal({ imagen }) {
+  if (imagen) {
+    return <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${imagen})` }} aria-hidden="true" />;
+  }
+
+  const filas = 11, columnas = 8, r = 62;
+  const anchoHex = Math.sqrt(3) * r, altoHex = 2 * r;
+  const centro = { x: 200, y: 520 };
+  const rnd = mulberry32(7);
 
   const celdas = [];
   for (let f = 0; f < filas; f++) {
     for (let c = 0; c < columnas; c++) {
-      const x = c * ancho + (f % 2 ? ancho / 2 : 0);
-      const y = f * alto * 0.75;
+      const x = c * anchoHex + (f % 2 ? anchoHex / 2 : 0);
+      const y = f * altoHex * 0.75;
       const d = Math.hypot(x - centro.x, y - centro.y);
-      // La intensidad cae con la distancia: cerca del foco los bordes queman.
-      // Caída al cuadrado: el foco queda concentrado y no se enciende media pantalla
-      const i = Math.pow(Math.max(0, 1 - d / 360), 2);
-      celdas.push({ x, y, i });
+      const luz = Math.pow(Math.max(0, 1 - d / 380), 2);
+      const v = rnd();
+      // Tres alturas: hundido, al ras y saliente. Da la textura irregular.
+      const rel = v < 0.34 ? -1 : v < 0.62 ? 0 : 1;
+      celdas.push({ x, y, luz, rel, esc: rel === 1 ? 0.985 : 0.955 });
     }
   }
-  const punta = (x, y) => Array.from({ length: 6 }, (_, k) => {
-    const a = (Math.PI / 180) * (60 * k - 30);
-    return `${(x + r * Math.cos(a)).toFixed(1)},${(y + r * Math.sin(a)).toFixed(1)}`;
+
+  const puntos = (x, y, k) => Array.from({ length: 6 }, (_, i) => {
+    const a = (Math.PI / 180) * (60 * i - 30);
+    return `${(x + r * k * Math.cos(a)).toFixed(1)},${(y + r * k * Math.sin(a)).toFixed(1)}`;
   }).join(" ");
 
   return (
-    <svg viewBox="0 0 700 1000" preserveAspectRatio="xMinYMid slice" className="absolute inset-0 w-full h-full" aria-hidden="true">
+    <svg viewBox="0 0 760 1080" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 w-full h-full" aria-hidden="true">
       <defs>
-        <radialGradient id="brillo" cx={centro.x / 700} cy={centro.y / 1000} r="0.42">
-          <stop offset="0%" stopColor="#FF6B00" stopOpacity="0.5" />
-          <stop offset="55%" stopColor="#FF6B00" stopOpacity="0.12" />
+        <linearGradient id="caraAlta" x1="0" y1="0" x2="0.9" y2="1">
+          <stop offset="0%" stopColor="#2A2A2A" /><stop offset="55%" stopColor="#181818" /><stop offset="100%" stopColor="#0E0E0E" />
+        </linearGradient>
+        <linearGradient id="caraBaja" x1="0" y1="0" x2="0.9" y2="1">
+          <stop offset="0%" stopColor="#070707" /><stop offset="45%" stopColor="#101010" /><stop offset="100%" stopColor="#1E1E1E" />
+        </linearGradient>
+        <linearGradient id="caraPlana" x1="0" y1="0" x2="0.9" y2="1">
+          <stop offset="0%" stopColor="#1A1A1A" /><stop offset="100%" stopColor="#121212" />
+        </linearGradient>
+        <radialGradient id="halo" cx={centro.x / 760} cy={centro.y / 1080} r="0.4">
+          <stop offset="0%" stopColor="#FF6B00" stopOpacity="0.34" />
+          <stop offset="60%" stopColor="#FF6B00" stopOpacity="0.07" />
           <stop offset="100%" stopColor="#FF6B00" stopOpacity="0" />
         </radialGradient>
+        <filter id="difuso" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="9" />
+        </filter>
       </defs>
-      <rect width="700" height="1000" fill="#0A0A0A" />
-      {celdas.map((h, k) => (
-        <polygon key={k} points={punta(h.x, h.y)} fill="#141414"
-          stroke={h.i > 0.02 ? "#FF6B00" : "#1C1C1C"}
-          strokeOpacity={h.i > 0.02 ? Math.min(1, 0.15 + h.i * 1.8) : 1}
-          strokeWidth={h.i > 0.45 ? 2.4 : h.i > 0.12 ? 1.6 : 1} />
+
+      <rect width="760" height="1080" fill="#070707" />
+
+      {/* Sombra propia: lo que da la sensación de que la pieza está apoyada */}
+      {celdas.filter((h) => h.rel === 1).map((h, k) => (
+        <polygon key={"s" + k} points={puntos(h.x + 3, h.y + 5, h.esc)} fill="#000" opacity="0.75" />
       ))}
-      <rect width="700" height="1000" fill="url(#brillo)" />
+
+      {celdas.map((h, k) => (
+        <g key={k}>
+          <polygon points={puntos(h.x, h.y, h.esc)}
+            fill={h.rel === 1 ? "url(#caraAlta)" : h.rel === -1 ? "url(#caraBaja)" : "url(#caraPlana)"} />
+          {/* Filo superior claro: el canto que devuelve la luz */}
+          <polygon points={puntos(h.x, h.y, h.esc)} fill="none"
+            stroke={h.rel === 1 ? "#3A3A3A" : "#000"} strokeOpacity={h.rel === 0 ? 0.5 : 0.9} strokeWidth="1" />
+          {h.luz > 0.02 && (
+            <>
+              <polygon points={puntos(h.x, h.y, h.esc)} fill="none" stroke="#FF6B00"
+                strokeOpacity={Math.min(1, 0.2 + h.luz * 1.9)} strokeWidth={h.luz > 0.45 ? 2.6 : 1.7} />
+              {h.luz > 0.3 && (
+                <polygon points={puntos(h.x, h.y, h.esc)} fill="none" stroke="#FFA24D"
+                  strokeOpacity={h.luz} strokeWidth="3.5" filter="url(#difuso)" />
+              )}
+            </>
+          )}
+        </g>
+      ))}
+
+      <rect width="760" height="1080" fill="url(#halo)" />
     </svg>
   );
 }
 
-function Login({ comercios, onEntrar }) {
+function Login({ comercios, onEntrar, imagenFondo }) {
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
   const [error, setError] = useState("");
@@ -6056,8 +6145,12 @@ function Login({ comercios, onEntrar }) {
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white flex">
       {/* El panel decorativo se esconde en celular: ahí manda el formulario */}
-      <div className="hidden lg:block relative w-[42%] max-w-[620px] overflow-hidden">
-        <FondoHexagonal />
+      <div className="hidden lg:block relative w-[46%] max-w-[680px] overflow-hidden">
+        <FondoHexagonal imagen={imagenFondo} />
+        {/* Degradado de salida: sin esto se ve un borde recto entre el panel
+            y el formulario, y el conjunto parece dos piezas pegadas. */}
+        <div className="absolute inset-y-0 right-0 w-56 pointer-events-none"
+          style={{ background: "linear-gradient(to right, rgba(10,10,10,0) 0%, rgba(10,10,10,0.75) 55%, #0A0A0A 100%)" }} />
       </div>
 
       <div className="flex-1 flex flex-col">
@@ -6509,14 +6602,16 @@ export default function App() {
   const [comercios, setComercios] = useState(COMERCIOS_INICIALES);
   const [sesion, setSesion] = useState(null);
   const [tema, setTema] = useState("claro");
+  const [imagenFondo, setImagenFondo] = useState(null);   // fondo propio del login
   const envolver = (hijo) => <div className={tema === "oscuro" ? "tema-oscuro min-h-screen bg-stone-950" : ""}>{hijo}</div>;
 
-  if (!sesion) return envolver(<Login comercios={comercios} onEntrar={setSesion} />);
+  if (!sesion) return envolver(<Login comercios={comercios} onEntrar={setSesion} imagenFondo={imagenFondo} />);
 
   if (sesion.tipo === "plataforma" && !sesion.viendo) {
     return envolver(
       <PanelGenez
         tema={tema} setTema={setTema}
+        imagenFondo={imagenFondo} setImagenFondo={setImagenFondo}
         sesion={sesion}
         comercios={comercios}
         setComercios={setComercios}
