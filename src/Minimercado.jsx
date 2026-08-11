@@ -1729,11 +1729,12 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   const ganancia = total - costoTot;
   const medios = mediosDe(ajustes);
   const medio = medios[medioSel] || medios[0];
-  const vuelto = recibe ? Number(recibe) - totalFinal : 0;
 
   const [fiscal, setFiscal] = useState(!!ajustes.arca);
   const rec = conRecargo(total, medio);
   const totalFinal = rec.total;
+  // El vuelto se calcula sobre el total con recargo, así que va después.
+  const vuelto = recibe ? Number(recibe) - totalFinal : 0;
 
   const irAPago = () => {
     if (!cart.length) return;
