@@ -514,13 +514,35 @@ function productoNuevo(datos, productos) {
   };
 }
 
-const MEDIOS = [
-  { k: "efectivo", n: "Efectivo", com: 0 },
-  { k: "debito", n: "Débito", com: 0.012 },
-  { k: "credito", n: "Crédito", com: 0.031 },
-  { k: "mp", n: "QR / Mercado Pago", com: 0.008 },
-  { k: "transferencia", n: "Transferencia", com: 0 },
+/* Medios de pago editables. `tasa` es el porcentaje del medio y `recargo`
+   define quién lo paga: si está en false lo absorbe el negocio (comisión que
+   descuenta ganancia); si está en true se le suma al cliente y cambia el
+   total de la venta. */
+const MEDIOS_INICIALES = [
+  { k: "efectivo", n: "Efectivo", tasa: 0, recargo: false, activo: true },
+  { k: "debito", n: "Débito", tasa: 1.2, recargo: false, activo: true },
+  { k: "credito", n: "Crédito", tasa: 3.1, recargo: false, activo: true },
+  { k: "mp", n: "QR / Mercado Pago", tasa: 0.8, recargo: false, activo: true },
+  { k: "transferencia", n: "Transferencia", tasa: 0, recargo: false, activo: true },
 ];
+
+function mediosDe(ajustes) {
+  const ms = (ajustes && ajustes.medios) || MEDIOS_INICIALES;
+  return ms.filter((m) => m.activo !== false);
+}
+
+function medioPorK(ajustes, k) {
+  const ms = (ajustes && ajustes.medios) || MEDIOS_INICIALES;
+  return ms.find((m) => m.k === k) || { k, n: k, tasa: 0, recargo: false };
+}
+
+/* Total que paga el cliente con ese medio. Solo cambia si el recargo se
+   traslada; si no, el total es el mismo y la tasa sale de la ganancia. */
+function conRecargo(base, medio) {
+  if (!medio || !medio.recargo || !medio.tasa) return { total: base, recargo: 0 };
+  const r = Math.round(base * (medio.tasa / 100));
+  return { total: base + r, recargo: r };
+}
 
 /* ============================================================
    3. MOTOR DE DIAGNÓSTICO  ("Lo que tenés que saber")
@@ -1021,9 +1043,9 @@ function ticketVenta(t, ajustes, W) {
     { t: "c", v: ajustes.negocio.toUpperCase() },
     { t: "c", v: "Av. San Martin 1204 - Caseros" },
     { t: "c", v: `CUIT ${ajustes.cuit}` },
-    { t: "c", v: ajustes.arca ? "IVA RESPONSABLE INSCRIPTO" : "NO VALIDO COMO FACTURA" },
+    { t: "c", v: t.fiscal ? "IVA RESPONSABLE INSCRIPTO" : "NO VALIDO COMO FACTURA" },
     { t: "sep", c: "=" },
-    { t: "c", v: ajustes.arca ? "FACTURA B" : "TICKET DE VENTA" },
+    { t: "c", v: t.fiscal ? "FACTURA B" : "TICKET DE VENTA" },
     { t: "lr", a: `Nro ${t.nro}`, b: `${fdatel(HOY)} ${t.hora}` },
     { t: "sep" },
   ];
@@ -1036,16 +1058,17 @@ function ticketVenta(t, ajustes, W) {
   b.push({ t: "sep" });
   b.push({ t: "lr", a: "SUBTOTAL", b: money(t.sub) });
   if (t.desc > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc) });
+  if (t.recargo > 0) b.push({ t: "lr", a: `RECARGO ${t.recargoNombre || ""}`.trim(), b: "+" + money(t.recargo) });
   b.push({ t: "sep", c: "=" });
   b.push({ t: "lr", a: "TOTAL", b: money(t.total) });
   b.push({ t: "sep", c: "=" });
   const pagos = t.pagos && t.pagos.length ? t.pagos : [{ medio: t.medio, monto: t.total }];
-  pagos.forEach((p) => b.push({ t: "lr", a: MEDIOS.find((m) => m.k === p.medio).n.toUpperCase(), b: money(p.monto) }));
+  pagos.forEach((p) => b.push({ t: "lr", a: medioPorK(ajustes, p.medio).n.toUpperCase(), b: money(p.monto) }));
   if (t.recibe) {
     b.push({ t: "lr", a: "RECIBIDO EN EFECTIVO", b: money(t.recibe) });
     b.push({ t: "lr", a: "VUELTO", b: money(t.vuelto != null ? t.vuelto : t.recibe - t.total) });
   }
-  if (ajustes.arca) {
+  if (t.fiscal) {
     b.push({ t: "b" });
     b.push({ t: "lr", a: `IVA 21%`, b: money(t.total - t.total / 1.21) });
     b.push({ t: "c", v: `CAE ${t.cae}` });
@@ -1704,10 +1727,20 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   const total = sub - descMonto;
   const costoTot = lineas.reduce((s, l) => s + l.costo * l.qty, 0);
   const ganancia = total - costoTot;
-  const medio = MEDIOS[medioSel];
-  const vuelto = recibe ? Number(recibe) - total : 0;
+  const medios = mediosDe(ajustes);
+  const medio = medios[medioSel] || medios[0];
+  const vuelto = recibe ? Number(recibe) - totalFinal : 0;
 
-  const irAPago = () => { if (!cart.length) return; setMedioSel(0); setRecibe(""); setPagos([]); setMontoMix(""); setPaso("pago"); };
+  const [fiscal, setFiscal] = useState(!!ajustes.arca);
+  const rec = conRecargo(total, medio);
+  const totalFinal = rec.total;
+
+  const irAPago = () => {
+    if (!cart.length) return;
+    setMedioSel(0); setRecibe(""); setPagos([]); setMontoMix("");
+    setFiscal(!!ajustes.arca);
+    setPaso("pago");
+  };
 
   // ---- Pago combinado ----
   const cubierto = pagos.reduce((s2, p) => s2 + p.monto, 0);
@@ -1716,7 +1749,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   const efectivoEntregado = pagos.filter((p) => p.medio === "efectivo").reduce((s2, p) => s2 + p.monto + (p.exceso || 0), 0);
 
   const agregarPago = () => {
-    const m = MEDIOS[medioSel];
+    const m = medios[medioSel];
     const entrada = Number(montoMix) || falta;
     if (entrada <= 0 || falta <= 0) return;
     const aplicado = Math.min(entrada, falta);
@@ -1734,7 +1767,10 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
 
   const finalizar = (k, recibido, listaPagos, vueltoDado) => {
     const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre }));
-    const t = cobrar({ items, sub, desc: descMonto, total, medio: k, ganancia, recibe: recibido || null, pagos: listaPagos });
+    const m = medioPorK(ajustes, k);
+    const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
+    const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
+      recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "", fiscal });
     if (vueltoDado != null) t.vuelto = vueltoDado;
     setProductos((ps) => ps.map((p) => {
       const l = lineas.find((x) => x.pid === p.id);
@@ -1769,18 +1805,18 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
       if (paso === "pago") {
         e.preventDefault();
         if (e.key === "Escape") return setPaso("carga");
-        if (e.key === "ArrowDown") return setMedioSel((i) => (i + 1) % MEDIOS.length);
-        if (e.key === "ArrowUp") return setMedioSel((i) => (i - 1 + MEDIOS.length) % MEDIOS.length);
+        if (e.key === "ArrowDown") return setMedioSel((i) => (i + 1) % medios.length);
+        if (e.key === "ArrowUp") return setMedioSel((i) => (i - 1 + medios.length) % medios.length);
         if (e.key === "6" || e.key.toLowerCase() === "c") { setMedioSel(0); setMontoMix(""); return setPaso("mixto"); }
-        if (/^[1-5]$/.test(e.key)) {
+        if (/^[1-9]$/.test(e.key) && Number(e.key) <= medios.length) {
           const i = Number(e.key) - 1;
           setMedioSel(i);
-          if (MEDIOS[i].k === "efectivo") return setPaso("monto");
-          return finalizar(MEDIOS[i].k, null);
+          if (medios[i].k === "efectivo") return setPaso("monto");
+          return finalizar(medios[i].k, null);
         }
         if (e.key === "Enter") {
-          if (MEDIOS[medioSel].k === "efectivo") return setPaso("monto");
-          return finalizar(MEDIOS[medioSel].k, null);
+          if (medios[medioSel].k === "efectivo") return setPaso("monto");
+          return finalizar(medios[medioSel].k, null);
         }
         return;
       }
@@ -1789,7 +1825,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
         if (e.key === "Escape") { e.preventDefault(); return setPaso("pago"); }
         if (e.key === "Enter") {
           e.preventDefault();
-          if (recibe && Number(recibe) < total) return toast("El importe recibido es menor al total.", "mal");
+          if (recibe && Number(recibe) < totalFinal) return toast("El importe recibido es menor al total.", "mal");
           return finalizar("efectivo", recibe ? Number(recibe) : null);
         }
         return;
@@ -1797,8 +1833,8 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
 
       if (paso === "mixto") {
         if (e.key === "Escape") { e.preventDefault(); setPagos([]); return setPaso("pago"); }
-        if (e.key === "ArrowDown") { e.preventDefault(); return setMedioSel((i) => (i + 1) % MEDIOS.length); }
-        if (e.key === "ArrowUp") { e.preventDefault(); return setMedioSel((i) => (i - 1 + MEDIOS.length) % MEDIOS.length); }
+        if (e.key === "ArrowDown") { e.preventDefault(); return setMedioSel((i) => (i + 1) % medios.length); }
+        if (e.key === "ArrowUp") { e.preventDefault(); return setMedioSel((i) => (i - 1 + medios.length) % medios.length); }
         if (e.key === "Delete") { e.preventDefault(); return setPagos((ps) => ps.slice(0, -1)); }
         if (e.key === "Enter") {
           e.preventDefault();
@@ -1813,14 +1849,14 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
         if (e.key === "Enter" || e.key === "Escape") return nuevaVenta();
         const k = e.key.toLowerCase();
         if (k === "t") return setVerTicket(true);
-        if (k === "i") return imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ajustes.arca ? ticket.cae : null, toast);
+        if (k === "i") return imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ticket.fiscal ? ticket.cae : null, toast);
         if (k === "w") return toast("Comprobante enviado por WhatsApp.");
         if (k === "e") return toast("Comprobante enviado por email.");
       }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -2053,15 +2089,25 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
             <div className="text-right text-xs text-stone-400"><Tecla>Esc</Tecla> volver</div>
           </div>
           <div className="p-4">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-2">¿Cómo paga?</div>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">¿Cómo paga?</span>
+              <div className="flex rounded-xl border border-stone-200 overflow-hidden text-xs font-semibold">
+                <button onClick={() => setFiscal(false)} className={`px-3 py-1.5 ${!fiscal ? "bg-stone-900 text-white" : "text-stone-500"}`}>Ticket</button>
+                <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-stone-900 text-white" : "text-stone-500"}`}>Factura</button>
+              </div>
+            </div>
             <ul className="space-y-1.5">
-              {MEDIOS.map((m, i) => (
+              {medios.map((m, i) => (
                 <li key={m.k}>
                   <button onClick={() => { setMedioSel(i); m.k === "efectivo" ? setPaso("monto") : finalizar(m.k, null); }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors ${i === medioSel ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
                     <Tecla>{i + 1}</Tecla>
                     <span className="font-semibold flex-1">{m.n}</span>
-                    {m.com > 0 && <span className="text-xs text-stone-400">comisión {money(total * m.com)}</span>}
+                    {m.tasa > 0 && (
+                      <span className="text-xs text-stone-400 shrink-0">
+                        {m.recargo ? `recargo ${m.tasa}%` : `comisión ${money(total * m.tasa / 100)}`}
+                      </span>
+                    )}
                     {i === medioSel && <ArrowRight size={16} className="text-orange-500" />}
                   </button>
                 </li>
@@ -2085,7 +2131,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
         <Overlay ancho="max-w-lg">
           <div className="bg-stone-900 text-white px-6 py-4">
             <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Efectivo · total</div>
-            <div className="f-d text-4xl mt-0.5">{money(total)}</div>
+            <div className="f-d text-4xl mt-0.5">{money(totalFinal)}</div>
           </div>
           <div className="p-5">
             <label className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">¿Con cuánto paga?</label>
@@ -2093,11 +2139,11 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
               placeholder="Dejalo vacío si paga justo"
               className="f-m w-full text-right text-3xl border-2 border-stone-200 rounded-xl px-4 py-3 mt-2 outline-none focus:border-orange-400" />
             <div className="flex flex-wrap gap-1.5 mt-3">
-              {rapidos.filter((r) => r >= total).slice(0, 4).map((r) => (
+              {rapidos.filter((r) => r >= totalFinal).slice(0, 4).map((r) => (
                 <button key={r} onClick={() => setRecibe(String(r))} className="f-m text-xs px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700">{money(r)}</button>
               ))}
-              <button onClick={() => setRecibe(String(Math.ceil(total / 1000) * 1000))} className="f-m text-xs px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700">
-                {money(Math.ceil(total / 1000) * 1000)}
+              <button onClick={() => setRecibe(String(Math.ceil(totalFinal / 1000) * 1000))} className="f-m text-xs px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700">
+                {money(Math.ceil(totalFinal / 1000) * 1000)}
               </button>
             </div>
             {recibe !== "" && (
@@ -2108,7 +2154,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
             )}
             <div className="flex items-center justify-between mt-4">
               <span className="text-xs text-stone-400"><Tecla>Esc</Tecla> cambiar medio</span>
-              <Boton size="lg" onClick={() => { if (recibe && Number(recibe) < total) return toast("El importe recibido es menor al total.", "mal"); finalizar("efectivo", recibe ? Number(recibe) : null); }}>
+              <Boton size="lg" onClick={() => { if (recibe && Number(recibe) < totalFinal) return toast("El importe recibido es menor al total.", "mal"); finalizar("efectivo", recibe ? Number(recibe) : null); }}>
                 Confirmar cobro <Tecla>Enter</Tecla>
               </Boton>
             </div>
@@ -2135,7 +2181,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
                 {pagos.map((p, i) => (
                   <li key={i} className="flex items-center gap-3 px-3 py-2 text-sm">
                     <Check size={14} className="text-emerald-600 shrink-0" />
-                    <span className="flex-1">{MEDIOS.find((m) => m.k === p.medio).n}</span>
+                    <span className="flex-1">{medioPorK(ajustes, p.medio).n}</span>
                     <span className="f-m">{money(p.monto)}</span>
                     {p.exceso > 0 && <span className="f-m text-[11px] text-stone-400">+{money(p.exceso)} vuelto</span>}
                     <button onClick={() => setPagos((ps) => ps.filter((_, j) => j !== i))} className="text-stone-300 hover:text-red-600"><Trash2 size={14} /></button>
@@ -2148,7 +2194,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
               <>
                 <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">¿Con qué paga esta parte?</div>
                 <div className="grid grid-cols-2 gap-1.5 mt-2">
-                  {MEDIOS.map((m, i) => (
+                  {medios.map((m, i) => (
                     <button key={m.k} onClick={() => setMedioSel(i)}
                       className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-sm font-semibold ${i === medioSel ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
                       <Tecla>{i + 1}</Tecla> {m.n}
@@ -2164,7 +2210,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
                   vacío toma {money(falta)}
                 </p>
                 <Boton size="lg" className="w-full mt-3" onClick={agregarPago}>
-                  Agregar {money(Number(montoMix) || falta)} en {MEDIOS[medioSel].n} <Tecla>Enter</Tecla>
+                  Agregar {money(Number(montoMix) || falta)} en {medios[medioSel].n} <Tecla>Enter</Tecla>
                 </Boton>
               </>
             ) : (
@@ -2189,7 +2235,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
             <Check size={26} className="mx-auto" />
             <div className="f-d text-2xl mt-1">Cobrado {money(ticket.total)}</div>
             <div className="text-emerald-100 text-sm">
-              {(ticket.pagos || [{ medio: ticket.medio, monto: ticket.total }]).map((p) => `${MEDIOS.find((m) => m.k === p.medio).n} ${money(p.monto)}`).join(" + ")} · {ticket.nro}
+              {(ticket.pagos || [{ medio: ticket.medio, monto: ticket.total }]).map((p) => `${medioPorK(ajustes, p.medio).n} ${money(p.monto)}`).join(" + ")} · {ticket.nro}
             </div>
           </div>
           {ticket.recibe && (ticket.vuelto != null ? ticket.vuelto : ticket.recibe - ticket.total) > 0 && (
@@ -2201,7 +2247,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
           <div className="p-5">
             <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-2">¿Querés comprobante?</div>
             <div className="grid grid-cols-4 gap-1.5">
-              {[[Printer, "Imprimir", "I", () => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ajustes.arca ? ticket.cae : null, toast)],
+              {[[Printer, "Imprimir", "I", () => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ticket.fiscal ? ticket.cae : null, toast)],
                 [FileText, "Ver ticket", "T", () => setVerTicket(true)],
                 [MessageCircle, "WhatsApp", "W", () => toast("Comprobante enviado por WhatsApp.")],
                 [Mail, "Email", "E", () => toast("Comprobante enviado por email.")]].map(([I, n, k2, fn]) => (
@@ -2219,10 +2265,10 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
         <Modal open onClose={() => setVerTicket(false)} ancho="max-w-md">
           <div className="p-5">
             <div className="bg-stone-100 rounded-xl p-3 overflow-auto">
-              <Comandera lineas={ticketVenta(ticket, ajustes, W)} ancho={ajustes.ancho} qr={ajustes.arca ? ticket.cae : null} className="py-2 shadow-sm" />
+              <Comandera lineas={ticketVenta(ticket, ajustes, W)} ancho={ajustes.ancho} qr={ticket.fiscal ? ticket.cae : null} className="py-2 shadow-sm" />
             </div>
             <div className="grid grid-cols-2 gap-1.5 mt-3 no-print">
-              <Boton variant="ghost" onClick={() => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ajustes.arca ? ticket.cae : null, toast)}><Printer size={15} /> Imprimir</Boton>
+              <Boton variant="ghost" onClick={() => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ticket.fiscal ? ticket.cae : null, toast)}><Printer size={15} /> Imprimir</Boton>
               <Boton variant="dark" onClick={() => setVerTicket(false)}>Cerrar</Boton>
             </div>
           </div>
@@ -2270,7 +2316,7 @@ function TicketModal({ t, onClose, ajustes, toast }) {
   if (!t) return null;
   const W = ajustes.ancho === 58 ? 32 : 48;
   const acciones = [
-    { i: Printer, n: "Imprimir", fn: () => imprimirComandera(ticketVenta(t, ajustes, W), ajustes.ancho, ajustes.arca ? t.cae : null, toast) },
+    { i: Printer, n: "Imprimir", fn: () => imprimirComandera(ticketVenta(t, ajustes, W), ajustes.ancho, t.fiscal ? t.cae : null, toast) },
     { i: MessageCircle, n: "WhatsApp", fn: () => toast("Comprobante enviado por WhatsApp.") },
     { i: Mail, n: "Email", fn: () => toast("Comprobante enviado por email.") },
     { i: QrCode, n: "QR", fn: () => toast("QR en pantalla para el cliente.") },
@@ -2287,7 +2333,7 @@ function TicketModal({ t, onClose, ajustes, toast }) {
         </div>
         <div className="bg-stone-100 rounded-xl p-3 mt-4 overflow-auto">
           <Comandera lineas={ticketVenta(t, ajustes, W)} ancho={ajustes.ancho}
-            qr={ajustes.arca ? t.cae : null} className="py-2 shadow-sm" />
+            qr={t.fiscal ? t.cae : null} className="py-2 shadow-sm" />
         </div>
         <div className="grid grid-cols-4 gap-1.5 mt-4 no-print">
           {acciones.map((a) => (
@@ -4187,7 +4233,8 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
       const p = productos.find((x) => x.id === l.pid);
       return { pid: l.pid, qty: l.preparado, precio: l.unit, costo: p ? p.costo : 0, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre };
     });
-    const t = cobrar({ items: lineas, sub: monto, desc: 0, total: monto, medio, ganancia: monto - lineas.reduce((s, l) => s + l.costo * l.qty, 0) });
+    const t = cobrar({ items: lineas, sub: monto, desc: 0, total: monto, medio, fiscal: !!ajustes.arca,
+      ganancia: monto - lineas.reduce((s, l) => s + l.costo * l.qty, 0) });
     setProductos((ps) => ps.map((p) => {
       const l = lineas.find((x) => x.pid === p.id);
       return l ? { ...p, stock: +(p.stock - l.qty).toFixed(3), ultimaVenta: HOY, u30: p.u30 + l.qty } : p;
@@ -4377,7 +4424,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
               <span className="f-d text-2xl">{money(monto)}</span>
             </div>
             <div className="grid grid-cols-2 gap-1.5 mt-3">
-              {MEDIOS.map((m) => <Boton key={m.k} size="sm" variant="ghost" onClick={() => cobrarPedido(m.k)}>{m.n}</Boton>)}
+              {mediosDe(ajustes).map((m) => <Boton key={m.k} size="sm" variant="ghost" onClick={() => cobrarPedido(m.k)}>{m.n}</Boton>)}
             </div>
             <Boton variant="quiet" className="w-full mt-2" onClick={() => {
               setPedidos((ps) => ps.map((p) => (p.id === ped.id ? { ...p, items, estado: "listo" } : p)));
@@ -4401,12 +4448,12 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
    10. CAJA
    ============================================================ */
 
-function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast }) {
+function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ monto: "", detalle: "", medio: "efectivo" });
   const [contado, setContado] = useState("");
 
-  const porMedio = MEDIOS.map((m) => {
+  const porMedio = mediosDe(ajustes).map((m) => {
     const ing = caja.movimientos.filter((x) => x.tipo === "ingreso" && x.medio === m.k).reduce((s, x) => s + x.monto, 0);
     const egr = caja.movimientos.filter((x) => x.tipo === "egreso" && x.medio === m.k).reduce((s, x) => s + x.monto, 0);
     return { ...m, ing, egr, neto: ing - egr };
@@ -4471,7 +4518,7 @@ function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast }) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-stone-800 truncate">{m.detalle}</div>
-                    <div className="text-[11px] text-stone-400">{m.hora} · {MEDIOS.find((x) => x.k === m.medio).n}</div>
+                    <div className="text-[11px] text-stone-400">{m.hora} · {medioPorK(ajustes, m.medio).n}</div>
                   </div>
                   <span className={`f-m text-sm font-semibold shrink-0 ${m.tipo === "ingreso" ? "text-emerald-700" : "text-red-600"}`}>
                     {m.tipo === "ingreso" ? "+" : "−"}{money(m.monto)}
@@ -4492,12 +4539,12 @@ function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast }) {
                   <div className="h-1.5 bg-stone-100 rounded-full mt-1 overflow-hidden">
                     <div className="h-full bg-orange-400 rounded-full" style={{ width: `${ingresos ? (m.ing / ingresos) * 100 : 0}%` }} />
                   </div>
-                  {m.com > 0 && m.ing > 0 && <div className="text-[10px] text-stone-400 mt-0.5">Comisión estimada {money(m.ing * m.com)}</div>}
+                  {m.tasa > 0 && m.ing > 0 && <div className="text-[10px] text-stone-400 mt-0.5">Comisión estimada {money(m.ing * m.tasa / 100)}</div>}
                 </li>
               ))}
             </ul>
             <div className="border-t border-stone-100 mt-3 pt-3 text-xs text-stone-500">
-              Las comisiones de tarjeta te descuentan <strong>{money(porMedio.reduce((s, m) => s + m.ing * m.com, 0))}</strong> hoy. No aparecen en el ticket pero sí en tu ganancia.
+              Las comisiones de tarjeta te descuentan <strong>{money(porMedio.reduce((s, m) => s + m.ing * m.tasa / 100, 0))}</strong> hoy. No aparecen en el ticket pero sí en tu ganancia.
             </div>
           </Card>
 
@@ -4530,7 +4577,7 @@ function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast }) {
           <input value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value.replace(/\D/g, "") })} placeholder="Monto"
             className="f-m w-full text-right border border-stone-200 rounded-xl px-3 py-2 text-sm mt-2 outline-none focus:border-orange-400" />
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {MEDIOS.map((m) => (
+            {mediosDe(ajustes).map((m) => (
               <button key={m.k} onClick={() => setForm({ ...form, medio: m.k })}
                 className={`text-xs px-2.5 py-1.5 rounded-lg border ${form.medio === m.k ? "bg-stone-900 text-white border-stone-900" : "border-stone-200 text-stone-500"}`}>{m.n}</button>
             ))}
@@ -4825,6 +4872,63 @@ function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, mp, setM
       </Card>
 
       <Card className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="f-d text-lg">Medios de pago</h3>
+            <p className="text-sm text-stone-500 mt-1">
+              El porcentaje puede funcionar de dos formas. Como <strong>comisión</strong>, lo absorbe el negocio: el cliente paga
+              el mismo total y la diferencia sale de tu ganancia. Como <strong>recargo</strong>, se le suma al cliente y cambia el
+              total de la venta.
+            </p>
+          </div>
+          <Boton size="sm" className="shrink-0" onClick={() => setAjustes({ ...ajustes, medios: [...(ajustes.medios || []), { k: "m" + uid(), n: "Nuevo medio", tasa: 0, recargo: false, activo: true }] })}>
+            <Plus size={14} /> Agregar
+          </Boton>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {(ajustes.medios || []).map((m, i) => {
+            const cambiar = (campo, valor) => setAjustes({ ...ajustes, medios: ajustes.medios.map((x, j) => (j === i ? { ...x, [campo]: valor } : x)) });
+            return (
+              <div key={m.k} className={`border rounded-xl p-3 ${m.activo === false ? "bg-stone-50 opacity-70 border-stone-200" : "border-stone-200"}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input value={m.n} onChange={(e) => cambiar("n", e.target.value)}
+                    className="flex-1 min-w-[140px] border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-orange-400" />
+                  <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                    <input value={m.tasa} onChange={(e) => cambiar("tasa", Number(e.target.value.replace(/[^\d.]/g, "")) || 0)}
+                      className="f-m w-16 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+                    %
+                  </label>
+                  <button onClick={() => cambiar("recargo", !m.recargo)}
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.recargo ? "border-amber-300 bg-amber-50 text-amber-800" : "border-stone-200 text-stone-500"}`}>
+                    {m.recargo ? "Lo paga el cliente" : "Lo absorbe el negocio"}
+                  </button>
+                  <button onClick={() => cambiar("activo", m.activo === false)}
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.activo === false ? "border-stone-200 text-stone-400" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {m.activo === false ? "Apagado" : "Activo"}
+                  </button>
+                  <button onClick={() => {
+                    if (!window.confirm(`¿Eliminar "${m.n}"? Las ventas ya cobradas con este medio no se modifican.`)) return;
+                    setAjustes({ ...ajustes, medios: ajustes.medios.filter((_, j) => j !== i) });
+                  }} className="text-stone-300 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>
+                </div>
+                {m.tasa > 0 && (
+                  <p className="text-[11px] text-stone-400 mt-1.5">
+                    {m.recargo
+                      ? `Una venta de ${money(10000)} se cobra ${money(conRecargo(10000, m).total)}.`
+                      : `Una venta de ${money(10000)} deja ${money(10000 - 10000 * m.tasa / 100)} después de la comisión.`}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-stone-400 mt-3">
+          En el cobro, cada medio se elige con su número. Apagar uno lo saca de la caja sin borrar el historial.
+        </p>
+      </Card>
+
+      <Card className="p-5">
         <h3 className="f-d text-lg">Comprobantes</h3>
         <div className="mt-4 space-y-2">
           <button onClick={() => setAjustes({ ...ajustes, arca: false })}
@@ -4846,7 +4950,10 @@ function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, mp, setM
             <p className="text-sm text-stone-600 mt-1">La misma venta emite Factura B con CAE. Se activa cuando cargamos el certificado fiscal y el punto de venta; el flujo de caja no cambia.</p>
           </button>
         </div>
-        <p className="text-xs text-stone-400 mt-3">En esta demo el CAE es simulado: sirve para ver el flujo completo, no tiene validez fiscal.</p>
+        <p className="text-xs text-stone-400 mt-3">
+          Esto define con qué opción arranca cada venta. En la pantalla de cobro se puede cambiar venta por venta,
+          con el selector Ticket / Factura. En esta demo el CAE es simulado: sirve para ver el flujo, no tiene validez fiscal.
+        </p>
       </Card>
 
       <Card className="p-5">
@@ -5190,7 +5297,7 @@ export default function App() {
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
   const [provs, setProvs] = useState(PROV_INFO);
   const [altaProd, setAltaProd] = useState(null);
-  const [ajustes, setAjustes] = useState({ negocio: "Minimercado El Progreso", cuit: "30-71234567-4", arca: false, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
+  const [ajustes, setAjustes] = useState({ negocio: "Minimercado El Progreso", cuit: "30-71234567-4", arca: false, medios: MEDIOS_INICIALES, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
   const [toasts, setToasts] = useState([]);
 
   const hoyDiario = DATA.diario[DATA.diario.length - 1];
@@ -5232,13 +5339,14 @@ export default function App() {
     movimientos: [...c.movimientos, { id: uid(), hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), ...m }],
   }));
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal }) => {
     const nro = `0001-${String(48210 + tickets.length + 1).padStart(8, "0")}`;
     const ps = pagos && pagos.length ? pagos : [{ medio, monto: total }];
     const t = {
       id: uid(), nro, cae: String(74300000000000 + tickets.length * 137),
       hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
       items, sub, desc, total, medio: ps[0].medio, pagos: ps, ganancia, recibe: recibe || null,
+      recargo: recargo || 0, recargoNombre: recargoNombre || "", fiscal: fiscal != null ? fiscal : !!ajustes.arca,
     };
     setTickets((x) => [t, ...x]);
     // Un movimiento de caja por medio de pago: así el arqueo y el reporte
@@ -5471,7 +5579,7 @@ export default function App() {
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
           {tab === "compras" && <Compras productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (
-            <Caja caja={caja} movCaja={movCaja} toast={toast}
+            <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes}
               abrirCaja={(s) => setCaja((c) => ({ ...c, abierta: true, saldoInicial: s, movimientos: [], hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) }))}
               cerrarCaja={(esperado, contado) => setCaja((c) => ({ ...c, abierta: false, cierres: [{ fecha: HOY, esperado, contado, dif: contado - esperado }, ...c.cierres] }))} />
           )}
