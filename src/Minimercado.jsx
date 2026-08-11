@@ -5948,9 +5948,11 @@ function LogoGenez({ size = 40, claro = false, conNombre = false }) {
       width={size} height={size} style={{ width: size, height: size, objectFit: "contain" }} />
   );
   if (!conNombre) return marca;
-  const altoPalabra = Math.round(size * 0.44);
+  // La palabra es muy alargada (537x56), así que a igual altura ocupa mucho
+  // más ancho que el símbolo. Con 0.30 queda equilibrada al lado del isotipo.
+  const altoPalabra = Math.round(size * 0.30);
   return (
-    <span className="flex items-center" style={{ gap: size * 0.22 }}>
+    <span className="flex items-center" style={{ gap: size * 0.2 }}>
       {marca}
       <img src={claro ? PALABRA_CLARO : PALABRA_OSCURO} alt="Genez" aria-hidden="true"
         style={{ height: altoPalabra, width: altoPalabra * (537 / 56) }} />
