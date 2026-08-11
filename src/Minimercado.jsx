@@ -1739,7 +1739,7 @@ const ATAJOS = [
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
-function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, setClientes }) {
+function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, setClientes, permisos }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → monto → fin
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -1905,9 +1905,18 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
 
       if (paso === "carga") {
         if (e.key === "F2") { e.preventDefault(); return irAPago(); }
-        if (e.key === "F4") { e.preventDefault(); return setDesc((d) => [0, 5, 10, 15][([0, 5, 10, 15].indexOf(d) + 1) % 4]); }
+        if (e.key === "F4") {
+          e.preventDefault();
+          if (!permisos.descuentos) return toast("Tu usuario no puede dar descuentos.", "mal");
+          return setDesc((d) => [0, 5, 10, 15][([0, 5, 10, 15].indexOf(d) + 1) % 4]);
+        }
         if (e.key === "F7") { e.preventDefault(); return setCart((c) => c.slice(0, -1)); }
-        if (e.key === "F8") { e.preventDefault(); if (cart.length) { setCart([]); setDesc(0); toast("Venta anulada."); } return; }
+        if (e.key === "F8") {
+          e.preventDefault();
+          if (!permisos.anular) return toast("Tu usuario no puede anular ventas.", "mal");
+          if (cart.length) { setCart([]); setDesc(0); toast("Venta anulada."); }
+          return;
+        }
         if (e.key === "F9") { e.preventDefault(); return ir("pedidos"); }
         if (e.key === "F10") { e.preventDefault(); return aPanel(); }
         return;
@@ -1967,7 +1976,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -2135,7 +2144,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
         )}
 
         <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
-          {ATAJOS.map(([t, n]) => (
+          {ATAJOS.filter(([t]) => (t !== "F4" || permisos.descuentos) && (t !== "F8" || permisos.anular)).map(([t, n]) => (
             <span key={t} className="flex items-center gap-1.5 text-[11px] text-stone-400"><Tecla>{t}</Tecla> {n}</span>
           ))}
         </div>
@@ -2167,19 +2176,21 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
               <span className="f-m text-sm">−{money(ahorroTotal)}</span>
             </div>
           )}
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-sm text-stone-500">Descuento <Tecla>F4</Tecla></span>
-            <div className="flex items-center gap-1">
-              {[0, 5, 10, 15].map((d) => (
-                <button key={d} onClick={() => setDesc(d)} className={`f-m text-xs px-2 py-1 rounded-lg border ${desc === d ? "bg-stone-900 text-white border-stone-900" : "border-stone-200 text-stone-500 hover:bg-stone-50"}`}>{d}%</button>
-              ))}
+          {permisos.descuentos && (
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-sm text-stone-500">Descuento <Tecla>F4</Tecla></span>
+              <div className="flex items-center gap-1">
+                {[0, 5, 10, 15].map((d) => (
+                  <button key={d} onClick={() => setDesc(d)} className={`f-m text-xs px-2 py-1 rounded-lg border ${desc === d ? "bg-stone-900 text-white border-stone-900" : "border-stone-200 text-stone-500 hover:bg-stone-50"}`}>{d}%</button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
           <div className="flex items-baseline justify-between mt-4 pt-4 border-t border-stone-200">
             <span className="f-d text-lg">Total</span>
             <span className="f-d text-4xl tabular-nums">{money(total)}</span>
           </div>
-          {cart.length > 0 && <div className="text-xs text-stone-400 mt-1 text-right">Ganancia {money(ganancia)} · {pct(total ? ganancia / total : 0)}</div>}
+          {cart.length > 0 && permisos.verCostos && <div className="text-xs text-stone-400 mt-1 text-right">Ganancia {money(ganancia)} · {pct(total ? ganancia / total : 0)}</div>}
           <Boton onClick={irAPago} disabled={!cart.length} size="lg" className="w-full mt-4">
             Cobrar {money(total)} <Tecla>F2</Tecla>
           </Boton>
@@ -5564,6 +5575,413 @@ function AvisoCobro({ cobros, onCerrar }) {
    14. APP
    ============================================================ */
 
+/* ============================================================
+   0. VALIK · plataforma, comercios, roles y permisos
+   ============================================================
+
+   El sistema del comercio es un inquilino dentro de Valik. Quién entra
+   determina a qué comercio accede, qué módulos ve y qué puede hacer adentro.
+
+   Hoy los datos viven en memoria: alcanza para mostrar el producto completo,
+   pero la validación real tiene que correr en el servidor. Mientras eso no
+   exista, no repartir credenciales fuera de una demo acompañada.           */
+
+const MODULOS = [
+  { k: "cobro", n: "Cobro", d: "Punto de venta, tickets y vuelto", base: true },
+  { k: "caja", n: "Caja", d: "Arqueo, gastos y cierre", base: true },
+  { k: "ajustes", n: "Ajustes", d: "Configuración del negocio", base: true },
+  { k: "productos", n: "Productos", d: "Catálogo, precios y listas" },
+  { k: "stock", n: "Stock", d: "Alertas, vencimientos e inventario" },
+  { k: "compras", n: "Compras", d: "Remitos, costos y proveedores" },
+  { k: "pedidos", n: "Pedidos", d: "Preparación con pistola" },
+  { k: "clientes", n: "Clientes", d: "Facturación A, B y C" },
+  { k: "reportes", n: "Informes", d: "Ventas, márgenes y rubros" },
+  { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
+];
+
+const MODULOS_BASE = MODULOS.filter((m) => m.base).map((m) => m.k);
+
+/* Cada rol define qué módulos alcanza y qué acciones puede ejecutar.
+   "todos" evita tener que actualizar el rol del dueño cada vez que se agrega
+   un módulo nuevo. */
+const ROLES = [
+  {
+    k: "dueno", n: "Dueño", d: "Acceso completo al comercio",
+    modulos: "todos",
+    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: true },
+  },
+  {
+    k: "encargado", n: "Encargado", d: "Todo menos la configuración",
+    modulos: ["cobro", "caja", "productos", "stock", "compras", "pedidos", "clientes", "reportes", "asistente"],
+    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
+  },
+  {
+    k: "cajero", n: "Cajero", d: "Cobra, sin ver costos ni ganancias",
+    modulos: ["cobro", "caja", "pedidos", "clientes"],
+    permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false },
+  },
+  {
+    k: "repositor", n: "Repositor", d: "Stock y preparación de pedidos",
+    modulos: ["stock", "pedidos", "productos"],
+    permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false },
+  },
+];
+
+const rolPorK = (k) => ROLES.find((r) => r.k === k) || ROLES[ROLES.length - 1];
+
+/* Lo que puede hacer una sesión: cruce entre lo que el comercio contrató y lo
+   que el rol habilita. Un módulo no contratado no lo ve ni el dueño. */
+function permisosDe(sesion) {
+  if (!sesion) return { modulos: [], permisos: {}, esPlataforma: false };
+  if (sesion.tipo === "plataforma") {
+    return { modulos: MODULOS.map((m) => m.k), permisos: rolPorK("dueno").permisos, esPlataforma: true };
+  }
+  const rol = rolPorK(sesion.rol);
+  const contratados = sesion.comercio.modulos || [];
+  const delRol = rol.modulos === "todos" ? contratados : rol.modulos;
+  return {
+    modulos: contratados.filter((k) => delRol.includes(k)),
+    permisos: rol.permisos,
+    esPlataforma: false,
+  };
+}
+
+const COMERCIOS_INICIALES = [
+  {
+    id: "cm1", nombre: "Minimercado El Progreso", plan: "Completo",
+    modulos: MODULOS.map((m) => m.k), alta: "09/2025", activo: true,
+    usuarios: [
+      { id: "u1", nombre: "Roberto Fernández", usuario: "roberto", clave: "elprogreso", rol: "dueno" },
+      { id: "u2", nombre: "Silvana", usuario: "silvana", clave: "caja2026", rol: "cajero" },
+    ],
+  },
+  {
+    id: "cm2", nombre: "Despensa La Esquina", plan: "Mostrador",
+    modulos: [...MODULOS_BASE, "productos", "stock"], alta: "01/2026", activo: true,
+    usuarios: [
+      { id: "u3", nombre: "Ana Puig", usuario: "ana", clave: "esquina01", rol: "dueno" },
+    ],
+  },
+];
+
+const DUENO_PLATAFORMA = { usuario: "Nehuen", clave: "Coronado01", nombre: "Nehuen González" };
+
+function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar }) {
+  const [d, setD] = useState({});
+  useEffect(() => { if (abierto) setD({ rol: "cajero", ...(inicial || {}) }); }, [abierto, inicial]);
+  if (!abierto) return null;
+  const rol = rolPorK(d.rol);
+  const alcance = rol.modulos === "todos" ? modulosComercio : modulosComercio.filter((k) => rol.modulos.includes(k));
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-lg">
+      <div className="p-5">
+        <h3 className="f-d text-lg">{d.id ? "Editar acceso" : "Nuevo acceso"}</h3>
+        <div className="space-y-3 mt-4">
+          <Campo label="Nombre de la persona">
+            <input value={d.nombre || ""} onChange={(e) => setD({ ...d, nombre: e.target.value })} autoFocus className={inputCls} />
+          </Campo>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo label="Usuario">
+              <input value={d.usuario || ""} onChange={(e) => setD({ ...d, usuario: e.target.value.replace(/\s/g, "").toLowerCase() })} className={`${inputCls} f-m`} />
+            </Campo>
+            <Campo label="Contraseña">
+              <input value={d.clave || ""} onChange={(e) => setD({ ...d, clave: e.target.value })} className={`${inputCls} f-m`} />
+            </Campo>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Rol</span>
+            <div className="grid sm:grid-cols-2 gap-2 mt-1.5">
+              {ROLES.map((r) => (
+                <button key={r.k} onClick={() => setD({ ...d, rol: r.k })}
+                  className={`text-left px-3 py-2 rounded-xl border ${d.rol === r.k ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+                  <div className="text-sm font-semibold">{r.n}</div>
+                  <div className="text-[11px] text-stone-500">{r.d}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3">
+          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-2">Con este rol va a ver</div>
+          <div className="flex flex-wrap gap-1.5">
+            {alcance.length === 0 && <span className="text-sm text-stone-400">Ningún módulo: el comercio no tiene contratado nada de lo que este rol alcanza.</span>}
+            {alcance.map((k) => (
+              <span key={k} className="text-[11px] px-2 py-0.5 rounded-lg bg-white border border-stone-200">{(MODULOS.find((m) => m.k === k) || {}).n}</span>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[11px] text-stone-500">
+            {[["verCostos", "Ver costos y márgenes"], ["descuentos", "Dar descuentos"], ["anular", "Anular ventas"],
+              ["cerrarCaja", "Cerrar caja"], ["cambiarPrecios", "Cambiar precios"], ["ajustes", "Configuración"]].map(([k, n]) => (
+              <span key={k} className={rol.permisos[k] ? "text-emerald-700 font-semibold" : "text-stone-400 line-through"}>{n}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
+          <Boton onClick={() => onGuardar(d)} disabled={!d.nombre || !d.usuario || !d.clave}><Check size={15} /> Guardar</Boton>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function PanelValik({ sesion, comercios, setComercios, onEntrarComo, onSalir }) {
+  const [abierto, setAbierto] = useState(null);       // comercio en detalle
+  const [altaUsuario, setAltaUsuario] = useState(null);
+  const [altaComercio, setAltaComercio] = useState(false);
+  const [nombreNuevo, setNombreNuevo] = useState("");
+  const c = comercios.find((x) => x.id === abierto) || null;
+
+  const actualizar = (id, cambios) => setComercios((cs) => cs.map((x) => (x.id === id ? { ...x, ...cambios } : x)));
+
+  const alternarModulo = (k) => {
+    if (MODULOS_BASE.includes(k)) return;             // el piso mínimo no se saca
+    const tiene = c.modulos.includes(k);
+    actualizar(c.id, { modulos: tiene ? c.modulos.filter((x) => x !== k) : [...c.modulos, k] });
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-950 text-white">
+      <header className="border-b border-stone-800 px-4 md:px-6 py-3 flex items-center gap-3">
+        <LogoValik size={32} claro />
+        <span className="f-d text-xl tracking-tight">valik</span>
+        <span className="text-[10px] uppercase tracking-widest text-orange-400 font-bold border border-orange-500/40 rounded px-1.5 py-0.5">Administración</span>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-sm text-stone-400 hidden sm:block">{sesion.nombre}</span>
+          <button onClick={onSalir} className="text-sm text-stone-400 hover:text-white">Salir</button>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto p-4 md:p-6">
+        {!c ? (
+          <>
+            <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+              <div>
+                <h1 className="f-d text-2xl">Comercios</h1>
+                <p className="text-sm text-stone-400">{comercios.length} cuentas · {comercios.filter((x) => x.activo).length} activas</p>
+              </div>
+              <button onClick={() => { setAltaComercio(true); setNombreNuevo(""); }}
+                className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-stone-950 font-bold rounded-xl px-3.5 py-2 text-sm">
+                <Plus size={15} /> Nuevo comercio
+              </button>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-3">
+              {comercios.map((x) => (
+                <button key={x.id} onClick={() => setAbierto(x.id)}
+                  className="text-left bg-stone-900 border border-stone-800 hover:border-stone-700 rounded-2xl p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate">{x.nombre}</div>
+                      <div className="text-[11px] text-stone-500">Alta {x.alta} · {x.usuarios.length} usuario{x.usuarios.length !== 1 ? "s" : ""}</div>
+                    </div>
+                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border shrink-0 ${
+                      x.activo ? "border-emerald-500/40 text-emerald-400" : "border-stone-700 text-stone-500"}`}>
+                      {x.activo ? "Activo" : "Suspendido"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-3">
+                    {x.modulos.filter((k) => !MODULOS_BASE.includes(k)).map((k) => (
+                      <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-300">{(MODULOS.find((m) => m.k === k) || {}).n}</span>
+                    ))}
+                    {x.modulos.filter((k) => !MODULOS_BASE.includes(k)).length === 0 && (
+                      <span className="text-[11px] text-stone-500">Solo los módulos base</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setAbierto(null)} className="flex items-center gap-1.5 text-sm text-stone-400 hover:text-white mb-4">
+              <ChevronLeft size={16} /> Todos los comercios
+            </button>
+
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h1 className="f-d text-2xl">{c.nombre}</h1>
+                <p className="text-sm text-stone-400">Alta {c.alta}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => actualizar(c.id, { activo: !c.activo })}
+                  className={`text-sm font-semibold rounded-xl px-3 py-2 border ${c.activo ? "border-stone-700 text-stone-300 hover:bg-stone-900" : "border-emerald-500/40 text-emerald-400"}`}>
+                  {c.activo ? "Suspender" : "Reactivar"}
+                </button>
+                <button onClick={() => onEntrarComo(c)}
+                  className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-stone-950 font-bold rounded-xl px-3.5 py-2 text-sm">
+                  Entrar al sistema <ArrowRight size={15} />
+                </button>
+              </div>
+            </div>
+
+            <section className="mt-6">
+              <h2 className="text-[11px] uppercase tracking-widest text-stone-500 font-bold mb-2">Módulos contratados</h2>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {MODULOS.map((m) => {
+                  const tiene = c.modulos.includes(m.k);
+                  return (
+                    <button key={m.k} onClick={() => alternarModulo(m.k)} disabled={m.base}
+                      className={`text-left px-3.5 py-2.5 rounded-xl border flex items-center gap-3 ${
+                        m.base ? "border-stone-800 bg-stone-900/50 cursor-default"
+                        : tiene ? "border-orange-500/50 bg-orange-500/10" : "border-stone-800 bg-stone-900 hover:border-stone-700"}`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold">{m.n}</div>
+                        <div className="text-[11px] text-stone-500">{m.d}</div>
+                      </div>
+                      {m.base
+                        ? <span className="text-[10px] uppercase tracking-wider text-stone-500 shrink-0">incluido</span>
+                        : <span className={`w-9 h-5 rounded-full shrink-0 relative transition-colors ${tiene ? "bg-orange-500" : "bg-stone-700"}`}>
+                            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${tiene ? "left-4.5" : "left-0.5"}`} style={{ left: tiene ? 18 : 2 }} />
+                          </span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-[11px] uppercase tracking-widest text-stone-500 font-bold">Accesos</h2>
+                <button onClick={() => setAltaUsuario({})} className="text-sm font-semibold text-orange-400 hover:text-orange-300 flex items-center gap-1">
+                  <Plus size={14} /> Nuevo acceso
+                </button>
+              </div>
+              <ul className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800 overflow-hidden">
+                {c.usuarios.map((u) => (
+                  <li key={u.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold">{u.nombre}</div>
+                      <div className="f-m text-[11px] text-stone-500">{u.usuario} · {rolPorK(u.rol).n}</div>
+                    </div>
+                    <button onClick={() => setAltaUsuario(u)} className="text-xs text-stone-400 hover:text-white">Editar</button>
+                    <button onClick={() => actualizar(c.id, { usuarios: c.usuarios.filter((x) => x.id !== u.id) })}
+                      className="text-xs text-stone-600 hover:text-red-400">Quitar</button>
+                  </li>
+                ))}
+                {c.usuarios.length === 0 && <li className="px-4 py-6 text-center text-sm text-stone-500">Sin accesos: nadie puede entrar todavía.</li>}
+              </ul>
+              <p className="text-[11px] text-stone-600 mt-2">
+                El dueño del comercio puede crear los suyos desde adentro del sistema.
+              </p>
+            </section>
+          </>
+        )}
+      </main>
+
+      <FormUsuario abierto={!!altaUsuario} inicial={altaUsuario} modulosComercio={c ? c.modulos : []}
+        onCerrar={() => setAltaUsuario(null)}
+        onGuardar={(d) => {
+          if (d.id) actualizar(c.id, { usuarios: c.usuarios.map((u) => (u.id === d.id ? { ...u, ...d } : u)) });
+          else actualizar(c.id, { usuarios: [...c.usuarios, { ...d, id: "u" + uid() }] });
+          setAltaUsuario(null);
+        }} />
+
+      <Modal open={altaComercio} onClose={() => setAltaComercio(false)} ancho="max-w-md">
+        <div className="p-5">
+          <h3 className="f-d text-lg">Nuevo comercio</h3>
+          <p className="text-sm text-stone-500 mt-1">Arranca con los módulos base. Los demás se activan después.</p>
+          <input value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} autoFocus placeholder="Nombre del comercio"
+            className={`${inputCls} mt-3`} />
+          <div className="flex justify-end gap-2 mt-4">
+            <Boton variant="quiet" onClick={() => setAltaComercio(false)}>Cancelar</Boton>
+            <Boton disabled={!nombreNuevo.trim()} onClick={() => {
+              const nuevo = {
+                id: "cm" + uid(), nombre: nombreNuevo.trim(), plan: "Base", modulos: [...MODULOS_BASE],
+                alta: `${String(HOY.getMonth() + 1).padStart(2, "0")}/${HOY.getFullYear()}`, activo: true, usuarios: [],
+              };
+              setComercios((cs) => [...cs, nuevo]);
+              setAltaComercio(false); setAbierto(nuevo.id);
+            }}><Check size={15} /> Crear</Boton>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+function LogoValik({ size = 40, claro = false }) {
+  return (
+    <svg viewBox="0 0 64 64" width={size} height={size} aria-label="Valik">
+      <rect width="64" height="64" rx="16" fill={claro ? "#FFFFFF" : "#0F0F0F"} />
+      <path d="M17 27.5 L29.5 45.5" stroke={claro ? "#0F0F0F" : "#FFFFFF"} strokeWidth="6.5" strokeLinecap="round" fill="none" />
+      <path d="M29.5 45.5 L48 17" stroke="#F97316" strokeWidth="6.5" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+function Login({ comercios, onEntrar }) {
+  const [usuario, setUsuario] = useState("");
+  const [clave, setClave] = useState("");
+  const [error, setError] = useState("");
+
+  const entrar = () => {
+    const u = usuario.trim();
+    if (!u || !clave) return setError("Completá usuario y contraseña.");
+
+    if (u.toLowerCase() === DUENO_PLATAFORMA.usuario.toLowerCase() && clave === DUENO_PLATAFORMA.clave) {
+      return onEntrar({ tipo: "plataforma", nombre: DUENO_PLATAFORMA.nombre, usuario: DUENO_PLATAFORMA.usuario });
+    }
+    for (const c of comercios) {
+      const encontrado = (c.usuarios || []).find((x) => x.usuario.toLowerCase() === u.toLowerCase() && x.clave === clave);
+      if (encontrado) {
+        if (!c.activo) return setError("Esta cuenta está suspendida. Contactate con el administrador.");
+        return onEntrar({ tipo: "comercio", comercio: c, rol: encontrado.rol, nombre: encontrado.nombre, usuario: encontrado.usuario });
+      }
+    }
+    // Un mensaje único: decir cuál de los dos está mal le sirve a quien prueba
+    // credenciales, no a quien se equivocó tipeando.
+    setError("Usuario o contraseña incorrectos.");
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-950 text-white flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-5">
+        <div className="w-full max-w-sm">
+          <div className="flex items-center gap-3">
+            <LogoValik size={44} claro />
+            <span className="f-d text-3xl tracking-tight">valik</span>
+          </div>
+          <p className="text-stone-400 text-sm mt-3">Sistemas de gestión para comercios.</p>
+
+          <div className="mt-8 space-y-3">
+            <label className="block">
+              <span className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Usuario</span>
+              <input value={usuario} onChange={(e) => { setUsuario(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
+                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-3 text-base mt-1.5 outline-none focus:border-orange-500 text-white" />
+            </label>
+            <label className="block">
+              <span className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Contraseña</span>
+              <input type="password" value={clave} onChange={(e) => { setClave(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && entrar()}
+                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-3 text-base mt-1.5 outline-none focus:border-orange-500 text-white" />
+            </label>
+
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-red-400 bg-red-950/40 border border-red-900/60 rounded-xl px-3 py-2.5">
+                <AlertTriangle size={15} className="shrink-0" /> {error}
+              </div>
+            )}
+
+            <button onClick={entrar}
+              className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-stone-950 font-bold rounded-xl px-4 py-3 text-base transition-colors">
+              Entrar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <footer className="px-5 py-4 text-center text-[11px] text-stone-600">
+        Entorno de demostración · las credenciales todavía no se validan en un servidor
+      </footer>
+    </div>
+  );
+}
+
 const NAV = [
   { k: "inicio", n: "Inicio", i: LayoutDashboard },
   { k: "pedidos", n: "Pedidos", i: ClipboardList },
@@ -5590,8 +6008,10 @@ const TITULOS = {
   ajustes: ["Ajustes", "Configuración del negocio y del sistema"],
 };
 
-export default function App() {
-  const [vista, setVista] = useState("cobro");
+function Sistema({ sesion, onSalir, setComercios }) {
+  const { modulos, permisos, esPlataforma } = permisosDe(sesion);
+  const puedeVer = (k) => k === "inicio" || modulos.includes(k);
+  const [vista, setVista] = useState(modulos.includes("cobro") ? "cobro" : "panel");
   const [tab, setTab] = useState("inicio");
   const [foco, setFoco] = useState(null);
   const [productos, setProductos] = useState(DATA.productos);
@@ -5806,7 +6226,7 @@ export default function App() {
           <main className="flex-1 p-3 md:p-5">
             <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
               toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
-              aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} setClientes={setClientes} />
+              aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} setClientes={setClientes} permisos={permisos} />
           </main>
 
           <footer className="hidden md:block px-4 py-2 text-center text-[11px] text-stone-400 border-t border-stone-200 bg-white">
@@ -5829,7 +6249,7 @@ export default function App() {
           </div>
           <Boton className="w-full mt-2" size="lg" onClick={cobrar_}><Barcode size={17} /> Cobrar <kbd className="f-m text-[10px] border border-white/30 rounded px-1 py-0.5">F10</kbd></Boton>
           <nav className="mt-3 space-y-0.5">
-            {NAV.map((n) => (
+            {NAV.filter((n) => puedeVer(n.k)).map((n) => (
               <button key={n.k} onClick={() => ir(n.k)}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors ${tab === n.k ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"}`}>
                 <n.i size={16} className={tab === n.k ? "text-orange-400" : "text-stone-400"} /> {n.n}
@@ -5855,7 +6275,7 @@ export default function App() {
             <button onClick={cobrar_} className="flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 text-white bg-orange-500">
               <Barcode size={17} /> Cobrar
             </button>
-            {NAV.map((n) => (
+            {NAV.filter((n) => puedeVer(n.k)).map((n) => (
               <button key={n.k} onClick={() => ir(n.k)}
                 className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${tab === n.k ? "text-orange-600" : "text-stone-400"}`}>
                 <n.i size={17} /> {n.n}
@@ -5920,5 +6340,43 @@ export default function App() {
       </div>
     </div>
     </ScanCtx.Provider>
+  );
+}
+
+/* ============================================================
+   15. RAÍZ · quién entró decide qué se ve
+   ============================================================ */
+
+export default function App() {
+  const [comercios, setComercios] = useState(COMERCIOS_INICIALES);
+  const [sesion, setSesion] = useState(null);
+
+  if (!sesion) return <Login comercios={comercios} onEntrar={setSesion} />;
+
+  if (sesion.tipo === "plataforma" && !sesion.viendo) {
+    return (
+      <PanelValik
+        sesion={sesion}
+        comercios={comercios}
+        setComercios={setComercios}
+        onSalir={() => setSesion(null)}
+        onEntrarComo={(c) => setSesion({ ...sesion, viendo: c })}
+      />
+    );
+  }
+
+  // El comercio que se está mirando: el propio, o el que abrió la plataforma.
+  const comercio = sesion.viendo || sesion.comercio;
+  const sesionSistema = sesion.viendo
+    ? { tipo: "comercio", comercio, rol: "dueno", nombre: sesion.nombre, usuario: sesion.usuario }
+    : sesion;
+
+  return (
+    <Sistema
+      key={comercio.id}
+      sesion={sesionSistema}
+      setComercios={setComercios}
+      onSalir={() => setSesion(sesion.viendo ? { ...sesion, viendo: null } : null)}
+    />
   );
 }
