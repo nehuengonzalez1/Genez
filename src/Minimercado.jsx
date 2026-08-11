@@ -551,8 +551,11 @@ function discriminaIVA(letra) {
 }
 
 const FISCAL_INICIAL = {
-  razonSocial: "Minimercado El Progreso",
-  cuit: "30-71234567-4",
+  // El nombre de fantasía es el que ve el cliente arriba del comprobante;
+  // la razón social y el CUIT van debajo, que es lo que exige ARCA.
+  nombreFactura: "Super 25",
+  razonSocial: "Axel Gonzalez",
+  cuit: "20-41564841-0",
   condicion: "RI",
   iibb: "901-234567-8",
   inicio: "01/03/2019",
@@ -1085,12 +1088,15 @@ function ticketVenta(t, ajustes, W) {
   const discrimina = letra && discriminaIVA(letra);
 
   const b = [
-    { t: "c", v: (f.razonSocial || ajustes.negocio).toUpperCase() },
+    { t: "c", v: (f.nombreFactura || f.razonSocial || ajustes.negocio).toUpperCase() },
     { t: "c", v: f.domicilio || "" },
-    { t: "c", v: `CUIT ${f.cuit}` },
-    { t: "c", v: t.fiscal ? condicionNombre(f.condicion).toUpperCase() : "NO VALIDO COMO FACTURA" },
   ];
+  // En un comprobante fiscal la razón social y el CUIT son obligatorios,
+  // aunque arriba figure el nombre del local.
+  if (t.fiscal && f.razonSocial && f.razonSocial !== f.nombreFactura) b.push({ t: "c", v: f.razonSocial.toUpperCase() });
+  b.push({ t: "c", v: `CUIT ${f.cuit}` });
   if (t.fiscal && f.iibb) b.push({ t: "c", v: `IIBB ${f.iibb}  Inicio ${f.inicio || ""}`.trim() });
+  b.push({ t: "c", v: t.fiscal ? condicionNombre(f.condicion).toUpperCase() : "NO VALIDO COMO FACTURA" });
   b.push({ t: "sep", c: "=" });
   b.push({ t: "c", v: t.fiscal ? `FACTURA ${letra}` : "TICKET DE VENTA" });
   b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${fdatel(HOY)} ${t.hora}` });
@@ -5135,6 +5141,9 @@ function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, mp, setM
         </p>
 
         <div className="grid md:grid-cols-2 gap-3 mt-4">
+          <Campo label="Nombre en la factura">
+            <input value={f.nombreFactura || ""} onChange={(e) => setFiscal({ nombreFactura: e.target.value })} className={inputCls} />
+          </Campo>
           <Campo label="Razón social">
             <input value={f.razonSocial || ""} onChange={(e) => setFiscal({ razonSocial: e.target.value })} className={inputCls} />
           </Campo>
@@ -5648,11 +5657,11 @@ function permisosDe(sesion) {
 
 const COMERCIOS_INICIALES = [
   {
-    id: "cm1", nombre: "Minimercado El Progreso", plan: "Completo",
+    id: "cm1", nombre: "Super 25", plan: "Completo",
     modulos: MODULOS.map((m) => m.k), alta: "09/2025", activo: true,
     usuarios: [
-      { id: "u1", nombre: "Roberto Fernández", usuario: "roberto", clave: "elprogreso", rol: "dueno" },
-      { id: "u2", nombre: "Silvana", usuario: "silvana", clave: "caja2026", rol: "cajero" },
+      { id: "u1", nombre: "Axel Gonzalez", usuario: "axel", clave: "super25", rol: "dueno" },
+      { id: "u2", nombre: "Cristian Barrios", usuario: "cristian", clave: "caja2026", rol: "cajero" },
     ],
   },
   {
@@ -6038,7 +6047,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const [provs, setProvs] = useState(PROV_INFO);
   const [clientes, setClientes] = useState(CLIENTES_INICIALES);
   const [altaProd, setAltaProd] = useState(null);
-  const [ajustes, setAjustes] = useState({ negocio: "Minimercado El Progreso", cuit: "30-71234567-4", arca: false, medios: MEDIOS_INICIALES, fiscal: FISCAL_INICIAL, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
+  const [ajustes, setAjustes] = useState({ negocio: "Super 25", cuit: "20-41564841-0", arca: false, medios: MEDIOS_INICIALES, fiscal: FISCAL_INICIAL, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
   const [toasts, setToasts] = useState([]);
 
   const hoyDiario = DATA.diario[DATA.diario.length - 1];
