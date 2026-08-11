@@ -532,11 +532,13 @@ const MEDIOS_INICIALES = [
    Un monotributista siempre emite C. Un responsable inscripto emite A si le
    vende a otro responsable inscripto, y B en los demás casos.              */
 const CONDICIONES = [
-  { k: "RI", n: "Responsable Inscripto", corto: "Resp. Inscripto" },
-  { k: "MONOTRIBUTO", n: "Monotributista", corto: "Monotributo" },
-  { k: "EXENTO", n: "IVA Exento", corto: "Exento" },
-  { k: "CF", n: "Consumidor Final", corto: "Cons. Final" },
+  { k: "RI", n: "Responsable Inscripto", corto: "Resp. Inscripto", legal: "IVA RESPONSABLE INSCRIPTO" },
+  { k: "MONOTRIBUTO", n: "Monotributista", corto: "Monotributo", legal: "RESPONSABLE MONOTRIBUTO" },
+  { k: "EXENTO", n: "IVA Exento", corto: "Exento", legal: "IVA EXENTO" },
+  { k: "CF", n: "Consumidor Final", corto: "Cons. Final", legal: "CONSUMIDOR FINAL" },
 ];
+
+const condicionLegal = (k) => (CONDICIONES.find((c) => c.k === k) || {}).legal || String(k || "").toUpperCase();
 
 const condicionNombre = (k) => (CONDICIONES.find((c) => c.k === k) || { n: k || "—" }).n;
 
@@ -556,7 +558,7 @@ const FISCAL_INICIAL = {
   nombreFactura: "Super 25",
   razonSocial: "Axel Gonzalez",
   cuit: "20-41564841-0",
-  condicion: "RI",
+  condicion: "MONOTRIBUTO",
   iibb: "901-234567-8",
   inicio: "01/03/2019",
   puntoVenta: "0001",
@@ -1096,7 +1098,7 @@ function ticketVenta(t, ajustes, W) {
   if (t.fiscal && f.razonSocial && f.razonSocial !== f.nombreFactura) b.push({ t: "c", v: f.razonSocial.toUpperCase() });
   b.push({ t: "c", v: `CUIT ${f.cuit}` });
   if (t.fiscal && f.iibb) b.push({ t: "c", v: `IIBB ${f.iibb}  Inicio ${f.inicio || ""}`.trim() });
-  b.push({ t: "c", v: t.fiscal ? condicionNombre(f.condicion).toUpperCase() : "NO VALIDO COMO FACTURA" });
+  b.push({ t: "c", v: t.fiscal ? condicionLegal(f.condicion) : "NO VALIDO COMO FACTURA" });
   b.push({ t: "sep", c: "=" });
   b.push({ t: "c", v: t.fiscal ? `FACTURA ${letra}` : "TICKET DE VENTA" });
   b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${fdatel(HOY)} ${t.hora}` });
@@ -1106,7 +1108,7 @@ function ticketVenta(t, ajustes, W) {
     b.push({ t: "w", v: `CLIENTE: ${(cli ? cli.razonSocial : "CONSUMIDOR FINAL").toUpperCase()}` });
     if (cli) {
       b.push({ t: "v", v: `${cli.tipoDoc || "CUIT"} ${cli.doc}` });
-      b.push({ t: "w", v: condicionNombre(cli.condicion).toUpperCase() });
+      b.push({ t: "w", v: condicionLegal(cli.condicion) });
       if (cli.domicilio) b.push({ t: "w", v: cli.domicilio.toUpperCase() });
     }
   }
