@@ -880,9 +880,12 @@ function imprimirComandera(lineas, ancho, qrSemilla, toast) {
       @page { size: ${mm}mm auto; margin: 0; }
       html, body { margin: 0; padding: 0; background: #fff; }
       body { width: ${mm}mm; }
-      pre { margin: 0; padding: ${mm === 58 ? "2mm 1.5mm" : "3mm 2.5mm"}; white-space: pre;
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      pre { margin: 0; padding: ${mm === 58 ? "1.5mm 1mm" : "2mm 1.5mm"}; white-space: pre;
             font-family: "Courier New", ui-monospace, monospace;
-            font-size: ${mm === 58 ? "8.6pt" : "9.2pt"}; line-height: 1.3; color: #000; }
+            font-size: ${mm === 58 ? "8.6pt" : "9.2pt"}; line-height: 1.28;
+            /* Negro puro y negrita: el papel térmico no imprime grises */
+            color: #000; font-weight: 700; -webkit-font-smoothing: none; }
       .qr { text-align: center; padding-bottom: 4mm; }
       .qr svg { display: inline-block; }
     </style></head><body><pre>${cuerpo}</pre>${qr}</body></html>`;
@@ -1023,7 +1026,6 @@ function ticketVenta(t, ajustes, W) {
   b.push({ t: "b" });
   b.push({ t: "c", v: `${t.items.length} items` });
   b.push({ t: "c", v: "GRACIAS POR SU COMPRA" });
-  b.push({ t: "b" });
   return armarLineas(W, b);
 }
 
@@ -1054,7 +1056,6 @@ function comandaPicking(ped, W) {
   if (ped.nota) { b.push({ t: "sep" }); b.push({ t: "w", v: `NOTA: ${ped.nota.toUpperCase()}` }); }
   b.push({ t: "b" });
   b.push({ t: "c", v: `Preparo: ${fdatel(HOY)}  Control: ______` });
-  b.push({ t: "b" });
   return armarLineas(W, b);
 }
 
