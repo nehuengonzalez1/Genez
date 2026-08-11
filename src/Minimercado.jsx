@@ -5981,6 +5981,52 @@ function LogoGenez({ size = 40, claro = false, conNombre = false }) {
   );
 }
 
+/* Panel hexagonal del login. Va dibujado en SVG y no como imagen: pesa unos
+   pocos kilobytes, se adapta a cualquier tamaño de pantalla sin pixelarse, y
+   el resplandor naranja se puede mover cambiando un solo punto.            */
+function FondoHexagonal() {
+  const filas = 9, columnas = 7, r = 62;
+  const ancho = Math.sqrt(3) * r, alto = 2 * r;
+  const centro = { x: 210, y: 500 };   // desde acá irradia la luz
+
+  const celdas = [];
+  for (let f = 0; f < filas; f++) {
+    for (let c = 0; c < columnas; c++) {
+      const x = c * ancho + (f % 2 ? ancho / 2 : 0);
+      const y = f * alto * 0.75;
+      const d = Math.hypot(x - centro.x, y - centro.y);
+      // La intensidad cae con la distancia: cerca del foco los bordes queman.
+      // Caída al cuadrado: el foco queda concentrado y no se enciende media pantalla
+      const i = Math.pow(Math.max(0, 1 - d / 360), 2);
+      celdas.push({ x, y, i });
+    }
+  }
+  const punta = (x, y) => Array.from({ length: 6 }, (_, k) => {
+    const a = (Math.PI / 180) * (60 * k - 30);
+    return `${(x + r * Math.cos(a)).toFixed(1)},${(y + r * Math.sin(a)).toFixed(1)}`;
+  }).join(" ");
+
+  return (
+    <svg viewBox="0 0 700 1000" preserveAspectRatio="xMinYMid slice" className="absolute inset-0 w-full h-full" aria-hidden="true">
+      <defs>
+        <radialGradient id="brillo" cx={centro.x / 700} cy={centro.y / 1000} r="0.42">
+          <stop offset="0%" stopColor="#FF6B00" stopOpacity="0.5" />
+          <stop offset="55%" stopColor="#FF6B00" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#FF6B00" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="700" height="1000" fill="#0A0A0A" />
+      {celdas.map((h, k) => (
+        <polygon key={k} points={punta(h.x, h.y)} fill="#141414"
+          stroke={h.i > 0.02 ? "#FF6B00" : "#1C1C1C"}
+          strokeOpacity={h.i > 0.02 ? Math.min(1, 0.15 + h.i * 1.8) : 1}
+          strokeWidth={h.i > 0.45 ? 2.4 : h.i > 0.12 ? 1.6 : 1} />
+      ))}
+      <rect width="700" height="1000" fill="url(#brillo)" />
+    </svg>
+  );
+}
+
 function Login({ comercios, onEntrar }) {
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
@@ -6005,46 +6051,53 @@ function Login({ comercios, onEntrar }) {
     setError("Usuario o contraseña incorrectos.");
   };
 
+  const campo = "w-full bg-transparent border rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-white transition-colors";
+
   return (
-    <div className="min-h-screen bg-stone-950 text-white flex flex-col">
-      <div className="flex-1 flex items-center justify-center p-5">
-        <div className="w-full max-w-sm">
-          <div className="flex items-center gap-3">
-            <LogoGenez size={52} claro conNombre />
-          </div>
-          <p className="text-stone-400 text-sm mt-3">Sistemas de gestión para comercios.</p>
-
-          <div className="mt-8 space-y-3">
-            <label className="block">
-              <span className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Usuario</span>
-              <input value={usuario} onChange={(e) => { setUsuario(e.target.value); setError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
-                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-3 text-base mt-1.5 outline-none focus:border-orange-500 text-white" />
-            </label>
-            <label className="block">
-              <span className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Contraseña</span>
-              <input type="password" value={clave} onChange={(e) => { setClave(e.target.value); setError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && entrar()}
-                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-3 text-base mt-1.5 outline-none focus:border-orange-500 text-white" />
-            </label>
-
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-400 bg-red-950/40 border border-red-900/60 rounded-xl px-3 py-2.5">
-                <AlertTriangle size={15} className="shrink-0" /> {error}
-              </div>
-            )}
-
-            <button onClick={entrar}
-              className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-stone-950 font-bold rounded-xl px-4 py-3 text-base transition-colors">
-              Entrar
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#0A0A0A] text-white flex">
+      {/* El panel decorativo se esconde en celular: ahí manda el formulario */}
+      <div className="hidden lg:block relative w-[42%] max-w-[620px] overflow-hidden">
+        <FondoHexagonal />
       </div>
 
-      <footer className="px-5 py-4 text-center text-[11px] text-stone-600">
-        Entorno de demostración · las credenciales todavía no se validan en un servidor
-      </footer>
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-md">
+            <LogoGenez size={64} claro conNombre />
+            <p className="text-stone-400 mt-4">Sistemas de gestión para comercios.</p>
+
+            <div className="mt-9 space-y-5">
+              <label className="block">
+                <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Usuario</span>
+                <input value={usuario} onChange={(e) => { setUsuario(e.target.value); setError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
+                  className={`${campo} border-orange-500/70 focus:border-orange-500`} />
+              </label>
+              <label className="block">
+                <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Contraseña</span>
+                <input type="password" value={clave} onChange={(e) => { setClave(e.target.value); setError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && entrar()}
+                  className={`${campo} bg-white/5 border-white/10 focus:border-orange-500`} />
+              </label>
+
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-400 bg-red-950/40 border border-red-900/60 rounded-xl px-3 py-2.5">
+                  <AlertTriangle size={15} className="shrink-0" /> {error}
+                </div>
+              )}
+
+              <button onClick={entrar}
+                className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-stone-950 font-bold rounded-xl px-4 py-4 text-lg transition-colors">
+                Entrar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <footer className="px-6 py-4 text-center text-[11px] text-stone-600">
+          Entorno de demostración · las credenciales todavía no se validan en un servidor
+        </footer>
+      </div>
     </div>
   );
 }
