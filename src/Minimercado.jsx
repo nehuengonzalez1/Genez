@@ -231,7 +231,7 @@ function generar() {
             sku: `${grupo.c.slice(0, 3).toUpperCase()}-${String(n).padStart(4, "0")}`,
             barcode: "779" + String(1000000 + n * 37).padStart(10, "0").slice(0, 10),
             costo, costoPrev, precio, precioPrev: precio,
-            precio2: null,
+            precios: {},
             iva: it.iva || 21,
             bulto: pick([1, 6, 6, 12, 12, 24]),
             unidad: it.kg ? "kg" : "un",
@@ -258,7 +258,7 @@ function generar() {
   for (const p of productos) {
     if (R() < 0.75) {
       const cand = Math.round((p.precio * (1 - rf(0.05, 0.13))) / 10) * 10;
-      p.precio2 = cand > p.costo * 1.05 ? cand : null;
+      if (cand > p.costo * 1.05) p.precios = { l2: cand };
     }
   }
 
@@ -431,9 +431,35 @@ function esCantidad(t) {
 }
 const aNumero = (t) => Number(String(t).trim().replace(",", "."));
 
-function precioAplicado(precio, precio2, cantidad, ajustes) {
-  if (!ajustes || !ajustes.lista2 || !precio2) return { precio, lista: 1 };
-  return cantidad >= ajustes.umbral2 ? { precio: precio2, lista: 2 } : { precio, lista: 1 };
+function precioAplicado(prod, cantidad, ajustes) {
+  const base = { precio: prod ? prod.precio : 0, lista: null, nombre: "" };
+  if (!prod || !ajustes || !ajustes.listas) return base;
+  const precios = prod.precios || {};
+  // Gana la lista más exigente que el renglón alcance: si un producto tiene
+  // precio desde 3 y desde 12 unidades, con 12 se cobra la de 12.
+  const candidatas = ajustes.listas
+    .filter((l) => l.activa !== false && precios[l.id] > 0 && cantidad >= l.umbral)
+    .sort((a, b) => b.umbral - a.umbral);
+  if (!candidatas.length) return base;
+  const l = candidatas[0];
+  return { precio: precios[l.id], lista: l.id, nombre: l.nombre };
+}
+
+/* Próxima lista que el renglón podría alcanzar, para poder ofrecerla en el
+   mostrador: "si llevás uno más te sale más barato". */
+function proximaLista(prod, cantidad, ajustes) {
+  if (!prod || !ajustes || !ajustes.listas) return null;
+  const precios = prod.precios || {};
+  const faltantes = ajustes.listas
+    .filter((l) => l.activa !== false && precios[l.id] > 0 && cantidad < l.umbral)
+    .sort((a, b) => a.umbral - b.umbral);
+  return faltantes.length ? { ...faltantes[0], precio: precios[faltantes[0].id] } : null;
+}
+
+const LISTAS_INICIALES = [{ id: "l2", nombre: "Por cantidad", umbral: 3, activa: true }];
+
+function listaPorId(ajustes, id) {
+  return (ajustes.listas || []).find((l) => l.id === id) || null;
 }
 
 function faltantesProducto(p) {
@@ -472,7 +498,9 @@ function productoNuevo(datos, productos) {
     costo, costoPrev: costo,
     precio: Number(datos.precio) || 0,
     precioPrev: Number(datos.precio) || 0,
-    precio2: Number(datos.precio2) || null,
+    precios: datos.precios && typeof datos.precios === "object"
+      ? Object.fromEntries(Object.entries(datos.precios).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)]))
+      : {},
     iva: Number(datos.iva) || 21,
     stock: Number(datos.stock) || 0,
     stockMin: Number(datos.stockMin) || 0,
@@ -1003,7 +1031,7 @@ function ticketVenta(t, ajustes, W) {
     b.push({ t: "w", v: l.nombre.toUpperCase() });
     const cant = l.unidad === "kg" ? `${l.qty.toFixed(3)} kg x ${money(l.precio)}` : `${l.qty} x ${money(l.precio)}`;
     b.push({ t: "lr", a: "  " + cant, b: money(l.precio * l.qty) });
-    if (l.lista === 2) b.push({ t: "v", v: "  PRECIO POR CANTIDAD (LISTA 2)" });
+    if (l.lista) b.push({ t: "v", v: `  ${String(l.listaNombre || "PRECIO ESPECIAL").toUpperCase()}` });
   }
   b.push({ t: "sep" });
   b.push({ t: "lr", a: "SUBTOTAL", b: money(t.sub) });
@@ -1185,13 +1213,13 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
-  const [precio2, setPrecio2] = useState("");
+  const [otros, setOtros] = useState({});
   const ref = useRef(null);
 
   useEffect(() => {
     if (!abierto) return;
     setNombre((inicial && inicial.nombre) || "");
-    setPrecio(""); setCosto(""); setPrecio2("");
+    setPrecio(""); setCosto(""); setOtros({});
     setCodigo((inicial && inicial.barcode) || "");
     setTimeout(() => ref.current && ref.current.focus(), 30);
   }, [abierto, inicial]);
@@ -1201,7 +1229,7 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
 
   const crear = (agregar) => {
     if (!nombre.trim()) return;
-    onCrear({ nombre: nombre.trim(), precio: Number(precio) || 0, costo: Number(costo) || 0, precio2: Number(precio2) || null, barcode: codigo }, agregar);
+    onCrear({ nombre: nombre.trim(), precio: Number(precio) || 0, costo: Number(costo) || 0, precios: otros, barcode: codigo }, agregar);
   };
 
   const teclas = (e) => {
@@ -1253,24 +1281,24 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
         </div>
         {margen != null && <p className="text-xs text-stone-500 mt-2 text-right">Margen {pct(margen)}</p>}
 
-        {ajustes.lista2 && (
-          <div className="border border-stone-200 rounded-xl p-3 mt-3">
+        {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
+          <div key={l.id} className="border border-stone-200 rounded-xl p-3 mt-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Precio por cantidad (lista 2)</div>
-                <div className="text-[11px] text-stone-500">Se cobra a partir de {ajustes.umbral2} unidades. Si lo dejás vacío, este producto no tiene descuento por cantidad.</div>
+                <div className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{l.nombre}</div>
+                <div className="text-[11px] text-stone-500">Se cobra a partir de {l.umbral} unidades. Vacío: este producto no entra en esta lista.</div>
               </div>
-              <input value={precio2} onChange={(e) => setPrecio2(e.target.value.replace(/\D/g, ""))}
+              <input value={otros[l.id] || ""} onChange={(e) => setOtros((o) => ({ ...o, [l.id]: e.target.value.replace(/\D/g, "") }))}
                 placeholder="opcional" className="f-m w-28 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400 shrink-0" />
             </div>
-            {Number(precio) > 0 && !Number(precio2) && (
-              <button onClick={() => setPrecio2(String(Math.round((Number(precio) * (1 - ajustes.desc2 / 100)) / 10) * 10))}
+            {Number(precio) > 0 && !Number(otros[l.id]) && (
+              <button onClick={() => setOtros((o) => ({ ...o, [l.id]: String(Math.round((Number(precio) * (1 - ajustes.desc2 / 100)) / 10) * 10) }))}
                 className="text-xs font-semibold text-orange-600 hover:underline mt-2">
                 Poner {money(Math.round((Number(precio) * (1 - ajustes.desc2 / 100)) / 10) * 10)} ({ajustes.desc2}% menos)
               </button>
             )}
           </div>
-        )}
+        ))}
 
         <Boton size="lg" className="w-full mt-4" disabled={!nombre.trim() || !Number(precio)} onClick={() => crear(true)}>
           Crear y agregar al ticket <Tecla>Enter</Tecla>
@@ -1284,6 +1312,145 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
       </div>
     </Overlay>
   );
+}
+
+/* --- Planilla de productos --------------------------------------------
+   Exporta e importa el catálogo en Excel. La librería (SheetJS) se descarga
+   solo cuando se usa, así no engorda la aplicación para quien nunca la abre.
+   Si no se puede descargar, se cae a CSV, que Excel abre igual.            */
+async function cargarPlanilla() {
+  try {
+    return await import(/* @vite-ignore */ "https://esm.sh/xlsx@0.18.5");
+  } catch (e) {
+    return null;
+  }
+}
+
+function columnasCatalogo(listas) {
+  return [
+    ["id", "id"], ["codigo", "barcode"], ["nombre", "nombre"], ["rubro", "categoria"],
+    ["marca", "marca"], ["proveedor", "proveedor"], ["unidad", "unidad"], ["iva", "iva"],
+    ["bulto", "bulto"], ["stock", "stock"], ["stock_minimo", "stockMin"],
+    ["costo", "costo"], ["precio", "precio"],
+    ...listas.map((l) => [`precio_${l.nombre.toLowerCase().replace(/[^a-z0-9]+/gi, "_")}`, `lista:${l.id}`]),
+  ];
+}
+
+function filasCatalogo(productos, listas) {
+  const cols = columnasCatalogo(listas);
+  return productos.map((p) => {
+    const fila = {};
+    for (const [titulo, campo] of cols) {
+      if (campo.startsWith("lista:")) fila[titulo] = (p.precios || {})[campo.slice(6)] || "";
+      else fila[titulo] = p[campo] != null ? p[campo] : "";
+    }
+    return fila;
+  });
+}
+
+function descargar(nombre, contenido, tipo) {
+  const url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+  const a = document.createElement("a");
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+async function exportarCatalogo(productos, listas, toast) {
+  const filas = filasCatalogo(productos, listas);
+  const fecha = `${HOY.getFullYear()}-${String(HOY.getMonth() + 1).padStart(2, "0")}-${String(HOY.getDate()).padStart(2, "0")}`;
+  const XLSX = await cargarPlanilla();
+  if (XLSX) {
+    const hoja = XLSX.utils.json_to_sheet(filas);
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, "Productos");
+    const buf = XLSX.write(libro, { bookType: "xlsx", type: "array" });
+    descargar(`catalogo-${fecha}.xlsx`, buf, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    toast(`${nf.format(filas.length)} productos exportados a Excel.`);
+    return;
+  }
+  // Respaldo: CSV con punto y coma, que es lo que Excel en español espera.
+  const cols = Object.keys(filas[0] || {});
+  const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = "\uFEFF" + [cols.join(";"), ...filas.map((f) => cols.map((c) => esc(f[c])).join(";"))].join("\n");
+  descargar(`catalogo-${fecha}.csv`, csv, "text/csv;charset=utf-8");
+  toast(`${nf.format(filas.length)} productos exportados a CSV (Excel lo abre igual).`);
+}
+
+function parsearCSV(texto) {
+  const limpio = texto.replace(/^\uFEFF/, "");
+  const sep = (limpio.split("\n")[0].match(/;/g) || []).length >= (limpio.split("\n")[0].match(/,/g) || []).length ? ";" : ",";
+  const filas = [];
+  let campo = "", fila = [], entre = false;
+  for (let i = 0; i < limpio.length; i++) {
+    const c = limpio[i];
+    if (entre) {
+      if (c === '"' && limpio[i + 1] === '"') { campo += '"'; i++; }
+      else if (c === '"') entre = false;
+      else campo += c;
+    } else if (c === '"') entre = true;
+    else if (c === sep) { fila.push(campo); campo = ""; }
+    else if (c === "\n") { fila.push(campo); filas.push(fila); fila = []; campo = ""; }
+    else if (c !== "\r") campo += c;
+  }
+  if (campo || fila.length) { fila.push(campo); filas.push(fila); }
+  if (!filas.length) return [];
+  const cab = filas[0].map((x) => x.trim());
+  return filas.slice(1).filter((f) => f.some((x) => String(x).trim() !== ""))
+    .map((f) => Object.fromEntries(cab.map((c, i) => [c, f[i] != null ? f[i] : ""])));
+}
+
+async function leerPlanilla(archivo) {
+  const esCSV = /\.csv$/i.test(archivo.name);
+  if (esCSV) return parsearCSV(await archivo.text());
+  const XLSX = await cargarPlanilla();
+  if (!XLSX) throw new Error("No se pudo cargar el lector de Excel. Guardá la planilla como CSV y probá de nuevo.");
+  const buf = await archivo.arrayBuffer();
+  const libro = XLSX.read(buf, { type: "array" });
+  const hoja = libro.Sheets[libro.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(hoja, { defval: "" });
+}
+
+/* Compara la planilla contra el catálogo y arma el resumen de cambios.
+   No aplica nada: eso lo decide el usuario después de ver qué va a pasar. */
+function analizarPlanilla(filas, productos, listas) {
+  const porId = new Map(productos.map((p) => [String(p.id), p]));
+  const porCodigo = new Map(productos.filter((p) => p.barcode).map((p) => [String(p.barcode), p]));
+  const num = (v) => { const n = Number(String(v).replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, "")); return isNaN(n) ? null : n; };
+  const nuevos = [], cambios = [], errores = [];
+
+  filas.forEach((f, i) => {
+    const fila = i + 2;
+    const id = f.id != null && String(f.id).trim() !== "" ? String(f.id).trim() : null;
+    const cod = f.codigo != null ? String(f.codigo).trim().replace(/\D/g, "") : "";
+    const p = (id && porId.get(id)) || (cod && porCodigo.get(cod)) || null;
+    const nombre = String(f.nombre || "").trim();
+
+    if (!p) {
+      if (!nombre) { errores.push(`Fila ${fila}: sin nombre y sin coincidencia en el catálogo.`); return; }
+      nuevos.push({ fila, datos: f });
+      return;
+    }
+    const dif = [];
+    const comparar = (campo, etiqueta, valor) => {
+      if (valor == null || String(f[campo] ?? "").trim() === "") return;
+      if (Number(p[etiqueta]) !== valor) dif.push({ campo, antes: p[etiqueta], ahora: valor });
+    };
+    comparar("costo", "costo", num(f.costo));
+    comparar("precio", "precio", num(f.precio));
+    comparar("stock", "stock", num(f.stock));
+    comparar("stock_minimo", "stockMin", num(f.stock_minimo));
+    for (const l of listas) {
+      const col = `precio_${l.nombre.toLowerCase().replace(/[^a-z0-9]+/gi, "_")}`;
+      if (String(f[col] ?? "").trim() === "") continue;
+      const v = num(f[col]);
+      if (((p.precios || {})[l.id] || 0) !== (v || 0)) dif.push({ campo: col, antes: (p.precios || {})[l.id] || 0, ahora: v || 0 });
+    }
+    if (nombre && nombre !== p.nombre) dif.push({ campo: "nombre", antes: p.nombre, ahora: nombre });
+    if (dif.length) cambios.push({ fila, p, dif, datos: f });
+  });
+
+  return { nuevos, cambios, errores };
 }
 
 /* --- Lector por cámara -------------------------------------------------
@@ -1484,7 +1651,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
     setCart((c) => {
       const i = c.findIndex((l) => l.pid === p.id);
       if (i >= 0) { const n = [...c]; n[i] = { ...n[i], qty: +(n[i].qty + cantidad).toFixed(3) }; return n; }
-      return [...c, { pid: p.id, qty: cantidad, precio: p.precio, precio2: p.precio2, costo: p.costo, nombre: p.nombre, unidad: p.unidad }];
+      return [...c, { pid: p.id, qty: cantidad, precio: p.precio, precios: p.precios || {}, costo: p.costo, nombre: p.nombre, unidad: p.unidad }];
     });
     setUltimo({ pid: p.id, nombre: p.nombre, unidad: p.unidad });
     setQ(""); setSel(0);
@@ -1513,7 +1680,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
     setQ(""); setSel(0);
     setTimeout(() => {
       if (agregar && creado && creado.precio) {
-        setCart((c) => [...c, { pid: creado.id, qty: creado.unidad === "kg" ? 0.25 : 1, precio: creado.precio, precio2: creado.precio2, costo: creado.costo, nombre: creado.nombre, unidad: creado.unidad }]);
+        setCart((c) => [...c, { pid: creado.id, qty: creado.unidad === "kg" ? 0.25 : 1, precio: creado.precio, precios: creado.precios || {}, costo: creado.costo, nombre: creado.nombre, unidad: creado.unidad }]);
         setUltimo({ pid: creado.id, nombre: creado.nombre, unidad: creado.unidad });
         beep(true, ajustes.sonido);
         toast(`${datos.nombre} creado y agregado. Completá la ficha después.`);
@@ -1527,8 +1694,9 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   const quitar = (pid) => setCart((c) => c.filter((l) => l.pid !== pid));
 
   const lineas = cart.map((l) => {
-    const { precio, lista } = precioAplicado(l.precio, l.precio2, l.qty, ajustes);
-    return { ...l, unit: precio, lista, importe: precio * l.qty, ahorro: (l.precio - precio) * l.qty };
+    const { precio, lista, nombre } = precioAplicado(l, l.qty, ajustes);
+    return { ...l, unit: precio, lista, listaNombre: nombre, proxima: proximaLista(l, l.qty, ajustes),
+      importe: precio * l.qty, ahorro: (l.precio - precio) * l.qty };
   });
   const ahorroTotal = lineas.reduce((s, l) => s + l.ahorro, 0);
   const sub = lineas.reduce((s, l) => s + l.importe, 0);
@@ -1565,7 +1733,7 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
   };
 
   const finalizar = (k, recibido, listaPagos, vueltoDado) => {
-    const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista }));
+    const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre }));
     const t = cobrar({ items, sub, desc: descMonto, total, medio: k, ganancia, recibe: recibido || null, pagos: listaPagos });
     if (vueltoDado != null) t.vuelto = vueltoDado;
     setProductos((ps) => ps.map((p) => {
@@ -1750,9 +1918,9 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-stone-900 leading-snug">{l.nombre}</div>
                       <div className="f-m text-[11px] text-stone-400 mt-0.5">
-                        {l.lista === 2 && <span className="line-through mr-1">{money(l.precio)}</span>}
-                        <span className={l.lista === 2 ? "text-emerald-700 font-semibold" : ""}>{money(l.unit)}</span> c/u
-                        {l.lista === 2 && <span className="ml-1 text-emerald-700 font-bold">L2</span>}
+                        {l.lista && <span className="line-through mr-1">{money(l.precio)}</span>}
+                        <span className={l.lista ? "text-emerald-700 font-semibold" : ""}>{money(l.unit)}</span> c/u
+                        {l.lista && <span className="ml-1 text-emerald-700 font-bold uppercase">{l.listaNombre}</span>}
                       </div>
                     </div>
                     <div className="f-m text-base font-semibold shrink-0">{money(l.importe)}</div>
@@ -1781,19 +1949,14 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
                   <tr key={l.pid} className={i === lineas.length - 1 ? "bg-orange-50/40" : "hover:bg-stone-50"}>
                     <td className="px-4 py-2.5 text-stone-800">
                       {l.nombre}
-                      {l.lista === 2 && (
+                      {l.lista && (
                         <span className="ml-2 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">
-                          lista 2 −{money(l.ahorro)}
+                          {l.listaNombre} −{money(l.ahorro)}
                         </span>
                       )}
-                      {l.lista === 1 && l.precio2 && ajustes.lista2 && (
+                      {!l.lista && l.proxima && (
                         <span className="ml-2 text-[10px] text-stone-400">
-                          desde {ajustes.umbral2} u paga {money(l.precio2)}
-                        </span>
-                      )}
-                      {ajustes.lista2 && !l.precio2 && l.qty >= ajustes.umbral2 && (
-                        <span className="ml-2 text-[10px] text-stone-400" title="Este producto no tiene precio de lista 2 cargado">
-                          sin precio por cantidad
+                          desde {l.proxima.umbral} u paga {money(l.proxima.precio)}
                         </span>
                       )}
                     </td>
@@ -1805,8 +1968,8 @@ function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, s
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-right f-m text-stone-500">
-                      {l.lista === 2 && <span className="line-through text-stone-300 mr-1">{money(l.precio)}</span>}
-                      <span className={l.lista === 2 ? "text-emerald-700 font-semibold" : ""}>{money(l.unit)}</span>
+                      {l.lista && <span className="line-through text-stone-300 mr-1">{money(l.precio)}</span>}
+                      <span className={l.lista ? "text-emerald-700 font-semibold" : ""}>{money(l.unit)}</span>
                     </td>
                     <td className="px-4 py-2.5 text-right f-m font-semibold">{money(l.importe)}</td>
                     <td className="pr-3"><button onClick={() => quitar(l.pid)} className="text-stone-300 hover:text-red-600"><Trash2 size={15} /></button></td>
@@ -2153,7 +2316,7 @@ function Campo({ label, children, ancho = "" }) {
 }
 const inputCls = "w-full border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm mt-1 outline-none focus:border-orange-400";
 
-function FormProducto({ abierto, inicial, productos, provs, onGuardar, onClose }) {
+function FormProducto({ abierto, inicial, productos, provs, ajustes0, onGuardar, onClose }) {
   const [d, setD] = useState({});
   useEffect(() => { if (abierto) setD({ iva: 21, unidad: "un", bulto: 1, stock: 0, ...(inicial || {}) }); }, [abierto, inicial]);
   if (!abierto) return null;
@@ -2200,13 +2363,7 @@ function FormProducto({ abierto, inicial, productos, provs, onGuardar, onClose }
           <Campo label="Precio lista 1">
             <input value={d.precio || ""} onChange={(e) => set("precio", e.target.value.replace(/\D/g, ""))} className={`${inputCls} f-m text-right`} />
           </Campo>
-          <Campo label="Lista 2 (por cantidad)">
-            <input value={d.precio2 || ""} onChange={(e) => set("precio2", e.target.value.replace(/\D/g, ""))}
-              placeholder="opcional" className={`${inputCls} f-m text-right`} />
-            {Number(d.precio2) > 0 && Number(d.precio2) <= costo && <span className="text-[11px] text-red-600">Está por debajo del costo</span>}
-            {Number(d.precio2) > costo && <span className="text-[11px] text-stone-400">margen {pct((Number(d.precio2) - costo) / Number(d.precio2), 0)}</span>}
-          </Campo>
-          <Campo label="Margen lista 1">
+          <Campo label="Margen">
             <div className={`${inputCls} f-m text-right bg-stone-50 ${margen > 0 && margen < 0.12 ? "text-red-600" : ""}`}>{precio ? pct(margen) : "—"}</div>
           </Campo>
           <Campo label="IVA">
@@ -2215,6 +2372,27 @@ function FormProducto({ abierto, inicial, productos, provs, onGuardar, onClose }
             </select>
           </Campo>
         </div>
+        {(provs && ajustes0.listas ? ajustes0.listas : []).filter((l) => l.activa !== false).length > 0 && (
+          <div>
+            <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Otras listas de precio</span>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-1">
+              {ajustes0.listas.filter((l) => l.activa !== false).map((l) => {
+                const v = Number((d.precios || {})[l.id]) || 0;
+                return (
+                  <label key={l.id} className="block">
+                    <span className="text-[10px] text-stone-500">{l.nombre} · desde {l.umbral}</span>
+                    <input value={(d.precios || {})[l.id] || ""}
+                      onChange={(e) => set("precios", { ...(d.precios || {}), [l.id]: e.target.value.replace(/\D/g, "") })}
+                      placeholder="—" className={`${inputCls} f-m text-right`} />
+                    {v > 0 && v <= costo && <span className="text-[11px] text-red-600">bajo el costo</span>}
+                    {v > costo && <span className="text-[11px] text-stone-400">margen {pct((v - costo) / v, 0)}</span>}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {costo > 0 && !precio && (
           <div className="flex flex-wrap gap-1.5">
             <span className="text-xs text-stone-500 self-center">Sugerir precio con margen:</span>
@@ -2310,8 +2488,11 @@ function FormProveedor({ abierto, inicial, onGuardar, onClose }) {
    7. PRODUCTOS
    ============================================================ */
 
-function Productos({ productos, setProductos, toast, focoInicial, provs }) {
+function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes }) {
   const [alta, setAlta] = useState(null);
+  const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
+  const [leyendo, setLeyendo] = useState(false);
+  const archivo = useRef(null);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
   const [orden, setOrden] = useState("nombre");
@@ -2326,7 +2507,6 @@ function Productos({ productos, setProductos, toast, focoInicial, provs }) {
   }, true);
 
   const cats = useMemo(() => ["Todas", ...Array.from(new Set(productos.map((p) => p.categoria)))], [productos]);
-  const conLista2 = productos.filter((p) => p.precio2).length;
   const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   const lista = useMemo(() => {
@@ -2384,7 +2564,27 @@ function Productos({ productos, setProductos, toast, focoInicial, provs }) {
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${filtro === k ? "bg-stone-900 text-white border-stone-900" : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"}`}>{n}</button>
         ))}
         <span className="text-xs text-stone-400 self-center ml-1">{nf.format(lista.length)} productos</span>
-        <Boton size="sm" className="ml-auto shrink-0" onClick={() => setAlta({})}><Plus size={14} /> <span className="hidden sm:inline">Nuevo producto</span><span className="sm:hidden">Nuevo</span></Boton>
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <input ref={archivo} type="file" accept=".xlsx,.xls,.csv" className="hidden"
+            onChange={async (e) => {
+              const f = e.target.files[0]; e.target.value = "";
+              if (!f) return;
+              setLeyendo(true);
+              try {
+                const filas = await leerPlanilla(f);
+                if (!filas.length) throw new Error("La planilla no tiene filas.");
+                setPlanilla({ nombre: f.name, ...analizarPlanilla(filas, productos, ajustes.listas || []) });
+              } catch (err) { toast(err.message, "mal"); }
+              setLeyendo(false);
+            }} />
+          <Boton size="sm" variant="ghost" onClick={() => exportarCatalogo(productos, ajustes.listas || [], toast)}>
+            <Upload size={14} className="rotate-180" /> <span className="hidden sm:inline">Exportar</span>
+          </Boton>
+          <Boton size="sm" variant="ghost" disabled={leyendo} onClick={() => archivo.current && archivo.current.click()}>
+            {leyendo ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} <span className="hidden sm:inline">Importar</span>
+          </Boton>
+          <Boton size="sm" onClick={() => setAlta({})}><Plus size={14} /> <span className="hidden sm:inline">Nuevo producto</span><span className="sm:hidden">Nuevo</span></Boton>
+        </div>
       </div>
 
       <Card className="overflow-hidden">
@@ -2404,7 +2604,9 @@ function Productos({ productos, setProductos, toast, focoInicial, provs }) {
                     </div>
                     <div className="text-right shrink-0">
                       <div className="f-m text-sm font-semibold">{p.precio ? money(p.precio) : <span className="text-amber-600 text-xs">sin precio</span>}</div>
-                      {p.precio2 && <div className="text-[10px] text-emerald-600">L2 {money(p.precio2)}</div>}
+                      {Object.keys(p.precios || {}).length > 0 && (
+                        <div className="text-[10px] text-emerald-600">{Object.keys(p.precios).length} lista{Object.keys(p.precios).length > 1 ? "s" : ""} más</div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px]">
@@ -2462,7 +2664,9 @@ function Productos({ productos, setProductos, toast, focoInicial, provs }) {
                     </td>
                     <td className="px-2 py-2.5 text-right f-m font-semibold">
                       {money(p.precio)}
-                      {p.precio2 && <div className="text-[10px] text-emerald-600 font-normal">L2 {money(p.precio2)}</div>}
+                      {Object.entries(p.precios || {}).slice(0, 2).map(([k, v]) => (
+                        <div key={k} className="text-[10px] text-emerald-600 font-normal">{money(v)}</div>
+                      ))}
                     </td>
                     <td className="px-2 py-2.5 text-right f-m">
                       <span className={m < 0.14 ? "text-red-600" : m < 0.22 ? "text-amber-600" : "text-emerald-600"}>{pct(m, 0)}</span>
@@ -2488,7 +2692,58 @@ function Productos({ productos, setProductos, toast, focoInicial, provs }) {
 
       <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} editar={(p) => { setAbierto(null); setAlta(p); }} />
 
-      <FormProducto abierto={!!alta} inicial={alta} productos={productos} provs={provs} onClose={() => setAlta(null)}
+      <ImportarPlanilla resumen={planilla} listas={ajustes.listas || []} onCerrar={() => setPlanilla(null)}
+        onAplicar={() => {
+          const { nuevos, cambios } = planilla;
+          const num = (v) => { const n = Number(String(v).replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, "")); return isNaN(n) ? null : n; };
+          setProductos((ps) => {
+            let acc = ps.map((p) => {
+              const c = cambios.find((x) => x.p.id === p.id);
+              if (!c) return p;
+              const f = c.datos;
+              const precios = { ...(p.precios || {}) };
+              for (const l of (ajustes.listas || [])) {
+                const col = `precio_${l.nombre.toLowerCase().replace(/[^a-z0-9]+/gi, "_")}`;
+                if (String(f[col] ?? "").trim() === "") continue;
+                const v = num(f[col]);
+                if (v > 0) precios[l.id] = v; else delete precios[l.id];
+              }
+              const tomar = (col, actual) => (String(f[col] ?? "").trim() === "" ? actual : (num(f[col]) ?? actual));
+              const costoNuevo = tomar("costo", p.costo);
+              return {
+                ...p,
+                nombre: String(f.nombre || "").trim() || p.nombre,
+                costo: costoNuevo,
+                precio: tomar("precio", p.precio),
+                stock: tomar("stock", p.stock),
+                stockMin: tomar("stock_minimo", p.stockMin),
+                precios,
+                historial: costoNuevo !== p.costo ? [...p.historial, { fecha: HOY, costo: costoNuevo }] : p.historial,
+              };
+            });
+            for (const n of nuevos) {
+              const f = n.datos;
+              const precios = {};
+              for (const l of (ajustes.listas || [])) {
+                const col = `precio_${l.nombre.toLowerCase().replace(/[^a-z0-9]+/gi, "_")}`;
+                const v = num(f[col]);
+                if (v > 0) precios[l.id] = v;
+              }
+              acc = [...acc, productoNuevo({
+                nombre: f.nombre, barcode: String(f.codigo || "").replace(/\D/g, ""),
+                categoria: f.rubro, marca: f.marca, proveedor: f.proveedor,
+                unidad: f.unidad === "kg" ? "kg" : "un", iva: num(f.iva) || 21, bulto: num(f.bulto) || 1,
+                stock: num(f.stock) || 0, stockMin: num(f.stock_minimo) || 0,
+                costo: num(f.costo) || 0, precio: num(f.precio) || 0, precios,
+              }, acc)];
+            }
+            return acc;
+          });
+          toast(`Planilla aplicada: ${cambios.length} actualizados, ${nuevos.length} nuevos.`);
+          setPlanilla(null);
+        }} />
+
+      <FormProducto abierto={!!alta} inicial={alta} productos={productos} provs={provs} ajustes0={ajustes} onClose={() => setAlta(null)}
         onGuardar={(d, faltan) => {
           if (d.id) {
             setProductos((ps) => ps.map((p) => (p.id === d.id ? {
@@ -2496,7 +2751,7 @@ function Productos({ productos, setProductos, toast, focoInicial, provs }) {
               costo: Number(d.costo) || 0, precio: Number(d.precio) || 0,
               stock: Number(d.stock) || 0, stockMin: Number(d.stockMin) || 0, bulto: Number(d.bulto) || 1,
               barcode: String(d.barcode || "").replace(/\D/g, ""),
-              precio2: Number(d.precio2) || null,
+              precios: Object.fromEntries(Object.entries(d.precios || {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)])),
             } : p)));
             toast(faltan.length ? `Guardado. Todavía falta ${faltan.join(", ")}.` : "Producto actualizado.");
           } else {
@@ -2506,6 +2761,96 @@ function Productos({ productos, setProductos, toast, focoInicial, provs }) {
           setAlta(null);
         }} />
     </div>
+  );
+}
+
+/* Pantalla previa a aplicar una planilla. Se muestra exactamente qué va a
+   cambiar antes de tocar el catálogo: una importación a ciegas sobre 900
+   productos es irreversible y no hay forma de darse cuenta del error. */
+function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
+  if (!resumen) return null;
+  const { nuevos, cambios, errores, nombre } = resumen;
+  const total = nuevos.length + cambios.length;
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-2xl">
+      <div className="sticky top-0 bg-white border-b border-stone-200 px-5 py-3.5 flex items-center justify-between">
+        <div>
+          <h3 className="f-d text-lg">Revisá antes de aplicar</h3>
+          <p className="text-xs text-stone-500">{nombre}</p>
+        </div>
+        <button onClick={onCerrar} className="text-stone-400 hover:text-stone-900"><X size={18} /></button>
+      </div>
+
+      <div className="p-5 space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          {[["Se actualizan", cambios.length, "text-amber-700 bg-amber-50 border-amber-200"],
+            ["Se crean", nuevos.length, "text-emerald-700 bg-emerald-50 border-emerald-200"],
+            ["Con problemas", errores.length, errores.length ? "text-red-700 bg-red-50 border-red-200" : "text-stone-500 bg-stone-50 border-stone-200"]]
+            .map(([t, n, cls]) => (
+            <div key={t} className={`rounded-xl border p-3 text-center ${cls}`}>
+              <div className="f-d text-2xl">{nf.format(n)}</div>
+              <div className="text-[10px] uppercase tracking-widest font-bold">{t}</div>
+            </div>
+          ))}
+        </div>
+
+        {errores.length > 0 && (
+          <div className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl p-3">
+            <p className="font-semibold">Estas filas no se van a aplicar:</p>
+            <ul className="list-disc ml-5 mt-1 space-y-0.5">{errores.slice(0, 6).map((e, i) => <li key={i}>{e}</li>)}</ul>
+            {errores.length > 6 && <p className="mt-1">y {errores.length - 6} más.</p>}
+          </div>
+        )}
+
+        {cambios.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Qué cambia</div>
+            <ul className="border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-64 overflow-auto text-sm">
+              {cambios.slice(0, 40).map((c) => (
+                <li key={c.fila} className="px-3 py-2">
+                  <div className="font-medium truncate">{c.p.nombre}</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
+                    {c.dif.map((d, i) => (
+                      <span key={i} className="f-m text-[11px] text-stone-500">
+                        {d.campo}: <span className="line-through text-stone-400">{typeof d.antes === "number" ? nf.format(d.antes) : String(d.antes).slice(0, 22)}</span>
+                        {" → "}
+                        <span className="text-stone-900">{typeof d.ahora === "number" ? nf.format(d.ahora) : String(d.ahora).slice(0, 22)}</span>
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {cambios.length > 40 && <p className="text-xs text-stone-400 mt-1">Se muestran los primeros 40 de {cambios.length}.</p>}
+          </div>
+        )}
+
+        {nuevos.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Productos nuevos</div>
+            <ul className="border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-40 overflow-auto text-sm">
+              {nuevos.slice(0, 20).map((n) => (
+                <li key={n.fila} className="px-3 py-1.5 flex justify-between gap-3">
+                  <span className="truncate">{n.datos.nombre}</span>
+                  <span className="f-m text-xs text-stone-400 shrink-0">{n.datos.precio ? money(Number(n.datos.precio)) : "sin precio"}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <p className="text-xs text-stone-500">
+          Las columnas vacías no se tocan: si borrás el contenido de una celda, ese dato queda como estaba.
+          Para quitar el precio de una lista, poné un cero.
+        </p>
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-stone-200">
+          <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
+          <Boton onClick={onAplicar} disabled={total === 0}><Check size={15} /> Aplicar {nf.format(total)} cambios</Boton>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -2541,7 +2886,7 @@ function FichaProducto({ p, onClose, actualizar, editar }) {
         )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[["Costo", money(p.costo)], ["Lista 1", money(p.precio)],
-            ["Lista 2", p.precio2 ? money(p.precio2) : "—"], ["Margen", pct(m)]].map(([l, v]) => (
+            ["Otras listas", Object.keys(p.precios || {}).length || "—"], ["Margen", pct(m)]].map(([l, v]) => (
             <div key={l} className="bg-stone-50 rounded-xl p-3">
               <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">{l}</div>
               <div className="f-m text-lg mt-0.5">{v}</div>
@@ -3668,8 +4013,8 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
 
   const conPrecio = items.map((l) => {
     const p = productos.find((x) => x.id === l.pid);
-    const { precio, lista } = precioAplicado(l.precio, p ? p.precio2 : null, l.preparado, ajustes);
-    return { ...l, unit: precio, lista };
+    const { precio, lista, nombre } = precioAplicado(p ? { ...p, precio: l.precio } : { precio: l.precio, precios: {} }, l.preparado, ajustes);
+    return { ...l, unit: precio, lista, listaNombre: nombre };
   });
   const totalPedido = items.reduce((s, l) => s + l.pedido, 0);
   const totalPrep = items.reduce((s, l) => s + l.preparado, 0);
@@ -3696,7 +4041,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
   const cobrarPedido = (medio) => {
     const lineas = conPrecio.filter((l) => l.preparado > 0).map((l) => {
       const p = productos.find((x) => x.id === l.pid);
-      return { pid: l.pid, qty: l.preparado, precio: l.unit, costo: p ? p.costo : 0, nombre: l.nombre, unidad: l.unidad, lista: l.lista };
+      return { pid: l.pid, qty: l.preparado, precio: l.unit, costo: p ? p.costo : 0, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre };
     });
     const t = cobrar({ items: lineas, sub: monto, desc: 0, total: monto, medio, ganancia: monto - lineas.reduce((s, l) => s + l.costo * l.qty, 0) });
     setProductos((ps) => ps.map((p) => {
@@ -3802,7 +4147,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
                 {libre
                   ? <><span className="f-m text-sm w-24 text-right">
                       {money((conPrecio.find((x) => x.pid === l.pid) || l).unit * l.preparado)}
-                      {(conPrecio.find((x) => x.pid === l.pid) || {}).lista === 2 && <span className="block text-[9px] text-emerald-600 font-bold">LISTA 2</span>}
+                      {(conPrecio.find((x) => x.pid === l.pid) || {}).lista && <span className="block text-[9px] text-emerald-600 font-bold uppercase">{(conPrecio.find((x) => x.pid === l.pid) || {}).listaNombre}</span>}
                     </span>
                       <button onClick={() => quitar(l.pid)} className="text-stone-300 hover:text-red-600"><Trash2 size={15} /></button></>
                   : <Boton size="sm" variant={falt ? "danger" : "quiet"} onClick={() => marcarFaltante(l.pid)} title="No hay stock en góndola">Sin stock</Boton>}
@@ -3860,7 +4205,7 @@ function PrepararPedido({ ped, setPedidos, productos, setProductos, cobrar, ajus
                 <li key={l.pid} className="flex justify-between gap-3 px-3 py-2">
                   <span className="truncate">
                     {l.unidad === "kg" ? l.preparado.toFixed(2) + " kg" : l.preparado + " ×"} {l.nombre}
-                    {(conPrecio.find((x) => x.pid === l.pid) || {}).lista === 2 && <span className="ml-1.5 text-[9px] font-bold text-emerald-600">LISTA 2</span>}
+                    {(conPrecio.find((x) => x.pid === l.pid) || {}).lista && <span className="ml-1.5 text-[9px] font-bold text-emerald-600 uppercase">{(conPrecio.find((x) => x.pid === l.pid) || {}).listaNombre}</span>}
                   </span>
                   <span className="f-m shrink-0">{money((conPrecio.find((x) => x.pid === l.pid) || l).unit * l.preparado)}</span>
                 </li>
@@ -4316,7 +4661,7 @@ function Asistente({ k, ins, ir, negocio }) {
    13. AJUSTES
    ============================================================ */
 
-function Ajustes({ ajustes, setAjustes, productos, toast, mp, setMp, simularCobro }) {
+function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, mp, setMp, simularCobro }) {
   return (
     <div className="max-w-2xl space-y-4">
       <Card className="p-5">
@@ -4435,38 +4780,79 @@ function Ajustes({ ajustes, setAjustes, productos, toast, mp, setMp, simularCobr
       </Card>
 
       <Card className="p-5">
-        <h3 className="f-d text-lg">Listas de precio</h3>
-        <p className="text-sm text-stone-500 mt-1">
-          La lista 2 es el precio por cantidad. Se activa sola cuando un renglón del ticket llega a la cantidad mínima,
-          y solo en ese renglón: si el cliente lleva 3 fideos iguales y 1 aceite, los fideos pasan a lista 2 y el aceite queda en lista 1.
-        </p>
-        <button onClick={() => setAjustes({ ...ajustes, lista2: !ajustes.lista2 })}
-          className={`flex items-center gap-2 text-sm mt-3 font-semibold ${ajustes.lista2 ? "text-emerald-700" : "text-stone-400"}`}>
-          <span className={`w-9 h-5 rounded-full relative transition-colors ${ajustes.lista2 ? "bg-emerald-500" : "bg-stone-300"}`}>
-            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${ajustes.lista2 ? "left-4.5" : "left-0.5"}`} style={{ left: ajustes.lista2 ? 18 : 2 }} />
-          </span>
-          Lista 2 {ajustes.lista2 ? "activada" : "desactivada"}
-        </button>
-        {ajustes.lista2 && (
-          <>
-            <div className="flex items-center gap-4 mt-4">
-              <span className="text-sm text-stone-500 shrink-0">Se activa a partir de</span>
-              <input type="range" min="2" max="12" value={ajustes.umbral2}
-                onChange={(e) => setAjustes({ ...ajustes, umbral2: Number(e.target.value) })} className="flex-1 accent-orange-500" />
-              <span className="f-m text-lg w-24 text-right">{ajustes.umbral2} unidades</span>
-            </div>
-            <div className="flex items-center gap-4 mt-3">
-              <span className="text-sm text-stone-500 shrink-0">Descuento sugerido al crear</span>
-              <input type="range" min="3" max="30" value={ajustes.desc2}
-                onChange={(e) => setAjustes({ ...ajustes, desc2: Number(e.target.value) })} className="flex-1 accent-orange-500" />
-              <span className="f-m text-lg w-16 text-right">{ajustes.desc2}%</span>
-            </div>
-            <p className="text-xs text-stone-400 mt-3">
-              {productos.filter((p) => p.precio2).length} de {nf.format(productos.length)} productos tienen precio de lista 2 cargado.
-              El resto se cobra siempre a lista 1. El segundo precio se carga en la ficha de cada producto.
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="f-d text-lg">Listas de precio</h3>
+            <p className="text-sm text-stone-500 mt-1">
+              Cada lista tiene una cantidad mínima y se activa sola cuando un renglón del ticket la alcanza, solo en ese renglón.
+              Si un producto entra en varias, se cobra la de mayor cantidad que el cliente alcance.
             </p>
-          </>
-        )}
+          </div>
+          <Boton size="sm" className="shrink-0" onClick={() => {
+            const n = (ajustes.listas || []).length + 2;
+            setAjustes({ ...ajustes, listas: [...(ajustes.listas || []), { id: "l" + uid(), nombre: `Lista ${n}`, umbral: 6, activa: true }] });
+          }}><Plus size={14} /> Nueva lista</Boton>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200">
+            <span className="text-sm font-semibold flex-1">Precio general</span>
+            <span className="text-xs text-stone-500">siempre · es el precio de la ficha</span>
+          </div>
+
+          {(ajustes.listas || []).length === 0 && (
+            <p className="text-sm text-stone-400 px-1">No hay listas adicionales. Todo se cobra al precio general.</p>
+          )}
+
+          {(ajustes.listas || []).map((l, i) => {
+            const cuantos = productos.filter((p) => (p.precios || {})[l.id] > 0).length;
+            const cambiar = (campo, valor) => setAjustes({
+              ...ajustes,
+              listas: ajustes.listas.map((x, j) => (j === i ? { ...x, [campo]: valor } : x)),
+            });
+            return (
+              <div key={l.id} className={`border rounded-xl p-3 ${l.activa === false ? "border-stone-200 bg-stone-50 opacity-70" : "border-stone-200"}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input value={l.nombre} onChange={(e) => cambiar("nombre", e.target.value)}
+                    className="flex-1 min-w-[140px] border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-orange-400" />
+                  <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                    desde
+                    <input value={l.umbral} onChange={(e) => cambiar("umbral", Math.max(1, Number(e.target.value.replace(/\D/g, "")) || 1))}
+                      className="f-m w-14 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+                    u
+                  </label>
+                  <button onClick={() => cambiar("activa", l.activa === false)}
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${l.activa === false ? "border-stone-200 text-stone-400" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {l.activa === false ? "Apagada" : "Activa"}
+                  </button>
+                  <button onClick={() => {
+                    if (cuantos > 0 && !window.confirm(`"${l.nombre}" tiene precio en ${cuantos} productos. Al borrarla se pierden esos precios. ¿Seguro?`)) return;
+                    setAjustes({ ...ajustes, listas: ajustes.listas.filter((_, j) => j !== i) });
+                    setProductos((ps) => ps.map((p) => {
+                      if (!(p.precios || {})[l.id]) return p;
+                      const cp = { ...p.precios }; delete cp[l.id];
+                      return { ...p, precios: cp };
+                    }));
+                    toast(`Lista "${l.nombre}" eliminada.`);
+                  }} className="text-stone-300 hover:text-red-600 p-1.5" title="Eliminar lista"><Trash2 size={16} /></button>
+                </div>
+                <p className="text-[11px] text-stone-400 mt-1.5">
+                  {cuantos > 0 ? `${nf.format(cuantos)} productos con precio en esta lista` : "Ningún producto tiene precio en esta lista todavía"}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-4 mt-4 pt-4 border-t border-stone-100">
+          <span className="text-sm text-stone-500 shrink-0">Descuento sugerido al cargar</span>
+          <input type="range" min="3" max="30" value={ajustes.desc2}
+            onChange={(e) => setAjustes({ ...ajustes, desc2: Number(e.target.value) })} className="flex-1 accent-orange-500" />
+          <span className="f-m text-lg w-16 text-right">{ajustes.desc2}%</span>
+        </div>
+        <p className="text-xs text-stone-400 mt-2">
+          Los precios de cada lista se cargan producto por producto, o de una vez con la planilla desde el catálogo.
+        </p>
       </Card>
 
       <Card className="p-5">
@@ -4660,7 +5046,7 @@ export default function App() {
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
   const [provs, setProvs] = useState(PROV_INFO);
   const [altaProd, setAltaProd] = useState(null);
-  const [ajustes, setAjustes] = useState({ negocio: "Minimercado El Progreso", cuit: "30-71234567-4", arca: false, cobertura: 14, ancho: 80, sonido: true, lista2: true, umbral2: 3, desc2: 10 });
+  const [ajustes, setAjustes] = useState({ negocio: "Minimercado El Progreso", cuit: "30-71234567-4", arca: false, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
   const [toasts, setToasts] = useState([]);
 
   const hoyDiario = DATA.diario[DATA.diario.length - 1];
@@ -4937,7 +5323,7 @@ export default function App() {
 
           {tab === "inicio" && <Inicio k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy} ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
-          {tab === "productos" && <Productos key={foco || "todos"} productos={productos} setProductos={setProductos} toast={toast} focoInicial={foco} provs={provs} />}
+          {tab === "productos" && <Productos key={foco || "todos"} productos={productos} setProductos={setProductos} toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes} />}
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
           {tab === "compras" && <Compras productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (
@@ -4947,14 +5333,14 @@ export default function App() {
           )}
           {tab === "reportes" && <Reportes productos={productos} k={k} ir={ir} />}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
-          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
+          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
         </main>
       </div>
       )}
 
       <AvisoCobro cobros={cobrosMP} onCerrar={(id) => setCobrosMP((x) => x.filter((c) => c.id !== id))} />
 
-      <FormProducto abierto={!!altaProd} inicial={altaProd} productos={productos} provs={provs}
+      <FormProducto abierto={!!altaProd} inicial={altaProd} productos={productos} provs={provs} ajustes0={ajustes}
         onClose={() => setAltaProd(null)}
         onGuardar={(d, faltan) => {
           setProductos((ps) => [...ps, productoNuevo(d, ps)]);
