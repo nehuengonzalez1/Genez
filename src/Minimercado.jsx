@@ -2535,8 +2535,18 @@ function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes
   const visibles = lista.slice(p0 * porPagina, p0 * porPagina + porPagina);
   useEffect(() => setPag(0), [q, cat, orden, filtro]);
 
+  /* Un cambio de costo no es un dato más: alimenta el historial y de ahí sale
+     el diagnóstico de caída de margen. Si se pisa sin registrar, el sistema
+     deja de poder explicar por qué bajó la ganancia. */
   const actualizar = (id, cambios, msg) => {
-    setProductos((ps) => ps.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
+    setProductos((ps) => ps.map((p) => {
+      if (p.id !== id) return p;
+      const nuevo = { ...p, ...cambios };
+      if (cambios.costo != null && Number(cambios.costo) !== p.costo && Number(cambios.costo) > 0) {
+        nuevo.historial = [...p.historial, { fecha: HOY, costo: Number(cambios.costo) }];
+      }
+      return nuevo;
+    }));
     if (msg) toast(msg);
   };
 
@@ -2666,7 +2676,10 @@ function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes
                         <div className="font-medium text-stone-900">{p.nombre}</div>
                         <div className="f-m text-[11px] text-stone-400">{p.categoria}</div>
                       </td>
-                      <td className="px-2 py-1.5 text-right f-m text-stone-500">{money(p.costo)}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        <input value={p.costo || ""} onChange={(e) => actualizar(p.id, { costo: Number(e.target.value.replace(/\D/g, "")) })}
+                          className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-orange-400 bg-stone-50" />
+                      </td>
                       {celda(p.precio, (n) => actualizar(p.id, { precio: n }))}
                       {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
                         <React.Fragment key={l.id}>
@@ -2815,6 +2828,8 @@ function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes
           if (d.id) {
             setProductos((ps) => ps.map((p) => (p.id === d.id ? {
               ...p, ...d,
+              historial: Number(d.costo) > 0 && Number(d.costo) !== p.costo
+                ? [...p.historial, { fecha: HOY, costo: Number(d.costo) }] : p.historial,
               costo: Number(d.costo) || 0, precio: Number(d.precio) || 0,
               stock: Number(d.stock) || 0, stockMin: Number(d.stockMin) || 0, bulto: Number(d.bulto) || 1,
               barcode: String(d.barcode || "").replace(/\D/g, ""),
@@ -2923,7 +2938,8 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
 
 function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
   const [precio, setPrecio] = useState("");
-  useEffect(() => { if (p) setPrecio(String(p.precio)); }, [p && p.id]);
+  const [costo, setCosto] = useState("");
+  useEffect(() => { if (p) { setPrecio(String(p.precio)); setCosto(String(p.costo)); } }, [p && p.id]);
   if (!p) return null;
 
   const m = (p.precio - p.costo) / p.precio;
@@ -3041,15 +3057,31 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
 
         <div className="grid md:grid-cols-2 gap-4">
           <div className="border border-stone-200 rounded-xl p-4">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Cambiar precio general</div>
-            <div className="flex gap-2">
-              <input value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
-                className="f-m flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400" />
-              <Boton size="sm" onClick={() => actualizar(p.id, { precio: Number(precio) || p.precio }, "Precio actualizado.")}>Guardar</Boton>
+            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Costo y precio general</div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[11px] text-stone-500">Costo</span>
+                <input value={costo} onChange={(e) => setCosto(e.target.value.replace(/\D/g, ""))}
+                  className="f-m w-full text-right border border-stone-200 rounded-lg px-3 py-2 text-sm mt-0.5 outline-none focus:border-orange-400" />
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-stone-500">Precio</span>
+                <input value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
+                  className="f-m w-full text-right border border-stone-200 rounded-lg px-3 py-2 text-sm mt-0.5 outline-none focus:border-orange-400" />
+              </label>
             </div>
             <p className="text-xs text-stone-500 mt-2">
-              Margen con ese precio: <strong>{pct(((Number(precio) || p.precio) - p.costo) / (Number(precio) || p.precio))}</strong>
+              Margen resultante: <strong>{pct(((Number(precio) || p.precio) - (Number(costo) || p.costo)) / (Number(precio) || p.precio))}</strong>
+              {Number(costo) > 0 && Number(costo) !== p.costo && (
+                <span className="block text-amber-700 mt-1">
+                  El costo pasa de {money(p.costo)} a {money(Number(costo))}: queda registrado en el historial.
+                </span>
+              )}
             </p>
+            <Boton size="sm" className="w-full mt-2" onClick={() => actualizar(p.id, {
+              precio: Number(precio) || p.precio,
+              costo: Number(costo) || p.costo,
+            }, "Costo y precio actualizados.")}>Guardar</Boton>
           </div>
           <div className="border border-stone-200 rounded-xl p-4">
             <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Movimiento</div>
