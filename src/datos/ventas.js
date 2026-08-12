@@ -50,7 +50,11 @@ export async function ponerNumeradorAlDia(empresaId, puntoVenta = "0001") {
     .from("operaciones")
     .select("numero")
     .eq("empresa_id", empresaId)
-    .eq("tipo", "venta")
+    /* Una mesa cobrada queda con tipo 'comanda', no 'venta': conserva
+       cómo nació. Pero emitió un comprobante de la misma serie, así que
+       si no se la mira acá el contador arranca por debajo y reemite
+       números que ya se entregaron impresos. */
+    .in("tipo", ["venta", "comanda"])
     .like("numero", `${puntoVenta}-%`)
     .order("numero", { ascending: false })
     .limit(1);
@@ -125,7 +129,11 @@ export async function resumenDelDia(empresaId) {
     .from("operaciones")
     .select("total")
     .eq("empresa_id", empresaId)
-    .eq("tipo", "venta")
+    /* Una mesa cobrada es venta del día aunque su tipo siga siendo
+       'comanda'. El estado es lo que decide: una mesa todavía abierta no
+       se vendió, se está consumiendo. */
+    .in("tipo", ["venta", "comanda"])
+    .eq("estado", "confirmada")
     .gte("fecha", desde.toISOString())
     .limit(5000);
 
@@ -146,7 +154,8 @@ export async function cargarVentasDelDia(empresaId) {
     .from("operaciones")
     .select("id, numero, fecha, total, subtotal, descuento, recargo, comprobante, cliente_id, pagos ( medio, monto ), operacion_lineas ( item_id, descripcion, cantidad, precio_unitario, costo_unitario, total )")
     .eq("empresa_id", empresaId)
-    .eq("tipo", "venta")
+    .in("tipo", ["venta", "comanda"])
+    .eq("estado", "confirmada")
     .gte("fecha", desde.toISOString())
     .order("fecha", { ascending: false });
 

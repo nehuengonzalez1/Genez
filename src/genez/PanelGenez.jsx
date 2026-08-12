@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Barcode, Package, Boxes, Truck, Wallet, BarChart3,
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
-  Eye, EyeOff, Mail, KeyRound
+  Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave } from "../datos/sesion.js";
@@ -32,6 +32,7 @@ import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
+import { Comandas, Cocina } from "../modulos/Comandas.jsx";
 /* ============================================================
    14. APP
    ============================================================ */
@@ -51,6 +52,7 @@ const MODULOS = [
   { k: "cobro", n: "Cobro", d: "Punto de venta, tickets y vuelto", base: true },
   { k: "caja", n: "Caja", d: "Arqueo, gastos y cierre", base: true },
   { k: "ajustes", n: "Ajustes", d: "Configuración del negocio", base: true },
+  { k: "comandas", n: "Salón", d: "Mesas, comandas y cocina" },
   { k: "productos", n: "Productos", d: "Catálogo, precios y listas" },
   { k: "stock", n: "Stock", d: "Alertas, vencimientos e inventario" },
   { k: "compras", n: "Compras", d: "Remitos, costos y proveedores" },
@@ -73,12 +75,12 @@ const ROLES = [
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
-    modulos: ["cobro", "caja", "productos", "stock", "compras", "pedidos", "clientes", "reportes", "asistente"],
+    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "reportes", "asistente"],
     permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
   },
   {
     k: "cajero", n: "Cajero", d: "Cobra, sin ver costos ni ganancias",
-    modulos: ["cobro", "caja", "pedidos", "clientes"],
+    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes"],
     permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false },
   },
   {
@@ -751,6 +753,10 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
 
 const NAV = [
   { k: "inicio", n: "Inicio", i: LayoutDashboard },
+  { k: "comandas", n: "Salón", i: UtensilsCrossed },
+  /* La cocina no es un módulo que se contrate aparte: viene con el salón y
+     aparece solo si el comercio colgó una pantalla (ver `puedeVer`). */
+  { k: "cocina", n: "Cocina", i: ChefHat },
   { k: "pedidos", n: "Pedidos", i: ClipboardList },
   { k: "clientes", n: "Clientes", i: Users },
   { k: "productos", n: "Productos", i: Package },
@@ -764,6 +770,8 @@ const NAV = [
 
 const TITULOS = {
   inicio: ["Inicio", "Cómo viene el negocio hoy"],
+  comandas: ["Salón", "Qué mesa está ocupada, qué lleva y cuánto hace que espera"],
+  cocina: ["Cocina", "Lo que hay que preparar, en el orden en que se pidió"],
   pedidos: ["Pedidos", "Preparación con pistola y control de faltantes"],
   clientes: ["Clientes", "Para emitir facturas A, B o C según corresponda"],
   productos: ["Productos", "Costos, precios y margen de todo tu catálogo"],
@@ -797,7 +805,19 @@ function aDatosDeBase(d) {
 
 function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const { modulos, permisos, esPlataforma } = permisosDe(sesion);
-  const puedeVer = (k) => k === "inicio" || modulos.includes(k);
+
+  /* La configuración del comercio se lee directo de la sesión. `ajustes`
+     todavía arranca con valores fijos del minimercado, así que para lo que
+     depende del rubro —si hay pantalla en la cocina, a qué sectores va cada
+     plato— hay que ir a la fuente. */
+  const config = (sesion.comercio && sesion.comercio.config) || {};
+
+  const puedeVer = (k) => {
+    if (k === "inicio") return true;
+    // La cocina viaja con el salón: no se contrata sola, se prende o no.
+    if (k === "cocina") return !!config.cocinaEnPantalla && modulos.includes("comandas");
+    return modulos.includes(k);
+  };
   const [vista, setVista] = useState(modulos.includes("cobro") ? "cobro" : "panel");
   const [tab, setTab] = useState("inicio");
   const [foco, setFoco] = useState(null);
@@ -1215,9 +1235,14 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
            usan. Un solo lugar para mantener, y el resto del código no se
            entera de que existe un tema.                                    */
         .tema-oscuro { color-scheme: dark; }
-        .tema-oscuro .bg-stone-50, .tema-oscuro .hover\:bg-stone-50:hover { background-color: #1c1917 !important; }
+        /* Las clases de Tailwind con dos puntos llevan la barra escapada, y
+           esto es un template literal: hay que poner dos barras para que
+           llegue una al CSS. Con una sola el selector queda inválido y el
+           navegador tira la regla ENTERA, incluida la parte válida que la
+           acompaña en la lista. Así estuvo roto el fondo del modo oscuro. */
+        .tema-oscuro .bg-stone-50, .tema-oscuro .hover\\:bg-stone-50:hover { background-color: #1c1917 !important; }
         .tema-oscuro .bg-white { background-color: #1c1917 !important; }
-        .tema-oscuro .bg-stone-100, .tema-oscuro .hover\:bg-stone-200:hover { background-color: #292524 !important; }
+        .tema-oscuro .bg-stone-100, .tema-oscuro .hover\\:bg-stone-200:hover { background-color: #292524 !important; }
         .tema-oscuro .bg-stone-200 { background-color: #44403c !important; }
         .tema-oscuro .text-stone-900 { color: #fafaf9 !important; }
         .tema-oscuro .text-stone-800, .tema-oscuro .text-stone-700 { color: #e7e5e4 !important; }
@@ -1225,7 +1250,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
         .tema-oscuro .text-stone-400, .tema-oscuro .text-stone-300 { color: #78716c !important; }
         .tema-oscuro .border-stone-200, .tema-oscuro .border-stone-100 { border-color: #292524 !important; }
         .tema-oscuro .divide-stone-100 > * + *, .tema-oscuro .divide-stone-200 > * + * { border-color: #292524 !important; }
-        .tema-oscuro .focus\:border-orange-400:focus { border-color: #fb923c !important; }
+        .tema-oscuro .focus\\:border-orange-400:focus { border-color: #fb923c !important; }
         /* Los fondos suaves de aviso pierden contraste en oscuro */
         .tema-oscuro .bg-amber-50 { background-color: #2b1f0a !important; }
         .tema-oscuro .bg-emerald-50 { background-color: #04231a !important; }
@@ -1238,6 +1263,12 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
         .tema-oscuro .border-emerald-200 { border-color: #065f46 !important; }
         .tema-oscuro .border-red-200 { border-color: #7f1d1d !important; }
         .tema-oscuro .border-orange-200 { border-color: #7c2d12 !important; }
+        /* El salón pinta de naranja la mesa ocupada, y ese naranja tiene que
+           seguir leyéndose sobre fondo oscuro. */
+        .tema-oscuro .bg-orange-100 { background-color: #3d1f0b !important; }
+        .tema-oscuro .hover\\:bg-orange-100:hover { background-color: #3d1f0b !important; }
+        .tema-oscuro .text-orange-700, .tema-oscuro .text-orange-600 { color: #fdba74 !important; }
+        .tema-oscuro .border-orange-400 { border-color: #c2410c !important; }
         .tema-oscuro .shadow-sm, .tema-oscuro .shadow-lg, .tema-oscuro .shadow-xl { box-shadow: 0 1px 3px rgba(0,0,0,.5) !important; }
         .tema-oscuro body, .tema-oscuro .bg-stone-25 { background-color: #0c0a09 !important; }
       `}</style>
@@ -1377,6 +1408,11 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           </header>
 
           {tab === "inicio" && <Inicio k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy} ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />}
+          {tab === "comandas" && (
+            <Comandas empresaId={empresaId} config={config} ajustes={ajustes}
+              caja={caja} toast={toast} />
+          )}
+          {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
           {tab === "clientes" && <Clientes clientes={clientes} setClientes={setClientes} tickets={tickets} ajustes={ajustes} toast={toast} />}
           {tab === "productos" && (cargandoProductos
