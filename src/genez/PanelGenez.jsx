@@ -6,13 +6,14 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   LayoutDashboard, Barcode, Package, Boxes, Truck, Wallet, BarChart3,
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
-  ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut
+  ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar } from "../datos/sesion.js";
 import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
-import { armarVenta, registrarVenta } from "../datos/ventas.js";
+import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
+import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
 import { calcular, insights } from "../utils/diagnostico.js";
 import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
@@ -672,6 +673,11 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const [productos, setProductos] = useState([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
   const [tickets, setTickets] = useState([]);
+  const [pendientes, setPendientes] = useState(cuantasPendientes());
+  /* Lo vendido hoy sale de la base, no de los tickets de esta pantalla:
+     si se cuenta lo de la sesión, refrescar borra la mitad del día y
+     cambiar de equipo muestra otra cifra. */
+  const [resumenDia, setResumenDia] = useState({ total: 0, tickets: 0 });
   const [pedidos, setPedidos] = useState([]);
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
   const [provs, setProvs] = useState(PROV_INFO);
@@ -781,7 +787,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   }));
 
   const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente }) => {
-    const nro = `0001-${String(48210 + tickets.length + 1).padStart(8, "0")}`;
+    const nro = siguienteNumero(empresaId, (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001");
     const ps = pagos && pagos.length ? pagos : [{ medio, monto: total }];
     const esFiscal = fiscal != null ? fiscal : !!ajustes.arca;
     const cae = String(74300000000000 + tickets.length * 137);
@@ -802,6 +808,12 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
       comprobante: { fiscal: esFiscal, cae, cliente: cliente ? { nombre: cliente.razonSocial, doc: cliente.doc } : null },
     });
 
+    /* Primero al disco, después el ticket. Guardar es sincrónico, así que
+       cuando esta línea termina la venta ya sobrevive a un corte de luz.
+       Al revés habría un instante donde el ticket salió impreso y la venta
+       no existe en ningún lado. */
+    const guardada = encolar(venta);
+
     const t = {
       id: venta.id, nro, cae,
       hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
@@ -810,27 +822,59 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
       cliente: cliente || null, sincronizada: null,
     };
     setTickets((x) => [t, ...x]);
+    /* Se suma acá y no se relee del servidor: el encabezado tiene que
+       moverse en el mismo momento en que se cobra, con conexión o sin ella.
+       Al abrir la próxima vez, el número vuelve a salir de la base. */
+    setResumenDia((r) => ({ total: r.total + t.total, tickets: r.tickets + 1 }));
+
+    /* Sin lugar donde guardar (cuota llena, modo privado) la red pasa a ser
+       la única red de contención. Hay que decirlo, no seguir como si nada. */
+    if (!guardada) toast(`No se pudo guardar la venta ${nro} en este equipo. Si falla la conexión, se pierde.`, "mal");
     // Un movimiento de caja por medio de pago: así el arqueo y el reporte
     // por medio siguen cerrando aunque la venta se haya cobrado partida.
     ps.forEach((p) => movCaja({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}` }));
 
     /* Se manda sin esperar: la venta ya ocurrió en el mostrador y el ticket
-       tiene que salir ahora. Que llegue a la base es otro problema, y si
-       falla se avisa sin frenar la caja. */
+       tiene que salir ahora. Si no entra queda en la cola y se reintenta
+       sola, así que no hace falta interrumpir a quien está cobrando. */
     const marcar = (ok) => setTickets((x) => x.map((v) => (v.id === t.id ? { ...v, sincronizada: ok } : v)));
     registrarVenta(venta)
-      .then(() => marcar(true))
-      .catch(() => {
-        marcar(false);
-        /* Todavía no hay cola de reintento, así que no se promete una. La
-           venta quedó cobrada y el ticket impreso, pero el stock y la caja
-           del servidor no la tienen: quien está en el mostrador necesita
-           saberlo ahora, no enterarse en el arqueo. */
-        toast(`Venta ${nro} cobrada, pero no se pudo guardar en el servidor. Anotala.`, "mal");
-      });
+      .then(() => { quitar(venta.id); marcar(true); })
+      .catch(() => marcar(false))
+      .finally(() => setPendientes(cuantasPendientes()));
 
     return t;
   };
+
+  /* Antes de emitir el primer comprobante hay que saber por dónde va la
+     numeración: si este equipo es nuevo, o le borraron el almacenamiento,
+     su contador arranca en uno y repetiría números ya usados. */
+  useEffect(() => {
+    ponerNumeradorAlDia(empresaId, (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001");
+  }, [empresaId]);
+
+  useEffect(() => {
+    let vigente = true;
+    resumenDelDia(empresaId)
+      .then((r) => { if (vigente) setResumenDia(r); })
+      .catch(() => { /* sin conexión se arranca en cero y lo del día suma encima */ });
+    return () => { vigente = false; };
+  }, [empresaId]);
+
+  /* La cola se vacía sola: al abrir, cuando el navegador avisa que volvió
+     la conexión, y cada tanto por reloj. Lo último no sobra: el aviso no
+     llega cuando el wifi sigue conectado pero sin salida a internet, que
+     es la forma en que suele fallar en un local. */
+  useEffect(() => vigilarCola((r) => {
+    setPendientes(cuantasPendientes());
+    if (r.enviadas) {
+      toast(r.enviadas === 1
+        ? "Se guardó en el servidor una venta que había quedado pendiente."
+        : `Se guardaron en el servidor ${r.enviadas} ventas que habían quedado pendientes.`);
+    }
+    r.rechazadas.forEach((x) =>
+      toast(`La venta ${x.venta.numero} quedó sin guardar: ${x.motivo}`, "mal"));
+  }), []);
 
   // Un cobro que entra: suena, se lee en voz alta, se muestra y se registra.
   const recibirCobro = (c) => {
@@ -909,8 +953,8 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     else { beep(false, ajustes.sonido); setAltaProd({ barcode: cod }); }
   }, true);
 
-  const ventasHoy = hoyDiario.ventas + tickets.reduce((s, t) => s + t.total, 0);
-  const ticketsHoy = hoyDiario.tickets + tickets.length;
+  const ventasHoy = resumenDia.total;
+  const ticketsHoy = resumenDia.tickets;
   const [titulo, bajada] = TITULOS[tab];
   const alertasAltas = ins.filter((i) => i.sev === "alta").length;
 
@@ -997,6 +1041,18 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
                     <div className="f-m text-sm">{v}</div>
                   </div>
                 ))}
+                {/* Solo aparece cuando hay algo pendiente. Un indicador que
+                    está siempre deja de mirarse, y este tiene que llamar la
+                    atención el día que la conexión se corta. */}
+                {pendientes > 0 && (
+                  <div className="shrink-0 flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/40 rounded-lg px-2.5 py-1">
+                    <ZapOff size={13} className="text-amber-400 shrink-0" />
+                    <div>
+                      <div className="text-[9px] uppercase tracking-widest text-amber-500/80 font-bold">Sin guardar</div>
+                      <div className="f-m text-sm text-amber-300">{pendientes}</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button onClick={() => { setVista("panel"); setTab("inicio"); }}
