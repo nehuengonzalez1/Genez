@@ -10,9 +10,10 @@ import {
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar } from "../datos/sesion.js";
-import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, numeroALetras, productoNuevo } from "../utils/helpers.js";
+import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, numeroALetras } from "../utils/helpers.js";
+import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { calcular, insights } from "../utils/diagnostico.js";
-import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal } from "../ui/Base.jsx";
+import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
@@ -641,13 +642,34 @@ const TITULOS = {
   ajustes: ["Ajustes", "Configuración del negocio y del sistema"],
 };
 
+/* Los formularios entregan texto y la base espera números: una cadena
+   vacía en una columna numérica la rechaza el servidor, no el navegador. */
+const numero = (v, x = 0) => (v === "" || v == null ? x : Number(v) || x);
+
+function aDatosDeBase(d) {
+  return {
+    ...d,
+    barcode: String(d.barcode || "").replace(/\D/g, ""),
+    costo: numero(d.costo),
+    precio: numero(d.precio),
+    stock: numero(d.stock),
+    stockMin: numero(d.stockMin),
+    bulto: numero(d.bulto, 1),
+    iva: numero(d.iva, 21),
+    precios: Object.fromEntries(
+      Object.entries(d.precios || {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)])
+    ),
+  };
+}
+
 function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const { modulos, permisos, esPlataforma } = permisosDe(sesion);
   const puedeVer = (k) => k === "inicio" || modulos.includes(k);
   const [vista, setVista] = useState(modulos.includes("cobro") ? "cobro" : "panel");
   const [tab, setTab] = useState("inicio");
   const [foco, setFoco] = useState(null);
-  const [productos, setProductos] = useState(DATA.productos);
+  const [productos, setProductos] = useState([]);
+  const [cargandoProductos, setCargandoProductos] = useState(true);
   const [tickets, setTickets] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
@@ -687,6 +709,67 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     setToasts((t) => [...t, { id, texto, tono }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3200);
   };
+
+  const empresaId = sesion.comercio.id;
+
+  /* El catálogo ya no viene del generador: se pide a la base al montar.
+     App remonta Sistema con cada comercio (key), así que una sola carga
+     por comercio alcanza. */
+  useEffect(() => {
+    let vigente = true;
+    setCargandoProductos(true);
+    cargarProductos()
+      .then((ps) => { if (vigente) setProductos(ps); })
+      .catch((e) => {
+        if (!vigente) return;
+        setProductos([]);
+        toast(e.message || "No pudimos cargar el catálogo.", "mal");
+      })
+      .finally(() => { if (vigente) setCargandoProductos(false); });
+    return () => { vigente = false; };
+  }, [empresaId]);
+
+  /* Se cambia en pantalla primero y se confirma después con lo que devuelve
+     la base, que es la que recalcula el costo anterior y el margen. Si el
+     guardado falla se relee todo el catálogo: seguir mostrando un cambio que
+     no se guardó es peor que perder lo que el usuario tenía en pantalla. */
+  const actualizarProducto = useCallback(async (id, cambios, msg) => {
+    setProductos((ps) => ps.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
+    try {
+      const fresco = await guardarProducto(id, cambios);
+      if (fresco) {
+        setProductos((ps) => ps.map((p) => {
+          if (p.id !== id) return p;
+          /* La relectura no trae el historial de costos, que lo escribe un
+             disparador. Se conserva el que ya estaba y se le suma el punto
+             nuevo, para no vaciar el gráfico hasta el próximo refresco. */
+          const ultimo = p.historial[p.historial.length - 1];
+          const sumar = fresco.costo > 0 && (!ultimo || ultimo.costo !== fresco.costo);
+          return { ...fresco, historial: sumar ? [...p.historial, { fecha: new Date(), costo: fresco.costo }] : p.historial };
+        }));
+      }
+      if (msg) toast(msg);
+    } catch (e) {
+      toast(e.message || "No se pudo guardar el producto.", "mal");
+      try {
+        const ps = await cargarProductos();
+        setProductos(ps);
+      } catch { /* el error ya se avisó; el catálogo queda como estaba */ }
+    }
+  }, []);
+
+  const agregarProducto = useCallback(async (datos, msg) => {
+    try {
+      const p = await crearProducto(empresaId, aDatosDeBase(datos));
+      setProductos((ps) => [...ps, p]);
+      // Con msg en null el alta no avisa: la usa quien importa muchos de una.
+      if (msg !== null) toast(msg || `${p.nombre} creado.`);
+      return p;
+    } catch (e) {
+      toast(e.message || "No se pudo crear el producto.", "mal");
+      return null;
+    }
+  }, [empresaId]);
 
   const k = useMemo(() => calcular(productos, DATA.diario, ajustes.cobertura), [productos, ajustes.cobertura]);
   const ins = useMemo(() => insights(k), [k]);
@@ -972,7 +1055,11 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           {tab === "inicio" && <Inicio k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy} ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
           {tab === "clientes" && <Clientes clientes={clientes} setClientes={setClientes} tickets={tickets} ajustes={ajustes} toast={toast} />}
-          {tab === "productos" && <Productos key={foco || "todos"} productos={productos} setProductos={setProductos} toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes} />}
+          {tab === "productos" && (cargandoProductos
+            ? <Vacio>Cargando catálogo…</Vacio>
+            : <Productos key={foco || "todos"} productos={productos}
+                actualizarProducto={actualizarProducto} agregarProducto={agregarProducto}
+                toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes} />)}
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
           {tab === "compras" && <Compras productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (
@@ -992,9 +1079,8 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
       <FormProducto abierto={!!altaProd} inicial={altaProd} productos={productos} provs={provs} ajustes0={ajustes}
         onClose={() => setAltaProd(null)}
         onGuardar={(d, faltan) => {
-          setProductos((ps) => [...ps, productoNuevo(d, ps)]);
+          agregarProducto(d, faltan.length ? `${d.nombre} creado. Falta ${faltan.join(", ")}.` : `${d.nombre} creado.`);
           setAltaProd(null);
-          toast(faltan.length ? `${d.nombre} creado. Falta ${faltan.join(", ")}.` : `${d.nombre} creado.`);
         }} />
 
       <FichaRapida p={productos.find((x) => x.id === ficha)} onClose={() => setFicha(null)}

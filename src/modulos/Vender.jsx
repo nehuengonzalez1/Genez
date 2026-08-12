@@ -526,7 +526,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const crearAlVuelo = (datos, agregar) => {
     let creado = null;
     setProductos((ps) => {
-      creado = productoNuevo(datos, ps);
+      creado = productoNuevo(datos);
       return [...ps, creado];
     });
     setAlta(null);

@@ -154,7 +154,7 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
         const p = productoNuevo({
           nombre: l.crear.nombre, costo: l.costo, precio: l.crear.precio,
           categoria: l.crear.categoria, barcode: l.crear.barcode, proveedor: prov, bulto: 1,
-        }, acc);
+        });
         acc = [...acc, p];
         mapa[l.uid] = p.id;
       }

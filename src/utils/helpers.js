@@ -126,15 +126,18 @@ export function faltantesProveedor(v) {
 /* Ficha nueva con lo mínimo para operar. Lo que no se sabe queda vacío y el
    sistema lo reclama después, en vez de inventar un valor por defecto que
    después nadie revisa.                                                     */
-export function productoNuevo(datos, productos) {
-  const id = productos.reduce((m, p) => Math.max(m, p.id), 0) + 1;
+export function productoNuevo(datos) {
+  /* El id lo pone el dispositivo, igual que en las ventas: así una ficha
+     creada sin conexión ya nace con su identidad definitiva y no hay que
+     renumerarla al subirla. */
+  const id = crypto.randomUUID();
   const costo = Number(datos.costo) || 0;
   return {
     id,
     nombre: (datos.nombre || "Producto sin nombre").trim(),
     categoria: datos.categoria || "",
     marca: datos.marca || "",
-    sku: `NUE-${String(id).padStart(4, "0")}`,
+    sku: `NUE-${id.slice(0, 8).toUpperCase()}`,
     barcode: (datos.barcode || "").replace(/\D/g, ""),
     costo, costoPrev: costo,
     precio: Number(datos.precio) || 0,

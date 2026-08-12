@@ -5,12 +5,13 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { HOY, fdate, fdatel } from "../datos/generador.js";
-import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, productoNuevo } from "../utils/helpers.js";
+import { fdate, fdatel } from "../datos/generador.js";
+import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } from "../ui/Base.jsx";
+import { NumeroDiferido } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
 
-export function Productos({ productos, setProductos, toast, focoInicial, provs, ajustes }) {
+export function Productos({ productos, actualizarProducto, agregarProducto, toast, focoInicial, provs, ajustes }) {
   const [alta, setAlta] = useState(null);
   const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
   const [modoPrecios, setModoPrecios] = useState(false);
@@ -57,20 +58,9 @@ export function Productos({ productos, setProductos, toast, focoInicial, provs, 
   const visibles = lista.slice(p0 * porPagina, p0 * porPagina + porPagina);
   useEffect(() => setPag(0), [q, cat, orden, filtro]);
 
-  /* Un cambio de costo no es un dato más: alimenta el historial y de ahí sale
-     el diagnóstico de caída de margen. Si se pisa sin registrar, el sistema
-     deja de poder explicar por qué bajó la ganancia. */
-  const actualizar = (id, cambios, msg) => {
-    setProductos((ps) => ps.map((p) => {
-      if (p.id !== id) return p;
-      const nuevo = { ...p, ...cambios };
-      if (cambios.costo != null && Number(cambios.costo) !== p.costo && Number(cambios.costo) > 0) {
-        nuevo.historial = [...p.historial, { fecha: HOY, costo: Number(cambios.costo) }];
-      }
-      return nuevo;
-    }));
-    if (msg) toast(msg);
-  };
+  /* El historial de costos ya no se arma acá: lo escribe un disparador de la
+     base cuando ve el cambio, así ninguna pantalla se puede olvidar de él. */
+  const actualizar = actualizarProducto;
 
   return (
     <div className="space-y-4">
@@ -184,8 +174,7 @@ export function Productos({ productos, setProductos, toast, focoInicial, provs, 
                     const m2 = mg(valor);
                     return (
                       <td className="px-2 py-1.5 text-right">
-                        <input value={valor || ""} onChange={(e) => alGuardar(Number(e.target.value.replace(/\D/g, "")))}
-                          placeholder="—"
+                        <NumeroDiferido valor={valor} onGuardar={alGuardar} placeholder="—"
                           className={`f-m w-24 text-right border rounded-lg px-2 py-1 text-sm outline-none focus:border-orange-400 ${
                             m2 != null && m2 < 0.08 ? "border-red-300 bg-red-50" : "border-stone-200"}`} />
                         {m2 != null && <div className={`text-[10px] ${m2 < 0.08 ? "text-red-600" : "text-stone-400"}`}>{pct(m2, 0)}</div>}
@@ -199,7 +188,7 @@ export function Productos({ productos, setProductos, toast, focoInicial, provs, 
                         <div className="f-m text-[11px] text-stone-400">{p.categoria}</div>
                       </td>
                       <td className="px-2 py-1.5 text-right">
-                        <input value={p.costo || ""} onChange={(e) => actualizar(p.id, { costo: Number(e.target.value.replace(/\D/g, "")) })}
+                        <NumeroDiferido valor={p.costo} onGuardar={(n) => actualizar(p.id, { costo: n })}
                           className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-orange-400 bg-stone-50" />
                       </td>
                       {celda(p.precio, (n) => actualizar(p.id, { precio: n }))}
@@ -295,72 +284,61 @@ export function Productos({ productos, setProductos, toast, focoInicial, provs, 
       <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} />
 
       <ImportarPlanilla resumen={planilla} listas={ajustes.listas || []} onCerrar={() => setPlanilla(null)}
-        onAplicar={() => {
+        onAplicar={async () => {
           const { nuevos, cambios } = planilla;
           const num = (v) => { const n = Number(String(v).replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, "")); return isNaN(n) ? null : n; };
-          setProductos((ps) => {
-            let acc = ps.map((p) => {
-              const c = cambios.find((x) => x.p.id === p.id);
-              if (!c) return p;
-              const f = c.datos;
-              const precios = { ...(p.precios || {}) };
-              for (const l of (ajustes.listas || [])) {
-                const col = `precio_${l.nombre.toLowerCase().replace(/[^a-z0-9]+/gi, "_")}`;
-                if (String(f[col] ?? "").trim() === "") continue;
-                const v = num(f[col]);
-                if (v > 0) precios[l.id] = v; else delete precios[l.id];
-              }
-              const tomar = (col, actual) => (String(f[col] ?? "").trim() === "" ? actual : (num(f[col]) ?? actual));
-              const costoNuevo = tomar("costo", p.costo);
-              return {
-                ...p,
-                nombre: String(f.nombre || "").trim() || p.nombre,
-                costo: costoNuevo,
-                precio: tomar("precio", p.precio),
-                stock: tomar("stock", p.stock),
-                stockMin: tomar("stock_minimo", p.stockMin),
-                precios,
-                historial: costoNuevo !== p.costo ? [...p.historial, { fecha: HOY, costo: costoNuevo }] : p.historial,
-              };
-            });
-            for (const n of nuevos) {
-              const f = n.datos;
-              const precios = {};
-              for (const l of (ajustes.listas || [])) {
-                const col = `precio_${l.nombre.toLowerCase().replace(/[^a-z0-9]+/gi, "_")}`;
-                const v = num(f[col]);
-                if (v > 0) precios[l.id] = v;
-              }
-              acc = [...acc, productoNuevo({
-                nombre: f.nombre, barcode: String(f.codigo || "").replace(/\D/g, ""),
-                categoria: f.rubro, marca: f.marca, proveedor: f.proveedor,
-                unidad: f.unidad === "kg" ? "kg" : "un", iva: num(f.iva) || 21, bulto: num(f.bulto) || 1,
-                stock: num(f.stock) || 0, stockMin: num(f.stock_minimo) || 0,
-                costo: num(f.costo) || 0, precio: num(f.precio) || 0, precios,
-              }, acc)];
+          const preciosDe = (f, base) => {
+            const precios = { ...(base || {}) };
+            for (const l of (ajustes.listas || [])) {
+              const col = `precio_${l.nombre.toLowerCase().replace(/[^a-z0-9]+/gi, "_")}`;
+              if (String(f[col] ?? "").trim() === "") continue;
+              const v = num(f[col]);
+              if (v > 0) precios[l.id] = v; else delete precios[l.id];
             }
-            return acc;
-          });
-          toast(`Planilla aplicada: ${cambios.length} actualizados, ${nuevos.length} nuevos.`);
+            return precios;
+          };
           setPlanilla(null);
+
+          /* Una fila de la planilla es un guardado en la base: van todas
+             juntas, pero cada una responde por su cuenta y una que falle no
+             se lleva puestas a las demás. El stock queda afuera a propósito:
+             no se pisa, se mueve con un ajuste de inventario. */
+          await Promise.all(cambios.map(({ p, datos: f }) => {
+            const tomar = (col, actual) => (String(f[col] ?? "").trim() === "" ? actual : (num(f[col]) ?? actual));
+            return actualizarProducto(p.id, {
+              nombre: String(f.nombre || "").trim() || p.nombre,
+              costo: tomar("costo", p.costo),
+              precio: tomar("precio", p.precio),
+              stockMin: tomar("stock_minimo", p.stockMin),
+              precios: preciosDe(f, p.precios),
+            });
+          }));
+
+          for (const n of nuevos) {
+            const f = n.datos;
+            await agregarProducto({
+              nombre: f.nombre, barcode: String(f.codigo || "").replace(/\D/g, ""),
+              categoria: f.rubro, marca: f.marca, proveedor: f.proveedor,
+              unidad: f.unidad === "kg" ? "kg" : "un", iva: num(f.iva) || 21, bulto: num(f.bulto) || 1,
+              stock: num(f.stock) || 0, stockMin: num(f.stock_minimo) || 0,
+              costo: num(f.costo) || 0, precio: num(f.precio) || 0, precios: preciosDe(f, {}),
+            }, null);
+          }
+          toast(`Planilla aplicada: ${cambios.length} actualizados, ${nuevos.length} nuevos.`);
         }} />
 
       <FormProducto abierto={!!alta} inicial={alta} productos={productos} provs={provs} ajustes0={ajustes} onClose={() => setAlta(null)}
         onGuardar={(d, faltan) => {
           if (d.id) {
-            setProductos((ps) => ps.map((p) => (p.id === d.id ? {
-              ...p, ...d,
-              historial: Number(d.costo) > 0 && Number(d.costo) !== p.costo
-                ? [...p.historial, { fecha: HOY, costo: Number(d.costo) }] : p.historial,
-              costo: Number(d.costo) || 0, precio: Number(d.precio) || 0,
-              stock: Number(d.stock) || 0, stockMin: Number(d.stockMin) || 0, bulto: Number(d.bulto) || 1,
+            actualizarProducto(d.id, {
+              nombre: d.nombre, categoria: d.categoria, marca: d.marca, unidad: d.unidad,
               barcode: String(d.barcode || "").replace(/\D/g, ""),
+              costo: Number(d.costo) || 0, precio: Number(d.precio) || 0,
+              stockMin: Number(d.stockMin) || 0, bulto: Number(d.bulto) || 1, iva: Number(d.iva) || 21,
               precios: Object.fromEntries(Object.entries(d.precios || {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)])),
-            } : p)));
-            toast(faltan.length ? `Guardado. Todavía falta ${faltan.join(", ")}.` : "Producto actualizado.");
+            }, faltan.length ? `Guardado. Todavía falta ${faltan.join(", ")}.` : "Producto actualizado.");
           } else {
-            setProductos((ps) => [...ps, productoNuevo(d, ps)]);
-            toast(faltan.length ? `${d.nombre} creado. Falta ${faltan.join(", ")}.` : `${d.nombre} creado.`);
+            agregarProducto(d, faltan.length ? `${d.nombre} creado. Falta ${faltan.join(", ")}.` : `${d.nombre} creado.`);
           }
           setAlta(null);
         }} />

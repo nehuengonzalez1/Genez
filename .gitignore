@@ -24,6 +24,10 @@ Thumbs.db
 
 # configuración local de claude code (rutas de la máquina)
 .claude/settings.local.json
+
+# estado local del cli de supabase
+supabase/.temp/
+supabase/.branches/
 *.swp
 *.swo
 
