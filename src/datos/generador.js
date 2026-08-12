@@ -344,4 +344,9 @@ function generarPedidos(productos) {
     };
   });
 }
-export const PEDIDOS_INICIALES = generarPedidos(DATA.productos);
+/* Vacío a propósito. Estos pedidos apuntaban a los productos del
+   generador, cuyos ids son enteros y no existen en la base: cobrar uno
+   hacía que la venta entera fuera rechazada y se perdiera la plata. La
+   función se conserva porque sirve para volver a armar datos de
+   demostración cuando apunten a productos de verdad. */
+export const PEDIDOS_INICIALES = [];

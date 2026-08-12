@@ -23,11 +23,17 @@ import { registrarVenta } from "./ventas.js";
 
 const CLAVE = "genez.ventas.pendientes";
 
+/* Una venta que el servidor rechaza no se tira. Se aparta de la cola para
+   que no trabe a las que vienen atrás, pero queda guardada: alguien cobró
+   esa plata en el mostrador y tiene que poder recuperarse el dato aunque
+   el sistema no haya sabido qué hacer con él. */
+const CLAVE_TRABADAS = "genez.ventas.trabadas";
+
 /* Un localStorage corrupto o lleno no puede tumbar la caja. Si no se
    puede leer, se arranca vacío y se sigue vendiendo. */
-function leer() {
+function leer(clave = CLAVE) {
   try {
-    const crudo = localStorage.getItem(CLAVE);
+    const crudo = localStorage.getItem(clave);
     const lista = crudo ? JSON.parse(crudo) : [];
     return Array.isArray(lista) ? lista : [];
   } catch {
@@ -35,9 +41,9 @@ function leer() {
   }
 }
 
-function escribir(lista) {
+function escribir(lista, clave = CLAVE) {
   try {
-    localStorage.setItem(CLAVE, JSON.stringify(lista));
+    localStorage.setItem(clave, JSON.stringify(lista));
     return true;
   } catch {
     /* Cuota llena o modo privado: no hay dónde guardar. Quien llama
@@ -54,6 +60,14 @@ export function cuantasPendientes() {
   return leer().length;
 }
 
+export function trabadas() {
+  return leer(CLAVE_TRABADAS);
+}
+
+export function cuantasTrabadas() {
+  return leer(CLAVE_TRABADAS).length;
+}
+
 export function encolar(venta) {
   const lista = leer();
   if (lista.some((v) => v.id === venta.id)) return true;
@@ -63,6 +77,17 @@ export function encolar(venta) {
 
 export function quitar(id) {
   escribir(leer().filter((v) => v.id !== id));
+}
+
+/* Sale de la cola pero no del equipo: se archiva con el motivo para poder
+   revisarla o reintentarla a mano una vez corregido el problema. */
+function trabar(venta, motivo) {
+  const lista = leer(CLAVE_TRABADAS);
+  if (!lista.some((x) => x.venta.id === venta.id)) {
+    lista.push({ venta, motivo, cuando: new Date().toISOString() });
+    escribir(lista, CLAVE_TRABADAS);
+  }
+  quitar(venta.id);
 }
 
 /* Recorre la cola en orden y para al primer fallo de red. Seguir
@@ -88,8 +113,9 @@ export async function sincronizar() {
       enviadas++;
     } catch (e) {
       if (esDeRed(e)) break;
-      quitar(venta.id);
-      rechazadas.push({ venta, motivo: e.message || "La base rechazó la venta." });
+      const motivo = e.message || "La base rechazó la venta.";
+      trabar(venta, motivo);
+      rechazadas.push({ venta, motivo });
     }
   }
 
