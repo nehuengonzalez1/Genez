@@ -1,0 +1,32 @@
+# dependencias
+node_modules/
+
+# build
+dist/
+dist-ssr/
+
+# variables de entorno y credenciales
+.env
+.env.*
+!.env.example
+
+# archivos de vite/local
+*.local
+vite.config.js.timestamp-*
+
+# sistema operativo
+.DS_Store
+Thumbs.db
+
+# editores
+.vscode/
+.idea/
+
+# configuración local de claude code (rutas de la máquina)
+.claude/settings.local.json
+*.swp
+*.swo
+
+# logs
+*.log
+npm-debug.log*
