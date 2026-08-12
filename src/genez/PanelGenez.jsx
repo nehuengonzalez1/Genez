@@ -12,6 +12,7 @@ import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from
 import { entrar as autenticar } from "../datos/sesion.js";
 import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
+import { armarVenta, registrarVenta } from "../datos/ventas.js";
 import { calcular, insights } from "../utils/diagnostico.js";
 import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
@@ -782,17 +783,52 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente }) => {
     const nro = `0001-${String(48210 + tickets.length + 1).padStart(8, "0")}`;
     const ps = pagos && pagos.length ? pagos : [{ medio, monto: total }];
+    const esFiscal = fiscal != null ? fiscal : !!ajustes.arca;
+    const cae = String(74300000000000 + tickets.length * 137);
+
+    /* La venta se arma antes que el ticket para que compartan el id: lo que
+       se imprime en el mostrador y lo que queda en la base son la misma cosa,
+       y por eso reintentar el envío no duplica nada. */
+    const venta = armarVenta({
+      empresaId,
+      sucursalId: null,
+      numero: nro,
+      items, sub, desc, recargo: recargo || 0, total,
+      pagos: ps, medio: ps[0].medio,
+      fiscal: esFiscal,
+      /* El cliente todavía vive en memoria y su id no es un uuid: mandarlo
+         como cliente_id haría fallar la venta entera. Viaja en el
+         comprobante hasta que Clientes se migre. */
+      comprobante: { fiscal: esFiscal, cae, cliente: cliente ? { nombre: cliente.razonSocial, doc: cliente.doc } : null },
+    });
+
     const t = {
-      id: uid(), nro, cae: String(74300000000000 + tickets.length * 137),
+      id: venta.id, nro, cae,
       hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
       items, sub, desc, total, medio: ps[0].medio, pagos: ps, ganancia, recibe: recibe || null,
-      recargo: recargo || 0, recargoNombre: recargoNombre || "", fiscal: fiscal != null ? fiscal : !!ajustes.arca,
-      cliente: cliente || null,
+      recargo: recargo || 0, recargoNombre: recargoNombre || "", fiscal: esFiscal,
+      cliente: cliente || null, sincronizada: null,
     };
     setTickets((x) => [t, ...x]);
     // Un movimiento de caja por medio de pago: así el arqueo y el reporte
     // por medio siguen cerrando aunque la venta se haya cobrado partida.
     ps.forEach((p) => movCaja({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}` }));
+
+    /* Se manda sin esperar: la venta ya ocurrió en el mostrador y el ticket
+       tiene que salir ahora. Que llegue a la base es otro problema, y si
+       falla se avisa sin frenar la caja. */
+    const marcar = (ok) => setTickets((x) => x.map((v) => (v.id === t.id ? { ...v, sincronizada: ok } : v)));
+    registrarVenta(venta)
+      .then(() => marcar(true))
+      .catch(() => {
+        marcar(false);
+        /* Todavía no hay cola de reintento, así que no se promete una. La
+           venta quedó cobrada y el ticket impreso, pero el stock y la caja
+           del servidor no la tienen: quien está en el mostrador necesita
+           saberlo ahora, no enterarse en el arqueo. */
+        toast(`Venta ${nro} cobrada, pero no se pudo guardar en el servidor. Anotala.`, "mal");
+      });
+
     return t;
   };
 

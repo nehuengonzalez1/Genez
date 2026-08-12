@@ -609,7 +609,8 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     if (vueltoDado != null) t.vuelto = vueltoDado;
     setProductos((ps) => ps.map((p) => {
       const l = lineas.find((x) => x.pid === p.id);
-      return l ? { ...p, stock: +(p.stock - l.qty).toFixed(3), ultimaVenta: HOY, u30: p.u30 + l.qty } : p;
+      // La venta es real aunque el resto del prototipo siga en la fecha congelada.
+      return l ? { ...p, stock: +(p.stock - l.qty).toFixed(3), ultimaVenta: new Date(), u30: p.u30 + l.qty } : p;
     }));
     setTicket(t);
     setPaso("fin");
