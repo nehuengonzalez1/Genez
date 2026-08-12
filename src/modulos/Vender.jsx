@@ -606,6 +606,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
       fiscal, cliente });
+    /* Sin caja abierta no hay venta: no se descuenta stock ni se limpia el
+       carrito, así el cobro se puede retomar apenas se abra. */
+    if (!t) return;
     if (vueltoDado != null) t.vuelto = vueltoDado;
     setProductos((ps) => ps.map((p) => {
       const l = lineas.find((x) => x.pid === p.id);

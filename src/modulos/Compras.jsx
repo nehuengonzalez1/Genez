@@ -909,6 +909,9 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
     });
     const t = cobrar({ items: lineas, sub: monto, desc: 0, total: monto, medio, fiscal: !!ajustes.arca,
       ganancia: monto - lineas.reduce((s, l) => s + l.costo * l.qty, 0) });
+    /* Sin caja abierta el pedido queda como estaba, listo para cobrarse
+       de nuevo cuando se abra. */
+    if (!t) { setCerrando(false); return; }
     setProductos((ps) => ps.map((p) => {
       const l = lineas.find((x) => x.pid === p.id);
       return l ? { ...p, stock: +(p.stock - l.qty).toFixed(3), ultimaVenta: HOY, u30: p.u30 + l.qty } : p;

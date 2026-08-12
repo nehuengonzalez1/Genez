@@ -11,6 +11,7 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ monto: "", detalle: "", medio: "efectivo" });
   const [contado, setContado] = useState("");
+  const [guardando, setGuardando] = useState(false);
 
   const porMedio = mediosDe(ajustes).map((m) => {
     const ing = caja.movimientos.filter((x) => x.tipo === "ingreso" && x.medio === m.k).reduce((s, x) => s + x.monto, 0);
@@ -19,36 +20,26 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
   });
   const ingresos = caja.movimientos.filter((x) => x.tipo === "ingreso").reduce((s, x) => s + x.monto, 0);
   const egresos = caja.movimientos.filter((x) => x.tipo === "egreso").reduce((s, x) => s + x.monto, 0);
-  const efectivoEsperado = caja.saldoInicial + porMedio.find((m) => m.k === "efectivo").neto;
+  const efectivo = porMedio.find((m) => m.k === "efectivo");
+  const efectivoEsperado = caja.saldoInicial + (efectivo ? efectivo.neto : 0);
   const dif = contado === "" ? null : Number(contado) - efectivoEsperado;
 
-  const guardar = () => {
+  /* El movimiento se guarda en la base: si no entra, el modal queda abierto
+     con lo cargado y no se avisa nada que no haya pasado. */
+  const guardar = async () => {
     const monto = Number(form.monto);
-    if (!monto) return;
-    movCaja({ tipo: modal === "gasto" ? "egreso" : "egreso", medio: form.medio, monto, detalle: form.detalle || (modal === "gasto" ? "Gasto" : "Retiro del dueño"), clase: modal });
+    if (!monto || guardando) return;
+    setGuardando(true);
+    const ok = await movCaja({ tipo: "egreso", medio: form.medio, monto, detalle: form.detalle || (modal === "gasto" ? "Gasto" : "Retiro del dueño"), clase: modal });
+    setGuardando(false);
+    if (!ok) return;
+    const era = modal;
     setForm({ monto: "", detalle: "", medio: "efectivo" });
     setModal(null);
-    toast(modal === "gasto" ? "Gasto registrado." : "Retiro registrado.");
+    toast(era === "gasto" ? "Gasto registrado." : "Retiro registrado.");
   };
 
-  if (!caja.abierta) {
-    return (
-      <Card className="p-8 text-center max-w-md mx-auto">
-        <Wallet size={28} className="mx-auto text-stone-300" />
-        <h3 className="f-d text-xl mt-3">La caja está cerrada</h3>
-        <p className="text-sm text-stone-500 mt-1">Abrila con el efectivo con el que arrancás el turno para poder cobrar.</p>
-        {caja.cierres.length > 0 && (
-          <div className="text-left text-sm bg-stone-50 rounded-xl p-3 mt-4">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-1">Último cierre</div>
-            <div className="flex justify-between"><span>Esperado</span><span className="f-m">{money(caja.cierres[0].esperado)}</span></div>
-            <div className="flex justify-between"><span>Contado</span><span className="f-m">{money(caja.cierres[0].contado)}</span></div>
-            <div className="flex justify-between font-semibold"><span>Diferencia</span><span className={`f-m ${caja.cierres[0].dif < 0 ? "text-red-600" : "text-emerald-600"}`}>{money(caja.cierres[0].dif)}</span></div>
-          </div>
-        )}
-        <Boton className="mt-5 w-full" size="lg" onClick={() => abrirCaja(50000)}>Abrir caja con {money(50000)}</Boton>
-      </Card>
-    );
-  }
+  if (!caja.abierta) return <CajaCerrada caja={caja} abrirCaja={abrirCaja} />;
 
   return (
     <div className="space-y-4">
@@ -118,7 +109,8 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
                 {dif === 0 ? "Cuadra perfecto." : dif > 0 ? `Sobran ${money(dif)}` : `Faltan ${money(-dif)}`}
               </div>
             )}
-            <Boton variant="dark" className="w-full mt-3" disabled={contado === ""} onClick={() => { cerrarCaja(efectivoEsperado, Number(contado)); setContado(""); toast("Caja cerrada. Se guardó el arqueo del día."); }}>
+            <Boton variant="dark" className="w-full mt-3" disabled={contado === "" || guardando}
+              onClick={async () => { setGuardando(true); await cerrarCaja(Number(contado)); setGuardando(false); setContado(""); }}>
               Cerrar caja del día
             </Boton>
           </Card>
@@ -141,9 +133,43 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
                 className={`text-xs px-2.5 py-1.5 rounded-lg border ${form.medio === m.k ? "bg-stone-900 text-white border-stone-900" : "border-stone-200 text-stone-500"}`}>{m.n}</button>
             ))}
           </div>
-          <Boton className="w-full mt-4" onClick={guardar} disabled={!form.monto}>Guardar</Boton>
+          <Boton className="w-full mt-4" onClick={guardar} disabled={!form.monto || guardando}>Guardar</Boton>
         </div>
       </Modal>
     </div>
+  );
+}
+
+/* La misma pantalla la usan Caja y el POS: sin sesión de caja abierta el
+   servidor rechaza toda venta, así que cobrar tiene que estar bloqueado
+   desde antes de cargar el primer producto. */
+export function CajaCerrada({ caja, abrirCaja, bajada }) {
+  const [apertura, setApertura] = useState("50000");
+  const [abriendo, setAbriendo] = useState(false);
+
+  return (
+    <Card className="p-8 text-center max-w-md mx-auto">
+      <Wallet size={28} className="mx-auto text-stone-300" />
+      <h3 className="f-d text-xl mt-3">La caja está cerrada</h3>
+      <p className="text-sm text-stone-500 mt-1">{bajada || "Abrila con el efectivo con el que arrancás el turno para poder cobrar."}</p>
+      {caja.cierres.length > 0 && (
+        <div className="text-left text-sm bg-stone-50 rounded-xl p-3 mt-4">
+          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-1">Último cierre</div>
+          <div className="flex justify-between"><span>Esperado</span><span className="f-m">{money(caja.cierres[0].esperado)}</span></div>
+          <div className="flex justify-between"><span>Contado</span><span className="f-m">{money(caja.cierres[0].contado)}</span></div>
+          <div className="flex justify-between font-semibold"><span>Diferencia</span><span className={`f-m ${caja.cierres[0].dif < 0 ? "text-red-600" : "text-emerald-600"}`}>{money(caja.cierres[0].dif)}</span></div>
+        </div>
+      )}
+      {/* El monto de apertura entra en el arqueo: si no es el que hay de
+          verdad en el cajón, el cierre nunca cuadra. */}
+      <input value={apertura} onChange={(e) => setApertura(e.target.value.replace(/\D/g, ""))} placeholder="Efectivo con el que arrancás"
+        className="f-m w-full text-right border border-stone-200 rounded-xl px-3 py-2 text-sm mt-4 outline-none focus:border-orange-400" />
+      {/* Abrir es asincrónico: sin el candado, dos clics seguidos mandan dos
+          aperturas antes de que vuelva la primera. */}
+      <Boton className="mt-3 w-full" size="lg" disabled={abriendo}
+        onClick={async () => { setAbriendo(true); try { await abrirCaja(Number(apertura || 0)); } finally { setAbriendo(false); } }}>
+        {abriendo ? "Abriendo…" : `Abrir caja con ${money(Number(apertura || 0))}`}
+      </Boton>
+    </Card>
   );
 }

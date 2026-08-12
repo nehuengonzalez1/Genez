@@ -14,6 +14,10 @@ import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES,
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
+import {
+  cargarCaja, cargarCierres, cargarMovimientos, registrarMovimiento,
+  abrirCaja as abrirCajaEnBase, cerrarCaja as cerrarCajaEnBase,
+} from "../datos/caja.js";
 import { calcular, insights } from "../utils/diagnostico.js";
 import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
@@ -23,7 +27,7 @@ import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
 import { Clientes } from "../modulos/Clientes.jsx";
-import { Caja } from "../modulos/Caja.jsx";
+import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
@@ -686,16 +690,9 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const [ajustes, setAjustes] = useState({ negocio: "Super 25", cuit: "20-41564841-0", arca: false, medios: MEDIOS_INICIALES, fiscal: FISCAL_INICIAL, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
   const [toasts, setToasts] = useState([]);
 
-  const hoyDiario = DATA.diario[DATA.diario.length - 1];
-  const [caja, setCaja] = useState(() => {
-    const reparto = { efectivo: 0.42, debito: 0.17, credito: 0.12, mp: 0.25, transferencia: 0.04 };
-    const movs = Object.entries(reparto).map(([medio, f], i) => ({
-      id: uid(), tipo: "ingreso", medio, monto: Math.round(hoyDiario.ventas * f),
-      detalle: "Ventas registradas · turno mañana", hora: `1${i}:0${i}`,
-    }));
-    movs.push({ id: uid(), tipo: "egreso", medio: "efectivo", monto: 18500, detalle: "Flete de bebidas", hora: "09:40", clase: "gasto" });
-    return { abierta: true, saldoInicial: 50000, hora: "07:30", movimientos: movs, cierres: [] };
-  });
+  /* La caja arranca vacía y se lee de la base al montar: un arqueo sobre
+     movimientos inventados no compara nada contra nada. */
+  const [caja, setCaja] = useState({ abierta: false, sesionId: null, saldoInicial: 0, hora: null, movimientos: [], cierres: [] });
 
   const [ficha, setFicha] = useState(null);
   const [pendientePOS, setPendientePOS] = useState(null);
@@ -735,6 +732,34 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
       .finally(() => { if (vigente) setCargandoProductos(false); });
     return () => { vigente = false; };
   }, [empresaId]);
+
+  /* El cierre guarda el saldo de apertura y lo que se contó, pero no lo que
+     el sistema esperaba: eso es la suma de los movimientos de esa sesión y se
+     recalcula al leerlo. Guardarlo aparte sería un número copiado a mano que
+     puede quedar en desacuerdo con los movimientos. */
+  const leerCierres = useCallback(async () => {
+    const filas = await cargarCierres(empresaId, 5);
+    return Promise.all(filas.map(async (f) => {
+      const movs = await cargarMovimientos(f.id);
+      const neto = movs.reduce((s, m) => (m.medio !== "efectivo" ? s : s + (m.tipo === "ingreso" ? m.monto : -m.monto)), 0);
+      const esperado = Number(f.monto_inicial || 0) + neto;
+      const contado = Number(f.monto_declarado || 0);
+      return { id: f.id, fecha: new Date(f.cerrada_en), esperado, contado, dif: contado - esperado };
+    }));
+  }, [empresaId]);
+
+  const leerCaja = useCallback(async () => {
+    const [c, cierres] = await Promise.all([cargarCaja(empresaId), leerCierres()]);
+    return { ...c, cierres };
+  }, [empresaId, leerCierres]);
+
+  useEffect(() => {
+    let vigente = true;
+    leerCaja()
+      .then((c) => { if (vigente) setCaja(c); })
+      .catch((e) => { if (vigente) toast(e.message || "No pudimos cargar la caja.", "mal"); });
+    return () => { vigente = false; };
+  }, [leerCaja]);
 
   /* Se cambia en pantalla primero y se confirma después con lo que devuelve
      la base, que es la que recalcula el costo anterior y el margen. Si el
@@ -781,12 +806,78 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const k = useMemo(() => calcular(productos, DATA.diario, ajustes.cobertura), [productos, ajustes.cobertura]);
   const ins = useMemo(() => insights(k), [k]);
 
-  const movCaja = (m) => setCaja((c) => ({
+  /* Hay dos caminos a propósito y no se pueden unificar.
+
+     `registrar_venta` ya escribe en la base un movimiento de caja por cada
+     medio de pago de la venta. Si el POS escribiera los suyos además, cada
+     venta entraría dos veces y el arqueo daría el doble. Por eso una venta
+     solo agrega sus movimientos al estado —para que la pantalla se mueva en
+     el momento del cobro— y al recargar vienen de la base.
+
+     Todo lo que no nace de una venta (gastos, retiros, compras al contado,
+     cobros de Mercado Pago) nadie más lo guarda: eso sí se persiste acá. */
+  const sumarMovLocal = (m) => setCaja((c) => ({
     ...c,
     movimientos: [...c.movimientos, { id: uid(), hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), ...m }],
   }));
 
+  const movCaja = async (m) => {
+    /* Sin sesión abierta el movimiento no pertenece a ningún arqueo: entraría
+       a la base y desaparecería de todos los totales. Mejor no aceptarlo. */
+    if (!caja.sesionId) {
+      toast("La caja está cerrada: abrila para registrar el movimiento.", "mal");
+      return null;
+    }
+    const provisorio = uid();
+    sumarMovLocal({ ...m, id: provisorio });
+    try {
+      const guardado = await registrarMovimiento({
+        empresaId, sesionId: caja.sesionId,
+        tipo: m.tipo, medio: m.medio, monto: m.monto, detalle: m.detalle, clase: m.clase || null,
+      });
+      setCaja((c) => ({ ...c, movimientos: c.movimientos.map((x) => (x.id === provisorio ? guardado : x)) }));
+      return guardado;
+    } catch (e) {
+      setCaja((c) => ({ ...c, movimientos: c.movimientos.filter((x) => x.id !== provisorio) }));
+      toast(e.message || "No se pudo registrar el movimiento de caja.", "mal");
+      return null;
+    }
+  };
+
+  const abrirCajaDelDia = async (montoInicial) => {
+    try {
+      await abrirCajaEnBase({ empresaId, sucursalId: null, montoInicial });
+      /* Se relee en vez de armar el estado a mano: si ya había una sesión
+         abierta desde otro equipo, `abrirCaja` devuelve esa y sus movimientos
+         tienen que aparecer igual. */
+      setCaja(await leerCaja());
+      toast("Caja abierta.");
+    } catch (e) {
+      toast(e.message || "No se pudo abrir la caja.", "mal");
+    }
+  };
+
+  const cerrarCajaDelDia = async (contado) => {
+    if (!caja.sesionId) return;
+    try {
+      await cerrarCajaEnBase({ sesionId: caja.sesionId, montoDeclarado: contado });
+      setCaja(await leerCaja());
+      toast("Caja cerrada. Se guardó el arqueo del día.");
+    } catch (e) {
+      toast(e.message || "No se pudo cerrar la caja.", "mal");
+    }
+  };
+
   const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente }) => {
+    /* El POS ya no se monta con la caja cerrada, pero no es el único que
+       cobra: los pedidos preparados entran por acá también. La condición
+       se verifica en el único lugar por el que pasan todos, así que un
+       camino nuevo no puede saltearla por olvido. */
+    if (!caja.abierta || !caja.sesionId) {
+      toast("Abrí la caja antes de cobrar: sin caja abierta la venta no queda registrada.", "mal");
+      return null;
+    }
+
     const nro = siguienteNumero(empresaId, (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001");
     const ps = pagos && pagos.length ? pagos : [{ medio, monto: total }];
     const esFiscal = fiscal != null ? fiscal : !!ajustes.arca;
@@ -798,6 +889,9 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     const venta = armarVenta({
       empresaId,
       sucursalId: null,
+      /* Sin la sesión, los movimientos de caja que escribe la venta quedan
+         sueltos y no entran en ningún arqueo. */
+      sesionId: caja.sesionId,
       numero: nro,
       items, sub, desc, recargo: recargo || 0, total,
       pagos: ps, medio: ps[0].medio,
@@ -832,7 +926,8 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     if (!guardada) toast(`No se pudo guardar la venta ${nro} en este equipo. Si falla la conexión, se pierde.`, "mal");
     // Un movimiento de caja por medio de pago: así el arqueo y el reporte
     // por medio siguen cerrando aunque la venta se haya cobrado partida.
-    ps.forEach((p) => movCaja({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}` }));
+    // Solo en pantalla: los de verdad los escribe `registrar_venta`.
+    ps.forEach((p) => sumarMovLocal({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}` }));
 
     /* Se manda sin esperar: la venta ya ocurrió en el mostrador y el ticket
        tiene que salir ahora. Si no entra queda en la cola y se reintenta
@@ -1068,9 +1163,19 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           </header>
 
           <main className="flex-1 p-3 md:p-5">
-            <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
-              toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
-              aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} setClientes={setClientes} permisos={permisos} />
+            {/* El POS ni se monta con la caja cerrada: la base rechaza toda
+                venta sin sesión, así que dejar armar el carrito termina en un
+                ticket impreso de una venta que el servidor nunca aceptó. */}
+            {caja.abierta ? (
+              <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
+                toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
+                aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} setClientes={setClientes} permisos={permisos} />
+            ) : (
+              <div className="py-8">
+                <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia}
+                  bajada="No se puede cobrar sin caja abierta. Cargá el efectivo que hay en el cajón y arrancá el turno." />
+              </div>
+            )}
           </main>
 
           <footer className="hidden md:block px-4 py-2 text-center text-[11px] text-stone-400 border-t border-stone-200 bg-white">
@@ -1156,8 +1261,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           {tab === "compras" && <Compras productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (
             <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes}
-              abrirCaja={(s) => setCaja((c) => ({ ...c, abierta: true, saldoInicial: s, movimientos: [], hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) }))}
-              cerrarCaja={(esperado, contado) => setCaja((c) => ({ ...c, abierta: false, cierres: [{ fecha: HOY, esperado, contado, dif: contado - esperado }, ...c.cierres] }))} />
+              abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
           )}
           {tab === "reportes" && <Reportes productos={productos} k={k} ir={ir} />}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
