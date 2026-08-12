@@ -26,6 +26,8 @@ export const supabase = createClient(url, clave, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
+    /* El link que llega por mail para recuperar la contraseña trae la
+       sesión en la dirección. Si no se lee de ahí, el link no sirve. */
+    detectSessionInUrl: true,
   },
 });

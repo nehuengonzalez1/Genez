@@ -3,8 +3,8 @@
    ============================================================ */
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Login, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
-import { cargarSesion, cargarComercios, salir } from "./datos/sesion.js";
+import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
+import { cargarSesion, cargarComercios, salir, alRecuperarClave } from "./datos/sesion.js";
 
 /* La sesión sobrevive al refresco: Supabase la guarda en el navegador.
    Mientras se resuelve no se puede mostrar ni el login ni el sistema,
@@ -24,6 +24,13 @@ export default function App() {
   const [imagenFondo, setImagenFondo] = useState(null);   // fondo propio del login
   const [iniciando, setIniciando] = useState(true);
   const [errorInicio, setErrorInicio] = useState("");
+  const [recuperando, setRecuperando] = useState(false);
+
+  /* El link del correo abre una sesión que solo sirve para cambiar la
+     contraseña. Se escucha antes que nada: si se dejara seguir de largo,
+     entraría al sistema como si nada y el usuario nunca vería la pantalla
+     para elegir la clave nueva. */
+  useEffect(() => alRecuperarClave(() => setRecuperando(true)), []);
 
   useEffect(() => {
     let vigente = true;
@@ -60,6 +67,22 @@ export default function App() {
   const envolver = (hijo) => <div className={tema === "oscuro" ? "tema-oscuro min-h-screen bg-stone-950" : ""}>{hijo}</div>;
 
   if (iniciando) return envolver(<Cargando />);
+
+  if (recuperando) {
+    return envolver(
+      <ClaveNueva
+        imagenFondo={imagenFondo}
+        onListo={async () => {
+          /* Se cierra la sesión temporal del link a propósito: que entre
+             de nuevo con la contraseña nueva confirma que quedó bien y no
+             se la va a olvidar en dos minutos. */
+          await cerrarSesion();
+          setRecuperando(false);
+        }}
+        onCancelar={async () => { await cerrarSesion(); setRecuperando(false); }}
+      />
+    );
+  }
 
   if (!sesion) {
     return envolver(

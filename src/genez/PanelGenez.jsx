@@ -6,10 +6,11 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   LayoutDashboard, Barcode, Package, Boxes, Truck, Wallet, BarChart3,
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
-  ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff
+  ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
+  Eye, EyeOff, Mail, KeyRound
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
-import { entrar as autenticar } from "../datos/sesion.js";
+import { entrar as autenticar, pedirRecuperacion, cambiarClave } from "../datos/sesion.js";
 import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
@@ -545,24 +546,131 @@ function FondoHexagonal({ imagen }) {
   );
 }
 
+/* A esta pantalla se llega abriendo el link del correo. Supabase deja una
+   sesión temporal que solo sirve para esto: no se muestra el sistema
+   hasta que la contraseña quedó cambiada. */
+function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
+  const [clave, setClave] = useState("");
+  const [repetir, setRepetir] = useState("");
+  const [ver, setVer] = useState(false);
+  const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  const guardar = async () => {
+    if (guardando) return;
+    if (clave !== repetir) return setError("Las dos contraseñas no coinciden.");
+
+    setGuardando(true);
+    setError("");
+    try {
+      await cambiarClave(clave);
+      onListo();
+    } catch (e) {
+      setError(e.message);
+      setGuardando(false);
+    }
+  };
+
+  const campo = "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-white focus:border-orange-500 transition-colors";
+
+  return (
+    <div className="min-h-screen bg-[#0A0A0A] text-white flex">
+      <div className="hidden lg:block relative w-[46%] max-w-[680px] overflow-hidden">
+        <FondoHexagonal imagen={imagenFondo} />
+        <div className="absolute inset-y-0 right-0 w-56 pointer-events-none"
+          style={{ background: "linear-gradient(to right, rgba(10,10,10,0) 0%, rgba(10,10,10,0.75) 55%, #0A0A0A 100%)" }} />
+      </div>
+
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <div className="w-12 h-12 rounded-2xl bg-orange-500 flex items-center justify-center">
+            <KeyRound size={22} className="text-stone-950" />
+          </div>
+          <h1 className="f-d text-2xl mt-5">Elegí una contraseña nueva</h1>
+          <p className="text-stone-400 mt-2 text-sm">Con esta vas a entrar de ahora en más. Mínimo 8 caracteres.</p>
+
+          <div className="mt-8 space-y-5">
+            <label className="block">
+              <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Contraseña nueva</span>
+              <div className="relative">
+                <input type={ver ? "text" : "password"} value={clave} autoFocus
+                  onChange={(e) => { setClave(e.target.value); setError(""); }}
+                  autoComplete="new-password" disabled={guardando}
+                  className={`${campo} pr-12`} />
+                <button type="button" onClick={() => setVer((v) => !v)} tabIndex={-1}
+                  aria-label={ver ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-stone-500 hover:text-stone-300 transition-colors">
+                  {ver ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+
+            <label className="block">
+              <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Repetila</span>
+              <input type={ver ? "text" : "password"} value={repetir}
+                onChange={(e) => { setRepetir(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && guardar()}
+                autoComplete="new-password" disabled={guardando}
+                className={campo} />
+            </label>
+
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-red-400 bg-red-950/40 border border-red-900/60 rounded-xl px-3 py-2.5">
+                <AlertTriangle size={15} className="shrink-0" /> {error}
+              </div>
+            )}
+
+            <button onClick={guardar} disabled={guardando || !clave || !repetir}
+              className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:opacity-60 text-stone-950 font-bold rounded-xl px-4 py-4 text-lg transition-colors">
+              {guardando ? "Guardando…" : "Guardar y entrar"}
+            </button>
+
+            <button type="button" onClick={onCancelar}
+              className="w-full text-center text-sm text-stone-400 hover:text-orange-400 transition-colors">
+              Volver
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Login({ onEntrar, imagenFondo, errorInicial }) {
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
+  const [verClave, setVerClave] = useState(false);
   const [error, setError] = useState(errorInicial || "");
+  const [aviso, setAviso] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
 
   const entrar = async () => {
     if (cargando) return;
     if (!usuario.trim() || !clave) return setError("Completá correo y contraseña.");
 
     setCargando(true);
-    setError("");
+    setError(""); setAviso("");
     try {
       onEntrar(await autenticar(usuario, clave));
     } catch (e) {
       setError(e.message || "No pudimos validar tus datos. Probá de nuevo.");
       setCargando(false);
     }
+  };
+
+  /* El aviso es el mismo exista o no la cuenta. Decir "ese correo no está
+     registrado" le sirve a quien está averiguando qué direcciones tienen
+     cuenta, no a quien se olvidó la contraseña. */
+  const recuperar = async () => {
+    if (enviando) return;
+    if (!usuario.trim()) return setError("Escribí tu correo y volvé a tocar el enlace.");
+
+    setEnviando(true);
+    setError("");
+    try { await pedirRecuperacion(usuario); } catch { /* mismo mensaje igual */ }
+    setAviso(`Si ${usuario.trim()} tiene una cuenta, le va a llegar un correo con el link para cambiar la contraseña. Fijate también en el correo no deseado.`);
+    setEnviando(false);
   };
 
   const campo = "w-full bg-transparent border rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-white transition-colors";
@@ -594,10 +702,18 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
               </label>
               <label className="block">
                 <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Contraseña</span>
-                <input type="password" value={clave} onChange={(e) => { setClave(e.target.value); setError(""); }}
-                  onKeyDown={(e) => e.key === "Enter" && entrar()}
-                  autoComplete="current-password" disabled={cargando}
-                  className={`${campo} bg-white/5 border-white/10 focus:border-orange-500`} />
+                <div className="relative">
+                  <input type={verClave ? "text" : "password"} value={clave}
+                    onChange={(e) => { setClave(e.target.value); setError(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && entrar()}
+                    autoComplete="current-password" disabled={cargando}
+                    className={`${campo} bg-white/5 border-white/10 focus:border-orange-500 pr-12`} />
+                  <button type="button" onClick={() => setVerClave((v) => !v)} tabIndex={-1}
+                    aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-stone-500 hover:text-stone-300 transition-colors">
+                    {verClave ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </label>
 
               {error && (
@@ -606,9 +722,20 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
                 </div>
               )}
 
+              {aviso && (
+                <div className="flex items-start gap-2 text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-900/60 rounded-xl px-3 py-2.5">
+                  <Mail size={15} className="shrink-0 mt-0.5" /> {aviso}
+                </div>
+              )}
+
               <button onClick={entrar} disabled={cargando}
                 className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:opacity-60 text-stone-950 font-bold rounded-xl px-4 py-4 text-lg transition-colors">
                 {cargando ? "Entrando…" : "Entrar"}
+              </button>
+
+              <button type="button" onClick={recuperar} disabled={enviando}
+                className="w-full text-center text-sm text-stone-400 hover:text-orange-400 disabled:opacity-50 transition-colors">
+                {enviando ? "Enviando…" : "¿Olvidaste tu contraseña?"}
               </button>
             </div>
           </div>
@@ -1296,4 +1423,4 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   );
 }
 
-export { Login, Sistema, PanelGenez };
+export { Login, ClaveNueva, Sistema, PanelGenez };

@@ -119,3 +119,41 @@ export async function entrar(email, clave) {
 export async function salir() {
   await supabase.auth.signOut();
 }
+
+/* ------------------------------------------------------------
+   RECUPERAR LA CONTRASEÑA
+   ------------------------------------------------------------ */
+
+/* Manda el correo con el link. Nunca dice si el mail existe o no: eso le
+   sirve a quien está averiguando qué direcciones tienen cuenta, no a
+   quien se olvidó la contraseña. Por eso quien llama muestra el mismo
+   mensaje pase lo que pase. */
+export async function pedirRecuperacion(email) {
+  await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${window.location.origin}/`,
+  });
+}
+
+/* Solo funciona con la sesión temporal que abre el link del correo, o
+   estando adentro del sistema. */
+export async function cambiarClave(nueva) {
+  if (!nueva || nueva.length < 8) {
+    throw new Error("La contraseña necesita al menos 8 caracteres.");
+  }
+  const { error } = await supabase.auth.updateUser({ password: nueva });
+  if (error) {
+    if (/expired|invalid/i.test(error.message)) {
+      throw new Error("El link venció o ya se usó. Pedí uno nuevo.");
+    }
+    throw new Error(error.message);
+  }
+}
+
+/* Avisa cuando el usuario entró por un link de recuperación, para
+   mostrarle la pantalla de contraseña nueva en vez del sistema. */
+export function alRecuperarClave(callback) {
+  const { data } = supabase.auth.onAuthStateChange((evento) => {
+    if (evento === "PASSWORD_RECOVERY") callback();
+  });
+  return () => data.subscription.unsubscribe();
+}
