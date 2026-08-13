@@ -661,9 +661,11 @@ export function PlanoSalon({
             </div>
           )}
 
-          <div className="mt-auto pt-3 space-y-2">
+          {/* Solo mostrador. El canal —para llevar, delivery, aplicación— se
+              elige al comandar, así que ofrecerlo también acá era pedir dos
+              veces la misma decisión, y una de ellas antes de tiempo. */}
+          <div className="mt-auto pt-3">
             <Canal icono={Store} rotulo="Mostrador" motivo="Tomar un pedido de mostrador" onTocar={onMostrador} />
-            <Canal icono={ShoppingBag} rotulo="Take away" motivo="Tomar un pedido para llevar" onTocar={onTakeAway} />
           </div>
         </Card>
 
@@ -787,8 +789,6 @@ export function PlanoSalon({
             ? <Apagado key={k} motivo={SIN_DATO[k]} className="block w-full">{cuadro}</Apagado>
             : <React.Fragment key={k}>{cuadro}</React.Fragment>;
         })}
-        <Canal icono={ShoppingBag} rotulo="Take away" motivo="Tomar un pedido para llevar"
-          onTocar={onTakeAway} alto />
       </div>
     </div>
   );
