@@ -60,7 +60,7 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
   return (
     <Overlay ancho="max-w-md">
       <div className="bg-acento text-sobre-acento px-5 py-3.5">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-orange-100">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-acento-vivo">
           <ScanLine size={13} /> Producto nuevo
         </div>
         <div className="flex items-center gap-2 mt-0.5">
@@ -370,13 +370,13 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
 
   return (
     <div className="fixed inset-0 z-[70] bg-fondo flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-3 text-white bg-fondo/80">
+      <div className="flex items-center gap-3 px-4 py-3 text-texto bg-fondo/80">
         <Cam size={18} className="text-acento-vivo shrink-0" />
         <span className="font-semibold text-sm flex-1">{titulo}</span>
-        <button onClick={cambiarLinterna} className="p-2 text-white/70 active:text-white" title="Linterna">
+        <button onClick={cambiarLinterna} className="p-2 text-texto/70 active:text-texto" title="Linterna">
           {linterna ? <Zap size={18} /> : <ZapOff size={18} />}
         </button>
-        <button onClick={onCerrar} className="p-2 text-white/70 active:text-white"><X size={20} /></button>
+        <button onClick={onCerrar} className="p-2 text-texto/70 active:text-texto"><X size={20} /></button>
       </div>
 
       <div className="relative flex-1 overflow-hidden">
@@ -388,7 +388,7 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
         )}
         {estado !== "leyendo" && (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-            <div className="text-white">
+            <div className="text-texto">
               {estado === "error" ? <CameraOff size={30} className="mx-auto text-red-400" /> : <Loader2 size={30} className="mx-auto animate-spin text-acento-vivo" />}
               <p className="text-sm mt-3 max-w-xs">{detalle || "Encendiendo la cámara…"}</p>
             </div>
@@ -399,8 +399,8 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
       <div className="px-4 py-3 bg-fondo/85 text-center seguro-abajo">
         {ultimo
           ? <p className="f-m text-sm text-emerald-400">Leído: {ultimo}</p>
-          : <p className="text-xs text-white/60">Acercá el código de barras al recuadro</p>}
-        <p className="text-[11px] text-white/40 mt-1">Podés seguir escaneando: la ventana no se cierra sola</p>
+          : <p className="text-xs text-texto/60">Acercá el código de barras al recuadro</p>}
+        <p className="text-[11px] text-texto/40 mt-1">Podés seguir escaneando: la ventana no se cierra sola</p>
       </div>
     </div>
   );
@@ -748,9 +748,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <Barcode size={20} className="text-acento-vivo shrink-0" />
             <input ref={inp} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} onKeyDown={onKeyInput}
               placeholder="Escaneá o escribí el nombre · Enter con el campo vacío cobra"
-              className="f-m flex-1 bg-transparent text-white placeholder-stone-500 text-base outline-none py-1" autoFocus />
+              className="f-m flex-1 bg-transparent text-texto placeholder-stone-500 text-base outline-none py-1" autoFocus />
             <button onClick={() => setCamara(true)}
-              className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-white bg-superficie/10 active:bg-superficie/20 border border-white/20 rounded-xl px-2.5 py-2"
+              className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/10 active:bg-superficie/20 border border-borde-fuerte rounded-xl px-2.5 py-2"
               title="Leer con la cámara">
               <Cam size={16} className="text-acento-vivo" /> <span className="hidden sm:inline">Cámara</span>
             </button>
@@ -909,7 +909,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               <span className="text-sm text-texto-suave">Descuento <Tecla>F4</Tecla></span>
               <div className="flex items-center gap-1">
                 {[0, 5, 10, 15].map((d) => (
-                  <button key={d} onClick={() => setDesc(d)} className={`f-m text-xs px-2 py-1 rounded-lg border ${desc === d ? "bg-superficie-3 text-white border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>{d}%</button>
+                  <button key={d} onClick={() => setDesc(d)} className={`f-m text-xs px-2 py-1 rounded-lg border ${desc === d ? "bg-superficie-3 text-texto border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>{d}%</button>
                 ))}
               </div>
             </div>
@@ -931,7 +931,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {/* ---------- Ventana 2: medio de pago ---------- */}
       {paso === "pago" && (
         <Overlay>
-          <div className="bg-superficie-3 text-white px-6 py-4 flex items-baseline justify-between">
+          <div className="bg-superficie-3 text-texto px-6 py-4 flex items-baseline justify-between">
             <div>
               <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Total a cobrar · {cart.length} productos</div>
               <div className="f-d text-4xl mt-0.5">{money(total)}</div>
@@ -942,8 +942,8 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <div className="flex items-center justify-between gap-3 mb-3">
               <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Cómo paga?</span>
               <div className="flex rounded-xl border border-borde overflow-hidden text-xs font-semibold">
-                <button onClick={() => setFiscal(false)} className={`px-3 py-1.5 ${!fiscal ? "bg-superficie-3 text-white" : "text-texto-suave"}`}>Ticket</button>
-                <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-superficie-3 text-white" : "text-texto-suave"}`}>Factura {fiscal ? letra : ""}</button>
+                <button onClick={() => setFiscal(false)} className={`px-3 py-1.5 ${!fiscal ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>Ticket</button>
+                <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>Factura {fiscal ? letra : ""}</button>
               </div>
             </div>
 
@@ -957,7 +957,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     {cliente ? `${cliente.tipoDoc} ${cliente.doc} · ${condicionNombre(cliente.condicion)}` : "Sin identificar · toca para elegir un cliente"}
                   </span>
                 </span>
-                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border bg-superficie-3 text-white border-superficie-3 shrink-0">{letra}</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border bg-superficie-3 text-texto border-superficie-3 shrink-0">{letra}</span>
               </button>
             )}
             <ul className="space-y-1.5">
@@ -999,7 +999,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {/* ---------- Ventana 2b: efectivo ---------- */}
       {paso === "monto" && (
         <Overlay ancho="max-w-lg">
-          <div className="bg-superficie-3 text-white px-6 py-4">
+          <div className="bg-superficie-3 text-texto px-6 py-4">
             <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Efectivo · total</div>
             <div className="f-d text-4xl mt-0.5">{money(totalFinal)}</div>
           </div>
@@ -1035,7 +1035,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {/* ---------- Ventana 2c: pago combinado ---------- */}
       {paso === "mixto" && (
         <Overlay ancho="max-w-lg">
-          <div className="bg-superficie-3 text-white px-6 py-4 flex items-baseline justify-between">
+          <div className="bg-superficie-3 text-texto px-6 py-4 flex items-baseline justify-between">
             <div>
               <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">
                 {falta > 0 ? "Falta cobrar" : "Cubierto"}
@@ -1101,7 +1101,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {/* ---------- Ventana 3: cobrado, ticket opcional ---------- */}
       {paso === "fin" && ticket && (
         <Overlay ancho="max-w-lg">
-          <div className="bg-emerald-600 text-white px-6 py-5 text-center">
+          <div className="bg-emerald-600 text-texto px-6 py-5 text-center">
             <Check size={26} className="mx-auto" />
             <div className="f-d text-2xl mt-1">Cobrado {money(ticket.total)}</div>
             <div className="text-emerald-100 text-sm">
@@ -1109,7 +1109,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             </div>
           </div>
           {ticket.recibe && (ticket.vuelto != null ? ticket.vuelto : ticket.recibe - ticket.total) > 0 && (
-            <div className="bg-superficie-3 text-white px-6 py-4 text-center">
+            <div className="bg-superficie-3 text-texto px-6 py-4 text-center">
               <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Vuelto</div>
               <div className="f-d text-5xl text-acento-vivo">{money(ticket.vuelto != null ? ticket.vuelto : ticket.recibe - ticket.total)}</div>
             </div>

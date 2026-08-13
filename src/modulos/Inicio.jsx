@@ -32,8 +32,8 @@ export function Inicio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar }) 
           </p>
           <div className="flex flex-wrap gap-2 mt-5">
             <Boton onClick={aCobrar} variant="primary"><Barcode size={16} /> Volver a cobrar</Boton>
-            <Boton onClick={() => ir("compras")} variant="ghost" className="!bg-superficie/10 !text-texto !border-white/20 hover:!bg-superficie/20"><Truck size={16} /> Pedido sugerido</Boton>
-            <Boton onClick={() => ir("caja")} variant="ghost" className="!bg-superficie/10 !text-texto !border-white/20 hover:!bg-superficie/20"><Wallet size={16} /> Caja</Boton>
+            <Boton onClick={() => ir("compras")} variant="ghost" className="!bg-superficie/10 !text-texto !border-borde-fuerte hover:!bg-superficie/20"><Truck size={16} /> Pedido sugerido</Boton>
+            <Boton onClick={() => ir("caja")} variant="ghost" className="!bg-superficie/10 !text-texto !border-borde-fuerte hover:!bg-superficie/20"><Wallet size={16} /> Caja</Boton>
           </div>
         </div>
       </div>

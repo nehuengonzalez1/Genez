@@ -33,7 +33,7 @@ import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
-import { Comandas, Cocina, Mostrador } from "../modulos/Comandas.jsx";
+import { Comandas, Cocina, Mostrador, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
    14. APP
    ============================================================ */
@@ -335,7 +335,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
             <section className="mt-6">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold">Accesos</h2>
-                <button onClick={() => setAltaUsuario({})} className="text-sm font-semibold text-acento-vivo hover:text-orange-300 flex items-center gap-1">
+                <button onClick={() => setAltaUsuario({})} className="text-sm font-semibold text-acento-vivo hover:text-acento-vivo flex items-center gap-1">
                   <Plus size={14} /> Nuevo acceso
                 </button>
               </div>
@@ -433,7 +433,7 @@ function Sesion({ sesion, onSalir, oscuro = false }) {
       </div>
       <button onClick={onSalir} title="Cerrar sesión"
         className={`flex items-center gap-1.5 text-xs font-semibold rounded-xl px-2.5 py-2 border ${
-          oscuro ? "border-white/20 text-texto/80 hover:text-texto hover:border-white/40"
+          oscuro ? "border-borde-fuerte text-texto/80 hover:text-texto hover:border-white/40"
                  : "border-borde text-texto-suave hover:text-texto hover:bg-superficie-2"}`}>
         <LogOut size={15} /> <span className="hidden sm:inline">Salir</span>
       </button>
@@ -574,7 +574,7 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
     }
   };
 
-  const campo = "w-full bg-superficie/5 border border-white/10 rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-texto focus:border-acento transition-colors";
+  const campo = "w-full bg-superficie/5 border border-borde rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-texto focus:border-acento transition-colors";
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-texto flex">
@@ -710,7 +710,7 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
                     onChange={(e) => { setClave(e.target.value); setError(""); }}
                     onKeyDown={(e) => e.key === "Enter" && entrar()}
                     autoComplete="current-password" disabled={cargando}
-                    className={`${campo} bg-superficie/5 border-white/10 focus:border-acento pr-12`} />
+                    className={`${campo} bg-superficie/5 border-borde focus:border-acento pr-12`} />
                   <button type="button" onClick={() => setVerClave((v) => !v)} tabIndex={-1}
                     aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
                     className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-texto-suave hover:text-texto-tenue transition-colors">
@@ -828,8 +828,11 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
      Un bar que abre en el mostrador del súper no entiende qué está
      mirando: su pantalla de todos los días es el salón. */
   const vender = modulos.includes("comandas") ? "comandas" : modulos.includes("cobro") ? "cobro" : null;
-  const [vista, setVista] = useState(vender === "cobro" ? "cobro" : "panel");
-  const [tab, setTab] = useState(vender === "comandas" ? "comandas" : "inicio");
+  /* Cada forma de vender tiene su pantalla a pantalla completa: el POS para
+     el que cobra en un mostrador, la de comandas para el que atiende un
+     salón. El panel es a dónde se va a mirar el negocio, no a trabajar. */
+  const [vista, setVista] = useState(vender === "comandas" ? "comanda" : vender === "cobro" ? "cobro" : "panel");
+  const [tab, setTab] = useState("inicio");
   const [foco, setFoco] = useState(null);
   const [productos, setProductos] = useState([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
@@ -1221,8 +1224,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   /* "Ir a vender" no significa lo mismo en todos lados: en un mostrador
      es la pantalla de cobro, en un salón es el mapa de mesas. */
   const cobrar_ = () => {
-    if (vender === "comandas") { setVista("panel"); setTab("comandas"); }
-    else setVista("cobro");
+    setVista(vender === "comandas" ? "comanda" : "cobro");
     window.scrollTo({ top: 0 });
   };
   /* El botón dice qué se va a hacer, no dónde: desde ahí se comanda,
@@ -1316,7 +1318,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
               </div>
 
               <button onClick={() => { setVista("panel"); setTab("inicio"); }}
-                className="order-2 md:order-3 relative inline-flex items-center gap-2 text-sm font-semibold bg-superficie/10 hover:bg-superficie/20 border border-white/20 rounded-xl px-3.5 py-2 transition-colors">
+                className="order-2 md:order-3 relative inline-flex items-center gap-2 text-sm font-semibold bg-superficie/10 hover:bg-superficie/20 border border-borde-fuerte rounded-xl px-3.5 py-2 transition-colors">
                 <LayoutDashboard size={16} className="text-acento-vivo" /> Panel
                 {alertasAltas > 0 && <span className="absolute -top-1.5 -right-1.5 text-[10px] font-bold bg-acento rounded-full px-1.5">{alertasAltas}</span>}
               </button>
@@ -1349,6 +1351,61 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
         </div>
       )}
 
+      {/* ============ PANTALLA DE COMANDAS (la de todo el día en un salón) ============
+          Misma arquitectura que la de cobro: encabezado propio, sin barra
+          lateral, y adentro lo único que importa. La altura se fija para que
+          scrollee la carta y no la página: con gente esperando, perder de
+          vista el total del pedido es perder el hilo. */}
+      {vista === "comanda" && (
+        <div className="h-[100dvh] flex flex-col">
+          <header className="shrink-0 z-30 bg-superficie-3 text-texto">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 md:px-4 py-2.5">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-acento text-sobre-acento flex items-center justify-center"><Store size={17} /></div>
+                <div>
+                  <div className="f-d text-sm leading-tight">{ajustes.negocio}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Comandas · {fdatel(HOY)}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 md:gap-5 ml-auto order-3 md:order-2 w-full md:w-auto overflow-x-auto">
+                {[["Vendido hoy", money(ventasHoy)], ["Tickets", nf.format(ticketsHoy)],
+                  ["Caja", caja.abierta ? "abierta" : "cerrada"]].map(([l, v]) => (
+                  <div key={l} className="shrink-0">
+                    <div className="text-[9px] uppercase tracking-widest text-texto-suave font-bold">{l}</div>
+                    <div className="f-m text-sm">{v}</div>
+                  </div>
+                ))}
+                {pendientes > 0 && (
+                  <div className="shrink-0 flex items-center gap-1.5 bg-ojo-suave border border-ojo rounded-lg px-2.5 py-1">
+                    <ZapOff size={13} className="text-ojo shrink-0" />
+                    <div>
+                      <div className="text-[9px] uppercase tracking-widest text-ojo font-bold">Sin guardar</div>
+                      <div className="f-m text-sm text-ojo">{pendientes}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button onClick={() => { setVista("panel"); setTab("inicio"); }}
+                className="order-2 md:order-3 relative inline-flex items-center gap-2 text-sm font-semibold bg-superficie/10 hover:bg-superficie/20 border border-borde-fuerte rounded-xl px-3.5 py-2 transition-colors">
+                <LayoutDashboard size={16} className="text-acento-vivo" /> Panel
+                {alertasAltas > 0 && <span className="absolute -top-1.5 -right-1.5 text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{alertasAltas}</span>}
+              </button>
+
+              <div className="order-2 md:order-4">
+                <Sesion sesion={sesion} onSalir={onSalir} oscuro />
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 min-h-0 p-3 md:p-4">
+            <PantallaComandas empresaId={empresaId} config={config} ajustes={ajustes}
+              caja={caja} permisos={permisos} toast={toast} />
+          </main>
+        </div>
+      )}
+
       {/* ============ PANEL (todo lo que no es cobrar) ============ */}
       {vista === "panel" && (
       <div className="flex">
@@ -1363,7 +1420,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           </div>
           <Boton className="w-full mt-2" size="lg" onClick={cobrar_}>
             {vender === "comandas" ? <ClipboardList size={17} /> : <Barcode size={17} />} {rotuloVender}
-            <kbd className="f-m text-[10px] border border-white/30 rounded px-1 py-0.5">F10</kbd>
+            <kbd className="f-m text-[10px] border border-borde-fuerte rounded px-1 py-0.5">F10</kbd>
           </Boton>
           <nav className="mt-3 space-y-0.5">
             {NAV.filter((n) => puedeVer(n.k)).map((n) => (
@@ -1412,7 +1469,9 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
               <span className="text-texto-tenue">·</span>
               <span className="f-m">{money(ventasHoy)} hoy</span>
               <BotonTema tema={tema} setTema={setTema} />
-              <Boton size="sm" variant="dark" className="md:hidden" onClick={cobrar_}><Barcode size={14} /> Cobrar</Boton>
+              <Boton size="sm" variant="dark" className="md:hidden" onClick={cobrar_}>
+                {vender === "comandas" ? <ClipboardList size={14} /> : <Barcode size={14} />} {rotuloVender}
+              </Boton>
               <Sesion sesion={sesion} onSalir={onSalir} />
             </div>
           </header>

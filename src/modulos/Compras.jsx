@@ -261,7 +261,7 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
                     <tr key={l.uid} className="bg-acento-suave/40">
                       <td className="py-2 pr-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-acento-suave text-orange-800 border-acento">nuevo</span>
+                          <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-acento-suave text-acento border-acento">nuevo</span>
                           <input value={l.crear.nombre} onChange={(e) => setCrear(l.uid, "nombre", e.target.value)}
                             className="flex-1 border border-borde rounded-lg px-2 py-1 text-sm outline-none focus:border-acento" />
                         </div>

@@ -1,15 +1,20 @@
 /* ============================================================
-   15. COMANDAS · salón, pedido y cocina
+   15. COMANDAS · la pantalla del día de un negocio gastronómico
    ============================================================
 
    La otra forma de vender. En el mostrador el cobro nace y muere en el
-   mismo acto; acá la mesa se abre, junta consumos durante una hora y
+   mismo acto; acá el pedido se abre, junta consumos durante un rato y
    recién al final se cobra.
 
-   Cuatro pantallas para manos distintas: el mozo mira el salón y carga en
-   el pedido con el celular en una mano, el mostrador atiende lo que no
-   ocupa mesa, y la cocina lee una pantalla colgada en la pared que nadie
-   va a tocar. La del pedido es una sola para el salón y el mostrador.
+   Lo que manda es el orden real de un bar: la mayoría de las ventas
+   entran por el mostrador y por las aplicaciones, no por mesa. Por eso
+   `PantallaComandas` arranca lista para tomar un pedido y el salón es un
+   camino más, al que se entra cuando llega alguien.
+
+   Cuatro pantallas para manos distintas: la de inicio (canales, salón y
+   lo que está en curso), la del pedido —la misma para una mesa y para un
+   delivery—, el tablero de mostrador y la cocina, que es una pantalla
+   colgada en la pared que nadie va a tocar.
 
    Los totales, los tiempos y los estados los calcula la base (ver
    src/datos/comandas.js). Este archivo dibuja y traduce, no decide.
@@ -18,7 +23,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ArrowLeft, Clock, Check, Plus, Minus, Trash2, Search,
-  StickyNote, X, RefreshCw, ChefHat, Wallet, Store, ShoppingBag, Bike, Smartphone
+  StickyNote, X, RefreshCw, ChefHat, Wallet, Store, ShoppingBag, Bike, Smartphone,
+  UtensilsCrossed, ChevronRight,
 } from "lucide-react";
 import { money, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
 import { siguienteNumero } from "../datos/ventas.js";
@@ -39,6 +45,21 @@ const minutosDesde = (fecha) =>
 const espera = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
 
 const activas = (lineas) => (lineas || []).filter((l) => l.estado !== "anulada");
+
+/* Cada canal tiene su color y su ícono: a un metro de distancia hay que
+   saber si el pedido sale por la puerta o lo viene a buscar un cadete,
+   sin leer la etiqueta. */
+const TONO = {
+  mostrador: { i: Store, pill: "bg-info-suave text-info border-info", borde: "border-info" },
+  takeaway: { i: ShoppingBag, pill: "bg-acento-suave text-acento-vivo border-acento", borde: "border-acento" },
+  delivery: { i: Bike, pill: "bg-bien-suave text-bien border-bien", borde: "border-bien" },
+  app: { i: Smartphone, pill: "bg-ojo-suave text-ojo border-ojo", borde: "border-ojo" },
+  salon: { i: UtensilsCrossed, pill: "bg-superficie-2 text-texto-suave border-borde-fuerte", borde: "border-borde-fuerte" },
+};
+
+const APLICACIONES = ["PedidosYa", "Rappi", "Uber Eats", "Otra"];
+
+const tonoDe = (canal) => TONO[canal] || TONO.mostrador;
 
 /* La pantalla del pedido es una sola y atiende dos cosas distintas: una
    mesa del salón y un pedido que no ocupa lugar. Lo único que cambia son
@@ -65,8 +86,286 @@ const VOZ_CANAL = {
   soltado: "quedó cancelado",
 };
 
+/* En un pedido de aplicación lo que importa es cuál, no la palabra
+   "Aplicación": el que arma mira la pantalla y tiene que ver PedidosYa. */
+function rotuloCanal(p) {
+  const c = CANALES.find((x) => x.k === p.canal);
+  const app = p.cliente && p.cliente.app;
+  if (p.canal === "app" && app) return app;
+  return c ? c.n : p.canal;
+}
+
+function encabezadoDe(p) {
+  const cli = p.cliente || {};
+  return {
+    titulo: [rotuloCanal(p), p.referencia ? `#${p.referencia}` : null].filter(Boolean).join(" · "),
+    sub: [cli.nombre, cli.telefono].filter(Boolean).join(" · "),
+  };
+}
+
+function Rotulo({ children, className = "" }) {
+  return (
+    <div className={`text-[11px] uppercase tracking-widest text-texto-tenue font-bold ${className}`}>
+      {children}
+    </div>
+  );
+}
+
 /* ============================================================
-   1. SALÓN
+   1. LA PANTALLA · canales, salón y lo que está en curso
+   ============================================================
+
+   Es lo que "Cobrar" es para el minimercado: la pantalla donde se pasa el
+   día. Se entra lista para tomar un pedido, y lo que ya está andando se
+   ve de un vistazo para poder retomarlo de un toque.
+   ============================================================ */
+
+export function PantallaComandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, toast }) {
+  const [donde, setDonde] = useState("inicio");     // inicio | salon
+  const [abierta, setAbierta] = useState(null);     // la comanda que se está atendiendo
+  const [pedidos, setPedidos] = useState([]);
+  const [mesas, setMesas] = useState([]);
+  const [elementos, setElementos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [nuevo, setNuevo] = useState(null);         // canal elegido, esperando los datos
+  const [abriendo, setAbriendo] = useState(null);   // id de mesa o clave de canal
+
+  /* toast se redefine en cada render de Sistema. Si entra como dependencia,
+     el efecto de carga se vuelve a disparar para siempre. */
+  const avisar = useRef(toast);
+  avisar.current = toast;
+  const releer = useRef(() => {});
+
+  /* Mientras se está adentro de un pedido no se refresca nada: la pantalla
+     no se ve y la lectura vieja no sirve para nada. */
+  useEffect(() => {
+    if (abierta) return undefined;
+    let vivo = true;
+    const leer = async () => {
+      try {
+        const [p, m, e] = await Promise.all([
+          cargarPedidos(empresaId), cargarSalon(empresaId), cargarElementosPlano(empresaId),
+        ]);
+        if (!vivo) return;
+        setPedidos(p); setMesas(m); setElementos(e);
+      } catch (err) {
+        if (vivo) avisar.current(err.message || "No pudimos leer los pedidos.", "mal");
+      } finally {
+        if (vivo) setCargando(false);
+      }
+    };
+    releer.current = leer;
+    leer();
+    const id = setInterval(leer, 20000);
+    return () => { vivo = false; clearInterval(id); };
+  }, [empresaId, abierta]);
+
+  const abrirCanal = async (datos) => {
+    if (abriendo) return;
+    setAbriendo(datos.canal);
+    try {
+      const id = await abrirPedido({ empresaId, sucursalId, ...datos });
+      setNuevo(null);
+      setAbierta({ id, voz: VOZ_CANAL, encabezado: encabezadoDe(datos), volverA: "inicio" });
+    } catch (e) {
+      avisar.current(e.message || "No se pudo abrir el pedido.", "mal");
+    } finally {
+      setAbriendo(null);
+    }
+  };
+
+  const tocarCanal = (k) => (k === "mostrador" ? abrirCanal({ canal: "mostrador" }) : setNuevo(k));
+
+  const retomar = (p) =>
+    setAbierta({ id: p.id, voz: VOZ_CANAL, encabezado: encabezadoDe(p), volverA: "inicio" });
+
+  const entrarAMesa = async (mesa, volverA) => {
+    if (abriendo) return;
+    if (mesa.comandaId) {
+      return setAbierta({ id: mesa.comandaId, voz: VOZ_MESA, encabezado: null, volverA });
+    }
+    setAbriendo(mesa.id);
+    try {
+      const id = await abrirComanda({ empresaId, sucursalId, recursoId: mesa.id });
+      setAbierta({ id, voz: VOZ_MESA, encabezado: null, volverA });
+    } catch (e) {
+      avisar.current(e.message || "No se pudo abrir la mesa.", "mal");
+    } finally {
+      setAbriendo(null);
+    }
+  };
+
+  if (abierta) {
+    return (
+      <Pedido
+        pleno comandaId={abierta.id} empresaId={empresaId} config={config}
+        ajustes={ajustes} caja={caja} toast={toast}
+        voz={abierta.volverA === "salon" ? VOZ_MESA : { ...abierta.voz, volver: "Pedidos" }}
+        encabezado={abierta.encabezado}
+        onVolver={() => { setDonde(abierta.volverA); setAbierta(null); }} />
+    );
+  }
+
+  if (donde === "salon") {
+    return (
+      <div className="h-full flex flex-col min-h-0">
+        <div className="shrink-0 flex items-center gap-3 pb-3">
+          <Boton variant="ghost" size="lg" onClick={() => setDonde("inicio")}>
+            <ArrowLeft size={18} /> Pedidos
+          </Boton>
+          <h2 className="f-d text-lg">Salón</h2>
+        </div>
+        <div className="flex-1 min-h-0 overflow-auto">
+          <PlanoSalon
+            mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
+            puedeEditar={!!permisos.ajustes} empresaId={empresaId} sucursalId={sucursalId}
+            toast={toast} onTocarMesa={(m) => entrarAMesa(m, "salon")}
+            onActualizar={() => releer.current()} onGuardado={() => releer.current()} />
+        </div>
+      </div>
+    );
+  }
+
+  const enCurso = pedidos.filter((p) => p.etapa !== "cerrado");
+  const ocupadas = mesas.filter((m) => m.ocupada);
+  const haySalon = mesas.length > 0 || elementos.length > 0 || !!permisos.ajustes;
+  const activos = enCurso.length + ocupadas.length;
+
+  return (
+    <div className="h-full overflow-auto">
+      <div className="mx-auto max-w-6xl space-y-5 pb-6">
+        <section>
+          <Rotulo className="mb-2">Tomar un pedido</Rotulo>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {CANALES.map((c) => {
+              const t = tonoDe(c.k);
+              const Icono = t.i;
+              return (
+                <button key={c.k} onClick={() => tocarCanal(c.k)} disabled={!!abriendo}
+                  className="flex flex-col items-start gap-2 rounded-2xl border border-borde bg-superficie p-4 text-left transition-colors hover:bg-superficie-2 hover:border-borde-fuerte disabled:opacity-40">
+                  <span className={`w-11 h-11 rounded-xl border flex items-center justify-center ${t.pill}`}>
+                    <Icono size={22} />
+                  </span>
+                  <span className="f-d text-lg leading-tight">{c.n}</span>
+                  <span className="text-xs text-texto-tenue leading-tight">
+                    {abriendo === c.k ? "Abriendo…" : c.d}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {haySalon && (
+          <section>
+            <Rotulo className="mb-2">El local</Rotulo>
+            <button onClick={() => setDonde("salon")}
+              className="w-full flex items-center gap-4 rounded-2xl border border-borde bg-superficie p-4 text-left transition-colors hover:bg-superficie-2 hover:border-borde-fuerte">
+              <span className="w-12 h-12 rounded-xl bg-superficie-2 border border-borde-fuerte text-texto-suave flex items-center justify-center shrink-0">
+                <UtensilsCrossed size={24} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="f-d text-lg leading-tight block">Salón</span>
+                <span className="text-xs text-texto-tenue block">
+                  {mesas.length
+                    ? `${ocupadas.length} ocupadas de ${mesas.length} mesas`
+                    : "Todavía no hay mesas dibujadas"}
+                </span>
+              </span>
+              {ocupadas.length > 0 && (
+                <span className="f-m text-xl shrink-0">
+                  {money(ocupadas.reduce((s, m) => s + (m.consumido || 0), 0))}
+                </span>
+              )}
+              <ChevronRight size={20} className="text-texto-tenue shrink-0" />
+            </button>
+          </section>
+        )}
+
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <Rotulo>En curso · {activos}</Rotulo>
+            <Boton size="sm" variant="quiet" onClick={() => releer.current()}>
+              <RefreshCw size={14} /> Actualizar
+            </Boton>
+          </div>
+
+          {cargando && <Vacio>Cargando lo que está abierto…</Vacio>}
+
+          {!cargando && !activos && (
+            <Vacio>No hay nada abierto. Tocá un canal para arrancar un pedido.</Vacio>
+          )}
+
+          {activos > 0 && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+              {enCurso.map((p) => (
+                <TarjetaEnCurso key={p.id} tono={tonoDe(p.canal)} canal={rotuloCanal(p)}
+                  titulo={(p.cliente && p.cliente.nombre) || (p.referencia ? `#${p.referencia}` : rotuloCanal(p))}
+                  sub={p.cliente && p.cliente.nombre && p.referencia ? `#${p.referencia}` : null}
+                  minutos={minutosDesde(p.abiertaEn)} total={p.total}
+                  estado={estadoPedido(p)} onTocar={() => retomar(p)} />
+              ))}
+              {ocupadas.map((m) => (
+                <TarjetaEnCurso key={m.id} tono={TONO.salon} canal="Salón"
+                  titulo={m.nombre} sub={m.sector || null}
+                  minutos={m.minutos == null ? 0 : m.minutos} total={m.consumido}
+                  estado={estadoMesa(m)}
+                  abriendo={abriendo === m.id}
+                  onTocar={() => entrarAMesa(m, "inicio")} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <ModalNuevoPedido abierto={!!nuevo} canalInicial={nuevo} trabajando={!!abriendo}
+        onCerrar={() => setNuevo(null)} onCrear={abrirCanal} />
+    </div>
+  );
+}
+
+/* El estado se lee sin leer: lo que está listo y nadie retiró es lo único
+   que tiene que gritar. */
+function estadoPedido(p) {
+  if (p.etapa === "listo") return { n: "Listo para entregar", tono: "text-bien" };
+  if (p.etapa === "preparando") return { n: "En preparación", tono: "text-ojo" };
+  const items = p.lineas.reduce((s, l) => s + l.cantidad, 0);
+  return { n: items ? `${items} item${items === 1 ? "" : "s"} sin enviar` : "Sin cargar", tono: "text-texto-tenue" };
+}
+
+function estadoMesa(m) {
+  if (m.listos > 0) return { n: `${m.listos} para servir`, tono: "text-bien" };
+  if (m.enCocina > 0) return { n: `${m.enCocina} en cocina`, tono: "text-ojo" };
+  return { n: m.items ? `${m.items} item${m.items === 1 ? "" : "s"}` : "Recién abierta", tono: "text-texto-tenue" };
+}
+
+function TarjetaEnCurso({ tono, canal, titulo, sub, minutos, total, estado, abriendo, onTocar }) {
+  const Icono = tono.i;
+  return (
+    <button onClick={onTocar} disabled={abriendo}
+      className={`w-full text-left rounded-2xl border-2 bg-superficie p-3.5 transition-colors hover:bg-superficie-2 disabled:opacity-50 ${tono.borde}`}>
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border ${tono.pill}`}>
+          <Icono size={12} /> {canal}
+        </span>
+        <span className="ml-auto flex items-center gap-1 text-[11px] text-texto-suave shrink-0">
+          <Clock size={11} /> {espera(minutos)}
+        </span>
+      </div>
+
+      <div className="f-d text-lg leading-tight mt-2 truncate">{titulo}</div>
+      <div className="text-xs text-texto-tenue truncate h-4">{abriendo ? "Abriendo…" : sub || ""}</div>
+
+      <div className="flex items-end justify-between gap-2 mt-2">
+        <span className="f-m text-xl">{money(total)}</span>
+        <span className={`text-xs font-semibold text-right ${estado.tono}`}>{estado.n}</span>
+      </div>
+    </button>
+  );
+}
+
+/* ============================================================
+   2. SALÓN · la misma pantalla, adentro del panel
    ============================================================ */
 
 export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, toast }) {
@@ -76,8 +375,6 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
   const [comandaId, setComandaId] = useState(null);
   const [abriendo, setAbriendo] = useState(null);
 
-  /* toast se redefine en cada render de Sistema. Si entra como dependencia,
-     el efecto de carga se vuelve a disparar para siempre. */
   const avisar = useRef(toast);
   avisar.current = toast;
 
@@ -133,16 +430,26 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
 }
 
 /* ============================================================
-   2. PEDIDO
+   3. PEDIDO
+   ============================================================
+
+   La comanda a la izquierda y la carta a la derecha. La comanda es lo que
+   se mira mientras la persona habla, así que no se mueve de lugar aunque
+   la carta cambie de categoría.
+
+   `pleno` es la diferencia entre vivir a pantalla completa —donde cada
+   panel scrollea por su cuenta y la página no se mueve— y estar metida
+   adentro del panel, que scrollea como cualquier otra pestaña.
    ============================================================ */
 
 /* `encabezado` y `voz` son lo único que distingue una mesa de un pedido de
    mostrador. Sin ellos se comporta como siempre: la mesa que abrió el mozo. */
-function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, encabezado = null, voz = VOZ_MESA }) {
+function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, encabezado = null, voz = VOZ_MESA, pleno = false }) {
   const [comanda, setComanda] = useState(null);
   const [carta, setCarta] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [q, setQ] = useState("");
+  const [cat, setCat] = useState(null);           // categoría elegida en las solapas
   const [detalle, setDetalle] = useState(null);   // item al que se le cargan modificadores
   const [cobrando, setCobrando] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
@@ -177,13 +484,23 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
     return () => { vigente = false; };
   }, [comandaId, empresaId]);
 
-  const filtrada = useMemo(() => {
+  const categorias = useMemo(() => carta.map((g) => g.categoria), [carta]);
+
+  useEffect(() => {
+    if (!categorias.length) return;
+    if (!cat || !categorias.includes(cat)) setCat(categorias[0]);
+  }, [categorias, cat]);
+
+  /* Buscando no mandan las solapas: quien escribe "milanesa" no sabe ni le
+     importa en qué categoría la cargaron. */
+  const items = useMemo(() => {
     const t = q.trim().toLowerCase();
-    if (!t) return carta;
-    return carta
-      .map((g) => ({ ...g, items: g.items.filter((i) => i.nombre.toLowerCase().includes(t)) }))
-      .filter((g) => g.items.length);
-  }, [carta, q]);
+    if (t) {
+      return carta.flatMap((g) => g.items).filter((i) => i.nombre.toLowerCase().includes(t));
+    }
+    const g = carta.find((x) => x.categoria === cat) || carta[0];
+    return g ? g.items : [];
+  }, [carta, q, cat]);
 
   /* Agregar no se bloquea a sí mismo: quien toma el pedido no puede quedar
      esperando al servidor entre plato y plato. */
@@ -263,12 +580,12 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
   }
 
   const lineas = activas(comanda.lineas);
-  const items = lineas.reduce((s, l) => s + l.cantidad, 0);
+  const cuantos = lineas.reduce((s, l) => s + l.cantidad, 0);
   const sub = encabezado ? encabezado.sub : comanda.sector;
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
+    <div className={pleno ? "h-full min-h-0 flex flex-col gap-3" : "flex flex-col gap-3"}>
+      <div className="shrink-0 flex items-center gap-3">
         <Boton variant="ghost" size="lg" onClick={onVolver}><ArrowLeft size={18} /> {voz.volver}</Boton>
         <div className="min-w-0">
           <div className="f-d text-lg leading-tight truncate">{rotulo}</div>
@@ -277,117 +594,138 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
           </div>
         </div>
         <div className="ml-auto text-right">
-          <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Total</div>
+          <Rotulo>Total</Rotulo>
           <div className="f-m text-xl">{money(comanda.total)}</div>
         </div>
       </div>
 
       {/* En el celular no entran las dos cosas: se muestra una y se cambia
           con un botón grande, sin menús. */}
-      <div className="lg:hidden grid grid-cols-2 gap-2">
-        <Boton size="lg" variant={panel === "carta" ? "dark" : "ghost"} onClick={() => setPanel("carta")}>Carta</Boton>
+      <div className="lg:hidden shrink-0 grid grid-cols-2 gap-2">
         <Boton size="lg" variant={panel === "comanda" ? "dark" : "ghost"} onClick={() => setPanel("comanda")}>
-          Comanda {items > 0 ? `(${items})` : ""}
+          Comanda {cuantos > 0 ? `(${cuantos})` : ""}
         </Boton>
+        <Boton size="lg" variant={panel === "carta" ? "dark" : "ghost"} onClick={() => setPanel("carta")}>Carta</Boton>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_380px] gap-4 items-start">
-        <div className={panel === "carta" ? "" : "hidden lg:block"}>
-          <Card className="overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-borde flex items-center gap-2">
-              <Search size={16} className="text-texto-tenue shrink-0" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la carta"
-                className="w-full text-base outline-none bg-transparent" />
-              {q && <button onClick={() => setQ("")} className="text-texto-tenue shrink-0"><X size={16} /></button>}
+      <div className={`grid lg:grid-cols-[minmax(320px,380px)_1fr] gap-3 ${
+        pleno ? "flex-1 min-h-0" : "lg:h-[70vh]"}`}>
+
+        {/* --- La comanda ------------------------------------------------ */}
+        <Card className={`flex flex-col min-h-0 overflow-hidden ${panel === "comanda" ? "" : "hidden lg:flex"}`}>
+          <div className="shrink-0 px-4 py-3 border-b border-borde flex items-center justify-between">
+            <h3 className="f-d">{voz.panel}</h3>
+            <span className="text-[11px] text-texto-tenue">{cuantos} item{cuantos === 1 ? "" : "s"}</span>
+          </div>
+
+          {!lineas.length ? (
+            <div className="flex-1 min-h-0 overflow-auto"><Vacio>{voz.sinNada}</Vacio></div>
+          ) : (
+            <ul className="flex-1 min-h-0 overflow-auto divide-y divide-borde">
+              {lineas.map((l) => (
+                <li key={l.id} className="flex items-start gap-2 px-3 py-2.5">
+                  <span className="f-m text-sm font-bold text-texto-suave shrink-0 w-7 pt-0.5">{l.cantidad}×</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm leading-tight">{l.nombre}</div>
+                    {(l.modificadores || []).map((m, x) => (
+                      <div key={x} className="text-[11px] text-texto-suave">
+                        · {m.nombre}{m.precio ? ` (+${money(m.precio)})` : ""}
+                      </div>
+                    ))}
+                    {l.notas && <div className="text-[11px] text-ojo italic">{l.notas}</div>}
+                    {ESTADO_LINEA[l.estado] && (
+                      <div className={`text-[10px] uppercase tracking-wider font-bold mt-0.5 ${ESTADO_LINEA[l.estado].tono}`}>
+                        {ESTADO_LINEA[l.estado].n}
+                      </div>
+                    )}
+                  </div>
+                  <span className="f-m text-sm shrink-0">{money(l.total)}</span>
+                  <button onClick={() => anular(l)} disabled={trabajando} title="Anular"
+                    className="shrink-0 text-texto-tenue hover:text-mal disabled:opacity-40 p-1">
+                    <Trash2 size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="shrink-0 border-t border-borde p-3">
+            <div className="flex items-baseline justify-between text-sm text-texto-suave">
+              <span>Subtotal</span>
+              <span className="f-m">{money(comanda.total)}</span>
+            </div>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-sm text-texto-suave">Total</span>
+              <span className="f-m text-3xl">{money(comanda.total)}</span>
             </div>
 
-            {!filtrada.length && <Vacio>Ningún plato con ese nombre.</Vacio>}
-
-            <div className="max-h-[62vh] overflow-auto">
-              {filtrada.map((g) => (
-                <div key={g.categoria}>
-                  <div className="sticky top-0 z-10 bg-superficie-2 px-3 py-1.5 text-[11px] uppercase tracking-widest text-texto-suave font-bold">
-                    {g.categoria}
-                  </div>
-                  <ul className="divide-y divide-borde">
-                    {g.items.map((i) => (
-                      <li key={i.id} className="flex items-stretch">
-                        <button onClick={() => agregar(i)}
-                          className="flex-1 min-w-0 text-left px-3 py-3 hover:bg-superficie-2 active:bg-superficie-2">
-                          <div className="text-base leading-tight truncate">{i.nombre}</div>
-                          <div className="f-m text-sm text-texto-suave mt-0.5">{money(i.precio)}</div>
-                        </button>
-                        <button onClick={() => setDetalle(i)} title="Modificadores y nota"
-                          className="w-14 shrink-0 flex items-center justify-center text-texto-tenue hover:text-texto hover:bg-superficie-2 border-l border-borde">
-                          <StickyNote size={18} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+            {lineas.length ? (
+              <>
+                <Boton size="lg" className="w-full mt-3" onClick={() => setCobrando(true)}>
+                  <Wallet size={17} /> {voz.cobrar}
+                </Boton>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <Boton size="lg" variant="ghost" disabled={trabajando} onClick={reenviar}>
+                    <ChefHat size={17} /> A cocina
+                  </Boton>
+                  <Boton size="lg" variant="ghost" onClick={onVolver}>
+                    <ArrowLeft size={17} /> {voz.volver}
+                  </Boton>
                 </div>
+              </>
+            ) : (
+              <Boton size="lg" variant="ghost" className="w-full mt-3" disabled={trabajando} onClick={liberar}>
+                {voz.soltar}
+              </Boton>
+            )}
+          </div>
+        </Card>
+
+        {/* --- La carta -------------------------------------------------- */}
+        <Card className={`flex flex-col min-h-0 overflow-hidden ${panel === "carta" ? "" : "hidden lg:flex"}`}>
+          <div className="shrink-0 px-3 py-2.5 border-b border-borde flex items-center gap-2">
+            <Search size={16} className="text-texto-tenue shrink-0" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la carta"
+              className="w-full text-base outline-none bg-transparent" />
+            {q && <button onClick={() => setQ("")} className="text-texto-tenue shrink-0"><X size={16} /></button>}
+          </div>
+
+          {categorias.length > 1 && (
+            <div className="shrink-0 flex gap-1.5 overflow-x-auto px-3 py-2 border-b border-borde">
+              {categorias.map((c) => (
+                <button key={c} onClick={() => { setCat(c); setQ(""); }}
+                  className={`shrink-0 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                    !q && c === cat
+                      ? "bg-superficie-3 text-texto border-borde-fuerte"
+                      : "bg-superficie text-texto-suave border-borde hover:bg-superficie-2"}`}>
+                  {c}
+                </button>
               ))}
             </div>
-          </Card>
-        </div>
+          )}
 
-        <div className={panel === "comanda" ? "" : "hidden lg:block"}>
-          <Card className="overflow-hidden">
-            <div className="px-4 py-3 border-b border-borde flex items-center justify-between">
-              <h3 className="f-d">{voz.panel}</h3>
-              <span className="text-[11px] text-texto-tenue">{items} item{items === 1 ? "" : "s"}</span>
-            </div>
-
-            {!lineas.length ? (
-              <Vacio>{voz.sinNada}</Vacio>
+          <div className="flex-1 min-h-0 overflow-auto p-2.5">
+            {!items.length ? (
+              <Vacio>{q ? "Ningún plato con ese nombre." : "Esta categoría está vacía."}</Vacio>
             ) : (
-              <ul className="divide-y divide-borde max-h-[46vh] overflow-auto">
-                {lineas.map((l) => (
-                  <li key={l.id} className="flex items-start gap-2 px-3 py-2.5">
-                    <span className="f-m text-sm font-bold text-texto-suave shrink-0 w-7 pt-0.5">{l.cantidad}×</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm leading-tight">{l.nombre}</div>
-                      {(l.modificadores || []).map((m, x) => (
-                        <div key={x} className="text-[11px] text-texto-suave">
-                          · {m.nombre}{m.precio ? ` (+${money(m.precio)})` : ""}
-                        </div>
-                      ))}
-                      {l.notas && <div className="text-[11px] text-ojo italic">{l.notas}</div>}
-                      {l.estado !== "pedido" && (
-                        <div className="text-[10px] uppercase tracking-wider text-texto-tenue font-bold mt-0.5">{l.estado}</div>
-                      )}
-                    </div>
-                    <span className="f-m text-sm shrink-0">{money(l.total)}</span>
-                    <button onClick={() => anular(l)} disabled={trabajando} title="Anular"
-                      className="shrink-0 text-texto-tenue hover:text-mal disabled:opacity-40 p-1">
-                      <Trash2 size={15} />
+              <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2">
+                {items.map((i) => (
+                  <div key={i.id} className="relative">
+                    <button onClick={() => agregar(i)}
+                      className="w-full h-full min-h-[92px] flex flex-col justify-between gap-2 text-left rounded-2xl border border-borde bg-superficie-2 p-3 pr-9 transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
+                      <span className="text-sm md:text-base leading-tight line-clamp-3">{i.nombre}</span>
+                      <span className="f-m text-base text-acento-vivo">{money(i.precio)}</span>
                     </button>
-                  </li>
+                    <button onClick={() => setDetalle(i)} title="Cómo lo quieren"
+                      className="absolute top-1.5 right-1.5 p-1.5 rounded-lg text-texto-tenue hover:text-texto hover:bg-superficie">
+                      <StickyNote size={16} />
+                    </button>
+                  </div>
                 ))}
-              </ul>
-            )}
-
-            <div className="border-t border-borde p-3">
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm text-texto-suave">Total</span>
-                <span className="f-m text-2xl">{money(comanda.total)}</span>
               </div>
-              {lineas.length ? (
-                <>
-                  <Boton size="lg" className="w-full mt-3" onClick={() => setCobrando(true)}>
-                    <Wallet size={17} /> {voz.cobrar}
-                  </Boton>
-                  <Boton size="lg" variant="ghost" className="w-full mt-2" disabled={trabajando} onClick={reenviar}>
-                    <ChefHat size={17} /> Reenviar a cocina
-                  </Boton>
-                </>
-              ) : (
-                <Boton size="lg" variant="ghost" className="w-full mt-3" disabled={trabajando} onClick={liberar}>
-                  {voz.soltar}
-                </Boton>
-              )}
-            </div>
-          </Card>
-        </div>
+            )}
+          </div>
+        </Card>
       </div>
 
       <ModalDetalle item={detalle} onCerrar={() => setDetalle(null)}
@@ -399,6 +737,14 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
     </div>
   );
 }
+
+/* "pedido" no se muestra: es el estado normal de una línea recién cargada
+   y repetirlo en todas las filas no dice nada. */
+const ESTADO_LINEA = {
+  preparando: { n: "En cocina", tono: "text-ojo" },
+  listo: { n: "Listo", tono: "text-bien" },
+  entregado: { n: "Entregado", tono: "text-texto-tenue" },
+};
 
 /* --- Modificadores y nota ----------------------------------------------
    No hay lista fija de modificadores a propósito: cada cocina tiene los
@@ -566,13 +912,13 @@ function ModalCobro({ abierto, comanda, comandaId, empresaId, config, ajustes, c
 }
 
 /* ============================================================
-   3. MOSTRADOR · pedidos que no ocupan mesa
+   4. MOSTRADOR · el tablero de los pedidos que no ocupan mesa
    ============================================================
 
    Lo que se pide en la barra, lo que pasan a buscar, lo que sale en moto
-   y lo que entra por una aplicación. Es la misma comanda del salón: la
-   diferencia es que nadie está sentado, así que en vez de un plano hay un
-   tablero por etapa, que es lo que mira el que arma los pedidos.
+   y lo que entra por una aplicación, ordenado por etapa. La pantalla de
+   comandas alcanza para tomarlos y retomarlos; esto es para el que arma,
+   que mira todo el día lo mismo y necesita verlo por columna.
    ============================================================ */
 
 const ETAPAS = [
@@ -580,37 +926,6 @@ const ETAPAS = [
   { k: "preparando", n: "En preparación" },
   { k: "listo", n: "Listos" },
 ];
-
-/* Cada canal tiene su color y su ícono: a un metro de distancia hay que
-   saber si el pedido sale por la puerta o lo viene a buscar un cadete,
-   sin leer la etiqueta. */
-const TONO = {
-  mostrador: { i: Store, pill: "bg-info-suave text-info border-info", borde: "border-info" },
-  takeaway: { i: ShoppingBag, pill: "bg-violet-50 text-violet-700 border-violet-200", borde: "border-violet-200" },
-  delivery: { i: Bike, pill: "bg-bien-suave text-bien border-bien", borde: "border-bien" },
-  app: { i: Smartphone, pill: "bg-ojo-suave text-ojo border-ojo", borde: "border-ojo" },
-};
-
-const APLICACIONES = ["PedidosYa", "Rappi", "Uber Eats", "Otra"];
-
-const tonoDe = (canal) => TONO[canal] || TONO.mostrador;
-
-/* En un pedido de aplicación lo que importa es cuál, no la palabra
-   "Aplicación": el que arma mira la pantalla y tiene que ver PedidosYa. */
-function rotuloCanal(p) {
-  const c = CANALES.find((x) => x.k === p.canal);
-  const app = p.cliente && p.cliente.app;
-  if (p.canal === "app" && app) return app;
-  return c ? c.n : p.canal;
-}
-
-function encabezadoDe(p) {
-  const cli = p.cliente || {};
-  return {
-    titulo: [rotuloCanal(p), p.referencia ? `#${p.referencia}` : null].filter(Boolean).join(" · "),
-    sub: [cli.nombre, cli.telefono].filter(Boolean).join(" · "),
-  };
-}
 
 export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, caja, toast }) {
   const [pedidos, setPedidos] = useState([]);
@@ -679,7 +994,6 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
   }
 
   const completados = visibles.filter((p) => p.etapa === "cerrado");
-  const enCurso = visibles.filter((p) => p.etapa !== "cerrado");
 
   return (
     <div className="space-y-4">
@@ -688,7 +1002,7 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
           <Plus size={18} /> Nuevo pedido
         </Boton>
         <span className="text-sm text-texto-suave">
-          <strong className="text-texto f-m">{enCurso.length}</strong> en curso
+          <strong className="text-texto f-m">{visibles.filter((p) => p.etapa !== "cerrado").length}</strong> en curso
         </span>
         <Boton size="sm" variant="ghost" className="ml-auto" onClick={() => releer.current()}>
           <RefreshCw size={14} /> Actualizar
@@ -745,9 +1059,7 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
 
       {completados.length > 0 && (
         <section>
-          <h3 className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-2">
-            Completados · {completados.length}
-          </h3>
+          <Rotulo className="mb-2">Completados · {completados.length}</Rotulo>
           <ul className="flex flex-wrap gap-2">
             {completados.map((p) => (
               <li key={p.id}>
@@ -813,8 +1125,12 @@ function TarjetaPedido({ p, onTocar }) {
    El que está parado en el mostrador no puede esperar a que alguien
    complete un formulario: elegir "Mostrador" abre la comanda y listo. Los
    demás canales sí necesitan un dato, porque después hay que saber a quién
-   entregarle qué.                                                        */
-function ModalNuevoPedido({ abierto, trabajando, onCerrar, onCrear }) {
+   entregarle qué.
+
+   `canalInicial` es para cuando el canal ya se eligió antes de abrir el
+   diálogo, que es lo que pasa en la pantalla de comandas: preguntar dos
+   veces lo mismo es un toque de más con gente esperando.               */
+function ModalNuevoPedido({ abierto, trabajando, canalInicial = null, onCerrar, onCrear }) {
   const [canal, setCanal] = useState(null);
   const [app, setApp] = useState(APLICACIONES[0]);
   const [otraApp, setOtraApp] = useState("");
@@ -824,9 +1140,9 @@ function ModalNuevoPedido({ abierto, trabajando, onCerrar, onCrear }) {
 
   useEffect(() => {
     if (!abierto) return;
-    setCanal(null); setApp(APLICACIONES[0]); setOtraApp("");
+    setCanal(canalInicial); setApp(APLICACIONES[0]); setOtraApp("");
     setReferencia(""); setNombre(""); setTelefono("");
-  }, [abierto]);
+  }, [abierto, canalInicial]);
 
   if (!abierto) return null;
 
@@ -908,7 +1224,11 @@ function ModalNuevoPedido({ abierto, trabajando, onCerrar, onCrear }) {
             <Boton size="lg" className="w-full mt-5" disabled={trabajando} onClick={confirmar}>
               {trabajando ? "Abriendo…" : "Abrir el pedido"}
             </Boton>
-            <Boton variant="quiet" className="w-full mt-1.5" onClick={() => setCanal(null)}>Cambiar el canal</Boton>
+            {canalInicial ? (
+              <Boton variant="quiet" className="w-full mt-1.5" onClick={onCerrar}>Cancelar</Boton>
+            ) : (
+              <Boton variant="quiet" className="w-full mt-1.5" onClick={() => setCanal(null)}>Cambiar el canal</Boton>
+            )}
           </>
         )}
       </div>
@@ -917,7 +1237,7 @@ function ModalNuevoPedido({ abierto, trabajando, onCerrar, onCrear }) {
 }
 
 /* ============================================================
-   4. COCINA
+   5. COCINA
    ============================================================
 
    Una pantalla colgada en la pared, mirada de lejos y con las manos

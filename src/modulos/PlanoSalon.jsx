@@ -53,8 +53,8 @@ const nombreElemento = (t) => (ELEMENTOS.find((e) => e.k === t) || { n: "Element
 const ESTADOS = {
   libre: { n: "Libre", caja: "bg-superficie border-borde-fuerte text-texto", punto: "bg-superficie border border-borde-fuerte" },
   ocupada: { n: "Ocupada", caja: "bg-acento-suave border-acento text-acento", punto: "bg-acento-vivo" },
-  entregar: { n: "Por entregar", caja: "bg-bien-suave border-emerald-400 text-bien", punto: "bg-emerald-400" },
-  cuenta: { n: "Con cuenta", caja: "bg-info-suave border-sky-400 text-info", punto: "bg-sky-400" },
+  entregar: { n: "Por entregar", caja: "bg-bien-suave border-bien text-bien", punto: "bg-bien" },
+  cuenta: { n: "Con cuenta", caja: "bg-info-suave border-info text-info", punto: "bg-info" },
 };
 
 /* La cuenta pedida todavía no la informa la base. El estado queda armado
@@ -486,7 +486,7 @@ function PiezaMesa({ m, celda, editando, elegida, abriendo, onTocar, onBajar, on
         borderRadius: redonda ? "9999px" : m.forma === "barra" ? 8 : 14,
       }}
       className={`absolute z-10 overflow-hidden border-2 flex flex-col items-center justify-center px-1 text-center transition-colors disabled:opacity-50 ${est.caja} ${
-        elegida ? "ring-2 ring-orange-500" : ""} ${editando ? "cursor-move" : "cursor-pointer"}`}
+        elegida ? "ring-2 ring-acento" : ""} ${editando ? "cursor-move" : "cursor-pointer"}`}
     >
       <span className="f-d leading-none truncate max-w-full" style={{ fontSize: tipo }}>{m.nombre}</span>
 
@@ -536,7 +536,7 @@ function PiezaElemento({ e, celda, editando, elegida, onBajar, onMover, onSoltar
       }}
       className={`absolute z-0 flex items-center justify-center overflow-hidden rounded-lg ${
         texto ? "text-texto-tenue" : "bg-superficie-3 text-texto-suave"} ${
-        elegida ? "ring-2 ring-orange-500" : ""} ${editando ? "cursor-move" : "pointer-events-none"}`}
+        elegida ? "ring-2 ring-acento" : ""} ${editando ? "cursor-move" : "pointer-events-none"}`}
     >
       <span className="text-[10px] uppercase tracking-widest font-bold truncate px-1">{etiqueta}</span>
     </div>
