@@ -395,7 +395,7 @@ export async function cerrarComanda({ comandaId, sesionId, pagos, numero = null,
 export async function cargarCarta(empresaId) {
   const { data, error } = await supabase
     .from("items")
-    .select("id, nombre, categoria, precio, costo, iva, campos_extra, controla_stock")
+    .select("id, nombre, descripcion, categoria, precio, costo, iva, campos_extra, controla_stock")
     .eq("empresa_id", empresaId)
     .eq("activo", true)
     .order("categoria")

@@ -735,7 +735,7 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
               <span className="f-m text-4xl font-bold text-acento leading-none">{money(comanda.total)}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5 mt-3">
+            <div className="grid grid-cols-3 gap-1.5 mt-3">
               <Accion icono={ChefHat} tono="acento" disabled={trabajando || !lineas.length} onClick={reenviar}
                 title="Vuelve a mandar a la cocina lo que ya había salido">
                 Enviar a cocina
@@ -754,14 +754,14 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
               <Accion icono={Split} pronto="Dividir la cuenta">Dividir cuenta</Accion>
               <Accion icono={Printer} pronto="Imprimir la comanda">Imprimir</Accion>
 
-              <Accion icono={ArrowLeft} className="col-span-2" onClick={onVolver}>
+              <Accion icono={ArrowLeft} className="col-span-3" onClick={onVolver}>
                 Volver a {voz.volver}
               </Accion>
 
               {/* Una mesa tocada por error queda ocupada para siempre si no
                   hay forma de soltarla. */}
               {!lineas.length && (
-                <Accion icono={X} className="col-span-2" disabled={trabajando} onClick={liberar}>
+                <Accion icono={X} className="col-span-3" disabled={trabajando} onClick={liberar}>
                   {voz.soltar}
                 </Accion>
               )}
@@ -874,10 +874,12 @@ function Accion({ icono: Icono, children, onClick, tono = "oscuro", pronto = nul
     acento: "bg-acento text-sobre-acento hover:bg-acento-vivo",
     bien: "bg-bien text-fondo hover:bg-bien/90",
   }[tono];
-  const forma = "w-full inline-flex items-center gap-2 rounded-xl px-3 py-3 text-[11px] font-bold uppercase tracking-wide leading-tight transition-colors";
+  /* Bajos y en tres columnas: cada milímetro que ocupan las acciones se lo
+     sacan a la lista de lo pedido, que es lo que de verdad se mira. */
+  const forma = "w-full inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide leading-tight transition-colors";
   const cuerpo = (
     <>
-      {Icono && <Icono size={16} className="shrink-0" />}
+      {Icono && <Icono size={13} className="shrink-0" />}
       <span className="truncate">{children}</span>
     </>
   );
@@ -904,7 +906,10 @@ function Accion({ icono: Icono, children, onClick, tono = "oscuro", pronto = nul
    lleva la inicial, que a la velocidad de lectura de una carta alcanza
    para distinguir una fila de otra. */
 function FichaCarta({ item, onTocar, onSumar }) {
-  const desc = (item.campos_extra && item.campos_extra.descripcion) || item.destino || item.categoria || "";
+  /* Qué lleva el plato, que es por lo que el cliente elige. Si no está
+     cargado no se rellena con el destino ni con la categoría: decir
+     "barra" abajo de una limonada no informa nada y ensucia la carta. */
+  const desc = item.descripcion || "";
   return (
     <div className="relative">
       <button onClick={onTocar} title="Cantidad y cómo lo quieren"
