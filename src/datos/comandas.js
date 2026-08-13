@@ -311,7 +311,7 @@ export async function cargarPendientes(empresaId, destino = null) {
     .from("operacion_lineas")
     .select(`
       id, descripcion, cantidad, estado, notas, destino, modificadores, enviada_en,
-      operaciones!inner ( id, estado, abierta_en, recursos ( nombre, sector ) )
+      operaciones!inner ( id, estado, abierta_en, canal, referencia, campos_extra, recursos ( nombre, sector ) )
     `)
     .eq("empresa_id", empresaId)
     .in("estado", ["pedido", "preparando", "listo"])
@@ -323,13 +323,23 @@ export async function cargarPendientes(empresaId, destino = null) {
   if (error) throw error;
 
   return (data || [])
-    .map((f) => ({
-      ...aLinea(f),
-      comandaId: f.operaciones.id,
-      mesa: f.operaciones.recursos ? f.operaciones.recursos.nombre : "",
-      sector: f.operaciones.recursos ? f.operaciones.recursos.sector : "",
-      desde: f.operaciones.abierta_en ? new Date(f.operaciones.abierta_en) : null,
-    }))
+    .map((f) => {
+      const o = f.operaciones;
+      const app = o.campos_extra && o.campos_extra.cliente && o.campos_extra.cliente.app;
+      /* La cocina necesita saber para dónde va el plato, no solo qué es.
+         Un pedido sin mesa llegaba con el título vacío y el que cocina no
+         podía distinguir un delivery de una mesa del salón. */
+      const nombreCanal = { mostrador: "Mostrador", takeaway: "Para llevar", delivery: "Delivery", app: app || "Aplicación" };
+      return {
+        ...aLinea(f),
+        comandaId: o.id,
+        canal: o.canal || "salon",
+        referencia: o.referencia || null,
+        mesa: o.recursos ? o.recursos.nombre : (nombreCanal[o.canal] || "Pedido"),
+        sector: o.recursos ? o.recursos.sector : (o.referencia ? `#${o.referencia}` : ""),
+        desde: o.abierta_en ? new Date(o.abierta_en) : null,
+      };
+    })
     /* Lo que espera hace más tiempo va primero: es el orden en que la
        cocina tiene que resolverlo. */
     .sort((a, b) => (a.desde || 0) - (b.desde || 0));

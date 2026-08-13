@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Barcode, Package, Boxes, Truck, Wallet, BarChart3,
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
-  Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat
+  Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave } from "../datos/sesion.js";
@@ -32,7 +32,7 @@ import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
-import { Comandas, Cocina } from "../modulos/Comandas.jsx";
+import { Comandas, Cocina, Mostrador } from "../modulos/Comandas.jsx";
 /* ============================================================
    14. APP
    ============================================================ */
@@ -754,8 +754,10 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
 const NAV = [
   { k: "inicio", n: "Inicio", i: LayoutDashboard },
   { k: "comandas", n: "Salón", i: UtensilsCrossed },
-  /* La cocina no es un módulo que se contrate aparte: viene con el salón y
-     aparece solo si el comercio colgó una pantalla (ver `puedeVer`). */
+  /* Ni la cocina ni el mostrador son módulos que se contraten aparte:
+     vienen con el salón (ver `puedeVer`). Ojo con la clave: `pedidos` ya es
+     el picking del minimercado, que no tiene nada que ver. */
+  { k: "mostrador", n: "Mostrador", i: ShoppingBag },
   { k: "cocina", n: "Cocina", i: ChefHat },
   { k: "pedidos", n: "Pedidos", i: ClipboardList },
   { k: "clientes", n: "Clientes", i: Users },
@@ -771,6 +773,7 @@ const NAV = [
 const TITULOS = {
   inicio: ["Inicio", "Cómo viene el negocio hoy"],
   comandas: ["Salón", "Qué mesa está ocupada, qué lleva y cuánto hace que espera"],
+  mostrador: ["Mostrador", "Pedidos que no ocupan mesa: barra, para llevar, delivery y aplicaciones"],
   cocina: ["Cocina", "Lo que hay que preparar, en el orden en que se pidió"],
   pedidos: ["Pedidos", "Preparación con pistola y control de faltantes"],
   clientes: ["Clientes", "Para emitir facturas A, B o C según corresponda"],
@@ -816,6 +819,8 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     if (k === "inicio") return true;
     // La cocina viaja con el salón: no se contrata sola, se prende o no.
     if (k === "cocina") return !!config.cocinaEnPantalla && modulos.includes("comandas");
+    // El mostrador tampoco se contrata solo: es la otra cara del salón.
+    if (k === "mostrador") return modulos.includes("comandas");
     return modulos.includes(k);
   };
   /* Con qué pantalla arranca el sistema lo decide cómo vende el negocio.
@@ -1280,6 +1285,14 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
         .tema-oscuro .hover\\:bg-orange-100:hover { background-color: #3d1f0b !important; }
         .tema-oscuro .text-orange-700, .tema-oscuro .text-orange-600 { color: #fdba74 !important; }
         .tema-oscuro .border-orange-400 { border-color: #c2410c !important; }
+        /* Los colores de canal del mostrador: mostrador es celeste y para
+           llevar es violeta. Sin esto quedan dos manchas claras. */
+        .tema-oscuro .bg-sky-50 { background-color: #0b1e2e !important; }
+        .tema-oscuro .text-sky-700 { color: #7dd3fc !important; }
+        .tema-oscuro .border-sky-200 { border-color: #075985 !important; }
+        .tema-oscuro .bg-violet-50 { background-color: #1e1338 !important; }
+        .tema-oscuro .text-violet-700 { color: #c4b5fd !important; }
+        .tema-oscuro .border-violet-200 { border-color: #5b21b6 !important; }
         .tema-oscuro .shadow-sm, .tema-oscuro .shadow-lg, .tema-oscuro .shadow-xl { box-shadow: 0 1px 3px rgba(0,0,0,.5) !important; }
         .tema-oscuro body, .tema-oscuro .bg-stone-25 { background-color: #0c0a09 !important; }
       `}</style>
@@ -1424,6 +1437,10 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           {tab === "inicio" && <Inicio k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy} ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />}
           {tab === "comandas" && (
             <Comandas empresaId={empresaId} config={config} ajustes={ajustes}
+              caja={caja} toast={toast} />
+          )}
+          {tab === "mostrador" && (
+            <Mostrador empresaId={empresaId} config={config} ajustes={ajustes}
               caja={caja} toast={toast} />
           )}
           {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
