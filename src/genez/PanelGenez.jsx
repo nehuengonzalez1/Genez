@@ -1290,6 +1290,11 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
         .tema-oscuro .bg-sky-50 { background-color: #0b1e2e !important; }
         .tema-oscuro .text-sky-700 { color: #7dd3fc !important; }
         .tema-oscuro .border-sky-200 { border-color: #075985 !important; }
+        /* El plano del salón: el piso es más claro que las mesas, y cada
+           estado se distingue por el borde. */
+        .tema-oscuro .border-stone-300 { border-color: #57534e !important; }
+        .tema-oscuro .border-emerald-400 { border-color: #047857 !important; }
+        .tema-oscuro .border-sky-400 { border-color: #0369a1 !important; }
         .tema-oscuro .bg-violet-50 { background-color: #1e1338 !important; }
         .tema-oscuro .text-violet-700 { color: #c4b5fd !important; }
         .tema-oscuro .border-violet-200 { border-color: #5b21b6 !important; }
@@ -1437,7 +1442,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           {tab === "inicio" && <Inicio k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy} ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />}
           {tab === "comandas" && (
             <Comandas empresaId={empresaId} config={config} ajustes={ajustes}
-              caja={caja} toast={toast} />
+              caja={caja} permisos={permisos} toast={toast} />
           )}
           {tab === "mostrador" && (
             <Mostrador empresaId={empresaId} config={config} ajustes={ajustes}

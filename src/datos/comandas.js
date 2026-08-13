@@ -177,20 +177,31 @@ export async function cargarElementosPlano(empresaId) {
   return data || [];
 }
 
-/* Guarda las posiciones de una sola vez. Mover diez mesas y mandar diez
-   consultas deja el plano a medio guardar si algo se corta en el medio. */
+/* Guarda el plano entero de una sola vez. No se usa un upsert desde acá
+   porque un upsert intenta insertar primero, y entonces Postgres exige
+   las columnas obligatorias aunque la fila ya exista: fallaba por
+   empresa_id nulo. Además, acomodar diez mesas de a una deja el plano
+   mitad viejo y mitad nuevo si algo se corta en el medio. */
 export async function guardarPlano(recursos) {
-  const cambios = recursos.map((r) => ({
+  const cambios = (recursos || []).map((r) => ({
     id: r.id,
     x: Math.round(r.x), y: Math.round(r.y),
     ancho: Math.round(r.ancho), alto: Math.round(r.alto),
     forma: r.forma,
     piso: r.piso,
     sector: r.sector || null,
+    nombre: r.nombre,
+    capacidad: r.capacidad == null ? null : Math.round(r.capacidad),
   }));
-  if (!cambios.length) return;
+  if (!cambios.length) return 0;
 
-  const { error } = await supabase.from("recursos").upsert(cambios, { onConflict: "id" });
+  const { data, error } = await supabase.rpc("guardar_plano", { datos: { recursos: cambios } });
+  if (error) throw error;
+  return data;
+}
+
+export async function borrarElemento(id) {
+  const { error } = await supabase.from("plano_elementos").delete().eq("id", id);
   if (error) throw error;
 }
 

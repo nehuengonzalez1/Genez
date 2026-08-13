@@ -17,7 +17,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
-  ArrowLeft, Users, Clock, Flame, Check, Plus, Minus, Trash2, Search,
+  ArrowLeft, Clock, Check, Plus, Minus, Trash2, Search,
   StickyNote, X, RefreshCw, ChefHat, Wallet, Store, ShoppingBag, Bike, Smartphone
 } from "lucide-react";
 import { money, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
@@ -25,10 +25,11 @@ import { siguienteNumero } from "../datos/ventas.js";
 import {
   cargarSalon, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
   anularLinea, cambiarEstadoLinea, cargarPendientes, cerrarComanda,
-  CANALES, abrirPedido, cargarPedidos,
+  CANALES, abrirPedido, cargarPedidos, cargarElementosPlano,
 } from "../datos/comandas.js";
 import { Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
+import { PlanoSalon } from "./PlanoSalon.jsx";
 
 /* Los minutos se calculan contra el reloj real y no contra HOY: acá no se
    está mirando una serie histórica, se está mirando una mesa que espera. */
@@ -68,8 +69,9 @@ const VOZ_CANAL = {
    1. SALÓN
    ============================================================ */
 
-export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, toast }) {
+export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, toast }) {
   const [mesas, setMesas] = useState([]);
+  const [elementos, setElementos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [comandaId, setComandaId] = useState(null);
   const [abriendo, setAbriendo] = useState(null);
@@ -81,7 +83,9 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
 
   const leerSalon = useCallback(async () => {
     try {
-      setMesas(await cargarSalon(empresaId));
+      const [m, e] = await Promise.all([cargarSalon(empresaId), cargarElementosPlano(empresaId)]);
+      setMesas(m);
+      setElementos(e);
     } catch (e) {
       avisar.current(e.message || "No pudimos cargar el salón.", "mal");
     } finally {
@@ -114,100 +118,17 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
     );
   }
 
-  const sectores = agrupar(mesas);
-  const ocupadas = mesas.filter((m) => m.ocupada).length;
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-stone-500">
-            <strong className="text-stone-900 f-m">{ocupadas}</strong> ocupadas
-          </span>
-          <span className="text-stone-500">
-            <strong className="text-stone-900 f-m">{mesas.length - ocupadas}</strong> libres
-          </span>
-          {ocupadas > 0 && (
-            <span className="text-stone-500">
-              <strong className="text-stone-900 f-m">
-                {money(mesas.reduce((s, m) => s + m.consumido, 0))}
-              </strong> en el salón
-            </span>
-          )}
-        </div>
-        <Boton size="sm" variant="ghost" className="ml-auto" onClick={leerSalon}>
-          <RefreshCw size={14} /> Actualizar
-        </Boton>
-      </div>
-
-      {cargando && <Vacio>Cargando el salón…</Vacio>}
-      {!cargando && !mesas.length && (
-        <Vacio>Todavía no hay mesas cargadas para este comercio.</Vacio>
-      )}
-
-      {sectores.map(([sector, delSector]) => (
-        <section key={sector}>
-          <h3 className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-2">{sector}</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-            {delSector.map((m) => <Mesa key={m.id} m={m} abriendo={abriendo === m.id} onTocar={() => entrar(m)} />)}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function agrupar(mesas) {
-  const por = new Map();
-  for (const m of mesas) {
-    const s = m.sector || "Salón";
-    if (!por.has(s)) por.set(s, []);
-    por.get(s).push(m);
+  /* Sin nada dibujado y sin permiso para dibujarlo, un plano vacío no
+     dice nada: mejor la frase. */
+  if (!cargando && !mesas.length && !elementos.length && !permisos.ajustes) {
+    return <Vacio>Todavía no hay mesas cargadas para este comercio.</Vacio>;
   }
-  return [...por.entries()];
-}
 
-/* Libre y ocupada tienen que distinguirse sin leer: cambia el relleno, el
-   borde y el peso del texto, no una etiqueta chiquita en un rincón. */
-function Mesa({ m, abriendo, onTocar }) {
   return (
-    <button onClick={onTocar} disabled={abriendo}
-      className={`text-left rounded-2xl border-2 p-3 min-h-[112px] flex flex-col transition-colors disabled:opacity-50 ${
-        m.ocupada
-          ? "border-orange-400 bg-orange-50 hover:bg-orange-100"
-          : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50"}`}>
-      <div className="flex items-start justify-between gap-1">
-        <span className={`f-d text-base leading-tight ${m.ocupada ? "text-orange-700" : "text-stone-900"}`}>{m.nombre}</span>
-        {m.capacidad ? (
-          <span className="flex items-center gap-0.5 text-[11px] text-stone-400 shrink-0">
-            <Users size={11} /> {m.capacidad}
-          </span>
-        ) : null}
-      </div>
-
-      {m.ocupada ? (
-        <>
-          <div className="f-m text-xl mt-auto text-stone-900">{money(m.consumido)}</div>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="flex items-center gap-1 text-[11px] text-stone-500">
-              <Clock size={11} /> {espera(m.minutos == null ? 0 : m.minutos)}
-            </span>
-            {m.enCocina > 0 && (
-              <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
-                <Flame size={10} /> {m.enCocina}
-              </span>
-            )}
-            {m.listos > 0 && (
-              <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Check size={10} /> {m.listos}
-              </span>
-            )}
-          </div>
-        </>
-      ) : (
-        <div className="mt-auto text-sm text-stone-400">{abriendo ? "Abriendo…" : "Libre"}</div>
-      )}
-    </button>
+    <PlanoSalon
+      mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
+      puedeEditar={!!permisos.ajustes} empresaId={empresaId} sucursalId={sucursalId}
+      toast={toast} onTocarMesa={entrar} onActualizar={leerSalon} onGuardado={leerSalon} />
   );
 }
 
