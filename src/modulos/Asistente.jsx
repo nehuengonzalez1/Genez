@@ -69,22 +69,22 @@ export function Asistente({ k, ins, ir, negocio }) {
           const s = SEV[i.sev]; const Ico = i.icon;
           return (
             <Card key={i.id} className="overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-stone-100">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-borde">
                 <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-                <Ico size={15} className="text-stone-400" />
+                <Ico size={15} className="text-texto-tenue" />
                 <h3 className="font-semibold text-sm flex-1">{i.titulo}</h3>
                 <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border ${s.pill}`}>{s.label}</span>
               </div>
-              <div className="divide-y divide-stone-100">
+              <div className="divide-y divide-borde">
                 {[["Qué pasó", i.que], ["Por qué", i.porque], ["Qué hacer", i.hacer]].map(([t, c]) => (
                   <div key={t} className="px-4 py-2.5 flex gap-4">
-                    <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold w-20 shrink-0 pt-0.5">{t}</span>
-                    <p className="text-sm text-stone-700">{c}</p>
+                    <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold w-20 shrink-0 pt-0.5">{t}</span>
+                    <p className="text-sm text-texto">{c}</p>
                   </div>
                 ))}
               </div>
-              <div className="px-4 py-2 bg-stone-50">
-                <button onClick={() => ir(i.tab)} className="text-xs font-semibold text-orange-600 hover:underline inline-flex items-center gap-1">{i.accion} <ArrowRight size={12} /></button>
+              <div className="px-4 py-2 bg-superficie-2">
+                <button onClick={() => ir(i.tab)} className="text-xs font-semibold text-acento hover:underline inline-flex items-center gap-1">{i.accion} <ArrowRight size={12} /></button>
               </div>
             </Card>
           );
@@ -93,30 +93,30 @@ export function Asistente({ k, ins, ir, negocio }) {
 
       <Card className="p-4 lg:sticky lg:top-4">
         <div className="flex items-center gap-2">
-          <Sparkles size={16} className="text-orange-500" />
+          <Sparkles size={16} className="text-acento" />
           <h3 className="f-d">Preguntale a tu negocio</h3>
         </div>
-        <p className="text-xs text-stone-500 mt-1">Responde con tus números, no con generalidades.</p>
+        <p className="text-xs text-texto-suave mt-1">Responde con tus números, no con generalidades.</p>
 
         <div className="mt-4 space-y-3 max-h-[380px] overflow-auto">
           {msgs.length === 0 && (
             <div className="flex flex-wrap gap-1.5">
               {sugeridas.map((s) => (
-                <button key={s} onClick={() => preguntar(s)} className="text-xs text-left px-2.5 py-1.5 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50">{s}</button>
+                <button key={s} onClick={() => preguntar(s)} className="text-xs text-left px-2.5 py-1.5 rounded-xl border border-borde text-texto-suave hover:bg-superficie-2">{s}</button>
               ))}
             </div>
           )}
           {msgs.map((m, i) => (
             <div key={i} className={m.rol === "user" ? "text-right" : ""}>
-              <div className={`inline-block text-sm rounded-2xl px-3 py-2 max-w-[92%] text-left whitespace-pre-wrap ${m.rol === "user" ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-800"}`}>{m.texto}</div>
+              <div className={`inline-block text-sm rounded-2xl px-3 py-2 max-w-[92%] text-left whitespace-pre-wrap ${m.rol === "user" ? "bg-superficie-3 text-texto" : "bg-superficie-2 text-texto"}`}>{m.texto}</div>
             </div>
           ))}
-          {cargando && <div className="flex items-center gap-2 text-sm text-stone-400"><Loader2 size={14} className="animate-spin" /> Mirando tus datos…</div>}
+          {cargando && <div className="flex items-center gap-2 text-sm text-texto-tenue"><Loader2 size={14} className="animate-spin" /> Mirando tus datos…</div>}
         </div>
 
         <div className="flex gap-2 mt-4">
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && preguntar()}
-            placeholder="Escribí tu pregunta" className="flex-1 border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-orange-400" />
+            placeholder="Escribí tu pregunta" className="flex-1 border border-borde rounded-xl px-3 py-2 text-sm outline-none focus:border-acento" />
           <Boton onClick={() => preguntar()} disabled={cargando || !q.trim()}><Send size={15} /></Boton>
         </div>
       </Card>

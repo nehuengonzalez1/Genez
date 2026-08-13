@@ -66,14 +66,14 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-tenue" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, SKU o código"
-            className="w-full pl-9 pr-3 py-2 text-sm border border-stone-200 rounded-xl outline-none focus:border-orange-400 bg-white" />
+            className="w-full pl-9 pr-3 py-2 text-sm border border-borde rounded-xl outline-none focus:border-acento bg-superficie" />
         </div>
-        <select value={cat} onChange={(e) => setCat(e.target.value)} className="text-sm border border-stone-200 rounded-xl px-3 py-2 bg-white outline-none focus:border-orange-400">
+        <select value={cat} onChange={(e) => setCat(e.target.value)} className="text-sm border border-borde rounded-xl px-3 py-2 bg-superficie outline-none focus:border-acento">
           {cats.map((c) => <option key={c}>{c}</option>)}
         </select>
-        <select value={orden} onChange={(e) => setOrden(e.target.value)} className="text-sm border border-stone-200 rounded-xl px-3 py-2 bg-white outline-none focus:border-orange-400">
+        <select value={orden} onChange={(e) => setOrden(e.target.value)} className="text-sm border border-borde rounded-xl px-3 py-2 bg-superficie outline-none focus:border-acento">
           <option value="nombre">Orden alfabético</option>
           <option value="venta">Más vendidos</option>
           <option value="margen">Menor margen</option>
@@ -84,11 +84,11 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
       <div className="flex flex-wrap gap-1.5">
         {[["todos", "Todos"], ["margen", "Subieron de costo"], ["flaco", "Margen bajo"], ["incompletos", "Incompletos"]].map(([k, n]) => (
           <button key={k} onClick={() => setFiltro(k)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${filtro === k ? "bg-stone-900 text-white border-stone-900" : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"}`}>{n}</button>
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${filtro === k ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>{n}</button>
         ))}
-        <span className="text-xs text-stone-400 self-center ml-1">{nf.format(lista.length)} productos</span>
+        <span className="text-xs text-texto-tenue self-center ml-1">{nf.format(lista.length)} productos</span>
         {modoPrecios && (
-          <span className="text-xs text-stone-500 basis-full sm:basis-auto">
+          <span className="text-xs text-texto-suave basis-full sm:basis-auto">
             Editando precios: cada cambio se guarda solo. El porcentaje debajo es el margen.
           </span>
         )}
@@ -120,32 +120,32 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
 
       <Card className="overflow-hidden">
         {/* Siete columnas no entran en un celular: mismos datos, otra forma */}
-        <ul className={`${modoPrecios ? "hidden" : "md:hidden"} divide-y divide-stone-100`}>
+        <ul className={`${modoPrecios ? "hidden" : "md:hidden"} divide-y divide-borde`}>
           {visibles.map((p) => {
             const m = p.precio ? (p.precio - p.costo) / p.precio : 0;
             const cob = p.vel > 0 ? p.stock / p.vel : 99;
             const faltan = faltantesProducto(p);
             return (
               <li key={p.id}>
-                <button onClick={() => setAbierto(p.id)} className="w-full text-left px-3 py-2.5 active:bg-orange-50/60">
+                <button onClick={() => setAbierto(p.id)} className="w-full text-left px-3 py-2.5 active:bg-acento-suave/60">
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-stone-900 leading-snug">{p.nombre}</div>
-                      <div className="f-m text-[11px] text-stone-400">{p.categoria}</div>
+                      <div className="text-sm font-medium text-texto leading-snug">{p.nombre}</div>
+                      <div className="f-m text-[11px] text-texto-tenue">{p.categoria}</div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="f-m text-sm font-semibold">{p.precio ? money(p.precio) : <span className="text-amber-600 text-xs">sin precio</span>}</div>
+                      <div className="f-m text-sm font-semibold">{p.precio ? money(p.precio) : <span className="text-ojo text-xs">sin precio</span>}</div>
                       {Object.keys(p.precios || {}).length > 0 && (
-                        <div className="text-[10px] text-emerald-600">{Object.keys(p.precios).length} lista{Object.keys(p.precios).length > 1 ? "s" : ""} más</div>
+                        <div className="text-[10px] text-bien">{Object.keys(p.precios).length} lista{Object.keys(p.precios).length > 1 ? "s" : ""} más</div>
                       )}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px]">
-                    <span className="f-m text-stone-500">Stock <span className={cob < 4 ? "text-red-600 font-semibold" : "text-stone-700"}>{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span></span>
-                    <span className="f-m text-stone-500">Costo {money(p.costo)}</span>
-                    {p.precio > 0 && <span className={`f-m ${m < 0.14 ? "text-red-600" : m < 0.22 ? "text-amber-600" : "text-emerald-600"}`}>{pct(m, 0)}</span>}
-                    <span className="f-m text-stone-400">{nf.format(p.u30)} u/mes</span>
-                    {faltan.length > 0 && <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">incompleta</span>}
+                    <span className="f-m text-texto-suave">Stock <span className={cob < 4 ? "text-mal font-semibold" : "text-texto"}>{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span></span>
+                    <span className="f-m text-texto-suave">Costo {money(p.costo)}</span>
+                    {p.precio > 0 && <span className={`f-m ${m < 0.14 ? "text-mal" : m < 0.22 ? "text-ojo" : "text-bien"}`}>{pct(m, 0)}</span>}
+                    <span className="f-m text-texto-tenue">{nf.format(p.u30)} u/mes</span>
+                    {faltan.length > 0 && <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-ojo-suave text-ojo border-ojo">incompleta</span>}
                   </div>
                 </button>
               </li>
@@ -156,18 +156,18 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
           <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
             <table className="w-full text-sm min-w-[680px]">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200 bg-stone-50">
+                <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde bg-superficie-2">
                   <th className="px-4 py-2.5 font-semibold">Producto</th>
                   <th className="px-2 py-2.5 font-semibold text-right w-24">Costo</th>
                   <th className="px-2 py-2.5 font-semibold text-right w-32">General</th>
                   {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
                     <th key={l.id} className="px-2 py-2.5 font-semibold text-right w-32">
-                      {l.nombre}<div className="font-normal normal-case text-[10px] text-stone-400">desde {l.umbral} u</div>
+                      {l.nombre}<div className="font-normal normal-case text-[10px] text-texto-tenue">desde {l.umbral} u</div>
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
+              <tbody className="divide-y divide-borde">
                 {visibles.map((p) => {
                   const mg = (v) => (Number(v) > 0 ? (Number(v) - p.costo) / Number(v) : null);
                   const celda = (valor, alGuardar) => {
@@ -175,21 +175,21 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                     return (
                       <td className="px-2 py-1.5 text-right">
                         <NumeroDiferido valor={valor} onGuardar={alGuardar} placeholder="—"
-                          className={`f-m w-24 text-right border rounded-lg px-2 py-1 text-sm outline-none focus:border-orange-400 ${
-                            m2 != null && m2 < 0.08 ? "border-red-300 bg-red-50" : "border-stone-200"}`} />
-                        {m2 != null && <div className={`text-[10px] ${m2 < 0.08 ? "text-red-600" : "text-stone-400"}`}>{pct(m2, 0)}</div>}
+                          className={`f-m w-24 text-right border rounded-lg px-2 py-1 text-sm outline-none focus:border-acento ${
+                            m2 != null && m2 < 0.08 ? "border-mal bg-mal-suave" : "border-borde"}`} />
+                        {m2 != null && <div className={`text-[10px] ${m2 < 0.08 ? "text-mal" : "text-texto-tenue"}`}>{pct(m2, 0)}</div>}
                       </td>
                     );
                   };
                   return (
-                    <tr key={p.id} className="hover:bg-stone-50">
+                    <tr key={p.id} className="hover:bg-superficie-2">
                       <td className="px-4 py-1.5">
-                        <div className="font-medium text-stone-900">{p.nombre}</div>
-                        <div className="f-m text-[11px] text-stone-400">{p.categoria}</div>
+                        <div className="font-medium text-texto">{p.nombre}</div>
+                        <div className="f-m text-[11px] text-texto-tenue">{p.categoria}</div>
                       </td>
                       <td className="px-2 py-1.5 text-right">
                         <NumeroDiferido valor={p.costo} onGuardar={(n) => actualizar(p.id, { costo: n })}
-                          className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-orange-400 bg-stone-50" />
+                          className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1 text-sm outline-none focus:border-acento bg-superficie-2" />
                       </td>
                       {celda(p.precio, (n) => actualizar(p.id, { precio: n }))}
                       {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
@@ -214,7 +214,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200 bg-stone-50">
+              <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde bg-superficie-2">
                 <th className="px-4 py-2.5 font-semibold">Producto</th>
                 <th className="px-2 py-2.5 font-semibold">Categoría</th>
                 <th className="px-2 py-2.5 font-semibold text-right">Stock</th>
@@ -224,44 +224,44 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                 <th className="px-4 py-2.5 font-semibold text-right">30 días</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100">
+            <tbody className="divide-y divide-borde">
               {visibles.map((p) => {
                 const m = (p.precio - p.costo) / p.precio;
                 const cob = p.vel > 0 ? p.stock / p.vel : 99;
                 const subio = p.costo > p.costoPrev * 1.005;
                 return (
-                  <tr key={p.id} onClick={() => setAbierto(p.id)} className="hover:bg-orange-50/50 cursor-pointer">
+                  <tr key={p.id} onClick={() => setAbierto(p.id)} className="hover:bg-acento-suave/50 cursor-pointer">
                     <td className="px-4 py-2.5">
-                      <div className="font-medium text-stone-900 flex items-center gap-1.5">
+                      <div className="font-medium text-texto flex items-center gap-1.5">
                         {p.nombre}
                         {faltantesProducto(p).length > 0 && (
                           <span title={`Falta: ${faltantesProducto(p).join(", ")}`}
-                            className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">incompleta</span>
+                            className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-ojo-suave text-ojo border-ojo">incompleta</span>
                         )}
                       </div>
-                      <div className="f-m text-[11px] text-stone-400">{p.sku} · {p.barcode || "sin código"}</div>
+                      <div className="f-m text-[11px] text-texto-tenue">{p.sku} · {p.barcode || "sin código"}</div>
                     </td>
-                    <td className="px-2 py-2.5 text-stone-500 text-xs">{p.categoria}</td>
+                    <td className="px-2 py-2.5 text-texto-suave text-xs">{p.categoria}</td>
                     <td className="px-2 py-2.5 text-right f-m">
-                      <span className={cob < 4 ? "text-red-600 font-semibold" : cob < 8 ? "text-amber-600" : "text-stone-700"}>
+                      <span className={cob < 4 ? "text-mal font-semibold" : cob < 8 ? "text-ojo" : "text-texto"}>
                         {p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}
                       </span>
-                      <div className="text-[10px] text-stone-400">{cob > 90 ? "+90 d" : `${Math.round(cob)} d`}</div>
+                      <div className="text-[10px] text-texto-tenue">{cob > 90 ? "+90 d" : `${Math.round(cob)} d`}</div>
                     </td>
-                    <td className="px-2 py-2.5 text-right f-m text-stone-600">
+                    <td className="px-2 py-2.5 text-right f-m text-texto-suave">
                       {money(p.costo)}
-                      {subio && <div className="text-[10px] text-red-500">+{pct(p.costo / p.costoPrev - 1, 0)}</div>}
+                      {subio && <div className="text-[10px] text-mal">+{pct(p.costo / p.costoPrev - 1, 0)}</div>}
                     </td>
                     <td className="px-2 py-2.5 text-right f-m font-semibold">
                       {money(p.precio)}
                       {Object.entries(p.precios || {}).slice(0, 2).map(([k, v]) => (
-                        <div key={k} className="text-[10px] text-emerald-600 font-normal">{money(v)}</div>
+                        <div key={k} className="text-[10px] text-bien font-normal">{money(v)}</div>
                       ))}
                     </td>
                     <td className="px-2 py-2.5 text-right f-m">
-                      <span className={m < 0.14 ? "text-red-600" : m < 0.22 ? "text-amber-600" : "text-emerald-600"}>{pct(m, 0)}</span>
+                      <span className={m < 0.14 ? "text-mal" : m < 0.22 ? "text-ojo" : "text-bien"}>{pct(m, 0)}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-right f-m text-stone-600">{nf.format(p.u30)} <span className="text-[10px] text-stone-400">u</span></td>
+                    <td className="px-4 py-2.5 text-right f-m text-texto-suave">{nf.format(p.u30)} <span className="text-[10px] text-texto-tenue">u</span></td>
                   </tr>
                 );
               })}
@@ -271,7 +271,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         )}
         {lista.length === 0 && <Vacio>No hay productos con esos filtros. Probá con otra búsqueda.</Vacio>}
         {paginas > 1 && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-stone-200 text-xs text-stone-500">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-borde text-xs text-texto-suave">
             <span>Página {p0 + 1} de {paginas}</span>
             <div className="flex gap-1">
               <Boton size="sm" variant="ghost" onClick={() => setPag(Math.max(0, p0 - 1))} disabled={p0 === 0}><ChevronLeft size={14} /></Boton>
@@ -356,19 +356,19 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
 
   return (
     <Modal open onClose={onCerrar} ancho="max-w-2xl">
-      <div className="sticky top-0 bg-white border-b border-stone-200 px-5 py-3.5 flex items-center justify-between">
+      <div className="sticky top-0 bg-superficie border-b border-borde px-5 py-3.5 flex items-center justify-between">
         <div>
           <h3 className="f-d text-lg">Revisá antes de aplicar</h3>
-          <p className="text-xs text-stone-500">{nombre}</p>
+          <p className="text-xs text-texto-suave">{nombre}</p>
         </div>
-        <button onClick={onCerrar} className="text-stone-400 hover:text-stone-900"><X size={18} /></button>
+        <button onClick={onCerrar} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
       </div>
 
       <div className="p-5 space-y-4">
         <div className="grid grid-cols-3 gap-3">
-          {[["Se actualizan", cambios.length, "text-amber-700 bg-amber-50 border-amber-200"],
-            ["Se crean", nuevos.length, "text-emerald-700 bg-emerald-50 border-emerald-200"],
-            ["Con problemas", errores.length, errores.length ? "text-red-700 bg-red-50 border-red-200" : "text-stone-500 bg-stone-50 border-stone-200"]]
+          {[["Se actualizan", cambios.length, "text-ojo bg-ojo-suave border-ojo"],
+            ["Se crean", nuevos.length, "text-bien bg-bien-suave border-bien"],
+            ["Con problemas", errores.length, errores.length ? "text-mal bg-mal-suave border-mal" : "text-texto-suave bg-superficie-2 border-borde"]]
             .map(([t, n, cls]) => (
             <div key={t} className={`rounded-xl border p-3 text-center ${cls}`}>
               <div className="f-d text-2xl">{nf.format(n)}</div>
@@ -378,7 +378,7 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
         </div>
 
         {errores.length > 0 && (
-          <div className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl p-3">
+          <div className="text-sm text-red-800 bg-mal-suave border border-mal rounded-xl p-3">
             <p className="font-semibold">Estas filas no se van a aplicar:</p>
             <ul className="list-disc ml-5 mt-1 space-y-0.5">{errores.slice(0, 6).map((e, i) => <li key={i}>{e}</li>)}</ul>
             {errores.length > 6 && <p className="mt-1">y {errores.length - 6} más.</p>}
@@ -387,47 +387,47 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
 
         {cambios.length > 0 && (
           <div>
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Qué cambia</div>
-            <ul className="border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-64 overflow-auto text-sm">
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Qué cambia</div>
+            <ul className="border border-borde rounded-xl divide-y divide-borde max-h-64 overflow-auto text-sm">
               {cambios.slice(0, 40).map((c) => (
                 <li key={c.fila} className="px-3 py-2">
                   <div className="font-medium truncate">{c.p.nombre}</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
                     {c.dif.map((d, i) => (
-                      <span key={i} className="f-m text-[11px] text-stone-500">
-                        {d.campo}: <span className="line-through text-stone-400">{typeof d.antes === "number" ? nf.format(d.antes) : String(d.antes).slice(0, 22)}</span>
+                      <span key={i} className="f-m text-[11px] text-texto-suave">
+                        {d.campo}: <span className="line-through text-texto-tenue">{typeof d.antes === "number" ? nf.format(d.antes) : String(d.antes).slice(0, 22)}</span>
                         {" → "}
-                        <span className="text-stone-900">{typeof d.ahora === "number" ? nf.format(d.ahora) : String(d.ahora).slice(0, 22)}</span>
+                        <span className="text-texto">{typeof d.ahora === "number" ? nf.format(d.ahora) : String(d.ahora).slice(0, 22)}</span>
                       </span>
                     ))}
                   </div>
                 </li>
               ))}
             </ul>
-            {cambios.length > 40 && <p className="text-xs text-stone-400 mt-1">Se muestran los primeros 40 de {cambios.length}.</p>}
+            {cambios.length > 40 && <p className="text-xs text-texto-tenue mt-1">Se muestran los primeros 40 de {cambios.length}.</p>}
           </div>
         )}
 
         {nuevos.length > 0 && (
           <div>
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Productos nuevos</div>
-            <ul className="border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-40 overflow-auto text-sm">
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Productos nuevos</div>
+            <ul className="border border-borde rounded-xl divide-y divide-borde max-h-40 overflow-auto text-sm">
               {nuevos.slice(0, 20).map((n) => (
                 <li key={n.fila} className="px-3 py-1.5 flex justify-between gap-3">
                   <span className="truncate">{n.datos.nombre}</span>
-                  <span className="f-m text-xs text-stone-400 shrink-0">{n.datos.precio ? money(Number(n.datos.precio)) : "sin precio"}</span>
+                  <span className="f-m text-xs text-texto-tenue shrink-0">{n.datos.precio ? money(Number(n.datos.precio)) : "sin precio"}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-texto-suave">
           Las columnas vacías no se tocan: si borrás el contenido de una celda, ese dato queda como estaba.
           Para quitar el precio de una lista, poné un cero.
         </p>
 
-        <div className="flex justify-end gap-2 pt-3 border-t border-stone-200">
+        <div className="flex justify-end gap-2 pt-3 border-t border-borde">
           <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
           <Boton onClick={onAplicar} disabled={total === 0}><Check size={15} /> Aplicar {nf.format(total)} cambios</Boton>
         </div>
@@ -450,37 +450,37 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
 
   return (
     <Modal open onClose={onClose} ancho="max-w-2xl">
-      <div className="sticky top-0 bg-white border-b border-stone-200 px-5 py-3.5 flex items-start justify-between gap-4">
+      <div className="sticky top-0 bg-superficie border-b border-borde px-5 py-3.5 flex items-start justify-between gap-4">
         <div>
           <h3 className="f-d text-lg leading-tight">{p.nombre}</h3>
-          <div className="f-m text-[11px] text-stone-400 mt-0.5">{p.sku} · {p.barcode} · {p.proveedor}</div>
+          <div className="f-m text-[11px] text-texto-tenue mt-0.5">{p.sku} · {p.barcode} · {p.proveedor}</div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {editar && <Boton size="sm" variant="ghost" onClick={() => editar(p)}>Editar ficha</Boton>}
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-900"><X size={18} /></button>
+          <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
         </div>
       </div>
 
       <div className="p-5 space-y-5">
         {faltantesProducto(p).length > 0 && (
-          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3">
             Ficha incompleta. Falta: <strong>{faltantesProducto(p).join(", ")}</strong>.
           </div>
         )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[["Costo", money(p.costo)], ["Lista 1", money(p.precio)],
             ["Otras listas", Object.keys(p.precios || {}).length || "—"], ["Margen", pct(m)]].map(([l, v]) => (
-            <div key={l} className="bg-stone-50 rounded-xl p-3">
-              <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">{l}</div>
+            <div key={l} className="bg-superficie-2 rounded-xl p-3">
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">{l}</div>
               <div className="f-m text-lg mt-0.5">{v}</div>
             </div>
           ))}
         </div>
 
         {subio && (
-          <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
+          <div className="border border-ojo bg-ojo-suave rounded-xl p-4">
             <div className="flex items-start gap-2">
-              <TrendingDown size={16} className="text-amber-600 mt-0.5 shrink-0" />
+              <TrendingDown size={16} className="text-ojo mt-0.5 shrink-0" />
               <div className="text-sm">
                 <p className="font-semibold text-amber-900">El costo subió {pct(p.costo / p.costoPrev - 1, 0)} y el precio quedó igual.</p>
                 <p className="text-amber-800 mt-1">
@@ -498,7 +498,7 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
         )}
 
         <div>
-          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Historial de costo</div>
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Historial de costo</div>
           <ResponsiveContainer width="100%" height={140}>
             <AreaChart data={serie} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
@@ -511,13 +511,13 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
         </div>
 
         {(ajustes && ajustes.listas ? ajustes.listas : []).filter((l) => l.activa !== false).length > 0 && (
-          <div className="border border-stone-200 rounded-xl p-4">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Precios por lista</div>
-            <ul className="divide-y divide-stone-100">
+          <div className="border border-borde rounded-xl p-4">
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Precios por lista</div>
+            <ul className="divide-y divide-borde">
               <li className="flex items-center gap-3 py-2">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium">Precio general</div>
-                  <div className="text-[11px] text-stone-400">siempre · margen {pct(m, 0)}</div>
+                  <div className="text-[11px] text-texto-tenue">siempre · margen {pct(m, 0)}</div>
                 </div>
                 <span className="f-m text-sm w-28 text-right">{money(p.precio)}</span>
               </li>
@@ -529,12 +529,12 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
                   <li key={l.id} className="flex items-center gap-3 py-2">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium">{l.nombre}</div>
-                      <div className="text-[11px] text-stone-400">
+                      <div className="text-[11px] text-texto-tenue">
                         desde {l.umbral} u
-                        {mv != null && <span className={mv < 0.08 ? " text-red-600" : ""}> · margen {pct(mv, 0)}</span>}
+                        {mv != null && <span className={mv < 0.08 ? " text-mal" : ""}> · margen {pct(mv, 0)}</span>}
                         {!v && p.precio > 0 && (
                           <button onClick={() => actualizar(p.id, { precios: { ...(p.precios || {}), [l.id]: sug } }, `${l.nombre}: ${money(sug)}`)}
-                            className="ml-1 font-semibold text-orange-600 hover:underline">poner {money(sug)}</button>
+                            className="ml-1 font-semibold text-acento hover:underline">poner {money(sug)}</button>
                         )}
                       </div>
                     </div>
@@ -546,34 +546,34 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
                         actualizar(p.id, { precios: cp });
                       }}
                       placeholder="—"
-                      className="f-m w-28 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+                      className="f-m w-28 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
                   </li>
                 );
               })}
             </ul>
-            <p className="text-[11px] text-stone-400 mt-2">Vacío significa que este producto no entra en esa lista.</p>
+            <p className="text-[11px] text-texto-tenue mt-2">Vacío significa que este producto no entra en esa lista.</p>
           </div>
         )}
 
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="border border-stone-200 rounded-xl p-4">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Costo y precio general</div>
+          <div className="border border-borde rounded-xl p-4">
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Costo y precio general</div>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="text-[11px] text-stone-500">Costo</span>
+                <span className="text-[11px] text-texto-suave">Costo</span>
                 <input value={costo} onChange={(e) => setCosto(e.target.value.replace(/\D/g, ""))}
-                  className="f-m w-full text-right border border-stone-200 rounded-lg px-3 py-2 text-sm mt-0.5 outline-none focus:border-orange-400" />
+                  className="f-m w-full text-right border border-borde rounded-lg px-3 py-2 text-sm mt-0.5 outline-none focus:border-acento" />
               </label>
               <label className="block">
-                <span className="text-[11px] text-stone-500">Precio</span>
+                <span className="text-[11px] text-texto-suave">Precio</span>
                 <input value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
-                  className="f-m w-full text-right border border-stone-200 rounded-lg px-3 py-2 text-sm mt-0.5 outline-none focus:border-orange-400" />
+                  className="f-m w-full text-right border border-borde rounded-lg px-3 py-2 text-sm mt-0.5 outline-none focus:border-acento" />
               </label>
             </div>
-            <p className="text-xs text-stone-500 mt-2">
+            <p className="text-xs text-texto-suave mt-2">
               Margen resultante: <strong>{pct(((Number(precio) || p.precio) - (Number(costo) || p.costo)) / (Number(precio) || p.precio))}</strong>
               {Number(costo) > 0 && Number(costo) !== p.costo && (
-                <span className="block text-amber-700 mt-1">
+                <span className="block text-ojo mt-1">
                   El costo pasa de {money(p.costo)} a {money(Number(costo))}: queda registrado en el historial.
                 </span>
               )}
@@ -583,14 +583,14 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
               costo: Number(costo) || p.costo,
             }, "Costo y precio actualizados.")}>Guardar</Boton>
           </div>
-          <div className="border border-stone-200 rounded-xl p-4">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Movimiento</div>
-            <ul className="text-sm text-stone-600 space-y-1">
+          <div className="border border-borde rounded-xl p-4">
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Movimiento</div>
+            <ul className="text-sm text-texto-suave space-y-1">
               <li className="flex justify-between"><span>Vendidas 30 días</span><span className="f-m">{nf.format(p.u30)}</span></li>
               <li className="flex justify-between"><span>Mes anterior</span><span className="f-m">{nf.format(p.u30p)}</span></li>
               <li className="flex justify-between"><span>Última venta</span><span className="f-m">{diasDesde(p.ultimaVenta) === 0 ? "hoy" : `hace ${diasDesde(p.ultimaVenta)} d`}</span></li>
               <li className="flex justify-between"><span>Compra por bulto</span><span className="f-m">{p.bulto} u</span></li>
-              {p.vence && <li className="flex justify-between"><span>Vence</span><span className={`f-m ${diasHasta(p.vence) <= 7 ? "text-red-600" : ""}`}>{fdatel(p.vence)}</span></li>}
+              {p.vence && <li className="flex justify-between"><span>Vence</span><span className={`f-m ${diasHasta(p.vence) <= 7 ? "text-mal" : ""}`}>{fdatel(p.vence)}</span></li>}
             </ul>
           </div>
         </div>

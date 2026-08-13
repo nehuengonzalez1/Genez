@@ -28,7 +28,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
     <div className="max-w-2xl space-y-4">
       <Card className="p-5">
         <h3 className="f-d text-lg">Datos fiscales</h3>
-        <p className="text-sm text-stone-500 mt-1">
+        <p className="text-sm text-texto-suave mt-1">
           Tu condición determina qué comprobantes podés emitir, y el sistema la aplica sola.
           Un monotributista emite siempre Factura C. Un responsable inscripto emite A cuando le vende a otro
           responsable inscripto, y B en los demás casos.
@@ -70,15 +70,15 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm">
-          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-1.5">Qué vas a emitir</div>
-          <ul className="space-y-1 text-stone-600">
+        <div className="mt-4 rounded-xl border border-borde bg-superficie-2 p-3 text-sm">
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-1.5">Qué vas a emitir</div>
+          <ul className="space-y-1 text-texto-suave">
             <li>A un <strong>responsable inscripto</strong>: Factura <strong>{letraComprobante(f.condicion, "RI")}</strong>
               {discriminaIVA(letraComprobante(f.condicion, "RI")) ? ", con IVA discriminado al pie." : ", con IVA incluido en el precio."}</li>
             <li>A un <strong>consumidor final</strong> o monotributista: Factura <strong>{letraComprobante(f.condicion, "CF")}</strong>, con IVA incluido.</li>
           </ul>
           {f.condicion !== "RI" && (
-            <p className="text-xs text-stone-500 mt-2">
+            <p className="text-xs text-texto-suave mt-2">
               Como {condicionNombre(f.condicion).toLowerCase()} no discriminás IVA, así que la Factura A no aplica
               aunque el cliente sea responsable inscripto.
             </p>
@@ -90,7 +90,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="f-d text-lg">Medios de pago</h3>
-            <p className="text-sm text-stone-500 mt-1">
+            <p className="text-sm text-texto-suave mt-1">
               El porcentaje puede funcionar de dos formas. Como <strong>comisión</strong>, lo absorbe el negocio: el cliente paga
               el mismo total y la diferencia sale de tu ganancia. Como <strong>recargo</strong>, se le suma al cliente y cambia el
               total de la venta.
@@ -105,30 +105,30 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
           {(ajustes.medios || []).map((m, i) => {
             const cambiar = (campo, valor) => setAjustes({ ...ajustes, medios: ajustes.medios.map((x, j) => (j === i ? { ...x, [campo]: valor } : x)) });
             return (
-              <div key={m.k} className={`border rounded-xl p-3 ${m.activo === false ? "bg-stone-50 opacity-70 border-stone-200" : "border-stone-200"}`}>
+              <div key={m.k} className={`border rounded-xl p-3 ${m.activo === false ? "bg-superficie-2 opacity-70 border-borde" : "border-borde"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <input value={m.n} onChange={(e) => cambiar("n", e.target.value)}
-                    className="flex-1 min-w-[140px] border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-orange-400" />
-                  <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                    className="flex-1 min-w-[140px] border border-borde rounded-lg px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-acento" />
+                  <label className="flex items-center gap-1.5 text-xs text-texto-suave">
                     <input value={m.tasa} onChange={(e) => cambiar("tasa", Number(e.target.value.replace(/[^\d.]/g, "")) || 0)}
-                      className="f-m w-16 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+                      className="f-m w-16 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
                     %
                   </label>
                   <button onClick={() => cambiar("recargo", !m.recargo)}
-                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.recargo ? "border-amber-300 bg-amber-50 text-amber-800" : "border-stone-200 text-stone-500"}`}>
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.recargo ? "border-amber-300 bg-ojo-suave text-amber-800" : "border-borde text-texto-suave"}`}>
                     {m.recargo ? "Lo paga el cliente" : "Lo absorbe el negocio"}
                   </button>
                   <button onClick={() => cambiar("activo", m.activo === false)}
-                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.activo === false ? "border-stone-200 text-stone-400" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.activo === false ? "border-borde text-texto-tenue" : "border-bien bg-bien-suave text-bien"}`}>
                     {m.activo === false ? "Apagado" : "Activo"}
                   </button>
                   <button onClick={() => {
                     if (!window.confirm(`¿Eliminar "${m.n}"? Las ventas ya cobradas con este medio no se modifican.`)) return;
                     setAjustes({ ...ajustes, medios: ajustes.medios.filter((_, j) => j !== i) });
-                  }} className="text-stone-300 hover:text-red-600 p-1.5"><Trash2 size={16} /></button>
+                  }} className="text-texto-tenue hover:text-mal p-1.5"><Trash2 size={16} /></button>
                 </div>
                 {m.tasa > 0 && (
-                  <p className="text-[11px] text-stone-400 mt-1.5">
+                  <p className="text-[11px] text-texto-tenue mt-1.5">
                     {m.recargo
                       ? `Una venta de ${money(10000)} se cobra ${money(conRecargo(10000, m).total)}.`
                       : `Una venta de ${money(10000)} deja ${money(10000 - 10000 * m.tasa / 100)} después de la comisión.`}
@@ -138,7 +138,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
             );
           })}
         </div>
-        <p className="text-xs text-stone-400 mt-3">
+        <p className="text-xs text-texto-tenue mt-3">
           En el cobro, cada medio se elige con su número. Apagar uno lo saca de la caja sin borrar el historial.
         </p>
       </Card>
@@ -147,25 +147,25 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
         <h3 className="f-d text-lg">Comprobantes</h3>
         <div className="mt-4 space-y-2">
           <button onClick={() => setAjustes({ ...ajustes, arca: false })}
-            className={`w-full text-left border rounded-xl p-4 ${!ajustes.arca ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+            className={`w-full text-left border rounded-xl p-4 ${!ajustes.arca ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-widest font-bold text-stone-500">Fase 1</span>
+              <span className="text-[10px] uppercase tracking-widest font-bold text-texto-suave">Fase 1</span>
               <span className="font-semibold text-sm">Ticket no fiscal</span>
-              {!ajustes.arca && <Check size={15} className="ml-auto text-orange-600" />}
+              {!ajustes.arca && <Check size={15} className="ml-auto text-acento" />}
             </div>
-            <p className="text-sm text-stone-600 mt-1">Arrancás vendiendo hoy mismo. El sistema numera, imprime y envía comprobantes internos, y registra todo en ventas, stock y caja.</p>
+            <p className="text-sm text-texto-suave mt-1">Arrancás vendiendo hoy mismo. El sistema numera, imprime y envía comprobantes internos, y registra todo en ventas, stock y caja.</p>
           </button>
           <button onClick={() => setAjustes({ ...ajustes, arca: true })}
-            className={`w-full text-left border rounded-xl p-4 ${ajustes.arca ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+            className={`w-full text-left border rounded-xl p-4 ${ajustes.arca ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-widest font-bold text-stone-500">Fase 2</span>
+              <span className="text-[10px] uppercase tracking-widest font-bold text-texto-suave">Fase 2</span>
               <span className="font-semibold text-sm">Factura electrónica (ARCA)</span>
-              {ajustes.arca && <Check size={15} className="ml-auto text-orange-600" />}
+              {ajustes.arca && <Check size={15} className="ml-auto text-acento" />}
             </div>
-            <p className="text-sm text-stone-600 mt-1">La misma venta emite Factura B con CAE. Se activa cuando cargamos el certificado fiscal y el punto de venta; el flujo de caja no cambia.</p>
+            <p className="text-sm text-texto-suave mt-1">La misma venta emite Factura B con CAE. Se activa cuando cargamos el certificado fiscal y el punto de venta; el flujo de caja no cambia.</p>
           </button>
         </div>
-        <p className="text-xs text-stone-400 mt-3">
+        <p className="text-xs text-texto-tenue mt-3">
           Esto define con qué opción arranca cada venta. En la pantalla de cobro se puede cambiar venta por venta,
           con el selector Ticket / Factura. En esta demo el CAE es simulado: sirve para ver el flujo, no tiene validez fiscal.
         </p>
@@ -173,22 +173,22 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
 
       <Card className="p-5">
         <h3 className="f-d text-lg">Comandera y pistola</h3>
-        <p className="text-sm text-stone-500 mt-1">Ancho del rollo térmico. El ticket se compone en texto de ancho fijo, igual que lo recibe la impresora.</p>
+        <p className="text-sm text-texto-suave mt-1">Ancho del rollo térmico. El ticket se compone en texto de ancho fijo, igual que lo recibe la impresora.</p>
         <div className="flex gap-2 mt-3">
           {[58, 80].map((a) => (
             <button key={a} onClick={() => setAjustes({ ...ajustes, ancho: a })}
-              className={`flex-1 border rounded-xl p-3 text-left ${ajustes.ancho === a ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+              className={`flex-1 border rounded-xl p-3 text-left ${ajustes.ancho === a ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
               <div className="font-semibold text-sm">{a} mm</div>
-              <div className="text-xs text-stone-500">{a === 58 ? "32 caracteres · comandera chica" : "48 caracteres · comandera estándar"}</div>
+              <div className="text-xs text-texto-suave">{a === 58 ? "32 caracteres · comandera chica" : "48 caracteres · comandera estándar"}</div>
             </button>
           ))}
         </div>
         <button onClick={() => setAjustes({ ...ajustes, sonido: !ajustes.sonido })}
-          className="flex items-center gap-2 text-sm text-stone-600 mt-3 hover:text-stone-900">
-          {ajustes.sonido ? <Volume2 size={16} className="text-orange-500" /> : <VolumeX size={16} />}
+          className="flex items-center gap-2 text-sm text-texto-suave mt-3 hover:text-texto">
+          {ajustes.sonido ? <Volume2 size={16} className="text-acento" /> : <VolumeX size={16} />}
           Beep al escanear: <strong>{ajustes.sonido ? "activado" : "silenciado"}</strong>
         </button>
-        <p className="text-xs text-stone-400 mt-3">
+        <p className="text-xs text-texto-tenue mt-3">
           La pistola funciona como un teclado. El sistema reconoce la ráfaga de tecleo y el Enter final, así que se puede disparar sin clickear ningún campo.
         </p>
       </Card>
@@ -197,22 +197,22 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="f-d text-lg">Avisos de Mercado Pago</h3>
-            <p className="text-sm text-stone-500 mt-1">
+            <p className="text-sm text-texto-suave mt-1">
               Cuando entra una transferencia o un pago por QR, salta un cartel, suena una campanita y una voz dice el monto en voz alta.
               El cobro queda registrado en caja solo.
             </p>
           </div>
           <button onClick={() => setMp({ ...mp, activo: !mp.activo })}
-            className={`shrink-0 flex items-center gap-2 text-sm font-semibold ${mp.activo ? "text-emerald-700" : "text-stone-400"}`}>
+            className={`shrink-0 flex items-center gap-2 text-sm font-semibold ${mp.activo ? "text-bien" : "text-texto-tenue"}`}>
             {mp.activo ? <Bell size={16} /> : <BellOff size={16} />}
             {mp.activo ? "Activo" : "Apagado"}
           </button>
         </div>
 
         <div className={`mt-3 rounded-xl p-3 text-sm border ${
-          mp.configurado === null ? "bg-stone-50 border-stone-200 text-stone-500"
-          : mp.configurado ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-          : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+          mp.configurado === null ? "bg-superficie-2 border-borde text-texto-suave"
+          : mp.configurado ? "bg-bien-suave border-bien text-emerald-800"
+          : "bg-ojo-suave border-ojo text-amber-800"}`}>
           {mp.configurado === null ? "Consultando el estado de la conexión…"
             : mp.configurado
               ? <>Conectado a Mercado Pago. Consultando cada 6 segundos{mp.ultimoChequeo ? ` · último chequeo ${mp.ultimoChequeo.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}.</>
@@ -222,8 +222,8 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
 
         <div className="flex flex-wrap items-center gap-3 mt-3">
           <button onClick={() => setMp({ ...mp, voz: !mp.voz })}
-            className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900">
-            {mp.voz ? <Vol2 size={16} className="text-orange-500" /> : <VolumeX size={16} />}
+            className="flex items-center gap-2 text-sm text-texto-suave hover:text-texto">
+            {mp.voz ? <Vol2 size={16} className="text-acento" /> : <VolumeX size={16} />}
             Leer el monto en voz alta: <strong>{mp.voz ? "sí" : "no"}</strong>
           </button>
           <Boton size="sm" variant="ghost" className="ml-auto" onClick={simularCobro}>
@@ -232,14 +232,14 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
         </div>
 
         <details className="mt-4 text-sm">
-          <summary className="cursor-pointer text-stone-600 font-semibold">Cómo conectar la cuenta</summary>
-          <ol className="list-decimal ml-5 mt-2 space-y-1 text-stone-600">
+          <summary className="cursor-pointer text-texto-suave font-semibold">Cómo conectar la cuenta</summary>
+          <ol className="list-decimal ml-5 mt-2 space-y-1 text-texto-suave">
             <li>Entrá a <span className="f-m text-xs">mercadopago.com.ar/developers</span> con la cuenta del negocio y creá una aplicación.</li>
             <li>Copiá el <strong>Access Token de producción</strong> (empieza con APP_USR).</li>
             <li>En Vercel, Settings → Environment Variables, creá <span className="f-m text-xs">MP_ACCESS_TOKEN</span> en Production.</li>
             <li>Volvé a desplegar. Este panel va a pasar a "Conectado" solo.</li>
           </ol>
-          <p className="text-xs text-stone-400 mt-2">
+          <p className="text-xs text-texto-tenue mt-2">
             La API de Mercado Pago no tiene costo. El token nunca llega al navegador: se usa del lado del servidor.
           </p>
         </details>
@@ -249,7 +249,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="f-d text-lg">Listas de precio</h3>
-            <p className="text-sm text-stone-500 mt-1">
+            <p className="text-sm text-texto-suave mt-1">
               Cada lista tiene una cantidad mínima y se activa sola cuando un renglón del ticket la alcanza, solo en ese renglón.
               Si un producto entra en varias, se cobra la de mayor cantidad que el cliente alcance.
             </p>
@@ -261,13 +261,13 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
         </div>
 
         <div className="mt-4 space-y-2">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-superficie-2 border border-borde">
             <span className="text-sm font-semibold flex-1">Precio general</span>
-            <span className="text-xs text-stone-500">siempre · es el precio de la ficha</span>
+            <span className="text-xs text-texto-suave">siempre · es el precio de la ficha</span>
           </div>
 
           {(ajustes.listas || []).length === 0 && (
-            <p className="text-sm text-stone-400 px-1">No hay listas adicionales. Todo se cobra al precio general.</p>
+            <p className="text-sm text-texto-tenue px-1">No hay listas adicionales. Todo se cobra al precio general.</p>
           )}
 
           {(ajustes.listas || []).map((l, i) => {
@@ -277,18 +277,18 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
               listas: ajustes.listas.map((x, j) => (j === i ? { ...x, [campo]: valor } : x)),
             });
             return (
-              <div key={l.id} className={`border rounded-xl p-3 ${l.activa === false ? "border-stone-200 bg-stone-50 opacity-70" : "border-stone-200"}`}>
+              <div key={l.id} className={`border rounded-xl p-3 ${l.activa === false ? "border-borde bg-superficie-2 opacity-70" : "border-borde"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <input value={l.nombre} onChange={(e) => cambiar("nombre", e.target.value)}
-                    className="flex-1 min-w-[140px] border border-stone-200 rounded-lg px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-orange-400" />
-                  <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                    className="flex-1 min-w-[140px] border border-borde rounded-lg px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-acento" />
+                  <label className="flex items-center gap-1.5 text-xs text-texto-suave">
                     desde
                     <input value={l.umbral} onChange={(e) => cambiar("umbral", Math.max(1, Number(e.target.value.replace(/\D/g, "")) || 1))}
-                      className="f-m w-14 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+                      className="f-m w-14 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
                     u
                   </label>
                   <button onClick={() => cambiar("activa", l.activa === false)}
-                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${l.activa === false ? "border-stone-200 text-stone-400" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${l.activa === false ? "border-borde text-texto-tenue" : "border-bien bg-bien-suave text-bien"}`}>
                     {l.activa === false ? "Apagada" : "Activa"}
                   </button>
                   <button onClick={() => {
@@ -300,9 +300,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
                       return { ...p, precios: cp };
                     }));
                     toast(`Lista "${l.nombre}" eliminada.`);
-                  }} className="text-stone-300 hover:text-red-600 p-1.5" title="Eliminar lista"><Trash2 size={16} /></button>
+                  }} className="text-texto-tenue hover:text-mal p-1.5" title="Eliminar lista"><Trash2 size={16} /></button>
                 </div>
-                <p className="text-[11px] text-stone-400 mt-1.5">
+                <p className="text-[11px] text-texto-tenue mt-1.5">
                   {cuantos > 0 ? `${nf.format(cuantos)} productos con precio en esta lista` : "Ningún producto tiene precio en esta lista todavía"}
                 </p>
               </div>
@@ -310,20 +310,20 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
           })}
         </div>
 
-        <div className="flex items-center gap-4 mt-4 pt-4 border-t border-stone-100">
-          <span className="text-sm text-stone-500 shrink-0">Descuento sugerido al cargar</span>
+        <div className="flex items-center gap-4 mt-4 pt-4 border-t border-borde">
+          <span className="text-sm text-texto-suave shrink-0">Descuento sugerido al cargar</span>
           <input type="range" min="3" max="30" value={ajustes.desc2}
             onChange={(e) => setAjustes({ ...ajustes, desc2: Number(e.target.value) })} className="flex-1 accent-orange-500" />
           <span className="f-m text-lg w-16 text-right">{ajustes.desc2}%</span>
         </div>
-        <p className="text-xs text-stone-400 mt-2">
+        <p className="text-xs text-texto-tenue mt-2">
           Los precios de cada lista se cargan producto por producto, o de una vez con la planilla desde el catálogo.
         </p>
       </Card>
 
       <Card className="p-5">
         <h3 className="f-d text-lg">Reposición</h3>
-        <p className="text-sm text-stone-500 mt-1">Cuántos días de venta querés tener cubiertos cuando el sistema arma el pedido sugerido.</p>
+        <p className="text-sm text-texto-suave mt-1">Cuántos días de venta querés tener cubiertos cuando el sistema arma el pedido sugerido.</p>
         <div className="flex items-center gap-4 mt-3">
           <input type="range" min="7" max="30" value={ajustes.cobertura} onChange={(e) => setAjustes({ ...ajustes, cobertura: Number(e.target.value) })}
             className="flex-1 accent-orange-500" />
@@ -333,7 +333,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
 
       <Card className="p-5">
         <h3 className="f-d text-lg">Datos de la demo</h3>
-        <ul className="text-sm text-stone-600 mt-2 space-y-1">
+        <ul className="text-sm text-texto-suave mt-2 space-y-1">
           <li>{nf.format(productos.length)} productos con costo, precio, stock, proveedor y vencimiento</li>
           <li>90 días de historial de ventas y hasta 5 cambios de costo por producto</li>
           <li>{Object.keys(PROV_INFO).length} proveedores con condiciones de pago y día de entrega</li>
@@ -376,18 +376,18 @@ export function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaj
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-orange-600 font-bold"><ScanLine size={12} /> Escaneado</div>
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-acento font-bold"><ScanLine size={12} /> Escaneado</div>
             <h3 className="f-d text-lg leading-tight mt-1">{p.nombre}</h3>
-            <div className="f-m text-[11px] text-stone-400">{p.barcode} · {p.proveedor}</div>
+            <div className="f-m text-[11px] text-texto-tenue">{p.barcode} · {p.proveedor}</div>
           </div>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-900"><X size={18} /></button>
+          <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
           {[["Stock", p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)], ["Alcanza", cobertura > 90 ? "+90 d" : `${Math.round(cobertura)} d`],
             ["Precio", money(p.precio)], ["Margen", pct(m, 0)]].map(([l, v]) => (
-            <div key={l} className="bg-stone-50 rounded-xl p-2 text-center">
-              <div className="text-[9px] uppercase tracking-widest text-stone-400 font-bold">{l}</div>
+            <div key={l} className="bg-superficie-2 rounded-xl p-2 text-center">
+              <div className="text-[9px] uppercase tracking-widest text-texto-tenue font-bold">{l}</div>
               <div className="f-m text-sm mt-0.5">{v}</div>
             </div>
           ))}
@@ -395,17 +395,17 @@ export function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaj
 
         <Boton className="w-full mt-4" size="lg" onClick={() => vender(p)}><Barcode size={17} /> Agregar al ticket y vender</Boton>
 
-        <div className="border border-stone-200 rounded-xl p-3 mt-3">
-          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Sumar stock</div>
+        <div className="border border-borde rounded-xl p-3 mt-3">
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Sumar stock</div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-stone-500 shrink-0">Cantidad</label>
+            <label className="text-xs text-texto-suave shrink-0">Cantidad</label>
             <input value={cant} onChange={(e) => setCant(e.target.value.replace(/[^\d.]/g, ""))}
-              className="f-m w-20 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
-            <label className="text-xs text-stone-500 shrink-0 ml-2">Costo</label>
+              className="f-m w-20 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
+            <label className="text-xs text-texto-suave shrink-0 ml-2">Costo</label>
             <input value={costo} onChange={(e) => setCosto(e.target.value.replace(/\D/g, ""))}
-              className="f-m flex-1 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+              className="f-m flex-1 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
           </div>
-          <label className="flex items-center gap-2 text-xs text-stone-600 mt-2">
+          <label className="flex items-center gap-2 text-xs text-texto-suave mt-2">
             <input type="checkbox" checked={pagar} onChange={(e) => setPagar(e.target.checked)} className="w-4 h-4 accent-orange-500" />
             Pagué {money((Number(cant) || 0) * (Number(costo) || p.costo))} en efectivo (sale de caja)
           </label>
@@ -413,7 +413,7 @@ export function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaj
             <Plus size={15} /> Sumar {cant || 0} al stock
           </Boton>
           {Number(costo) !== p.costo && Number(costo) > 0 && (
-            <p className="text-[11px] text-amber-700 mt-2">
+            <p className="text-[11px] text-ojo mt-2">
               El costo cambia de {money(p.costo)} a {money(Number(costo))}. Con el precio actual el margen queda en {pct((p.precio - Number(costo)) / p.precio, 0)}.
             </p>
           )}
@@ -421,11 +421,11 @@ export function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaj
 
         <div className="flex items-center gap-2 mt-3">
           <input value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
-            className="f-m w-28 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+            className="f-m w-28 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
           <Boton size="sm" variant="ghost" onClick={() => { setProductos((ps) => ps.map((x) => (x.id === p.id ? { ...x, precio: Number(precio) || x.precio } : x))); toast("Precio actualizado."); onClose(); }}>
             Cambiar precio
           </Boton>
-          <button onClick={() => verFicha(p)} className="text-xs font-semibold text-orange-600 hover:underline ml-auto">Ficha completa</button>
+          <button onClick={() => verFicha(p)} className="text-xs font-semibold text-acento hover:underline ml-auto">Ficha completa</button>
         </div>
       </div>
     </Modal>
@@ -447,15 +447,15 @@ export function TarjetaCobro({ c, onCerrar }) {
   }, []);
 
   return (
-    <div className={`w-[calc(100vw-2.5rem)] max-w-xs md:w-72 bg-white border border-emerald-300 rounded-2xl shadow-xl overflow-hidden transition-all duration-500 ${saliendo ? "opacity-0 translate-x-6" : "opacity-100"}`}>
-      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white">
+    <div className={`w-[calc(100vw-2.5rem)] max-w-xs md:w-72 bg-superficie border border-emerald-300 rounded-2xl shadow-xl overflow-hidden transition-all duration-500 ${saliendo ? "opacity-0 translate-x-6" : "opacity-100"}`}>
+      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-texto">
         <Bell size={14} className="shrink-0" />
         <span className="text-[10px] uppercase tracking-widest font-bold flex-1">Cobro recibido</span>
-        <button onClick={() => onCerrar(c.id)} className="text-white/70 hover:text-white"><X size={14} /></button>
+        <button onClick={() => onCerrar(c.id)} className="text-texto/70 hover:text-texto"><X size={14} /></button>
       </div>
       <div className="px-3 py-2.5">
-        <div className="f-d text-3xl tabular-nums text-emerald-700 leading-none">{money(c.monto)}</div>
-        <div className="text-[11px] text-stone-400 mt-1.5">
+        <div className="f-d text-3xl tabular-nums text-bien leading-none">{money(c.monto)}</div>
+        <div className="text-[11px] text-texto-tenue mt-1.5">
           Mercado Pago · {new Date(c.fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} · ya está en caja
         </div>
       </div>

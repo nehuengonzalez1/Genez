@@ -37,7 +37,7 @@ export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
               </select>
             </Campo>
             <label className="block col-span-2">
-              <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Número</span>
+              <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Número</span>
               <input value={d.doc || ""} onChange={(e) => set("doc", e.target.value)} className={`${inputCls} f-m`} />
             </label>
           </div>
@@ -49,7 +49,7 @@ export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
         </div>
 
         {faltaCuit && (
-          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 mt-4">
+          <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3 mt-4">
             Un {condicionNombre(d.condicion).toLowerCase()} necesita CUIT para que la factura sea válida.
             Sin eso, la venta va a salir como Factura B.
           </div>
@@ -79,34 +79,34 @@ export function Clientes({ clientes, setClientes, tickets, ajustes, toast }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-tenue" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o CUIT"
-            className="w-full pl-9 pr-3 py-2 text-sm border border-stone-200 rounded-xl outline-none focus:border-orange-400 bg-white" />
+            className="w-full pl-9 pr-3 py-2 text-sm border border-borde rounded-xl outline-none focus:border-acento bg-superficie" />
         </div>
         <Boton size="sm" onClick={() => setAlta({})}><Plus size={14} /> Nuevo cliente</Boton>
       </div>
 
       <Card className="overflow-hidden">
         {lista.length === 0 ? <Vacio>No hay clientes cargados. Los necesitás solo para emitir facturas: la venta al mostrador no requiere ninguno.</Vacio> : (
-          <ul className="divide-y divide-stone-100">
+          <ul className="divide-y divide-borde">
             {lista.map((c) => {
               const letra = letraComprobante(emisor, c.condicion);
               const total = facturadoA(c.id);
               return (
                 <li key={c.id}>
-                  <button onClick={() => setAlta(c)} className="w-full text-left px-4 py-3 hover:bg-stone-50 flex flex-wrap items-center gap-3">
+                  <button onClick={() => setAlta(c)} className="w-full text-left px-4 py-3 hover:bg-superficie-2 flex flex-wrap items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-stone-900">{c.razonSocial}</div>
-                      <div className="f-m text-[11px] text-stone-400">
+                      <div className="font-medium text-texto">{c.razonSocial}</div>
+                      <div className="f-m text-[11px] text-texto-tenue">
                         {c.tipoDoc} {c.doc || "sin número"} · {condicionNombre(c.condicion)}
                         {c.tel ? ` · ${c.tel}` : ""}
                       </div>
                     </div>
                     <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${
-                      letra === "A" ? "bg-stone-900 text-white border-stone-900" : "bg-stone-100 text-stone-600 border-stone-200"}`}>
+                      letra === "A" ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie-2 text-texto-suave border-borde"}`}>
                       Factura {letra}
                     </span>
-                    {total > 0 && <span className="f-m text-sm text-stone-500">{money(total)}</span>}
+                    {total > 0 && <span className="f-m text-sm text-texto-suave">{money(total)}</span>}
                   </button>
                 </li>
               );
@@ -115,7 +115,7 @@ export function Clientes({ clientes, setClientes, tickets, ajustes, toast }) {
         )}
       </Card>
 
-      <p className="text-xs text-stone-500">
+      <p className="text-xs text-texto-suave">
         La letra la calcula el sistema: sos <strong>{condicionNombre(emisor)}</strong>, así que a un responsable inscripto
         le emitís {letraComprobante(emisor, "RI")} y al resto {letraComprobante(emisor, "CF")}.
         Se cambia en Ajustes, en Datos fiscales.

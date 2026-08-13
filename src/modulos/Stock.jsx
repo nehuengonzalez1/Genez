@@ -58,10 +58,10 @@ export function Stock({ productos, setProductos, k, toast }) {
           <TablaSimple
             cols={["Producto", "Stock", "Vende por día", "Alcanza para", "Sugerido"]}
             filas={k.criticos.slice(0, 60).map(({ p, cobertura }) => [
-              <div key="a"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-stone-400">{p.proveedor}</div></div>,
+              <div key="a"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-texto-tenue">{p.proveedor}</div></div>,
               <span className="f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span>,
-              <span className="f-m text-stone-500">{p.vel.toFixed(1)}</span>,
-              <span className={`f-m font-semibold ${cobertura < 2 ? "text-red-600" : "text-amber-600"}`}>{cobertura < 1 ? "hoy" : `${Math.round(cobertura)} días`}</span>,
+              <span className="f-m text-texto-suave">{p.vel.toFixed(1)}</span>,
+              <span className={`f-m font-semibold ${cobertura < 2 ? "text-mal" : "text-ojo"}`}>{cobertura < 1 ? "hoy" : `${Math.round(cobertura)} días`}</span>,
               <span className="f-m">{Math.max(p.bulto, Math.ceil((p.vel * 14 - p.stock) / p.bulto) * p.bulto)} u</span>,
             ])}
             vacio="No hay nada por reponer. Buen momento."
@@ -73,7 +73,7 @@ export function Stock({ productos, setProductos, k, toast }) {
             cols={["Producto", "Vence", "Stock", "Plata en riesgo", ""]}
             filas={k.porVencer.map(({ p, dias, valor }) => [
               <div key="a" className="font-medium">{p.nombre}</div>,
-              <span className={`f-m ${dias <= 0 ? "text-red-600 font-semibold" : dias <= 7 ? "text-amber-600" : ""}`}>{dias <= 0 ? "Vencido" : `en ${dias} días`} · {fdatel(p.vence)}</span>,
+              <span className={`f-m ${dias <= 0 ? "text-mal font-semibold" : dias <= 7 ? "text-ojo" : ""}`}>{dias <= 0 ? "Vencido" : `en ${dias} días`} · {fdatel(p.vence)}</span>,
               <span className="f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span>,
               <span className="f-m">{money(valor)}</span>,
               <Boton key="b" size="sm" variant="ghost" onClick={() => {
@@ -89,8 +89,8 @@ export function Stock({ productos, setProductos, k, toast }) {
           <TablaSimple
             cols={["Producto", "Última venta", "Stock", "Plata inmovilizada", ""]}
             filas={k.dormidos.slice(0, 60).map(({ p, valor }) => [
-              <div key="a"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-stone-400">{p.categoria}</div></div>,
-              <span className="f-m text-stone-500">hace {diasDesde(p.ultimaVenta)} días</span>,
+              <div key="a"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-texto-tenue">{p.categoria}</div></div>,
+              <span className="f-m text-texto-suave">hace {diasDesde(p.ultimaVenta)} días</span>,
               <span className="f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span>,
               <span className="f-m font-semibold">{money(valor)}</span>,
               <Boton key="b" size="sm" variant="ghost" onClick={() => {
@@ -104,24 +104,24 @@ export function Stock({ productos, setProductos, k, toast }) {
 
         {tab === "inventario" && (
           <div className="p-4">
-            <p className="text-sm text-stone-500 mb-3">
+            <p className="text-sm text-texto-suave mb-3">
               Escaneá o buscá el producto, contá lo que hay en góndola y cargá el número real. El sistema calcula la diferencia contra el stock teórico.
             </p>
             <div className="relative max-w-lg">
-              <Barcode size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <Barcode size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-tenue" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Disparale con la pistola o buscalo por nombre"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-stone-200 rounded-xl outline-none focus:border-orange-400" />
+                className="w-full pl-9 pr-3 py-2 text-sm border border-borde rounded-xl outline-none focus:border-acento" />
             </div>
             {buscar.length > 0 && (
-              <div className="mt-3 border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-80 overflow-auto">
+              <div className="mt-3 border border-borde rounded-xl divide-y divide-borde max-h-80 overflow-auto">
                 {buscar.map((p) => (
                   <div key={p.id} className="flex items-center gap-3 px-3 py-2.5">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium truncate">{p.nombre}</div>
-                      <div className="f-m text-[11px] text-stone-400">Sistema: {p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)} {p.unidad}</div>
+                      <div className="f-m text-[11px] text-texto-tenue">Sistema: {p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)} {p.unidad}</div>
                     </div>
                     <input value={conteo[p.id] || ""} onChange={(e) => setConteo((c) => ({ ...c, [p.id]: e.target.value.replace(/[^\d.]/g, "") }))}
-                      placeholder="Contado" className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400" />
+                      placeholder="Contado" className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
                     <Boton size="sm" onClick={() => aplicar(p)} disabled={!conteo[p.id]}>Ajustar</Boton>
                   </div>
                 ))}
@@ -129,20 +129,20 @@ export function Stock({ productos, setProductos, k, toast }) {
             )}
             {ajustados.length > 0 && (
               <div className="mt-5">
-                <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Ajustes de esta sesión</div>
-                <ul className="text-sm divide-y divide-stone-100 border border-stone-200 rounded-xl">
+                <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Ajustes de esta sesión</div>
+                <ul className="text-sm divide-y divide-borde border border-borde rounded-xl">
                   {ajustados.map((a) => (
                     <li key={a.id} className="flex items-center justify-between px-3 py-2">
                       <span className="truncate">{a.nombre}</span>
                       <span className="f-m text-xs shrink-0 ml-3">
                         {a.antes} → {a.real}
-                        <span className={a.dif < 0 ? "text-red-600 ml-2" : "text-emerald-600 ml-2"}>{a.dif > 0 ? "+" : ""}{a.dif} ({money(a.valor)})</span>
+                        <span className={a.dif < 0 ? "text-mal ml-2" : "text-bien ml-2"}>{a.dif > 0 ? "+" : ""}{a.dif} ({money(a.valor)})</span>
                       </span>
                     </li>
                   ))}
                 </ul>
-                <p className="text-xs text-stone-500 mt-2">
-                  Diferencia acumulada: <strong className={ajustados.reduce((s, a) => s + a.valor, 0) < 0 ? "text-red-600" : "text-emerald-600"}>{money(ajustados.reduce((s, a) => s + a.valor, 0))}</strong>. Si da negativo seguido, hay merma o error de carga.
+                <p className="text-xs text-texto-suave mt-2">
+                  Diferencia acumulada: <strong className={ajustados.reduce((s, a) => s + a.valor, 0) < 0 ? "text-mal" : "text-bien"}>{money(ajustados.reduce((s, a) => s + a.valor, 0))}</strong>. Si da negativo seguido, hay merma o error de carga.
                 </p>
               </div>
             )}

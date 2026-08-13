@@ -8,42 +8,45 @@ import { mulberry32, HOY, addDays, fdatel } from "../datos/generador.js";
 import { pct, money, nf, nf2, moneyk, FISCAL_INICIAL, letraComprobante, discriminaIVA, condicionLegal, medioPorK } from "../utils/helpers.js";
 
 export const SEV = {
-  alta: { pill: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500", label: "Urgente" },
-  media: { pill: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500", label: "Atención" },
-  info: { pill: "bg-stone-100 text-stone-600 border-stone-200", dot: "bg-stone-400", label: "Dato" },
+  alta: { pill: "bg-mal-suave text-mal border-mal", dot: "bg-mal", label: "Urgente" },
+  media: { pill: "bg-ojo-suave text-ojo border-ojo", dot: "bg-ojo", label: "Atención" },
+  info: { pill: "bg-superficie-2 text-texto-suave border-borde", dot: "bg-superficie-3", label: "Dato" },
 };
 
 export function Card({ children, className = "" }) {
-  return <div className={`bg-white border border-stone-200 rounded-2xl ${className}`}>{children}</div>;
+  return <div className={`bg-superficie border border-borde rounded-2xl ${className}`}>{children}</div>;
 }
 
 export function Kpi({ label, valor, delta, sub, tono = "neutro" }) {
-  const col = tono === "bien" ? "text-emerald-600" : tono === "mal" ? "text-red-600" : "text-stone-900";
+  const col = tono === "bien" ? "text-bien" : tono === "mal" ? "text-mal" : "text-texto";
   return (
     <Card className="p-4">
-      <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold">{label}</div>
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">{label}</div>
       <div className={`f-d text-3xl mt-1 tabular-nums ${col}`}>{valor}</div>
       <div className="flex items-center gap-2 mt-1">
         {delta !== undefined && delta !== null && (
-          <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+          <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${delta >= 0 ? "text-bien" : "text-mal"}`}>
             {delta >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
             {pct(Math.abs(delta))}
           </span>
         )}
-        {sub && <span className="text-xs text-stone-400">{sub}</span>}
+        {sub && <span className="text-xs text-texto-tenue">{sub}</span>}
       </div>
     </Card>
   );
 }
 
 export function Boton({ children, onClick, variant = "primary", size = "md", className = "", disabled, title }) {
-  const base = "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-1 disabled:opacity-40 disabled:cursor-not-allowed";
+  const base = "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-acento focus-visible:ring-offset-1 focus-visible:ring-offset-fondo disabled:opacity-40 disabled:cursor-not-allowed";
+  /* Sobre el naranja no va blanco: en oscuro el contraste queda flojo y
+     se lee peor que con un tono casi negro. `sobre-acento` es cada cosa
+     en cada tema. */
   const v = {
-    primary: "bg-orange-500 text-white hover:bg-orange-600",
-    dark: "bg-stone-900 text-white hover:bg-stone-800",
-    ghost: "bg-white text-stone-700 border border-stone-200 hover:bg-stone-50",
-    quiet: "text-stone-500 hover:text-stone-900 hover:bg-stone-100",
-    danger: "bg-white text-red-600 border border-red-200 hover:bg-red-50",
+    primary: "bg-acento text-sobre-acento hover:bg-acento-vivo",
+    dark: "bg-superficie-3 text-texto hover:bg-borde-fuerte",
+    ghost: "bg-superficie text-texto border border-borde hover:bg-superficie-2",
+    quiet: "text-texto-suave hover:text-texto hover:bg-superficie-2",
+    danger: "bg-superficie text-mal border border-mal hover:bg-mal-suave",
   }[variant];
   const s = { sm: "text-xs px-2.5 py-1.5", md: "text-sm px-3.5 py-2", lg: "text-base px-5 py-3" }[size];
   return <button title={title} disabled={disabled} onClick={onClick} className={`${base} ${v} ${s} ${className}`}>{children}</button>;
@@ -59,19 +62,21 @@ export function Modal({ open, onClose, children, ancho = "max-w-lg" }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
-      <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`relative w-full ${ancho} bg-white text-stone-900 rounded-t-3xl md:rounded-2xl border border-stone-200 shadow-xl max-h-[92vh] md:max-h-[88vh] overflow-auto seguro-abajo`}>{children}</div>
+      {/* El velo se apoya en el fondo y no en una superficie: tiene que
+          oscurecer lo de atrás en los dos temas, no aclararlo. */}
+      <div className="absolute inset-0 bg-fondo/70 backdrop-blur-[2px]" onClick={onClose} />
+      <div className={`relative w-full ${ancho} bg-superficie text-texto rounded-t-3xl md:rounded-2xl border border-borde shadow-xl max-h-[92vh] md:max-h-[88vh] overflow-auto seguro-abajo`}>{children}</div>
     </div>
   );
 }
 
 export function Tabs({ items, value, onChange }) {
   return (
-    <div className="flex gap-1 border-b border-stone-200 overflow-x-auto">
+    <div className="flex gap-1 border-b border-borde overflow-x-auto">
       {items.map((it) => (
         <button key={it.k} onClick={() => onChange(it.k)}
-          className={`px-3 py-2 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${value === it.k ? "border-orange-500 text-stone-900" : "border-transparent text-stone-400 hover:text-stone-700"}`}>
-          {it.n}{it.badge != null && <span className="ml-1.5 text-[10px] bg-stone-100 text-stone-600 rounded-full px-1.5 py-0.5">{it.badge}</span>}
+          className={`px-3 py-2 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${value === it.k ? "border-acento text-texto" : "border-transparent text-texto-tenue hover:text-texto"}`}>
+          {it.n}{it.badge != null && <span className="ml-1.5 text-[10px] bg-superficie-2 text-texto-suave rounded-full px-1.5 py-0.5">{it.badge}</span>}
         </button>
       ))}
     </div>
@@ -321,7 +326,7 @@ export function svgQR(semilla, mm) {
 export function Comandera({ lineas, ancho, qr, className = "" }) {
   const mm = ancho === 58 ? 58 : 80;
   return (
-    <div className={`bg-white text-black mx-auto ${className}`} style={{ width: `${mm}mm`, maxWidth: "100%" }}>
+    <div className={`bg-superficie text-black mx-auto ${className}`} style={{ width: `${mm}mm`, maxWidth: "100%" }}>
       <pre className="f-m whitespace-pre leading-[1.35] m-0" style={{ fontSize: ancho === 58 ? "9.5px" : "10.5px" }}>
         {lineas.join("\n")}
       </pre>
@@ -433,7 +438,7 @@ export function comandaPicking(ped, W) {
 }
 
 export function Vacio({ children }) {
-  return <div className="text-center py-14 text-stone-400 text-sm">{children}</div>;
+  return <div className="text-center py-14 text-texto-tenue text-sm">{children}</div>;
 }
 
 export function TablaSimple({ cols, filas, vacio }) {
@@ -442,13 +447,13 @@ export function TablaSimple({ cols, filas, vacio }) {
     <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
       <table className="w-full text-sm min-w-[680px]">
         <thead>
-          <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
+          <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde">
             {cols.map((c, i) => <th key={i} className={`px-4 py-2.5 font-semibold ${i > 0 ? "text-right" : ""}`}>{c}</th>)}
           </tr>
         </thead>
-        <tbody className="divide-y divide-stone-100">
+        <tbody className="divide-y divide-borde">
           {filas.map((f, i) => (
-            <tr key={i} className="hover:bg-stone-50">
+            <tr key={i} className="hover:bg-superficie-2">
               {f.map((c, j) => <td key={j} className={`px-4 py-2.5 ${j > 0 ? "text-right" : ""}`}>{c}</td>)}
             </tr>
           ))}

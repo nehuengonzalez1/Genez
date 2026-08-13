@@ -133,31 +133,31 @@ function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar })
             </Campo>
           </div>
           <div>
-            <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Rol</span>
+            <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Rol</span>
             <div className="grid sm:grid-cols-2 gap-2 mt-1.5">
               {ROLES.map((r) => (
                 <button key={r.k} onClick={() => setD({ ...d, rol: r.k })}
-                  className={`text-left px-3 py-2 rounded-xl border ${d.rol === r.k ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+                  className={`text-left px-3 py-2 rounded-xl border ${d.rol === r.k ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
                   <div className="text-sm font-semibold">{r.n}</div>
-                  <div className="text-[11px] text-stone-500">{r.d}</div>
+                  <div className="text-[11px] text-texto-suave">{r.d}</div>
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3">
-          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-2">Con este rol va a ver</div>
+        <div className="mt-4 rounded-xl border border-borde bg-superficie-2 p-3">
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-2">Con este rol va a ver</div>
           <div className="flex flex-wrap gap-1.5">
-            {alcance.length === 0 && <span className="text-sm text-stone-400">Ningún módulo: el comercio no tiene contratado nada de lo que este rol alcanza.</span>}
+            {alcance.length === 0 && <span className="text-sm text-texto-tenue">Ningún módulo: el comercio no tiene contratado nada de lo que este rol alcanza.</span>}
             {alcance.map((k) => (
-              <span key={k} className="text-[11px] px-2 py-0.5 rounded-lg bg-white border border-stone-200 text-stone-700">{(MODULOS.find((m) => m.k === k) || {}).n}</span>
+              <span key={k} className="text-[11px] px-2 py-0.5 rounded-lg bg-superficie border border-borde text-texto">{(MODULOS.find((m) => m.k === k) || {}).n}</span>
             ))}
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[11px] text-stone-500">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[11px] text-texto-suave">
             {[["verCostos", "Ver costos y márgenes"], ["descuentos", "Dar descuentos"], ["anular", "Anular ventas"],
               ["cerrarCaja", "Cerrar caja"], ["cambiarPrecios", "Cambiar precios"], ["ajustes", "Configuración"]].map(([k, n]) => (
-              <span key={k} className={rol.permisos[k] ? "text-emerald-700 font-semibold" : "text-stone-400 line-through"}>{n}</span>
+              <span key={k} className={rol.permisos[k] ? "text-bien font-semibold" : "text-texto-tenue line-through"}>{n}</span>
             ))}
           </div>
         </div>
@@ -188,14 +188,14 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
   };
 
   return (
-    <div className="min-h-screen bg-stone-950 text-white">
-      <header className="border-b border-stone-800 px-4 md:px-6 py-3 flex items-center gap-3">
+    <div className="min-h-screen bg-fondo text-texto">
+      <header className="border-b border-borde-fuerte px-4 md:px-6 py-3 flex items-center gap-3">
         <LogoGenez size={34} claro conNombre />
-        <span className="text-[10px] uppercase tracking-widest text-orange-400 font-bold border border-orange-500/40 rounded px-1.5 py-0.5">Administración</span>
+        <span className="text-[10px] uppercase tracking-widest text-acento-vivo font-bold border border-acento/40 rounded px-1.5 py-0.5">Administración</span>
         <div className="ml-auto flex items-center gap-3">
-          <span className="text-sm text-stone-400 hidden sm:block">{sesion.nombre}</span>
+          <span className="text-sm text-texto-tenue hidden sm:block">{sesion.nombre}</span>
           <BotonTema tema={tema} setTema={setTema} oscuroFijo />
-          <button onClick={onSalir} className="text-sm text-stone-400 hover:text-white">Salir</button>
+          <button onClick={onSalir} className="text-sm text-texto-tenue hover:text-texto">Salir</button>
         </div>
       </header>
 
@@ -205,10 +205,10 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
             <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
               <div>
                 <h1 className="f-d text-2xl">Comercios</h1>
-                <p className="text-sm text-stone-400">{comercios.length} cuentas · {comercios.filter((x) => x.activo).length} activas</p>
+                <p className="text-sm text-texto-tenue">{comercios.length} cuentas · {comercios.filter((x) => x.activo).length} activas</p>
               </div>
               <button onClick={() => { setAltaComercio(true); setNombreNuevo(""); }}
-                className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-stone-950 font-bold rounded-xl px-3.5 py-2 text-sm">
+                className="flex items-center gap-1.5 bg-acento hover:bg-acento-vivo text-texto font-bold rounded-xl px-3.5 py-2 text-sm">
                 <Plus size={15} /> Nuevo comercio
               </button>
             </div>
@@ -216,23 +216,23 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
             <div className="grid md:grid-cols-2 gap-3">
               {comercios.map((x) => (
                 <button key={x.id} onClick={() => setAbierto(x.id)}
-                  className="text-left bg-stone-900 border border-stone-800 hover:border-stone-700 rounded-2xl p-4">
+                  className="text-left bg-superficie-3 border border-borde-fuerte hover:border-borde-fuerte rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-semibold truncate">{x.nombre}</div>
-                      <div className="text-[11px] text-stone-500">Alta {x.alta} · {x.usuarios.length} usuario{x.usuarios.length !== 1 ? "s" : ""}</div>
+                      <div className="text-[11px] text-texto-suave">Alta {x.alta} · {x.usuarios.length} usuario{x.usuarios.length !== 1 ? "s" : ""}</div>
                     </div>
                     <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border shrink-0 ${
-                      x.activo ? "border-emerald-500/40 text-emerald-400" : "border-stone-700 text-stone-500"}`}>
+                      x.activo ? "border-emerald-500/40 text-emerald-400" : "border-borde-fuerte text-texto-suave"}`}>
                       {x.activo ? "Activo" : "Suspendido"}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1 mt-3">
                     {x.modulos.filter((k) => !MODULOS_BASE.includes(k)).map((k) => (
-                      <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-300">{(MODULOS.find((m) => m.k === k) || {}).n}</span>
+                      <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-superficie-3 text-texto-tenue">{(MODULOS.find((m) => m.k === k) || {}).n}</span>
                     ))}
                     {x.modulos.filter((k) => !MODULOS_BASE.includes(k)).length === 0 && (
-                      <span className="text-[11px] text-stone-500">Solo los módulos base</span>
+                      <span className="text-[11px] text-texto-suave">Solo los módulos base</span>
                     )}
                   </div>
                 </button>
@@ -240,23 +240,23 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
             </div>
 
             <section className="mt-8">
-              <h2 className="text-[11px] uppercase tracking-widest text-stone-500 font-bold mb-2">Imagen del login</h2>
-              <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
+              <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold mb-2">Imagen del login</h2>
+              <div className="bg-superficie-3 border border-borde-fuerte rounded-2xl p-4">
                 <div className="flex flex-wrap items-start gap-4">
-                  <div className="w-40 h-28 rounded-xl overflow-hidden border border-stone-800 shrink-0 relative bg-stone-950">
+                  <div className="w-40 h-28 rounded-xl overflow-hidden border border-borde-fuerte shrink-0 relative bg-fondo">
                     {imagenFondo
                       ? <img src={imagenFondo} alt="Fondo del login" className="w-full h-full object-cover" />
-                      : <div className="absolute inset-0 flex items-center justify-center text-[11px] text-stone-600 text-center px-2">Panel generado por el sistema</div>}
+                      : <div className="absolute inset-0 flex items-center justify-center text-[11px] text-texto-suave text-center px-2">Panel generado por el sistema</div>}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-stone-400">
+                    <p className="text-sm text-texto-tenue">
                       Podés reemplazar el panel izquierdo del login por una imagen propia. Se recorta al centro,
                       así que dejá los bordes sin nada importante.
                     </p>
-                    <ul className="text-[11px] text-stone-500 mt-2 space-y-0.5">
-                      <li><strong className="text-stone-400">Medida ideal:</strong> 1400 × 2000 px (vertical, proporción 7:10).</li>
-                      <li><strong className="text-stone-400">Zona segura:</strong> los 200 px del borde derecho se funden con el fondo.</li>
-                      <li><strong className="text-stone-400">Peso:</strong> hasta 2 MB. JPG o PNG.</li>
+                    <ul className="text-[11px] text-texto-suave mt-2 space-y-0.5">
+                      <li><strong className="text-texto-tenue">Medida ideal:</strong> 1400 × 2000 px (vertical, proporción 7:10).</li>
+                      <li><strong className="text-texto-tenue">Zona segura:</strong> los 200 px del borde derecho se funden con el fondo.</li>
+                      <li><strong className="text-texto-tenue">Peso:</strong> hasta 2 MB. JPG o PNG.</li>
                       <li>En celular no se muestra: ahí el login va a pantalla completa.</li>
                     </ul>
                     <div className="flex items-center gap-2 mt-3">
@@ -270,12 +270,12 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                           lector.readAsDataURL(f);
                         }} />
                       <button onClick={() => archivoFondo.current && archivoFondo.current.click()}
-                        className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-stone-950 font-bold rounded-xl px-3.5 py-2 text-sm">
+                        className="flex items-center gap-1.5 bg-acento hover:bg-acento-vivo text-texto font-bold rounded-xl px-3.5 py-2 text-sm">
                         <Upload size={15} /> Cargar imagen
                       </button>
                       {imagenFondo && (
                         <button onClick={() => setImagenFondo(null)}
-                          className="text-sm text-stone-400 hover:text-white px-2">Volver al panel del sistema</button>
+                          className="text-sm text-texto-tenue hover:text-texto px-2">Volver al panel del sistema</button>
                       )}
                     </div>
                   </div>
@@ -285,45 +285,45 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
           </>
         ) : (
           <>
-            <button onClick={() => setAbierto(null)} className="flex items-center gap-1.5 text-sm text-stone-400 hover:text-white mb-4">
+            <button onClick={() => setAbierto(null)} className="flex items-center gap-1.5 text-sm text-texto-tenue hover:text-texto mb-4">
               <ChevronLeft size={16} /> Todos los comercios
             </button>
 
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="f-d text-2xl">{c.nombre}</h1>
-                <p className="text-sm text-stone-400">Alta {c.alta}</p>
+                <p className="text-sm text-texto-tenue">Alta {c.alta}</p>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => actualizar(c.id, { activo: !c.activo })}
-                  className={`text-sm font-semibold rounded-xl px-3 py-2 border ${c.activo ? "border-stone-700 text-stone-300 hover:bg-stone-900" : "border-emerald-500/40 text-emerald-400"}`}>
+                  className={`text-sm font-semibold rounded-xl px-3 py-2 border ${c.activo ? "border-borde-fuerte text-texto-tenue hover:bg-superficie-3" : "border-emerald-500/40 text-emerald-400"}`}>
                   {c.activo ? "Suspender" : "Reactivar"}
                 </button>
                 <button onClick={() => onEntrarComo(c)}
-                  className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-stone-950 font-bold rounded-xl px-3.5 py-2 text-sm">
+                  className="flex items-center gap-1.5 bg-acento hover:bg-acento-vivo text-texto font-bold rounded-xl px-3.5 py-2 text-sm">
                   Entrar al sistema <ArrowRight size={15} />
                 </button>
               </div>
             </div>
 
             <section className="mt-6">
-              <h2 className="text-[11px] uppercase tracking-widest text-stone-500 font-bold mb-2">Módulos contratados</h2>
+              <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold mb-2">Módulos contratados</h2>
               <div className="grid sm:grid-cols-2 gap-2">
                 {MODULOS.map((m) => {
                   const tiene = c.modulos.includes(m.k);
                   return (
                     <button key={m.k} onClick={() => alternarModulo(m.k)} disabled={m.base}
                       className={`text-left px-3.5 py-2.5 rounded-xl border flex items-center gap-3 ${
-                        m.base ? "border-stone-800 bg-stone-900/50 cursor-default"
-                        : tiene ? "border-orange-500/50 bg-orange-500/10" : "border-stone-800 bg-stone-900 hover:border-stone-700"}`}>
+                        m.base ? "border-borde-fuerte bg-superficie-3/50 cursor-default"
+                        : tiene ? "border-acento/50 bg-acento/10" : "border-borde-fuerte bg-superficie-3 hover:border-borde-fuerte"}`}>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold">{m.n}</div>
-                        <div className="text-[11px] text-stone-500">{m.d}</div>
+                        <div className="text-[11px] text-texto-suave">{m.d}</div>
                       </div>
                       {m.base
-                        ? <span className="text-[10px] uppercase tracking-wider text-stone-500 shrink-0">incluido</span>
-                        : <span className={`w-9 h-5 rounded-full shrink-0 relative transition-colors ${tiene ? "bg-orange-500" : "bg-stone-700"}`}>
-                            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${tiene ? "left-4.5" : "left-0.5"}`} style={{ left: tiene ? 18 : 2 }} />
+                        ? <span className="text-[10px] uppercase tracking-wider text-texto-suave shrink-0">incluido</span>
+                        : <span className={`w-9 h-5 rounded-full shrink-0 relative transition-colors ${tiene ? "bg-acento" : "bg-superficie-3"}`}>
+                            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-superficie transition-all ${tiene ? "left-4.5" : "left-0.5"}`} style={{ left: tiene ? 18 : 2 }} />
                           </span>}
                     </button>
                   );
@@ -333,26 +333,26 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
 
             <section className="mt-6">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-[11px] uppercase tracking-widest text-stone-500 font-bold">Accesos</h2>
-                <button onClick={() => setAltaUsuario({})} className="text-sm font-semibold text-orange-400 hover:text-orange-300 flex items-center gap-1">
+                <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold">Accesos</h2>
+                <button onClick={() => setAltaUsuario({})} className="text-sm font-semibold text-acento-vivo hover:text-orange-300 flex items-center gap-1">
                   <Plus size={14} /> Nuevo acceso
                 </button>
               </div>
-              <ul className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800 overflow-hidden">
+              <ul className="bg-superficie-3 border border-borde-fuerte rounded-2xl divide-y divide-stone-800 overflow-hidden">
                 {c.usuarios.map((u) => (
                   <li key={u.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold">{u.nombre}</div>
-                      <div className="f-m text-[11px] text-stone-500">{u.usuario} · {rolPorK(u.rol).n}</div>
+                      <div className="f-m text-[11px] text-texto-suave">{u.usuario} · {rolPorK(u.rol).n}</div>
                     </div>
-                    <button onClick={() => setAltaUsuario(u)} className="text-xs text-stone-400 hover:text-white">Editar</button>
+                    <button onClick={() => setAltaUsuario(u)} className="text-xs text-texto-tenue hover:text-texto">Editar</button>
                     <button onClick={() => actualizar(c.id, { usuarios: c.usuarios.filter((x) => x.id !== u.id) })}
-                      className="text-xs text-stone-600 hover:text-red-400">Quitar</button>
+                      className="text-xs text-texto-suave hover:text-red-400">Quitar</button>
                   </li>
                 ))}
-                {c.usuarios.length === 0 && <li className="px-4 py-6 text-center text-sm text-stone-500">Sin accesos: nadie puede entrar todavía.</li>}
+                {c.usuarios.length === 0 && <li className="px-4 py-6 text-center text-sm text-texto-suave">Sin accesos: nadie puede entrar todavía.</li>}
               </ul>
-              <p className="text-[11px] text-stone-600 mt-2">
+              <p className="text-[11px] text-texto-suave mt-2">
                 El dueño del comercio puede crear los suyos desde adentro del sistema.
               </p>
             </section>
@@ -371,7 +371,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
       <Modal open={altaComercio} onClose={() => setAltaComercio(false)} ancho="max-w-md">
         <div className="p-5">
           <h3 className="f-d text-lg">Nuevo comercio</h3>
-          <p className="text-sm text-stone-500 mt-1">Arranca con los módulos base. Los demás se activan después.</p>
+          <p className="text-sm text-texto-suave mt-1">Arranca con los módulos base. Los demás se activan después.</p>
           <input value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} autoFocus placeholder="Nombre del comercio"
             className={`${inputCls} mt-3`} />
           <div className="flex justify-end gap-2 mt-4">
@@ -400,8 +400,8 @@ function BotonTema({ tema, setTema, oscuroFijo = false }) {
       aria-label={oscuro ? "Pasar a modo claro" : "Pasar a modo oscuro"}
       className={`shrink-0 w-9 h-9 rounded-xl border flex items-center justify-center transition-colors ${
         oscuroFijo
-          ? "border-stone-700 text-stone-400 hover:text-white hover:border-stone-600"
-          : "border-stone-200 text-stone-500 hover:text-stone-900 hover:bg-stone-50"}`}>
+          ? "border-borde-fuerte text-texto-tenue hover:text-texto hover:border-borde-fuerte"
+          : "border-borde text-texto-suave hover:text-texto hover:bg-superficie-2"}`}>
       {oscuro ? <Sun size={16} /> : <Moon size={16} />}
     </button>
   );
@@ -427,13 +427,13 @@ function Sesion({ sesion, onSalir, oscuro = false }) {
   return (
     <div className="flex items-center gap-2 shrink-0">
       <div className="text-right leading-tight hidden sm:block">
-        <div className={`text-xs font-semibold ${oscuro ? "text-white" : "text-stone-700"}`}>{sesion.nombre}</div>
-        <div className="text-[10px] text-stone-400">{rol}</div>
+        <div className={`text-xs font-semibold ${oscuro ? "text-texto" : "text-texto"}`}>{sesion.nombre}</div>
+        <div className="text-[10px] text-texto-tenue">{rol}</div>
       </div>
       <button onClick={onSalir} title="Cerrar sesión"
         className={`flex items-center gap-1.5 text-xs font-semibold rounded-xl px-2.5 py-2 border ${
-          oscuro ? "border-white/20 text-white/80 hover:text-white hover:border-white/40"
-                 : "border-stone-200 text-stone-600 hover:text-stone-900 hover:bg-stone-50"}`}>
+          oscuro ? "border-white/20 text-texto/80 hover:text-texto hover:border-white/40"
+                 : "border-borde text-texto-suave hover:text-texto hover:bg-superficie-2"}`}>
         <LogOut size={15} /> <span className="hidden sm:inline">Salir</span>
       </button>
     </div>
@@ -573,10 +573,10 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
     }
   };
 
-  const campo = "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-white focus:border-orange-500 transition-colors";
+  const campo = "w-full bg-superficie/5 border border-white/10 rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-texto focus:border-acento transition-colors";
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white flex">
+    <div className="min-h-screen bg-[#0A0A0A] text-texto flex">
       <div className="hidden lg:block relative w-[46%] max-w-[680px] overflow-hidden">
         <FondoHexagonal imagen={imagenFondo} />
         <div className="absolute inset-y-0 right-0 w-56 pointer-events-none"
@@ -585,15 +585,15 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
 
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <div className="w-12 h-12 rounded-2xl bg-orange-500 flex items-center justify-center">
-            <KeyRound size={22} className="text-stone-950" />
+          <div className="w-12 h-12 rounded-2xl bg-acento flex items-center justify-center">
+            <KeyRound size={22} className="text-texto" />
           </div>
           <h1 className="f-d text-2xl mt-5">Elegí una contraseña nueva</h1>
-          <p className="text-stone-400 mt-2 text-sm">Con esta vas a entrar de ahora en más. Mínimo 8 caracteres.</p>
+          <p className="text-texto-tenue mt-2 text-sm">Con esta vas a entrar de ahora en más. Mínimo 8 caracteres.</p>
 
           <div className="mt-8 space-y-5">
             <label className="block">
-              <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Contraseña nueva</span>
+              <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Contraseña nueva</span>
               <div className="relative">
                 <input type={ver ? "text" : "password"} value={clave} autoFocus
                   onChange={(e) => { setClave(e.target.value); setError(""); }}
@@ -601,14 +601,14 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
                   className={`${campo} pr-12`} />
                 <button type="button" onClick={() => setVer((v) => !v)} tabIndex={-1}
                   aria-label={ver ? "Ocultar la contraseña" : "Mostrar la contraseña"}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-stone-500 hover:text-stone-300 transition-colors">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-texto-suave hover:text-texto-tenue transition-colors">
                   {ver ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </label>
 
             <label className="block">
-              <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Repetila</span>
+              <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Repetila</span>
               <input type={ver ? "text" : "password"} value={repetir}
                 onChange={(e) => { setRepetir(e.target.value); setError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && guardar()}
@@ -623,12 +623,12 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
             )}
 
             <button onClick={guardar} disabled={guardando || !clave || !repetir}
-              className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:opacity-60 text-stone-950 font-bold rounded-xl px-4 py-4 text-lg transition-colors">
+              className="w-full bg-acento hover:bg-acento-vivo active:bg-acento disabled:opacity-60 text-texto font-bold rounded-xl px-4 py-4 text-lg transition-colors">
               {guardando ? "Guardando…" : "Guardar y entrar"}
             </button>
 
             <button type="button" onClick={onCancelar}
-              className="w-full text-center text-sm text-stone-400 hover:text-orange-400 transition-colors">
+              className="w-full text-center text-sm text-texto-tenue hover:text-acento-vivo transition-colors">
               Volver
             </button>
           </div>
@@ -675,10 +675,10 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
     setEnviando(false);
   };
 
-  const campo = "w-full bg-transparent border rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-white transition-colors";
+  const campo = "w-full bg-transparent border rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-texto transition-colors";
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white flex">
+    <div className="min-h-screen bg-[#0A0A0A] text-texto flex">
       {/* El panel decorativo se esconde en celular: ahí manda el formulario */}
       <div className="hidden lg:block relative w-[46%] max-w-[680px] overflow-hidden">
         <FondoHexagonal imagen={imagenFondo} />
@@ -692,27 +692,27 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="w-full max-w-md">
             <LogoGenez size={64} claro conNombre />
-            <p className="text-stone-400 mt-4">Sistemas de gestión para comercios.</p>
+            <p className="text-texto-tenue mt-4">Sistemas de gestión para comercios.</p>
 
             <div className="mt-9 space-y-5">
               <label className="block">
-                <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Correo</span>
+                <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Correo</span>
                 <input type="email" value={usuario} onChange={(e) => { setUsuario(e.target.value); setError(""); }}
                   onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
                   autoComplete="username" disabled={cargando}
-                  className={`${campo} border-orange-500/70 focus:border-orange-500`} />
+                  className={`${campo} border-acento/70 focus:border-acento`} />
               </label>
               <label className="block">
-                <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Contraseña</span>
+                <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Contraseña</span>
                 <div className="relative">
                   <input type={verClave ? "text" : "password"} value={clave}
                     onChange={(e) => { setClave(e.target.value); setError(""); }}
                     onKeyDown={(e) => e.key === "Enter" && entrar()}
                     autoComplete="current-password" disabled={cargando}
-                    className={`${campo} bg-white/5 border-white/10 focus:border-orange-500 pr-12`} />
+                    className={`${campo} bg-superficie/5 border-white/10 focus:border-acento pr-12`} />
                   <button type="button" onClick={() => setVerClave((v) => !v)} tabIndex={-1}
                     aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-stone-500 hover:text-stone-300 transition-colors">
+                    className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-texto-suave hover:text-texto-tenue transition-colors">
                     {verClave ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
@@ -731,19 +731,19 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
               )}
 
               <button onClick={entrar} disabled={cargando}
-                className="w-full bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:opacity-60 text-stone-950 font-bold rounded-xl px-4 py-4 text-lg transition-colors">
+                className="w-full bg-acento hover:bg-acento-vivo active:bg-acento disabled:opacity-60 text-texto font-bold rounded-xl px-4 py-4 text-lg transition-colors">
                 {cargando ? "Entrando…" : "Entrar"}
               </button>
 
               <button type="button" onClick={recuperar} disabled={enviando}
-                className="w-full text-center text-sm text-stone-400 hover:text-orange-400 disabled:opacity-50 transition-colors">
+                className="w-full text-center text-sm text-texto-tenue hover:text-acento-vivo disabled:opacity-50 transition-colors">
                 {enviando ? "Enviando…" : "¿Olvidaste tu contraseña?"}
               </button>
             </div>
           </div>
         </div>
 
-        <footer className="px-6 py-4 text-center text-[11px] text-stone-600">
+        <footer className="px-6 py-4 text-center text-[11px] text-texto-suave">
           Genez · sistemas de gestión
         </footer>
       </div>
@@ -1226,7 +1226,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
 
   return (
     <ScanCtx.Provider value={{ push }}>
-    <div className="f-ui min-h-screen bg-stone-50 text-stone-900">
+    <div className="f-ui min-h-screen bg-superficie-2 text-texto">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter+Tight:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         .f-ui { font-family: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, sans-serif; }
@@ -1245,73 +1245,22 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
            así que acá no hace falta ocultar nada. */
         @media print { .no-print { display: none !important; } }
 
-        /* --- Modo oscuro -------------------------------------------------
-           El sistema tiene miles de clases de color escritas a mano. En vez
-           de duplicarlas todas, se remapean acá los tonos que realmente se
-           usan. Un solo lugar para mantener, y el resto del código no se
-           entera de que existe un tema.                                    */
-        .tema-oscuro { color-scheme: dark; }
-        /* Las clases de Tailwind con dos puntos llevan la barra escapada, y
-           esto es un template literal: hay que poner dos barras para que
-           llegue una al CSS. Con una sola el selector queda inválido y el
-           navegador tira la regla ENTERA, incluida la parte válida que la
-           acompaña en la lista. Así estuvo roto el fondo del modo oscuro. */
-        .tema-oscuro .bg-stone-50, .tema-oscuro .hover\\:bg-stone-50:hover { background-color: #1c1917 !important; }
-        .tema-oscuro .bg-white { background-color: #1c1917 !important; }
-        .tema-oscuro .bg-stone-100, .tema-oscuro .hover\\:bg-stone-200:hover { background-color: #292524 !important; }
-        .tema-oscuro .bg-stone-200 { background-color: #44403c !important; }
-        .tema-oscuro .text-stone-900 { color: #fafaf9 !important; }
-        .tema-oscuro .text-stone-800, .tema-oscuro .text-stone-700 { color: #e7e5e4 !important; }
-        .tema-oscuro .text-stone-600, .tema-oscuro .text-stone-500 { color: #a8a29e !important; }
-        .tema-oscuro .text-stone-400, .tema-oscuro .text-stone-300 { color: #78716c !important; }
-        .tema-oscuro .border-stone-200, .tema-oscuro .border-stone-100 { border-color: #292524 !important; }
-        .tema-oscuro .divide-stone-100 > * + *, .tema-oscuro .divide-stone-200 > * + * { border-color: #292524 !important; }
-        .tema-oscuro .focus\\:border-orange-400:focus { border-color: #fb923c !important; }
-        /* Los fondos suaves de aviso pierden contraste en oscuro */
-        .tema-oscuro .bg-amber-50 { background-color: #2b1f0a !important; }
-        .tema-oscuro .bg-emerald-50 { background-color: #04231a !important; }
-        .tema-oscuro .bg-red-50 { background-color: #2a0f0f !important; }
-        .tema-oscuro .bg-orange-50 { background-color: #2a1608 !important; }
-        .tema-oscuro .text-amber-800, .tema-oscuro .text-amber-700 { color: #fcd34d !important; }
-        .tema-oscuro .text-emerald-800, .tema-oscuro .text-emerald-700 { color: #6ee7b7 !important; }
-        .tema-oscuro .text-red-800, .tema-oscuro .text-red-700, .tema-oscuro .text-red-600 { color: #fca5a5 !important; }
-        .tema-oscuro .border-amber-200 { border-color: #78350f !important; }
-        .tema-oscuro .border-emerald-200 { border-color: #065f46 !important; }
-        .tema-oscuro .border-red-200 { border-color: #7f1d1d !important; }
-        .tema-oscuro .border-orange-200 { border-color: #7c2d12 !important; }
-        /* El salón pinta de naranja la mesa ocupada, y ese naranja tiene que
-           seguir leyéndose sobre fondo oscuro. */
-        .tema-oscuro .bg-orange-100 { background-color: #3d1f0b !important; }
-        .tema-oscuro .hover\\:bg-orange-100:hover { background-color: #3d1f0b !important; }
-        .tema-oscuro .text-orange-700, .tema-oscuro .text-orange-600 { color: #fdba74 !important; }
-        .tema-oscuro .border-orange-400 { border-color: #c2410c !important; }
-        /* Los colores de canal del mostrador: mostrador es celeste y para
-           llevar es violeta. Sin esto quedan dos manchas claras. */
-        .tema-oscuro .bg-sky-50 { background-color: #0b1e2e !important; }
-        .tema-oscuro .text-sky-700 { color: #7dd3fc !important; }
-        .tema-oscuro .border-sky-200 { border-color: #075985 !important; }
-        /* El plano del salón: el piso es más claro que las mesas, y cada
-           estado se distingue por el borde. */
-        .tema-oscuro .border-stone-300 { border-color: #57534e !important; }
-        .tema-oscuro .border-emerald-400 { border-color: #047857 !important; }
-        .tema-oscuro .border-sky-400 { border-color: #0369a1 !important; }
-        .tema-oscuro .bg-violet-50 { background-color: #1e1338 !important; }
-        .tema-oscuro .text-violet-700 { color: #c4b5fd !important; }
-        .tema-oscuro .border-violet-200 { border-color: #5b21b6 !important; }
-        .tema-oscuro .shadow-sm, .tema-oscuro .shadow-lg, .tema-oscuro .shadow-xl { box-shadow: 0 1px 3px rgba(0,0,0,.5) !important; }
-        .tema-oscuro body, .tema-oscuro .bg-stone-25 { background-color: #0c0a09 !important; }
+        /* El tema vive en src/index.css como variables de color. Acá no
+           queda nada: antes había un bloque que remapeaba a mano cada clase
+           de Tailwind con !important, y cada color nuevo que alguien usaba
+           quedaba ilegible hasta que se acordaran de agregarlo. */
       `}</style>
 
       {/* ============ PANTALLA DE COBRO (la de todo el día) ============ */}
       {vista === "cobro" && (
         <div className="min-h-screen flex flex-col">
-          <header className="sticky top-0 z-30 bg-stone-900 text-white">
+          <header className="sticky top-0 z-30 bg-superficie-3 text-texto">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5">
               <div className="flex items-center gap-2 shrink-0">
-                <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center"><Store size={17} /></div>
+                <div className="w-8 h-8 rounded-xl bg-acento flex items-center justify-center"><Store size={17} /></div>
                 <div>
                   <div className="f-d text-sm leading-tight">{ajustes.negocio}</div>
-                  <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Cobro · {fdatel(HOY)}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Cobro · {fdatel(HOY)}</div>
                 </div>
               </div>
 
@@ -1319,7 +1268,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
                 {[["Vendido hoy", money(ventasHoy)], ["Tickets", nf.format(ticketsHoy)],
                   ["Caja", caja.abierta ? "abierta" : "cerrada"]].map(([l, v]) => (
                   <div key={l} className="shrink-0">
-                    <div className="text-[9px] uppercase tracking-widest text-stone-500 font-bold">{l}</div>
+                    <div className="text-[9px] uppercase tracking-widest text-texto-suave font-bold">{l}</div>
                     <div className="f-m text-sm">{v}</div>
                   </div>
                 ))}
@@ -1327,7 +1276,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
                     está siempre deja de mirarse, y este tiene que llamar la
                     atención el día que la conexión se corta. */}
                 {pendientes > 0 && (
-                  <div className="shrink-0 flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/40 rounded-lg px-2.5 py-1">
+                  <div className="shrink-0 flex items-center gap-1.5 bg-ojo/15 border border-amber-500/40 rounded-lg px-2.5 py-1">
                     <ZapOff size={13} className="text-amber-400 shrink-0" />
                     <div>
                       <div className="text-[9px] uppercase tracking-widest text-amber-500/80 font-bold">Sin guardar</div>
@@ -1338,9 +1287,9 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
               </div>
 
               <button onClick={() => { setVista("panel"); setTab("inicio"); }}
-                className="order-2 md:order-3 relative inline-flex items-center gap-2 text-sm font-semibold bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl px-3.5 py-2 transition-colors">
-                <LayoutDashboard size={16} className="text-orange-400" /> Panel
-                {alertasAltas > 0 && <span className="absolute -top-1.5 -right-1.5 text-[10px] font-bold bg-orange-500 rounded-full px-1.5">{alertasAltas}</span>}
+                className="order-2 md:order-3 relative inline-flex items-center gap-2 text-sm font-semibold bg-superficie/10 hover:bg-superficie/20 border border-white/20 rounded-xl px-3.5 py-2 transition-colors">
+                <LayoutDashboard size={16} className="text-acento-vivo" /> Panel
+                {alertasAltas > 0 && <span className="absolute -top-1.5 -right-1.5 text-[10px] font-bold bg-acento rounded-full px-1.5">{alertasAltas}</span>}
               </button>
 
               <div className="order-2 md:order-4">
@@ -1365,7 +1314,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
             )}
           </main>
 
-          <footer className="hidden md:block px-4 py-2 text-center text-[11px] text-stone-400 border-t border-stone-200 bg-white">
+          <footer className="hidden md:block px-4 py-2 text-center text-[11px] text-texto-tenue border-t border-borde bg-superficie">
             F1 muestra todos los atajos · F2 cobra · F10 abre el Panel
           </footer>
         </div>
@@ -1375,12 +1324,12 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
       {vista === "panel" && (
       <div className="flex">
         {/* Barra lateral */}
-        <aside className="hidden md:flex flex-col w-56 shrink-0 h-screen sticky top-0 bg-white border-r border-stone-200 p-3">
+        <aside className="hidden md:flex flex-col w-56 shrink-0 h-screen sticky top-0 bg-superficie border-r border-borde p-3">
           <div className="flex items-center gap-2 px-2 py-3">
-            <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center text-white"><Store size={17} /></div>
+            <div className="w-8 h-8 rounded-xl bg-acento flex items-center justify-center text-sobre-acento"><Store size={17} /></div>
             <div className="min-w-0">
               <div className="f-d text-sm truncate">{ajustes.negocio}</div>
-              <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">1 caja · {nf.format(productos.length)} art.</div>
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">1 caja · {nf.format(productos.length)} art.</div>
             </div>
           </div>
           <Boton className="w-full mt-2" size="lg" onClick={cobrar_}>
@@ -1390,33 +1339,33 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           <nav className="mt-3 space-y-0.5">
             {NAV.filter((n) => puedeVer(n.k)).map((n) => (
               <button key={n.k} onClick={() => ir(n.k)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors ${tab === n.k ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"}`}>
-                <n.i size={16} className={tab === n.k ? "text-orange-400" : "text-stone-400"} /> {n.n}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors ${tab === n.k ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
+                <n.i size={16} className={tab === n.k ? "text-acento-vivo" : "text-texto-tenue"} /> {n.n}
                 {n.k === "compras" && k.criticos.filter((x) => x.cobertura < 4).length > 0 && (
-                  <span className="ml-auto text-[10px] font-bold bg-orange-500 text-white rounded-full px-1.5">{k.criticos.filter((x) => x.cobertura < 4).length}</span>
+                  <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{k.criticos.filter((x) => x.cobertura < 4).length}</span>
                 )}
                 {n.k === "pedidos" && pedidosCli.filter((p) => p.estado !== "entregado").length > 0 && (
-                  <span className="ml-auto text-[10px] font-bold bg-orange-500 text-white rounded-full px-1.5">{pedidosCli.filter((p) => p.estado !== "entregado").length}</span>
+                  <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{pedidosCli.filter((p) => p.estado !== "entregado").length}</span>
                 )}
               </button>
             ))}
           </nav>
-          <div className="mt-auto px-2.5 py-3 border-t border-stone-200">
-            <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Caja</div>
-            <div className={`text-sm font-semibold ${caja.abierta ? "text-emerald-600" : "text-stone-400"}`}>{caja.abierta ? "Abierta" : "Cerrada"}</div>
-            <div className="text-[11px] text-stone-400 mt-1">Prototipo · datos simulados</div>
+          <div className="mt-auto px-2.5 py-3 border-t border-borde">
+            <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Caja</div>
+            <div className={`text-sm font-semibold ${caja.abierta ? "text-bien" : "text-texto-tenue"}`}>{caja.abierta ? "Abierta" : "Cerrada"}</div>
+            <div className="text-[11px] text-texto-tenue mt-1">Prototipo · datos simulados</div>
           </div>
         </aside>
 
         {/* Navegación móvil */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 overflow-x-auto seguro-abajo">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-superficie border-t border-borde overflow-x-auto seguro-abajo">
           <div className="flex">
-            <button onClick={cobrar_} className="flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 text-white bg-orange-500">
+            <button onClick={cobrar_} className="flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 text-sobre-acento bg-acento">
               {vender === "comandas" ? <ClipboardList size={17} /> : <Barcode size={17} />} {rotuloVender}
             </button>
             {NAV.filter((n) => puedeVer(n.k)).map((n) => (
               <button key={n.k} onClick={() => ir(n.k)}
-                className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${tab === n.k ? "text-orange-600" : "text-stone-400"}`}>
+                className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${tab === n.k ? "text-acento" : "text-texto-tenue"}`}>
                 <n.i size={17} /> {n.n}
               </button>
             ))}
@@ -1427,11 +1376,11 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div className="min-w-0">
               <h1 className="f-d text-xl md:text-2xl">{titulo}</h1>
-              <p className="text-sm text-stone-500">{bajada}</p>
+              <p className="text-sm text-texto-suave">{bajada}</p>
             </div>
-            <div className="flex items-center gap-2 text-xs text-stone-500">
+            <div className="flex items-center gap-2 text-xs text-texto-suave">
               <CalendarDays size={14} /> {fdatel(HOY)}
-              <span className="text-stone-300">·</span>
+              <span className="text-texto-tenue">·</span>
               <span className="f-m">{money(ventasHoy)} hoy</span>
               <BotonTema tema={tema} setTema={setTema} />
               <Boton size="sm" variant="dark" className="md:hidden" onClick={cobrar_}><Barcode size={14} /> Cobrar</Boton>
@@ -1485,7 +1434,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
 
       <div className="fixed bottom-44 md:bottom-5 right-4 md:right-5 z-50 space-y-2 max-w-[calc(100vw-2rem)]">
         {toasts.map((t) => (
-          <div key={t.id} className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl shadow-lg border ${t.tono === "mal" ? "bg-red-600 text-white border-red-700" : "bg-stone-900 text-white border-stone-800"}`}>
+          <div key={t.id} className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl shadow-lg border ${t.tono === "mal" ? "bg-red-600 text-texto border-red-700" : "bg-superficie-3 text-texto border-borde-fuerte"}`}>
             {t.tono === "mal" ? <AlertTriangle size={15} /> : <Check size={15} className="text-emerald-400" />} {t.texto}
           </div>
         ))}

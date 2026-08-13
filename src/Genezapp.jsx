@@ -11,8 +11,8 @@ import { cargarSesion, cargarComercios, salir, alRecuperarClave } from "./datos/
    porque cualquiera de los dos parpadearía en la cara del usuario. */
 function Cargando() {
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
-      <div className="w-8 h-8 rounded-full border-2 border-stone-700 border-t-orange-500 animate-spin" />
+    <div className="min-h-screen bg-fondo flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full border-2 border-borde-fuerte border-t-acento animate-spin" />
     </div>
   );
 }
@@ -20,7 +20,10 @@ function Cargando() {
 export default function App() {
   const [sesion, setSesion] = useState(null);
   const [comercios, setComercios] = useState([]);
-  const [tema, setTema] = useState("claro");
+  /* Oscuro de fábrica porque es donde el sistema vive: una cocina, un
+     salón de noche, una caja con la persiana baja. El claro queda para
+     quien lo prefiera o trabaje contra una ventana. */
+  const [tema, setTema] = useState("oscuro");
   const [imagenFondo, setImagenFondo] = useState(null);   // fondo propio del login
   const [iniciando, setIniciando] = useState(true);
   const [errorInicio, setErrorInicio] = useState("");
@@ -64,7 +67,11 @@ export default function App() {
     setErrorInicio("");
   }, []);
 
-  const envolver = (hijo) => <div className={tema === "oscuro" ? "tema-oscuro min-h-screen bg-stone-950" : ""}>{hijo}</div>;
+  /* La clase no dice "poné el tema oscuro" sino "cambiá al claro": el
+     oscuro son los valores de fábrica y no necesita que nadie lo active. */
+  const envolver = (hijo) => (
+    <div className={`${tema === "claro" ? "tema-claro" : ""} min-h-screen bg-fondo text-texto`}>{hijo}</div>
+  );
 
   if (iniciando) return envolver(<Cargando />);
 

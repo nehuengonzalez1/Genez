@@ -272,12 +272,12 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
         <Boton variant="ghost" size="lg" onClick={onVolver}><ArrowLeft size={18} /> {voz.volver}</Boton>
         <div className="min-w-0">
           <div className="f-d text-lg leading-tight truncate">{rotulo}</div>
-          <div className="text-[11px] text-stone-400 truncate">
+          <div className="text-[11px] text-texto-tenue truncate">
             {sub}{comanda.abiertaEn ? `${sub ? " · " : ""}hace ${espera(minutosDesde(comanda.abiertaEn))}` : ""}
           </div>
         </div>
         <div className="ml-auto text-right">
-          <div className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Total</div>
+          <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Total</div>
           <div className="f-m text-xl">{money(comanda.total)}</div>
         </div>
       </div>
@@ -294,11 +294,11 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
       <div className="grid lg:grid-cols-[1fr_380px] gap-4 items-start">
         <div className={panel === "carta" ? "" : "hidden lg:block"}>
           <Card className="overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-stone-200 flex items-center gap-2">
-              <Search size={16} className="text-stone-400 shrink-0" />
+            <div className="px-3 py-2.5 border-b border-borde flex items-center gap-2">
+              <Search size={16} className="text-texto-tenue shrink-0" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la carta"
                 className="w-full text-base outline-none bg-transparent" />
-              {q && <button onClick={() => setQ("")} className="text-stone-400 shrink-0"><X size={16} /></button>}
+              {q && <button onClick={() => setQ("")} className="text-texto-tenue shrink-0"><X size={16} /></button>}
             </div>
 
             {!filtrada.length && <Vacio>Ningún plato con ese nombre.</Vacio>}
@@ -306,19 +306,19 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
             <div className="max-h-[62vh] overflow-auto">
               {filtrada.map((g) => (
                 <div key={g.categoria}>
-                  <div className="sticky top-0 z-10 bg-stone-100 px-3 py-1.5 text-[11px] uppercase tracking-widest text-stone-500 font-bold">
+                  <div className="sticky top-0 z-10 bg-superficie-2 px-3 py-1.5 text-[11px] uppercase tracking-widest text-texto-suave font-bold">
                     {g.categoria}
                   </div>
-                  <ul className="divide-y divide-stone-100">
+                  <ul className="divide-y divide-borde">
                     {g.items.map((i) => (
                       <li key={i.id} className="flex items-stretch">
                         <button onClick={() => agregar(i)}
-                          className="flex-1 min-w-0 text-left px-3 py-3 hover:bg-stone-50 active:bg-stone-100">
+                          className="flex-1 min-w-0 text-left px-3 py-3 hover:bg-superficie-2 active:bg-superficie-2">
                           <div className="text-base leading-tight truncate">{i.nombre}</div>
-                          <div className="f-m text-sm text-stone-500 mt-0.5">{money(i.precio)}</div>
+                          <div className="f-m text-sm text-texto-suave mt-0.5">{money(i.precio)}</div>
                         </button>
                         <button onClick={() => setDetalle(i)} title="Modificadores y nota"
-                          className="w-14 shrink-0 flex items-center justify-center text-stone-400 hover:text-stone-900 hover:bg-stone-100 border-l border-stone-100">
+                          className="w-14 shrink-0 flex items-center justify-center text-texto-tenue hover:text-texto hover:bg-superficie-2 border-l border-borde">
                           <StickyNote size={18} />
                         </button>
                       </li>
@@ -332,33 +332,33 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
 
         <div className={panel === "comanda" ? "" : "hidden lg:block"}>
           <Card className="overflow-hidden">
-            <div className="px-4 py-3 border-b border-stone-200 flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-borde flex items-center justify-between">
               <h3 className="f-d">{voz.panel}</h3>
-              <span className="text-[11px] text-stone-400">{items} item{items === 1 ? "" : "s"}</span>
+              <span className="text-[11px] text-texto-tenue">{items} item{items === 1 ? "" : "s"}</span>
             </div>
 
             {!lineas.length ? (
               <Vacio>{voz.sinNada}</Vacio>
             ) : (
-              <ul className="divide-y divide-stone-100 max-h-[46vh] overflow-auto">
+              <ul className="divide-y divide-borde max-h-[46vh] overflow-auto">
                 {lineas.map((l) => (
                   <li key={l.id} className="flex items-start gap-2 px-3 py-2.5">
-                    <span className="f-m text-sm font-bold text-stone-500 shrink-0 w-7 pt-0.5">{l.cantidad}×</span>
+                    <span className="f-m text-sm font-bold text-texto-suave shrink-0 w-7 pt-0.5">{l.cantidad}×</span>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm leading-tight">{l.nombre}</div>
                       {(l.modificadores || []).map((m, x) => (
-                        <div key={x} className="text-[11px] text-stone-500">
+                        <div key={x} className="text-[11px] text-texto-suave">
                           · {m.nombre}{m.precio ? ` (+${money(m.precio)})` : ""}
                         </div>
                       ))}
-                      {l.notas && <div className="text-[11px] text-amber-700 italic">{l.notas}</div>}
+                      {l.notas && <div className="text-[11px] text-ojo italic">{l.notas}</div>}
                       {l.estado !== "pedido" && (
-                        <div className="text-[10px] uppercase tracking-wider text-stone-400 font-bold mt-0.5">{l.estado}</div>
+                        <div className="text-[10px] uppercase tracking-wider text-texto-tenue font-bold mt-0.5">{l.estado}</div>
                       )}
                     </div>
                     <span className="f-m text-sm shrink-0">{money(l.total)}</span>
                     <button onClick={() => anular(l)} disabled={trabajando} title="Anular"
-                      className="shrink-0 text-stone-300 hover:text-red-600 disabled:opacity-40 p-1">
+                      className="shrink-0 text-texto-tenue hover:text-mal disabled:opacity-40 p-1">
                       <Trash2 size={15} />
                     </button>
                   </li>
@@ -366,9 +366,9 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
               </ul>
             )}
 
-            <div className="border-t border-stone-200 p-3">
+            <div className="border-t border-borde p-3">
               <div className="flex items-baseline justify-between">
-                <span className="text-sm text-stone-500">Total</span>
+                <span className="text-sm text-texto-suave">Total</span>
                 <span className="f-m text-2xl">{money(comanda.total)}</span>
               </div>
               {lineas.length ? (
@@ -431,23 +431,23 @@ function ModalDetalle({ item, onCerrar, onAgregar }) {
     <Modal open onClose={onCerrar} ancho="max-w-md">
       <div className="p-5">
         <h3 className="f-d text-lg leading-tight">{item.nombre}</h3>
-        <div className="f-m text-sm text-stone-500">{money(item.precio)}</div>
+        <div className="f-m text-sm text-texto-suave">{money(item.precio)}</div>
 
         <div className="flex items-center gap-3 mt-4">
-          <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold flex-1">Cantidad</span>
+          <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold flex-1">Cantidad</span>
           <Boton variant="ghost" size="lg" onClick={() => setCantidad((c) => Math.max(1, c - 1))}><Minus size={18} /></Boton>
           <span className="f-m text-2xl w-10 text-center">{cantidad}</span>
           <Boton variant="ghost" size="lg" onClick={() => setCantidad((c) => c + 1)}><Plus size={18} /></Boton>
         </div>
 
         <div className="mt-4">
-          <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Cómo lo quieren</span>
+          <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Cómo lo quieren</span>
           {mods.length > 0 && (
             <ul className="flex flex-wrap gap-1.5 mt-1.5">
               {mods.map((m, i) => (
-                <li key={i} className="flex items-center gap-1.5 text-sm bg-stone-100 rounded-xl pl-2.5 pr-1.5 py-1">
-                  {m.nombre}{m.precio ? <span className="f-m text-stone-500">+{money(m.precio)}</span> : null}
-                  <button onClick={() => setMods((xs) => xs.filter((_, x) => x !== i))} className="text-stone-400 hover:text-red-600">
+                <li key={i} className="flex items-center gap-1.5 text-sm bg-superficie-2 rounded-xl pl-2.5 pr-1.5 py-1">
+                  {m.nombre}{m.precio ? <span className="f-m text-texto-suave">+{money(m.precio)}</span> : null}
+                  <button onClick={() => setMods((xs) => xs.filter((_, x) => x !== i))} className="text-texto-tenue hover:text-mal">
                     <X size={14} />
                   </button>
                 </li>
@@ -458,20 +458,20 @@ function ModalDetalle({ item, onCerrar, onAgregar }) {
             <input value={texto} onChange={(e) => setTexto(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sumarMod(); } }}
               placeholder="Sin cebolla, extra queso…"
-              className="flex-1 min-w-0 border border-stone-200 rounded-xl px-3 py-2.5 text-base outline-none focus:border-orange-400" />
+              className="flex-1 min-w-0 border border-borde rounded-xl px-3 py-2.5 text-base outline-none focus:border-acento" />
             <input value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sumarMod(); } }}
               placeholder="$"
-              className="f-m w-20 shrink-0 text-right border border-stone-200 rounded-xl px-2 py-2.5 text-base outline-none focus:border-orange-400" />
+              className="f-m w-20 shrink-0 text-right border border-borde rounded-xl px-2 py-2.5 text-base outline-none focus:border-acento" />
             <Boton variant="ghost" size="lg" disabled={!texto.trim()} onClick={sumarMod}><Plus size={18} /></Boton>
           </div>
-          <p className="text-[11px] text-stone-400 mt-1">El precio es opcional. Si lo ponés, se suma a la línea.</p>
+          <p className="text-[11px] text-texto-tenue mt-1">El precio es opcional. Si lo ponés, se suma a la línea.</p>
         </div>
 
         <label className="block mt-4">
-          <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Nota para la cocina</span>
+          <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Nota para la cocina</span>
           <input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ej: que salga con el resto"
-            className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-base mt-1 outline-none focus:border-orange-400" />
+            className="w-full border border-borde rounded-xl px-3 py-2.5 text-base mt-1 outline-none focus:border-acento" />
         </label>
 
         <Boton size="lg" className="w-full mt-5"
@@ -530,28 +530,28 @@ function ModalCobro({ abierto, comanda, comandaId, empresaId, config, ajustes, c
   return (
     <Modal open onClose={onCerrar} ancho="max-w-md">
       <div className="p-5">
-        <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Cobrar</div>
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Cobrar</div>
         <h3 className="f-d text-lg">{rotulo}</h3>
 
         <div className="mt-4 space-y-2">
           {medios.map((m, i) => (
             <button key={m.k} onClick={() => setSel(i)}
               className={`w-full flex items-center justify-between gap-2 text-left px-4 py-3.5 rounded-xl border-2 ${
-                i === sel ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+                i === sel ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
               <span className="text-base font-semibold">{m.n}</span>
               {m.recargo && m.tasa > 0 && (
-                <span className="f-m text-xs text-stone-500">+{m.tasa}%</span>
+                <span className="f-m text-xs text-texto-suave">+{m.tasa}%</span>
               )}
             </button>
           ))}
         </div>
 
         <div className="flex items-baseline justify-between mt-5">
-          <span className="text-sm text-stone-500">Total a cobrar</span>
+          <span className="text-sm text-texto-suave">Total a cobrar</span>
           <span className="f-m text-3xl">{money(rec.total)}</span>
         </div>
         {rec.recargo > 0 && (
-          <div className="text-xs text-stone-500 text-right">
+          <div className="text-xs text-texto-suave text-right">
             {money(comanda.total)} + {money(rec.recargo)} de recargo
           </div>
         )}
@@ -585,10 +585,10 @@ const ETAPAS = [
    saber si el pedido sale por la puerta o lo viene a buscar un cadete,
    sin leer la etiqueta. */
 const TONO = {
-  mostrador: { i: Store, pill: "bg-sky-50 text-sky-700 border-sky-200", borde: "border-sky-200" },
+  mostrador: { i: Store, pill: "bg-info-suave text-info border-info", borde: "border-info" },
   takeaway: { i: ShoppingBag, pill: "bg-violet-50 text-violet-700 border-violet-200", borde: "border-violet-200" },
-  delivery: { i: Bike, pill: "bg-emerald-50 text-emerald-700 border-emerald-200", borde: "border-emerald-200" },
-  app: { i: Smartphone, pill: "bg-amber-50 text-amber-700 border-amber-200", borde: "border-amber-200" },
+  delivery: { i: Bike, pill: "bg-bien-suave text-bien border-bien", borde: "border-bien" },
+  app: { i: Smartphone, pill: "bg-ojo-suave text-ojo border-ojo", borde: "border-ojo" },
 };
 
 const APLICACIONES = ["PedidosYa", "Rappi", "Uber Eats", "Otra"];
@@ -687,8 +687,8 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
         <Boton size="lg" onClick={() => setNuevo(true)} disabled={abriendo}>
           <Plus size={18} /> Nuevo pedido
         </Boton>
-        <span className="text-sm text-stone-500">
-          <strong className="text-stone-900 f-m">{enCurso.length}</strong> en curso
+        <span className="text-sm text-texto-suave">
+          <strong className="text-texto f-m">{enCurso.length}</strong> en curso
         </span>
         <Boton size="sm" variant="ghost" className="ml-auto" onClick={() => releer.current()}>
           <RefreshCw size={14} /> Actualizar
@@ -705,11 +705,11 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
             </Boton>
           );
         })}
-        <div className="flex items-center gap-2 border border-stone-200 bg-white rounded-xl px-3 py-2 min-w-[200px] flex-1 md:flex-none md:w-64">
-          <Search size={16} className="text-stone-400 shrink-0" />
+        <div className="flex items-center gap-2 border border-borde bg-superficie rounded-xl px-3 py-2 min-w-[200px] flex-1 md:flex-none md:w-64">
+          <Search size={16} className="text-texto-tenue shrink-0" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Referencia o cliente"
             className="w-full text-sm outline-none bg-transparent" />
-          {q && <button onClick={() => setQ("")} className="text-stone-400 shrink-0"><X size={15} /></button>}
+          {q && <button onClick={() => setQ("")} className="text-texto-tenue shrink-0"><X size={15} /></button>}
         </div>
       </div>
 
@@ -728,12 +728,12 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
             <div key={et.k}>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="f-d text-base">{et.n}</h3>
-                <span className="f-m text-sm text-stone-400">{suyos.length}</span>
+                <span className="f-m text-sm text-texto-tenue">{suyos.length}</span>
               </div>
               <div className="space-y-2">
                 {suyos.map((p) => <TarjetaPedido key={p.id} p={p} onTocar={() => setAbierto(p)} />)}
                 {!suyos.length && (
-                  <div className="rounded-2xl border-2 border-dashed border-stone-200 py-6 text-center text-xs text-stone-300">
+                  <div className="rounded-2xl border-2 border-dashed border-borde py-6 text-center text-xs text-texto-tenue">
                     vacío
                   </div>
                 )}
@@ -745,16 +745,16 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
 
       {completados.length > 0 && (
         <section>
-          <h3 className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-2">
+          <h3 className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-2">
             Completados · {completados.length}
           </h3>
           <ul className="flex flex-wrap gap-2">
             {completados.map((p) => (
               <li key={p.id}>
                 <button onClick={() => setAbierto(p)}
-                  className="flex items-center gap-2 text-left border border-stone-200 bg-white rounded-xl px-3 py-2 hover:bg-stone-50">
-                  <Check size={14} className="text-stone-400 shrink-0" />
-                  <span className="text-sm text-stone-500 truncate max-w-[180px]">{encabezadoDe(p).titulo}</span>
+                  className="flex items-center gap-2 text-left border border-borde bg-superficie rounded-xl px-3 py-2 hover:bg-superficie-2">
+                  <Check size={14} className="text-texto-tenue shrink-0" />
+                  <span className="text-sm text-texto-suave truncate max-w-[180px]">{encabezadoDe(p).titulo}</span>
                   <span className="f-m text-sm">{money(p.total)}</span>
                 </button>
               </li>
@@ -778,13 +778,13 @@ function TarjetaPedido({ p, onTocar }) {
 
   return (
     <button onClick={onTocar}
-      className={`w-full text-left rounded-2xl border-2 bg-white p-3 hover:bg-stone-50 transition-colors ${t.borde}`}>
+      className={`w-full text-left rounded-2xl border-2 bg-superficie p-3 hover:bg-superficie-2 transition-colors ${t.borde}`}>
       <div className="flex items-center gap-2">
         <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border ${t.pill}`}>
           <Icono size={12} /> {rotuloCanal(p)}
         </span>
         {p.referencia && <span className="f-m text-sm font-bold truncate">#{p.referencia}</span>}
-        <span className="ml-auto flex items-center gap-1 text-[11px] text-stone-500 shrink-0">
+        <span className="ml-auto flex items-center gap-1 text-[11px] text-texto-suave shrink-0">
           <Clock size={11} /> {espera(min)}
         </span>
       </div>
@@ -794,12 +794,12 @@ function TarjetaPedido({ p, onTocar }) {
       {primeras.length > 0 && (
         <div className="mt-1.5 space-y-0.5">
           {primeras.map((l) => (
-            <div key={l.id} className="text-sm text-stone-600 leading-tight truncate">
+            <div key={l.id} className="text-sm text-texto-suave leading-tight truncate">
               <span className="f-m font-bold">{l.cantidad}×</span> {l.nombre}
             </div>
           ))}
           {p.lineas.length > primeras.length && (
-            <div className="text-[11px] text-stone-400">y {p.lineas.length - primeras.length} más</div>
+            <div className="text-[11px] text-texto-tenue">y {p.lineas.length - primeras.length} más</div>
           )}
         </div>
       )}
@@ -852,11 +852,11 @@ function ModalNuevoPedido({ abierto, trabajando, onCerrar, onCrear }) {
                 const Icono = tonoDe(c.k).i;
                 return (
                   <button key={c.k} onClick={() => elegir(c.k)} disabled={trabajando}
-                    className="w-full flex items-center gap-3 text-left px-4 py-3.5 rounded-xl border-2 border-stone-200 hover:bg-stone-50 disabled:opacity-40">
-                    <Icono size={20} className="text-stone-500 shrink-0" />
+                    className="w-full flex items-center gap-3 text-left px-4 py-3.5 rounded-xl border-2 border-borde hover:bg-superficie-2 disabled:opacity-40">
+                    <Icono size={20} className="text-texto-suave shrink-0" />
                     <span className="min-w-0">
                       <span className="block text-base font-semibold">{c.n}</span>
-                      {c.d && <span className="block text-xs text-stone-500">{c.d}</span>}
+                      {c.d && <span className="block text-xs text-texto-suave">{c.d}</span>}
                     </span>
                   </button>
                 );
@@ -874,7 +874,7 @@ function ModalNuevoPedido({ abierto, trabajando, onCerrar, onCrear }) {
                   {APLICACIONES.map((a) => (
                     <button key={a} onClick={() => setApp(a)}
                       className={`px-3 py-3 rounded-xl border-2 text-base font-semibold ${
-                        app === a ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+                        app === a ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
                       {a}
                     </button>
                   ))}
@@ -996,12 +996,12 @@ export function Cocina({ empresaId, config = {}, toast }) {
             <div key={col.k}>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="f-d text-base">{col.n}</h3>
-                <span className="f-m text-sm text-stone-400">{suyas.length}</span>
+                <span className="f-m text-sm text-texto-tenue">{suyas.length}</span>
               </div>
               <div className="space-y-2">
                 {suyas.map((l) => <Comanda key={l.id} l={l} col={col} onMover={mover} />)}
                 {!suyas.length && (
-                  <div className="rounded-2xl border-2 border-dashed border-stone-200 py-6 text-center text-xs text-stone-300">
+                  <div className="rounded-2xl border-2 border-dashed border-borde py-6 text-center text-xs text-texto-tenue">
                     vacío
                   </div>
                 )}
@@ -1017,7 +1017,7 @@ export function Cocina({ empresaId, config = {}, toast }) {
 function Comanda({ l, col, onMover }) {
   const min = minutosDesde(l.enviadaEn || l.desde);
   // Lo que espera hace rato tiene que gritar desde el otro lado de la cocina.
-  const tono = min >= 20 ? "border-red-200 bg-red-50" : min >= 10 ? "border-amber-200 bg-amber-50" : "border-stone-200 bg-white";
+  const tono = min >= 20 ? "border-mal bg-mal-suave" : min >= 10 ? "border-ojo bg-ojo-suave" : "border-borde bg-superficie";
 
   return (
     <div className={`rounded-2xl border-2 p-3 ${tono}`}>
@@ -1025,16 +1025,16 @@ function Comanda({ l, col, onMover }) {
         {/* Un pedido de mostrador no tiene mesa, y la cocina igual tiene que
             saber que eso hay que prepararlo. */}
         <span className="f-d text-xl leading-none">{l.mesa || "Pedido"}</span>
-        <span className="f-m text-xs text-stone-500 shrink-0">{espera(min)}</span>
+        <span className="f-m text-xs text-texto-suave shrink-0">{espera(min)}</span>
       </div>
       <div className="text-base mt-2 leading-tight">
         <span className="f-m font-bold">{l.cantidad}×</span> {l.nombre}
       </div>
       {(l.modificadores || []).map((m, i) => (
-        <div key={i} className="text-sm text-stone-600">· {m.nombre}</div>
+        <div key={i} className="text-sm text-texto-suave">· {m.nombre}</div>
       ))}
-      {l.notas && <div className="text-sm italic text-amber-700 mt-1">{l.notas}</div>}
-      {l.destino && <div className="text-[10px] uppercase tracking-widest text-stone-400 font-bold mt-1">{l.destino}</div>}
+      {l.notas && <div className="text-sm italic text-ojo mt-1">{l.notas}</div>}
+      {l.destino && <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold mt-1">{l.destino}</div>}
       <Boton size="lg" className="w-full mt-3" variant={col.k === "listo" ? "dark" : "primary"}
         onClick={() => onMover(l, col.sig)}>
         {col.accion}

@@ -2,5 +2,98 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   LOS COLORES DE GENEZ
+   ============================================================
+
+   Cada color se nombra por lo que es —superficie, texto, borde— y no por
+   lo que vale. Las pantallas piden "fondo de superficie", no "gris 50".
+
+   Por eso cambiar el tema es cambiar estos valores y nada más: ninguna
+   pantalla sabe de qué color es nada. Antes el claro estaba escrito en
+   cada componente y el oscuro lo pisaba con !important, así que cada
+   color nuevo que alguien usaba quedaba ilegible hasta que se acordaran
+   de remaparlo a mano.
+
+   El oscuro es el de fábrica porque es donde el sistema va a vivir: una
+   cocina, un salón de noche, una caja con la persiana baja.
+
+   Van como tres números y no como #hex para que Tailwind pueda
+   aplicarles transparencia: bg-superficie/60 funciona, con hex no.
+   ============================================================ */
+
+:root {
+  /* Superficies, de más al fondo a más al frente */
+  --fondo:        10 10 10;
+  --superficie:   23 23 23;
+  --superficie-2: 38 38 38;
+  --superficie-3: 56 56 56;
+
+  /* Texto, de más a menos importante */
+  --texto:        250 250 249;
+  --texto-suave:  168 162 158;
+  --texto-tenue:  115 115 115;
+
+  --borde:        41 41 41;
+  --borde-fuerte: 68 68 68;
+
+  /* El naranja de Genez. `sobre-acento` es lo que se lee encima. */
+  --acento:        249 115 22;
+  --acento-vivo:   251 146 60;
+  --acento-suave:  61 30 10;
+  --sobre-acento:  10 10 10;
+
+  /* Estados. No son decoración: dicen si algo está bien o hay que mirarlo. */
+  --bien:       34 197 94;
+  --bien-suave: 5 46 22;
+  --ojo:        245 158 11;
+  --ojo-suave:  53 34 4;
+  --mal:        248 113 113;
+  --mal-suave:  60 20 20;
+  --info:       56 189 248;
+  --info-suave: 8 41 61;
+
+  color-scheme: dark;
+}
+
+.tema-claro {
+  --fondo:        250 250 249;
+  --superficie:   255 255 255;
+  --superficie-2: 245 245 244;
+  --superficie-3: 231 229 228;
+
+  --texto:        28 25 23;
+  --texto-suave:  87 83 78;
+  --texto-tenue:  120 113 108;
+
+  --borde:        231 229 228;
+  --borde-fuerte: 214 211 209;
+
+  --acento:        234 88 12;
+  --acento-vivo:   249 115 22;
+  --acento-suave:  255 237 213;
+  --sobre-acento:  255 255 255;
+
+  --bien:       21 128 61;
+  --bien-suave: 220 252 231;
+  --ojo:        180 83 9;
+  --ojo-suave:  254 243 199;
+  --mal:        185 28 28;
+  --mal-suave:  254 226 226;
+  --info:       2 132 199;
+  --info-suave: 224 242 254;
+
+  color-scheme: light;
+}
+
 html, body, #root { height: 100%; }
-body { margin: 0; }
+
+body {
+  margin: 0;
+  background-color: rgb(var(--fondo));
+  color: rgb(var(--texto));
+}
+
+/* El fondo del tema tiene que ganarle al del navegador también cuando se
+   scrollea de más en celular. */
+html { background-color: rgb(var(--fondo)); }

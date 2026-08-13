@@ -33,7 +33,7 @@ export function Reportes({ productos, k, ir }) {
       <div className="flex items-center gap-1.5">
         {[7, 30, 90].map((d) => (
           <button key={d} onClick={() => setDias(d)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${dias === d ? "bg-stone-900 text-white border-stone-900" : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"}`}>
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${dias === d ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>
             {d} días
           </button>
         ))}
@@ -47,7 +47,7 @@ export function Reportes({ productos, k, ir }) {
       </div>
 
       <Card className="p-4">
-        <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-3">Ventas y ganancia por día</div>
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Ventas y ganancia por día</div>
         <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={serie} margin={{ top: 4, right: 8, left: -14, bottom: 0 }}>
             <defs>
@@ -72,16 +72,16 @@ export function Reportes({ productos, k, ir }) {
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card className="p-4">
-          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-3">Los que más facturan</div>
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Los que más facturan</div>
           <ul className="space-y-2.5">
             {topVenta.map((p, i) => (
               <li key={p.id}>
                 <div className="flex justify-between text-sm gap-3">
-                  <span className="truncate text-stone-700"><span className="f-m text-stone-300 mr-2">{i + 1}</span>{p.nombre}</span>
+                  <span className="truncate text-texto"><span className="f-m text-texto-tenue mr-2">{i + 1}</span>{p.nombre}</span>
                   <span className="f-m shrink-0">{money(p.u30 * p.precio * factor)}</span>
                 </div>
-                <div className="h-1.5 bg-stone-100 rounded-full mt-1 overflow-hidden">
-                  <div className="h-full bg-stone-800 rounded-full" style={{ width: `${(p.u30 * p.precio / maxVenta) * 100}%` }} />
+                <div className="h-1.5 bg-superficie-2 rounded-full mt-1 overflow-hidden">
+                  <div className="h-full bg-superficie-3 rounded-full" style={{ width: `${(p.u30 * p.precio / maxVenta) * 100}%` }} />
                 </div>
               </li>
             ))}
@@ -89,14 +89,14 @@ export function Reportes({ productos, k, ir }) {
         </Card>
 
         <Card className="p-4">
-          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-3">Los que más ganancia dejan</div>
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Los que más ganancia dejan</div>
           <ul className="space-y-2">
             {topGanancia.map((p, i) => (
               <li key={p.id} className="flex items-center justify-between text-sm gap-3 py-0.5">
-                <span className="truncate text-stone-700"><span className="f-m text-stone-300 mr-2">{i + 1}</span>{p.nombre}</span>
+                <span className="truncate text-texto"><span className="f-m text-texto-tenue mr-2">{i + 1}</span>{p.nombre}</span>
                 <span className="shrink-0 text-right">
                   <span className="f-m block">{money((p.precio - p.costo) * p.u30 * factor)}</span>
-                  <span className="text-[10px] text-stone-400">{pct((p.precio - p.costo) / p.precio, 0)} margen</span>
+                  <span className="text-[10px] text-texto-tenue">{pct((p.precio - p.costo) / p.precio, 0)} margen</span>
                 </span>
               </li>
             ))}
@@ -105,7 +105,7 @@ export function Reportes({ productos, k, ir }) {
       </div>
 
       <Card className="p-4">
-        <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-3">Ventas y ganancia por rubro</div>
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Ventas y ganancia por rubro</div>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={porCat} margin={{ top: 4, right: 8, left: -14, bottom: 40 }}>
             <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
@@ -119,20 +119,20 @@ export function Reportes({ productos, k, ir }) {
       </Card>
 
       <Card className="overflow-hidden">
-        <div className="px-4 py-3 border-b border-stone-200 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-borde flex items-center justify-between">
           <div>
             <h3 className="f-d">Productos que perdieron margen</h3>
-            <p className="text-xs text-stone-500">Subió el costo y el precio quedó donde estaba.</p>
+            <p className="text-xs text-texto-suave">Subió el costo y el precio quedó donde estaba.</p>
           </div>
           <Boton size="sm" variant="ghost" onClick={() => ir("productos", "margen")}>Ver todos</Boton>
         </div>
         <TablaSimple
           cols={["Producto", "Costo antes", "Costo hoy", "Margen", "Cuánto te cuesta"]}
           filas={k.subas.slice(0, 12).map((x) => [
-            <div key="a"><div className="font-medium">{x.p.nombre}</div><div className="text-[11px] text-stone-400">{x.p.proveedor}</div></div>,
-            <span className="f-m text-stone-400">{money(x.p.costoPrev)}</span>,
-            <span className="f-m">{money(x.p.costo)} <span className="text-[10px] text-red-500">+{pct(x.subaPct, 0)}</span></span>,
-            <span className="f-m">{pct(x.margenAntes, 0)} → <span className="text-red-600 font-semibold">{pct(x.margenHoy, 0)}</span></span>,
+            <div key="a"><div className="font-medium">{x.p.nombre}</div><div className="text-[11px] text-texto-tenue">{x.p.proveedor}</div></div>,
+            <span className="f-m text-texto-tenue">{money(x.p.costoPrev)}</span>,
+            <span className="f-m">{money(x.p.costo)} <span className="text-[10px] text-mal">+{pct(x.subaPct, 0)}</span></span>,
+            <span className="f-m">{pct(x.margenAntes, 0)} → <span className="text-mal font-semibold">{pct(x.margenHoy, 0)}</span></span>,
             <span className="f-m font-semibold">{money(x.impacto)}/mes</span>,
           ])}
           vacio="Ningún costo subió en los últimos 30 días."

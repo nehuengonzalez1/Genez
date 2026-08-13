@@ -59,55 +59,55 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
 
   return (
     <Overlay ancho="max-w-md">
-      <div className="bg-orange-500 text-white px-5 py-3.5">
+      <div className="bg-acento text-sobre-acento px-5 py-3.5">
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-orange-100">
           <ScanLine size={13} /> Producto nuevo
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <div className="f-d text-xl flex-1">{codigo ? `Código ${codigo}` : "Sin código de barras"}</div>
           {!codigo && (
-            <button onClick={() => setCamara(true)} className="flex items-center gap-1.5 text-xs font-semibold bg-white/20 active:bg-white/30 rounded-xl px-2.5 py-1.5">
+            <button onClick={() => setCamara(true)} className="flex items-center gap-1.5 text-xs font-semibold bg-superficie/20 active:bg-superficie/30 rounded-xl px-2.5 py-1.5">
               <Cam size={14} /> Leer
             </button>
           )}
         </div>
       </div>
       <div className="p-5" onKeyDown={teclas}>
-        <p className="text-sm text-stone-600">
+        <p className="text-sm text-texto-suave">
           Cargá lo mínimo para poder cobrar. El rubro, el proveedor y el stock los completás después, cuando no haya nadie esperando.
         </p>
         <label className="block mt-4">
-          <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Nombre</span>
+          <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Nombre</span>
           <input ref={ref} value={nombre} onChange={(e) => setNombre(e.target.value)}
-            placeholder="Ej: Alfajor Jorgito triple" className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 text-base mt-1 outline-none focus:border-orange-400" />
+            placeholder="Ej: Alfajor Jorgito triple" className="w-full border-2 border-borde rounded-xl px-3 py-2.5 text-base mt-1 outline-none focus:border-acento" />
         </label>
         <div className="grid grid-cols-2 gap-3 mt-3">
           <label className="block">
-            <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Precio de venta</span>
+            <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Precio de venta</span>
             <input value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
-              className="f-m w-full text-right border-2 border-stone-200 rounded-xl px-3 py-2.5 text-lg mt-1 outline-none focus:border-orange-400" />
+              className="f-m w-full text-right border-2 border-borde rounded-xl px-3 py-2.5 text-lg mt-1 outline-none focus:border-acento" />
           </label>
           <label className="block">
-            <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Costo (opcional)</span>
+            <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Costo (opcional)</span>
             <input value={costo} onChange={(e) => setCosto(e.target.value.replace(/\D/g, ""))}
-              className="f-m w-full text-right border border-stone-200 rounded-xl px-3 py-2.5 text-lg mt-1 outline-none focus:border-orange-400" />
+              className="f-m w-full text-right border border-borde rounded-xl px-3 py-2.5 text-lg mt-1 outline-none focus:border-acento" />
           </label>
         </div>
-        {margen != null && <p className="text-xs text-stone-500 mt-2 text-right">Margen {pct(margen)}</p>}
+        {margen != null && <p className="text-xs text-texto-suave mt-2 text-right">Margen {pct(margen)}</p>}
 
         {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
-          <div key={l.id} className="border border-stone-200 rounded-xl p-3 mt-3">
+          <div key={l.id} className="border border-borde rounded-xl p-3 mt-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{l.nombre}</div>
-                <div className="text-[11px] text-stone-500">Se cobra a partir de {l.umbral} unidades. Vacío: este producto no entra en esta lista.</div>
+                <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">{l.nombre}</div>
+                <div className="text-[11px] text-texto-suave">Se cobra a partir de {l.umbral} unidades. Vacío: este producto no entra en esta lista.</div>
               </div>
               <input value={otros[l.id] || ""} onChange={(e) => setOtros((o) => ({ ...o, [l.id]: e.target.value.replace(/\D/g, "") }))}
-                placeholder="opcional" className="f-m w-28 text-right border border-stone-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-orange-400 shrink-0" />
+                placeholder="opcional" className="f-m w-28 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento shrink-0" />
             </div>
             {Number(precio) > 0 && !Number(otros[l.id]) && (
               <button onClick={() => setOtros((o) => ({ ...o, [l.id]: String(Math.round((Number(precio) * (1 - ajustes.desc2 / 100)) / 10) * 10) }))}
-                className="text-xs font-semibold text-orange-600 hover:underline mt-2">
+                className="text-xs font-semibold text-acento hover:underline mt-2">
                 Poner {money(Math.round((Number(precio) * (1 - ajustes.desc2 / 100)) / 10) * 10)} ({ajustes.desc2}% menos)
               </button>
             )}
@@ -120,7 +120,7 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
         <Boton variant="quiet" className="w-full mt-1.5" disabled={!nombre.trim()} onClick={() => crear(false)}>
           Crear sin precio y seguir
         </Boton>
-        <p className="text-[11px] text-stone-400 mt-3 text-center">
+        <p className="text-[11px] text-texto-tenue mt-3 text-center">
           Va a quedar marcado como ficha incompleta en el Panel. <Tecla>Esc</Tecla> cancela.
         </p>
       </div>
@@ -369,9 +369,9 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
   if (!abierto) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-3 text-white bg-black/80">
-        <Cam size={18} className="text-orange-400 shrink-0" />
+    <div className="fixed inset-0 z-[70] bg-fondo flex flex-col">
+      <div className="flex items-center gap-3 px-4 py-3 text-white bg-fondo/80">
+        <Cam size={18} className="text-acento-vivo shrink-0" />
         <span className="font-semibold text-sm flex-1">{titulo}</span>
         <button onClick={cambiarLinterna} className="p-2 text-white/70 active:text-white" title="Linterna">
           {linterna ? <Zap size={18} /> : <ZapOff size={18} />}
@@ -383,20 +383,20 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
         <video ref={video} playsInline muted autoPlay className="absolute inset-0 w-full h-full object-cover" />
         {estado === "leyendo" && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-[78%] max-w-sm aspect-[5/3] border-2 border-orange-400 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+            <div className="w-[78%] max-w-sm aspect-[5/3] border-2 border-acento rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
           </div>
         )}
         {estado !== "leyendo" && (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
             <div className="text-white">
-              {estado === "error" ? <CameraOff size={30} className="mx-auto text-red-400" /> : <Loader2 size={30} className="mx-auto animate-spin text-orange-400" />}
+              {estado === "error" ? <CameraOff size={30} className="mx-auto text-red-400" /> : <Loader2 size={30} className="mx-auto animate-spin text-acento-vivo" />}
               <p className="text-sm mt-3 max-w-xs">{detalle || "Encendiendo la cámara…"}</p>
             </div>
           </div>
         )}
       </div>
 
-      <div className="px-4 py-3 bg-black/85 text-center seguro-abajo">
+      <div className="px-4 py-3 bg-fondo/85 text-center seguro-abajo">
         {ultimo
           ? <p className="f-m text-sm text-emerald-400">Leído: {ultimo}</p>
           : <p className="text-xs text-white/60">Acercá el código de barras al recuadro</p>}
@@ -423,22 +423,22 @@ function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
       <div className="p-5">
         <h3 className="f-d text-lg">¿A quién se le factura?</h3>
         <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Nombre o CUIT"
-          className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm mt-3 outline-none focus:border-orange-400" />
-        <button onClick={() => onElegir(null)} className="w-full text-left px-3 py-2.5 mt-3 rounded-xl border border-stone-200 hover:bg-stone-50">
+          className="w-full border border-borde rounded-xl px-3 py-2 text-sm mt-3 outline-none focus:border-acento" />
+        <button onClick={() => onElegir(null)} className="w-full text-left px-3 py-2.5 mt-3 rounded-xl border border-borde hover:bg-superficie-2">
           <span className="text-sm font-semibold">Consumidor final</span>
-          <span className="block text-[11px] text-stone-400">Sin datos del cliente</span>
+          <span className="block text-[11px] text-texto-tenue">Sin datos del cliente</span>
         </button>
-        <ul className="mt-2 border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-64 overflow-auto">
+        <ul className="mt-2 border border-borde rounded-xl divide-y divide-borde max-h-64 overflow-auto">
           {lista.map((c) => (
             <li key={c.id}>
-              <button onClick={() => onElegir(c)} className="w-full text-left px-3 py-2 hover:bg-stone-50">
+              <button onClick={() => onElegir(c)} className="w-full text-left px-3 py-2 hover:bg-superficie-2">
                 <div className="text-sm font-medium">{c.razonSocial}</div>
-                <div className="f-m text-[11px] text-stone-400">{c.tipoDoc} {c.doc} · {condicionNombre(c.condicion)}</div>
+                <div className="f-m text-[11px] text-texto-tenue">{c.tipoDoc} {c.doc} · {condicionNombre(c.condicion)}</div>
               </button>
             </li>
           ))}
         </ul>
-        {lista.length === 0 && <p className="text-sm text-stone-400 text-center py-3">No hay coincidencias.</p>}
+        {lista.length === 0 && <p className="text-sm text-texto-tenue text-center py-3">No hay coincidencias.</p>}
         <Boton variant="ghost" className="w-full mt-3" onClick={() => setNuevo(true)}><Plus size={15} /> Cargar un cliente nuevo</Boton>
       </div>
     </Modal>
@@ -448,14 +448,14 @@ function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
 export function Overlay({ children, ancho = "max-w-xl" }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
-      <div className="absolute inset-0 bg-stone-900/70 backdrop-blur-[3px]" />
-      <div className={`relative w-full ${ancho} bg-white text-stone-900 rounded-t-3xl md:rounded-2xl border border-stone-200 shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto seguro-abajo`}>{children}</div>
+      <div className="absolute inset-0 bg-superficie-3/70 backdrop-blur-[3px]" />
+      <div className={`relative w-full ${ancho} bg-superficie text-texto rounded-t-3xl md:rounded-2xl border border-borde shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto seguro-abajo`}>{children}</div>
     </div>
   );
 }
 
 export function Tecla({ children }) {
-  return <kbd className="f-m text-[10px] border border-stone-300 rounded px-1.5 py-0.5 bg-white text-stone-600">{children}</kbd>;
+  return <kbd className="f-m text-[10px] border border-borde-fuerte rounded px-1.5 py-0.5 bg-superficie text-texto-suave">{children}</kbd>;
 }
 
 const ATAJOS = [
@@ -744,20 +744,20 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     <div className="grid lg:grid-cols-[1fr_360px] gap-4 items-start">
       <div className="space-y-3">
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 bg-stone-900">
-            <Barcode size={20} className="text-orange-400 shrink-0" />
+          <div className="flex items-center gap-3 px-4 py-3 bg-superficie-3">
+            <Barcode size={20} className="text-acento-vivo shrink-0" />
             <input ref={inp} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} onKeyDown={onKeyInput}
               placeholder="Escaneá o escribí el nombre · Enter con el campo vacío cobra"
               className="f-m flex-1 bg-transparent text-white placeholder-stone-500 text-base outline-none py-1" autoFocus />
             <button onClick={() => setCamara(true)}
-              className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-white bg-white/10 active:bg-white/20 border border-white/20 rounded-xl px-2.5 py-2"
+              className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-white bg-superficie/10 active:bg-superficie/20 border border-white/20 rounded-xl px-2.5 py-2"
               title="Leer con la cámara">
-              <Cam size={16} className="text-orange-400" /> <span className="hidden sm:inline">Cámara</span>
+              <Cam size={16} className="text-acento-vivo" /> <span className="hidden sm:inline">Cámara</span>
             </button>
             <Tecla>Enter</Tecla>
           </div>
           {cantidadPendiente && (
-            <div className="px-4 py-2.5 bg-emerald-50 border-b border-emerald-200 flex items-center gap-2 text-sm">
+            <div className="px-4 py-2.5 bg-bien-suave border-b border-bien flex items-center gap-2 text-sm">
               <span className="f-d text-emerald-800 text-lg">{aNumero(q)}</span>
               <span className="text-emerald-900 truncate flex-1">
                 {activo.unidad === "kg" ? "kg de" : "unidades de"} <strong>{activo.nombre}</strong>
@@ -767,23 +767,23 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           )}
           {puedeCrear && (
             <button onClick={() => setAlta(/^\d{6,}$/.test(q.trim()) ? { barcode: q.trim() } : { nombre: q.trim() })}
-              className="w-full text-left px-4 py-3 bg-orange-50 hover:bg-orange-100 flex items-center gap-2 border-b border-orange-200">
-              <Plus size={15} className="text-orange-600 shrink-0" />
-              <span className="text-sm text-stone-800 truncate">Crear <strong>{q.trim()}</strong> y seguir cobrando</span>
+              className="w-full text-left px-4 py-3 bg-acento-suave hover:bg-acento-suave flex items-center gap-2 border-b border-acento">
+              <Plus size={15} className="text-acento shrink-0" />
+              <span className="text-sm text-texto truncate">Crear <strong>{q.trim()}</strong> y seguir cobrando</span>
               <Tecla>Enter</Tecla>
             </button>
           )}
           {res.length > 0 && (
-            <ul className="divide-y divide-stone-100 max-h-72 overflow-auto">
+            <ul className="divide-y divide-borde max-h-72 overflow-auto">
               {res.map((p, i) => (
                 <li key={p.id}>
                   <button onMouseEnter={() => setSel(i)} onClick={() => add(p)}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 ${i === sel ? "bg-orange-50" : "hover:bg-stone-50"}`}>
+                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 ${i === sel ? "bg-acento-suave" : "hover:bg-superficie-2"}`}>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-stone-900 truncate">{p.nombre}</div>
-                      <div className="f-m text-[11px] text-stone-400">{p.barcode || "sin código"} · stock {p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</div>
+                      <div className="text-sm font-medium text-texto truncate">{p.nombre}</div>
+                      <div className="f-m text-[11px] text-texto-tenue">{p.barcode || "sin código"} · stock {p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</div>
                     </div>
-                    <div className="f-m text-sm font-semibold shrink-0">{p.precio ? money(p.precio) : <span className="text-amber-600 text-xs">sin precio</span>}</div>
+                    <div className="f-m text-sm font-semibold shrink-0">{p.precio ? money(p.precio) : <span className="text-ojo text-xs">sin precio</span>}</div>
                   </button>
                 </li>
               ))}
@@ -795,32 +795,32 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           {cart.length === 0 ? <Vacio>El ticket está vacío. Escaneá el primer producto.</Vacio> : (
           <>
             {/* En celular no entra una tabla de cinco columnas: va como lista */}
-            <ul className="md:hidden divide-y divide-stone-100">
+            <ul className="md:hidden divide-y divide-borde">
               {lineas.map((l, i) => (
-                <li key={l.pid} className={`px-3 py-2.5 ${i === lineas.length - 1 ? "bg-orange-50/40" : ""}`}>
+                <li key={l.pid} className={`px-3 py-2.5 ${i === lineas.length - 1 ? "bg-acento-suave/40" : ""}`}>
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-stone-900 leading-snug">{l.nombre}</div>
-                      <div className="f-m text-[11px] text-stone-400 mt-0.5">
+                      <div className="text-sm font-medium text-texto leading-snug">{l.nombre}</div>
+                      <div className="f-m text-[11px] text-texto-tenue mt-0.5">
                         {l.lista && <span className="line-through mr-1">{money(l.precio)}</span>}
-                        <span className={l.lista ? "text-emerald-700 font-semibold" : ""}>{money(l.unit)}</span> c/u
-                        {l.lista && <span className="ml-1 text-emerald-700 font-bold uppercase">{l.listaNombre}</span>}
+                        <span className={l.lista ? "text-bien font-semibold" : ""}>{money(l.unit)}</span> c/u
+                        {l.lista && <span className="ml-1 text-bien font-bold uppercase">{l.listaNombre}</span>}
                       </div>
                     </div>
                     <div className="f-m text-base font-semibold shrink-0">{money(l.importe)}</div>
-                    <button onClick={() => quitar(l.pid)} className="text-stone-300 active:text-red-600 shrink-0 p-1"><Trash2 size={16} /></button>
+                    <button onClick={() => quitar(l.pid)} className="text-texto-tenue active:text-mal shrink-0 p-1"><Trash2 size={16} /></button>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <button onClick={() => setQty(l.pid, l.qty - (l.unidad === "kg" ? 0.25 : 1))} className="w-10 h-10 rounded-xl border border-stone-200 flex items-center justify-center active:bg-stone-100"><Minus size={16} /></button>
+                    <button onClick={() => setQty(l.pid, l.qty - (l.unidad === "kg" ? 0.25 : 1))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Minus size={16} /></button>
                     <span className="f-m w-14 text-center text-base">{l.unidad === "kg" ? l.qty.toFixed(2) : l.qty}</span>
-                    <button onClick={() => setQty(l.pid, l.qty + (l.unidad === "kg" ? 0.25 : 1))} className="w-10 h-10 rounded-xl border border-stone-200 flex items-center justify-center active:bg-stone-100"><Plus size={16} /></button>
+                    <button onClick={() => setQty(l.pid, l.qty + (l.unidad === "kg" ? 0.25 : 1))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Plus size={16} /></button>
                   </div>
                 </li>
               ))}
             </ul>
             <table className="hidden md:table w-full text-sm">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
+                <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde">
                   <th className="px-4 py-2 font-semibold">Producto</th>
                   <th className="px-2 py-2 font-semibold w-32 text-center">Cantidad</th>
                   <th className="px-2 py-2 font-semibold w-24 text-right">Precio</th>
@@ -828,35 +828,35 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                   <th className="w-10" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
+              <tbody className="divide-y divide-borde">
                 {lineas.map((l, i) => (
-                  <tr key={l.pid} className={i === lineas.length - 1 ? "bg-orange-50/40" : "hover:bg-stone-50"}>
-                    <td className="px-4 py-2.5 text-stone-800">
+                  <tr key={l.pid} className={i === lineas.length - 1 ? "bg-acento-suave/40" : "hover:bg-superficie-2"}>
+                    <td className="px-4 py-2.5 text-texto">
                       {l.nombre}
                       {l.lista && (
-                        <span className="ml-2 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">
+                        <span className="ml-2 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-bien-suave text-bien border-bien">
                           {l.listaNombre} −{money(l.ahorro)}
                         </span>
                       )}
                       {!l.lista && l.proxima && (
-                        <span className="ml-2 text-[10px] text-stone-400">
+                        <span className="ml-2 text-[10px] text-texto-tenue">
                           desde {l.proxima.umbral} u paga {money(l.proxima.precio)}
                         </span>
                       )}
                     </td>
                     <td className="px-2 py-2.5">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setQty(l.pid, l.qty - (l.unidad === "kg" ? 0.25 : 1))} className="w-7 h-7 rounded-lg border border-stone-200 hover:bg-stone-100 flex items-center justify-center"><Minus size={13} /></button>
+                        <button onClick={() => setQty(l.pid, l.qty - (l.unidad === "kg" ? 0.25 : 1))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Minus size={13} /></button>
                         <span className="f-m w-12 text-center">{l.unidad === "kg" ? l.qty.toFixed(2) : l.qty}</span>
-                        <button onClick={() => setQty(l.pid, l.qty + (l.unidad === "kg" ? 0.25 : 1))} className="w-7 h-7 rounded-lg border border-stone-200 hover:bg-stone-100 flex items-center justify-center"><Plus size={13} /></button>
+                        <button onClick={() => setQty(l.pid, l.qty + (l.unidad === "kg" ? 0.25 : 1))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Plus size={13} /></button>
                       </div>
                     </td>
-                    <td className="px-2 py-2.5 text-right f-m text-stone-500">
-                      {l.lista && <span className="line-through text-stone-300 mr-1">{money(l.precio)}</span>}
-                      <span className={l.lista ? "text-emerald-700 font-semibold" : ""}>{money(l.unit)}</span>
+                    <td className="px-2 py-2.5 text-right f-m text-texto-suave">
+                      {l.lista && <span className="line-through text-texto-tenue mr-1">{money(l.precio)}</span>}
+                      <span className={l.lista ? "text-bien font-semibold" : ""}>{money(l.unit)}</span>
                     </td>
                     <td className="px-4 py-2.5 text-right f-m font-semibold">{money(l.importe)}</td>
-                    <td className="pr-3"><button onClick={() => quitar(l.pid)} className="text-stone-300 hover:text-red-600"><Trash2 size={15} /></button></td>
+                    <td className="pr-3"><button onClick={() => quitar(l.pid)} className="text-texto-tenue hover:text-mal"><Trash2 size={15} /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -866,26 +866,26 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
         </Card>
 
         {activo && !cantidadPendiente && (
-          <p className="text-xs text-stone-400 px-1 -mt-1">
-            Último cargado: <strong className="text-stone-600">{activo.nombre}</strong>. Escribí un número y Enter para dejarlo en esa cantidad.
+          <p className="text-xs text-texto-tenue px-1 -mt-1">
+            Último cargado: <strong className="text-texto-suave">{activo.nombre}</strong>. Escribí un número y Enter para dejarlo en esa cantidad.
           </p>
         )}
 
         <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
           {ATAJOS.filter(([t]) => (t !== "F4" || permisos.descuentos) && (t !== "F8" || permisos.anular)).map(([t, n]) => (
-            <span key={t} className="flex items-center gap-1.5 text-[11px] text-stone-400"><Tecla>{t}</Tecla> {n}</span>
+            <span key={t} className="flex items-center gap-1.5 text-[11px] text-texto-tenue"><Tecla>{t}</Tecla> {n}</span>
           ))}
         </div>
       </div>
 
       {/* En celular el total y el botón de cobrar viven fijos al pie, al alcance del pulgar */}
       {cart.length > 0 && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 px-3 py-2.5 seguro-abajo shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-superficie border-t border-borde px-3 py-2.5 seguro-abajo shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
           <div className="flex items-center gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{cart.length} productos</div>
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">{cart.length} productos</div>
               <div className="f-d text-2xl leading-none">{money(total)}</div>
-              {ahorroTotal > 0 && <div className="text-[11px] text-emerald-700">−{money(ahorroTotal)} por cantidad</div>}
+              {ahorroTotal > 0 && <div className="text-[11px] text-bien">−{money(ahorroTotal)} por cantidad</div>}
             </div>
             <Boton onClick={irAPago} size="lg" className="flex-1 justify-center">Cobrar</Boton>
           </div>
@@ -895,34 +895,34 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       <div className="space-y-3 lg:sticky lg:top-4 pb-24 md:pb-0">
         <Card className="p-4">
           <div className="flex items-baseline justify-between">
-            <span className="text-sm text-stone-500">{cart.length} productos</span>
+            <span className="text-sm text-texto-suave">{cart.length} productos</span>
             <span className="f-m text-sm">{money(sub)}</span>
           </div>
           {ahorroTotal > 0 && (
-            <div className="flex items-baseline justify-between mt-1 text-emerald-700">
+            <div className="flex items-baseline justify-between mt-1 text-bien">
               <span className="text-sm">Precio por cantidad</span>
               <span className="f-m text-sm">−{money(ahorroTotal)}</span>
             </div>
           )}
           {permisos.descuentos && (
             <div className="flex items-center justify-between mt-2">
-              <span className="text-sm text-stone-500">Descuento <Tecla>F4</Tecla></span>
+              <span className="text-sm text-texto-suave">Descuento <Tecla>F4</Tecla></span>
               <div className="flex items-center gap-1">
                 {[0, 5, 10, 15].map((d) => (
-                  <button key={d} onClick={() => setDesc(d)} className={`f-m text-xs px-2 py-1 rounded-lg border ${desc === d ? "bg-stone-900 text-white border-stone-900" : "border-stone-200 text-stone-500 hover:bg-stone-50"}`}>{d}%</button>
+                  <button key={d} onClick={() => setDesc(d)} className={`f-m text-xs px-2 py-1 rounded-lg border ${desc === d ? "bg-superficie-3 text-white border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>{d}%</button>
                 ))}
               </div>
             </div>
           )}
-          <div className="flex items-baseline justify-between mt-4 pt-4 border-t border-stone-200">
+          <div className="flex items-baseline justify-between mt-4 pt-4 border-t border-borde">
             <span className="f-d text-lg">Total</span>
             <span className="f-d text-4xl tabular-nums">{money(total)}</span>
           </div>
-          {cart.length > 0 && permisos.verCostos && <div className="text-xs text-stone-400 mt-1 text-right">Ganancia {money(ganancia)} · {pct(total ? ganancia / total : 0)}</div>}
+          {cart.length > 0 && permisos.verCostos && <div className="text-xs text-texto-tenue mt-1 text-right">Ganancia {money(ganancia)} · {pct(total ? ganancia / total : 0)}</div>}
           <Boton onClick={irAPago} disabled={!cart.length} size="lg" className="w-full mt-4">
             Cobrar {money(total)} <Tecla>F2</Tecla>
           </Boton>
-          <button onClick={() => ir("pedidos")} className="w-full text-xs font-semibold text-orange-600 hover:underline mt-3 inline-flex items-center justify-center gap-1">
+          <button onClick={() => ir("pedidos")} className="w-full text-xs font-semibold text-acento hover:underline mt-3 inline-flex items-center justify-center gap-1">
             <ScanLine size={13} /> Vender recorriendo el salón <Tecla>F9</Tecla>
           </button>
         </Card>
@@ -931,59 +931,59 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {/* ---------- Ventana 2: medio de pago ---------- */}
       {paso === "pago" && (
         <Overlay>
-          <div className="bg-stone-900 text-white px-6 py-4 flex items-baseline justify-between">
+          <div className="bg-superficie-3 text-white px-6 py-4 flex items-baseline justify-between">
             <div>
-              <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Total a cobrar · {cart.length} productos</div>
+              <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Total a cobrar · {cart.length} productos</div>
               <div className="f-d text-4xl mt-0.5">{money(total)}</div>
             </div>
-            <div className="text-right text-xs text-stone-400"><Tecla>Esc</Tecla> volver</div>
+            <div className="text-right text-xs text-texto-tenue"><Tecla>Esc</Tecla> volver</div>
           </div>
           <div className="p-4">
             <div className="flex items-center justify-between gap-3 mb-3">
-              <span className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">¿Cómo paga?</span>
-              <div className="flex rounded-xl border border-stone-200 overflow-hidden text-xs font-semibold">
-                <button onClick={() => setFiscal(false)} className={`px-3 py-1.5 ${!fiscal ? "bg-stone-900 text-white" : "text-stone-500"}`}>Ticket</button>
-                <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-stone-900 text-white" : "text-stone-500"}`}>Factura {fiscal ? letra : ""}</button>
+              <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Cómo paga?</span>
+              <div className="flex rounded-xl border border-borde overflow-hidden text-xs font-semibold">
+                <button onClick={() => setFiscal(false)} className={`px-3 py-1.5 ${!fiscal ? "bg-superficie-3 text-white" : "text-texto-suave"}`}>Ticket</button>
+                <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-superficie-3 text-white" : "text-texto-suave"}`}>Factura {fiscal ? letra : ""}</button>
               </div>
             </div>
 
             {fiscal && (
               <button onClick={() => setBuscarCliente(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-left">
-                <Users size={16} className="text-stone-400 shrink-0" />
+                className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-xl border border-borde hover:bg-superficie-2 text-left">
+                <Users size={16} className="text-texto-tenue shrink-0" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold truncate">{cliente ? cliente.razonSocial : "Consumidor final"}</span>
-                  <span className="block text-[11px] text-stone-400">
+                  <span className="block text-[11px] text-texto-tenue">
                     {cliente ? `${cliente.tipoDoc} ${cliente.doc} · ${condicionNombre(cliente.condicion)}` : "Sin identificar · toca para elegir un cliente"}
                   </span>
                 </span>
-                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border bg-stone-900 text-white border-stone-900 shrink-0">{letra}</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border bg-superficie-3 text-white border-superficie-3 shrink-0">{letra}</span>
               </button>
             )}
             <ul className="space-y-1.5">
               {medios.map((m, i) => (
                 <li key={m.k}>
                   <button onClick={() => { setMedioSel(i); m.k === "efectivo" ? setPaso("monto") : finalizar(m.k, null); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors ${i === medioSel ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors ${i === medioSel ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
                     <Tecla>{i + 1}</Tecla>
                     <span className="font-semibold flex-1">{m.n}</span>
                     {m.tasa > 0 && (
-                      <span className="text-xs text-stone-400 shrink-0">
+                      <span className="text-xs text-texto-tenue shrink-0">
                         {m.recargo ? `recargo ${m.tasa}%` : `comisión ${money(total * m.tasa / 100)}`}
                       </span>
                     )}
-                    {i === medioSel && <ArrowRight size={16} className="text-orange-500" />}
+                    {i === medioSel && <ArrowRight size={16} className="text-acento" />}
                   </button>
                 </li>
               ))}
             </ul>
             <button onClick={() => { setMedioSel(0); setMontoMix(""); setPaso("mixto"); }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed border-stone-300 hover:bg-stone-50 text-left mt-1.5">
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed border-borde-fuerte hover:bg-superficie-2 text-left mt-1.5">
               <Tecla>6</Tecla>
               <span className="font-semibold flex-1">Pago combinado</span>
-              <span className="text-xs text-stone-400">parte en efectivo y parte con tarjeta</span>
+              <span className="text-xs text-texto-tenue">parte en efectivo y parte con tarjeta</span>
             </button>
-            <p className="text-xs text-stone-400 mt-3 flex items-center gap-2">
+            <p className="text-xs text-texto-tenue mt-3 flex items-center gap-2">
               <Tecla>↑</Tecla><Tecla>↓</Tecla> elegir · <Tecla>Enter</Tecla> confirmar · <Tecla>1</Tecla>–<Tecla>6</Tecla> atajo directo
             </p>
           </div>
@@ -999,31 +999,31 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {/* ---------- Ventana 2b: efectivo ---------- */}
       {paso === "monto" && (
         <Overlay ancho="max-w-lg">
-          <div className="bg-stone-900 text-white px-6 py-4">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Efectivo · total</div>
+          <div className="bg-superficie-3 text-white px-6 py-4">
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Efectivo · total</div>
             <div className="f-d text-4xl mt-0.5">{money(totalFinal)}</div>
           </div>
           <div className="p-5">
-            <label className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">¿Con cuánto paga?</label>
+            <label className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Con cuánto paga?</label>
             <input ref={inpMonto} value={recibe} onChange={(e) => setRecibe(e.target.value.replace(/\D/g, ""))}
               placeholder="Dejalo vacío si paga justo"
-              className="f-m w-full text-right text-3xl border-2 border-stone-200 rounded-xl px-4 py-3 mt-2 outline-none focus:border-orange-400" />
+              className="f-m w-full text-right text-3xl border-2 border-borde rounded-xl px-4 py-3 mt-2 outline-none focus:border-acento" />
             <div className="flex flex-wrap gap-1.5 mt-3">
               {rapidos.filter((r) => r >= totalFinal).slice(0, 4).map((r) => (
-                <button key={r} onClick={() => setRecibe(String(r))} className="f-m text-xs px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700">{money(r)}</button>
+                <button key={r} onClick={() => setRecibe(String(r))} className="f-m text-xs px-2.5 py-1.5 rounded-lg bg-superficie-2 hover:bg-superficie-3 text-texto">{money(r)}</button>
               ))}
-              <button onClick={() => setRecibe(String(Math.ceil(totalFinal / 1000) * 1000))} className="f-m text-xs px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700">
+              <button onClick={() => setRecibe(String(Math.ceil(totalFinal / 1000) * 1000))} className="f-m text-xs px-2.5 py-1.5 rounded-lg bg-superficie-2 hover:bg-superficie-3 text-texto">
                 {money(Math.ceil(totalFinal / 1000) * 1000)}
               </button>
             </div>
             {recibe !== "" && (
-              <div className={`mt-4 p-3 rounded-xl text-center ${vuelto < 0 ? "bg-red-50" : "bg-emerald-50"}`}>
-                <div className="text-[11px] uppercase tracking-widest font-bold text-stone-500">{vuelto < 0 ? "Falta" : "Vuelto"}</div>
-                <div className={`f-d text-3xl ${vuelto < 0 ? "text-red-600" : "text-emerald-600"}`}>{money(Math.abs(vuelto))}</div>
+              <div className={`mt-4 p-3 rounded-xl text-center ${vuelto < 0 ? "bg-mal-suave" : "bg-bien-suave"}`}>
+                <div className="text-[11px] uppercase tracking-widest font-bold text-texto-suave">{vuelto < 0 ? "Falta" : "Vuelto"}</div>
+                <div className={`f-d text-3xl ${vuelto < 0 ? "text-mal" : "text-bien"}`}>{money(Math.abs(vuelto))}</div>
               </div>
             )}
             <div className="flex items-center justify-between mt-4">
-              <span className="text-xs text-stone-400"><Tecla>Esc</Tecla> cambiar medio</span>
+              <span className="text-xs text-texto-tenue"><Tecla>Esc</Tecla> cambiar medio</span>
               <Boton size="lg" onClick={() => { if (recibe && Number(recibe) < totalFinal) return toast("El importe recibido es menor al total.", "mal"); finalizar("efectivo", recibe ? Number(recibe) : null); }}>
                 Confirmar cobro <Tecla>Enter</Tecla>
               </Boton>
@@ -1035,26 +1035,26 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {/* ---------- Ventana 2c: pago combinado ---------- */}
       {paso === "mixto" && (
         <Overlay ancho="max-w-lg">
-          <div className="bg-stone-900 text-white px-6 py-4 flex items-baseline justify-between">
+          <div className="bg-superficie-3 text-white px-6 py-4 flex items-baseline justify-between">
             <div>
-              <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">
+              <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">
                 {falta > 0 ? "Falta cobrar" : "Cubierto"}
               </div>
-              <div className={`f-d text-4xl mt-0.5 ${falta > 0 ? "text-orange-400" : "text-emerald-400"}`}>{money(falta > 0 ? falta : total)}</div>
+              <div className={`f-d text-4xl mt-0.5 ${falta > 0 ? "text-acento-vivo" : "text-emerald-400"}`}>{money(falta > 0 ? falta : total)}</div>
             </div>
-            <div className="text-right text-xs text-stone-400">de {money(total)}<br /><Tecla>Esc</Tecla> volver</div>
+            <div className="text-right text-xs text-texto-tenue">de {money(total)}<br /><Tecla>Esc</Tecla> volver</div>
           </div>
 
           <div className="p-5">
             {pagos.length > 0 && (
-              <ul className="mb-4 border border-stone-200 rounded-xl divide-y divide-stone-100">
+              <ul className="mb-4 border border-borde rounded-xl divide-y divide-borde">
                 {pagos.map((p, i) => (
                   <li key={i} className="flex items-center gap-3 px-3 py-2 text-sm">
-                    <Check size={14} className="text-emerald-600 shrink-0" />
+                    <Check size={14} className="text-bien shrink-0" />
                     <span className="flex-1">{medioPorK(ajustes, p.medio).n}</span>
                     <span className="f-m">{money(p.monto)}</span>
-                    {p.exceso > 0 && <span className="f-m text-[11px] text-stone-400">+{money(p.exceso)} vuelto</span>}
-                    <button onClick={() => setPagos((ps) => ps.filter((_, j) => j !== i))} className="text-stone-300 hover:text-red-600"><Trash2 size={14} /></button>
+                    {p.exceso > 0 && <span className="f-m text-[11px] text-texto-tenue">+{money(p.exceso)} vuelto</span>}
+                    <button onClick={() => setPagos((ps) => ps.filter((_, j) => j !== i))} className="text-texto-tenue hover:text-mal"><Trash2 size={14} /></button>
                   </li>
                 ))}
               </ul>
@@ -1062,20 +1062,20 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
 
             {falta > 0 ? (
               <>
-                <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">¿Con qué paga esta parte?</div>
+                <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Con qué paga esta parte?</div>
                 <div className="grid grid-cols-2 gap-1.5 mt-2">
                   {medios.map((m, i) => (
                     <button key={m.k} onClick={() => setMedioSel(i)}
-                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-sm font-semibold ${i === medioSel ? "border-orange-400 bg-orange-50" : "border-stone-200 hover:bg-stone-50"}`}>
+                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-sm font-semibold ${i === medioSel ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
                       <Tecla>{i + 1}</Tecla> {m.n}
                     </button>
                   ))}
                 </div>
-                <label className="block text-[11px] uppercase tracking-widest text-stone-400 font-bold mt-4">Importe</label>
+                <label className="block text-[11px] uppercase tracking-widest text-texto-tenue font-bold mt-4">Importe</label>
                 <input ref={inpMix} value={montoMix} onChange={(e) => setMontoMix(e.target.value.replace(/\D/g, ""))}
                   placeholder={`${money(falta)} (todo lo que falta)`}
-                  className="f-m w-full text-right text-2xl border-2 border-stone-200 rounded-xl px-4 py-2.5 mt-1 outline-none focus:border-orange-400" />
-                <p className="text-xs text-stone-400 mt-2 flex items-center gap-1.5 flex-wrap">
+                  className="f-m w-full text-right text-2xl border-2 border-borde rounded-xl px-4 py-2.5 mt-1 outline-none focus:border-acento" />
+                <p className="text-xs text-texto-tenue mt-2 flex items-center gap-1.5 flex-wrap">
                   <Tecla>↑</Tecla><Tecla>↓</Tecla> medio · <Tecla>Enter</Tecla> agregar · <Tecla>Supr</Tecla> borrar el último ·
                   vacío toma {money(falta)}
                 </p>
@@ -1086,9 +1086,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             ) : (
               <>
                 {vueltoMix > 0 && (
-                  <div className="bg-emerald-50 rounded-xl p-3 text-center mb-3">
-                    <div className="text-[11px] uppercase tracking-widest font-bold text-stone-500">Vuelto</div>
-                    <div className="f-d text-3xl text-emerald-600">{money(vueltoMix)}</div>
+                  <div className="bg-bien-suave rounded-xl p-3 text-center mb-3">
+                    <div className="text-[11px] uppercase tracking-widest font-bold text-texto-suave">Vuelto</div>
+                    <div className="f-d text-3xl text-bien">{money(vueltoMix)}</div>
                   </div>
                 )}
                 <Boton size="lg" className="w-full" onClick={finalizarMixto}>Confirmar cobro <Tecla>Enter</Tecla></Boton>
@@ -1109,19 +1109,19 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             </div>
           </div>
           {ticket.recibe && (ticket.vuelto != null ? ticket.vuelto : ticket.recibe - ticket.total) > 0 && (
-            <div className="bg-stone-900 text-white px-6 py-4 text-center">
-              <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Vuelto</div>
-              <div className="f-d text-5xl text-orange-400">{money(ticket.vuelto != null ? ticket.vuelto : ticket.recibe - ticket.total)}</div>
+            <div className="bg-superficie-3 text-white px-6 py-4 text-center">
+              <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Vuelto</div>
+              <div className="f-d text-5xl text-acento-vivo">{money(ticket.vuelto != null ? ticket.vuelto : ticket.recibe - ticket.total)}</div>
             </div>
           )}
           <div className="p-5">
-            <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold mb-2">¿Querés comprobante?</div>
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-2">¿Querés comprobante?</div>
             <div className="grid grid-cols-4 gap-1.5">
               {[[Printer, "Imprimir", "I", () => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ticket.fiscal ? ticket.cae : null, toast)],
                 [FileText, "Ver ticket", "T", () => setVerTicket(true)],
                 [MessageCircle, "WhatsApp", "W", () => toast("Comprobante enviado por WhatsApp.")],
                 [Mail, "Email", "E", () => toast("Comprobante enviado por email.")]].map(([I, n, k2, fn]) => (
-                <button key={n} onClick={fn} className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-stone-200 hover:bg-stone-50 text-[11px] font-semibold text-stone-600">
+                <button key={n} onClick={fn} className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-borde hover:bg-superficie-2 text-[11px] font-semibold text-texto-suave">
                   <I size={16} /> {n} <Tecla>{k2}</Tecla>
                 </button>
               ))}
@@ -1134,7 +1134,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {verTicket && ticket && (
         <Modal open onClose={() => setVerTicket(false)} ancho="max-w-md">
           <div className="p-5">
-            <div className="bg-stone-100 rounded-xl p-3 overflow-auto">
+            <div className="bg-superficie-2 rounded-xl p-3 overflow-auto">
               <Comandera lineas={ticketVenta(ticket, ajustes, W)} ancho={ajustes.ancho} qr={ticket.fiscal ? ticket.cae : null} className="py-2 shadow-sm" />
             </div>
             <div className="grid grid-cols-2 gap-1.5 mt-3 no-print">
@@ -1160,7 +1160,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
         <Overlay ancho="max-w-md">
           <div className="p-5">
             <h3 className="f-d text-lg">Atajos de teclado</h3>
-            <p className="text-sm text-stone-500 mt-0.5">Todo el cobro se puede hacer sin tocar el mouse.</p>
+            <p className="text-sm text-texto-suave mt-0.5">Todo el cobro se puede hacer sin tocar el mouse.</p>
             <ul className="mt-4 space-y-1.5 text-sm">
               {[["Escribir / escanear", "busca y carga el producto"], ["Enter", "agrega el producto marcado"],
                 ["Un número + Enter", "cambia la cantidad del último producto"], ["Enter con el campo vacío", "pasa a cobrar"], ["↑ ↓", "elegir en la lista"],
@@ -1170,7 +1170,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                 ["Esc", "volver un paso"]].map(([k2, d]) => (
                 <li key={k2} className="flex items-baseline gap-3">
                   <span className="w-44 shrink-0"><Tecla>{k2}</Tecla></span>
-                  <span className="text-stone-600">{d}</span>
+                  <span className="text-texto-suave">{d}</span>
                 </li>
               ))}
             </ul>
@@ -1195,19 +1195,19 @@ export function TicketModal({ t, onClose, ajustes, toast }) {
     <Modal open={!!t} onClose={onClose} ancho="max-w-md">
       <div className="p-5">
         <div className="flex items-center justify-between no-print">
-          <div className="flex items-center gap-2 text-emerald-600 font-semibold text-sm">
+          <div className="flex items-center gap-2 text-bien font-semibold text-sm">
             <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center"><Check size={14} /></div>
             Venta registrada
           </div>
-          <span className="text-[11px] text-stone-400">Comandera {ajustes.ancho} mm</span>
+          <span className="text-[11px] text-texto-tenue">Comandera {ajustes.ancho} mm</span>
         </div>
-        <div className="bg-stone-100 rounded-xl p-3 mt-4 overflow-auto">
+        <div className="bg-superficie-2 rounded-xl p-3 mt-4 overflow-auto">
           <Comandera lineas={ticketVenta(t, ajustes, W)} ancho={ajustes.ancho}
             qr={t.fiscal ? t.cae : null} className="py-2 shadow-sm" />
         </div>
         <div className="grid grid-cols-4 gap-1.5 mt-4 no-print">
           {acciones.map((a) => (
-            <button key={a.n} onClick={a.fn} className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-stone-200 hover:bg-stone-50 text-[11px] font-semibold text-stone-600">
+            <button key={a.n} onClick={a.fn} className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-borde hover:bg-superficie-2 text-[11px] font-semibold text-texto-suave">
               <a.i size={16} /> {a.n}
             </button>
           ))}
@@ -1237,9 +1237,9 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
 
   return (
     <Modal open onClose={onClose} ancho="max-w-2xl">
-      <div className="sticky top-0 bg-white border-b border-stone-200 px-5 py-3.5 flex items-center justify-between">
+      <div className="sticky top-0 bg-superficie border-b border-borde px-5 py-3.5 flex items-center justify-between">
         <h3 className="f-d text-lg">{editando ? "Editar producto" : "Nuevo producto"}</h3>
-        <button onClick={onClose} className="text-stone-400 hover:text-stone-900"><X size={18} /></button>
+        <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
       </div>
       <div className="p-5 space-y-4">
         <Campo label="Nombre">
@@ -1251,7 +1251,7 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
           <Campo label="Código de barras">
             <input value={d.barcode || ""} onChange={(e) => set("barcode", e.target.value.replace(/\D/g, ""))}
               placeholder="Disparalo con la pistola" className={`${inputCls} f-m`} />
-            {duplicado && <span className="text-[11px] text-red-600">Ya lo usa {duplicado.nombre}</span>}
+            {duplicado && <span className="text-[11px] text-mal">Ya lo usa {duplicado.nombre}</span>}
           </Campo>
           <Campo label="Rubro">
             <input list="rubros" value={d.categoria || ""} onChange={(e) => set("categoria", e.target.value)} className={inputCls} />
@@ -1270,7 +1270,7 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
             <input value={d.precio || ""} onChange={(e) => set("precio", e.target.value.replace(/\D/g, ""))} className={`${inputCls} f-m text-right`} />
           </Campo>
           <Campo label="Margen">
-            <div className={`${inputCls} f-m text-right bg-stone-50 ${margen > 0 && margen < 0.12 ? "text-red-600" : ""}`}>{precio ? pct(margen) : "—"}</div>
+            <div className={`${inputCls} f-m text-right bg-superficie-2 ${margen > 0 && margen < 0.12 ? "text-mal" : ""}`}>{precio ? pct(margen) : "—"}</div>
           </Campo>
           <Campo label="IVA">
             <select value={d.iva} onChange={(e) => set("iva", Number(e.target.value))} className={inputCls}>
@@ -1280,18 +1280,18 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
         </div>
         {(provs && ajustes0.listas ? ajustes0.listas : []).filter((l) => l.activa !== false).length > 0 && (
           <div>
-            <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Otras listas de precio</span>
+            <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Otras listas de precio</span>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-1">
               {ajustes0.listas.filter((l) => l.activa !== false).map((l) => {
                 const v = Number((d.precios || {})[l.id]) || 0;
                 return (
                   <label key={l.id} className="block">
-                    <span className="text-[10px] text-stone-500">{l.nombre} · desde {l.umbral}</span>
+                    <span className="text-[10px] text-texto-suave">{l.nombre} · desde {l.umbral}</span>
                     <input value={(d.precios || {})[l.id] || ""}
                       onChange={(e) => set("precios", { ...(d.precios || {}), [l.id]: e.target.value.replace(/\D/g, "") })}
                       placeholder="—" className={`${inputCls} f-m text-right`} />
-                    {v > 0 && v <= costo && <span className="text-[11px] text-red-600">bajo el costo</span>}
-                    {v > costo && <span className="text-[11px] text-stone-400">margen {pct((v - costo) / v, 0)}</span>}
+                    {v > 0 && v <= costo && <span className="text-[11px] text-mal">bajo el costo</span>}
+                    {v > costo && <span className="text-[11px] text-texto-tenue">margen {pct((v - costo) / v, 0)}</span>}
                   </label>
                 );
               })}
@@ -1301,10 +1301,10 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
 
         {costo > 0 && !precio && (
           <div className="flex flex-wrap gap-1.5">
-            <span className="text-xs text-stone-500 self-center">Sugerir precio con margen:</span>
+            <span className="text-xs text-texto-suave self-center">Sugerir precio con margen:</span>
             {[0.25, 0.3, 0.35, 0.4].map((m) => (
               <button key={m} onClick={() => set("precio", String(Math.round(costo / (1 - m) / 10) * 10))}
-                className="text-xs px-2 py-1 rounded-lg border border-stone-200 hover:bg-stone-50 f-m">
+                className="text-xs px-2 py-1 rounded-lg border border-borde hover:bg-superficie-2 f-m">
                 {pct(m, 0)} → {money(Math.round(costo / (1 - m) / 10) * 10)}
               </button>
             ))}
@@ -1336,12 +1336,12 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
         </Campo>
 
         {faltan.length > 0 && (
-          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3">
             Podés guardarlo igual, pero le falta: <strong>{faltan.join(", ")}</strong>. Va a quedar marcado como ficha incompleta hasta que lo completes.
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-stone-200">
+        <div className="flex justify-end gap-2 pt-2 border-t border-borde">
           <Boton variant="quiet" onClick={onClose}>Cancelar</Boton>
           <Boton onClick={() => onGuardar(d, faltan)} disabled={!d.nombre || !!duplicado}>
             <Check size={15} /> {editando ? "Guardar cambios" : "Crear producto"}
@@ -1377,7 +1377,7 @@ export function FormProveedor({ abierto, inicial, onGuardar, onClose }) {
           </div>
         </div>
         {faltan.length > 0 && (
-          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 mt-4">
+          <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3 mt-4">
             Falta: <strong>{faltan.join(", ")}</strong>. Se guarda igual y queda marcado para completar.
           </div>
         )}

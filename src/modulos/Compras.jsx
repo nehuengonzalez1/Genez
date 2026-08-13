@@ -188,14 +188,14 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
   return (
     <div className="p-4 space-y-4">
       <div className="grid md:grid-cols-2 gap-3">
-        <div className="border border-stone-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 font-semibold text-sm"><ScanLine size={16} className="text-orange-500" /> Con la pistola</div>
-          <p className="text-sm text-stone-500 mt-1">Disparale a cada producto del bulto. Trae el costo que tenía cargado y lo podés corregir si el proveedor aumentó.</p>
-          <p className="f-m text-[11px] text-stone-400 mt-2">Lector activo · esperando disparo</p>
+        <div className="border border-borde rounded-xl p-4">
+          <div className="flex items-center gap-2 font-semibold text-sm"><ScanLine size={16} className="text-acento" /> Con la pistola</div>
+          <p className="text-sm text-texto-suave mt-1">Disparale a cada producto del bulto. Trae el costo que tenía cargado y lo podés corregir si el proveedor aumentó.</p>
+          <p className="f-m text-[11px] text-texto-tenue mt-2">Lector activo · esperando disparo</p>
         </div>
-        <div className="border border-stone-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 font-semibold text-sm"><Camera size={16} className="text-orange-500" /> Desde una foto del remito</div>
-          <p className="text-sm text-stone-500 mt-1">Sacale una foto al remito o la factura. Se leen los renglones y quedan acá abajo para que los revises antes de aplicar nada.</p>
+        <div className="border border-borde rounded-xl p-4">
+          <div className="flex items-center gap-2 font-semibold text-sm"><Camera size={16} className="text-acento" /> Desde una foto del remito</div>
+          <p className="text-sm text-texto-suave mt-1">Sacale una foto al remito o la factura. Se leen los renglones y quedan acá abajo para que los revises antes de aplicar nada.</p>
           <input ref={archivo} type="file" accept="image/*" className="hidden" onChange={(e) => { leerFoto(e.target.files[0]); e.target.value = ""; }} />
           <Boton variant="ghost" size="sm" className="mt-2" onClick={() => archivo.current && archivo.current.click()} disabled={leyendo}>
             {leyendo ? <><Loader2 size={15} className="animate-spin" /> Leyendo el remito…</> : <><Upload size={15} /> Subir foto</>}
@@ -203,32 +203,32 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
         </div>
       </div>
 
-      {errorFoto && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{errorFoto}</div>}
+      {errorFoto && <div className="text-sm text-mal bg-mal-suave border border-mal rounded-xl p-3">{errorFoto}</div>}
 
       <div className="flex flex-wrap items-center gap-2">
-        <select value={prov} onChange={(e) => setProv(e.target.value)} className="text-sm border border-stone-200 rounded-xl px-3 py-2 bg-white outline-none focus:border-orange-400">
+        <select value={prov} onChange={(e) => setProv(e.target.value)} className="text-sm border border-borde rounded-xl px-3 py-2 bg-superficie outline-none focus:border-acento">
           {Object.keys(provs).map((p) => <option key={p}>{p}</option>)}
         </select>
         <input value={comprobante} onChange={(e) => setComprobante(e.target.value)} placeholder="Nº de remito o factura"
-          className="text-sm border border-stone-200 rounded-xl px-3 py-2 outline-none focus:border-orange-400" />
-        <span className="text-xs text-stone-400">{(provs[prov] || {}).pago}</span>
+          className="text-sm border border-borde rounded-xl px-3 py-2 outline-none focus:border-acento" />
+        <span className="text-xs text-texto-tenue">{(provs[prov] || {}).pago}</span>
       </div>
 
       {lineas.length === 0 ? (
-        <div className="border-2 border-dashed border-stone-200 rounded-2xl py-12 text-center">
-          <FileImage size={26} className="mx-auto text-stone-300" />
-          <p className="text-sm text-stone-400 mt-2">Escaneá el primer producto o subí la foto del remito</p>
+        <div className="border-2 border-dashed border-borde rounded-2xl py-12 text-center">
+          <FileImage size={26} className="mx-auto text-texto-tenue" />
+          <p className="text-sm text-texto-tenue mt-2">Escaneá el primer producto o subí la foto del remito</p>
         </div>
       ) : (
         <>
           {avisoProv && (
-            <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3">
               <strong>{avisoProv}</strong> no estaba cargado y lo di de alta con lo que traía el remito.
               Le faltan <strong>{faltantesProveedor(provs[avisoProv]).join(", ")}</strong>: completalo en la pestaña Proveedores.
             </div>
           )}
           {sinResolver > 0 && (
-            <div className="flex flex-wrap items-center gap-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3">
               <span className="flex-1">
                 {sinResolver} renglones no están en el catálogo. Podés darlos de alta con los datos del remito, buscarlos a mano o quitarlos.
                 No se aplica nada hasta que confirmes.
@@ -237,7 +237,7 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
             </div>
           )}
           {porCrear.length > 0 && (
-            <div className="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-xl p-3">
+            <div className="text-sm text-texto-suave bg-superficie-2 border border-borde rounded-xl p-3">
               {porCrear.length} productos nuevos se van a crear al confirmar. Los que queden sin precio de venta no se van a poder cobrar
               y van a aparecer en el aviso de fichas incompletas.
             </div>
@@ -245,7 +245,7 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
           <div className="overflow-x-auto [-webkit-overflow-scrolling:touch] -mx-4 px-4 md:mx-0 md:px-0">
             <table className="w-full text-sm min-w-[880px]">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
+                <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde">
                   <th className="py-2 font-semibold">Producto</th>
                   <th className="py-2 font-semibold text-right w-20">Cant.</th>
                   <th className="py-2 font-semibold text-right w-28">Costo</th>
@@ -255,54 +255,54 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
                   <th className="w-8" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
+              <tbody className="divide-y divide-borde">
                 {lineas.map((l) => {
                   if (!l.pid && l.crear) return (
-                    <tr key={l.uid} className="bg-orange-50/40">
+                    <tr key={l.uid} className="bg-acento-suave/40">
                       <td className="py-2 pr-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-orange-100 text-orange-800 border-orange-200">nuevo</span>
+                          <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-acento-suave text-orange-800 border-acento">nuevo</span>
                           <input value={l.crear.nombre} onChange={(e) => setCrear(l.uid, "nombre", e.target.value)}
-                            className="flex-1 border border-stone-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-orange-400" />
+                            className="flex-1 border border-borde rounded-lg px-2 py-1 text-sm outline-none focus:border-acento" />
                         </div>
                         <div className="flex gap-1.5 mt-1">
                           <input value={l.crear.barcode} onChange={(e) => setCrear(l.uid, "barcode", e.target.value.replace(/\D/g, ""))}
-                            placeholder="código (opcional)" className="f-m w-40 border border-stone-200 rounded-lg px-2 py-0.5 text-[11px] outline-none focus:border-orange-400" />
+                            placeholder="código (opcional)" className="f-m w-40 border border-borde rounded-lg px-2 py-0.5 text-[11px] outline-none focus:border-acento" />
                           <input value={l.crear.categoria} onChange={(e) => setCrear(l.uid, "categoria", e.target.value)}
-                            placeholder="rubro" className="w-32 border border-stone-200 rounded-lg px-2 py-0.5 text-[11px] outline-none focus:border-orange-400" />
+                            placeholder="rubro" className="w-32 border border-borde rounded-lg px-2 py-0.5 text-[11px] outline-none focus:border-acento" />
                         </div>
                       </td>
                       <td className="py-2 text-right">
                         <input value={l.cant} onChange={(e) => set(l.uid, "cant", e.target.value.replace(/[^\d.]/g, ""))}
-                          className="f-m w-14 text-right border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-orange-400" />
+                          className="f-m w-14 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
                       </td>
                       <td className="py-2 text-right">
                         <input value={l.costo || ""} onChange={(e) => set(l.uid, "costo", e.target.value.replace(/\D/g, ""))}
-                          className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-orange-400" />
+                          className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
                       </td>
                       <td className="py-2 text-right">
                         <input value={l.crear.precio} onChange={(e) => setCrear(l.uid, "precio", e.target.value.replace(/\D/g, ""))}
-                          placeholder="sin precio" className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-orange-400" />
+                          placeholder="sin precio" className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
                         {Number(l.costo) > 0 && !Number(l.crear.precio) && (
                           <button onClick={() => setCrear(l.uid, "precio", String(Math.round(Number(l.costo) / 0.7 / 10) * 10))}
-                            className="block ml-auto text-[10px] font-semibold text-orange-600 hover:underline mt-0.5">
+                            className="block ml-auto text-[10px] font-semibold text-acento hover:underline mt-0.5">
                             poner {money(Math.round(Number(l.costo) / 0.7 / 10) * 10)}
                           </button>
                         )}
                       </td>
                       <td className="py-2 text-right f-m text-xs">
                         {Number(l.crear.precio) > 0
-                          ? <span className="text-emerald-600">{pct((Number(l.crear.precio) - Number(l.costo)) / Number(l.crear.precio), 0)}</span>
-                          : <span className="text-amber-600">falta precio</span>}
+                          ? <span className="text-bien">{pct((Number(l.crear.precio) - Number(l.costo)) / Number(l.crear.precio), 0)}</span>
+                          : <span className="text-ojo">falta precio</span>}
                       </td>
                       <td className="py-2 text-right f-m">{money(Number(l.cant) * Number(l.costo || 0))}</td>
-                      <td className="py-2 text-right"><button onClick={() => quitar(l.uid)} className="text-stone-300 hover:text-red-600"><Trash2 size={15} /></button></td>
+                      <td className="py-2 text-right"><button onClick={() => quitar(l.uid)} className="text-texto-tenue hover:text-mal"><Trash2 size={15} /></button></td>
                     </tr>
                   );
                   if (!l.pid) return (
-                    <tr key={l.uid} className="bg-amber-50/50">
+                    <tr key={l.uid} className="bg-ojo-suave/50">
                       <td className="py-2 pr-2" colSpan={5}>
-                        <div className="text-xs text-stone-500">Del remito: <span className="f-m text-stone-800">{l.desc}</span> · {l.cant} u {l.costo ? `· ${money(l.costo)}` : ""}</div>
+                        <div className="text-xs text-texto-suave">Del remito: <span className="f-m text-texto">{l.desc}</span> · {l.cant} u {l.costo ? `· ${money(l.costo)}` : ""}</div>
                         <div className="flex gap-1.5 mt-1.5">
                           <Boton size="sm" variant="ghost" onClick={() => { setBuscando(l.uid); setQ(l.sugerencia ? l.sugerencia.nombre.split(" ").slice(0, 2).join(" ") : ""); }}>
                             <Search size={13} /> Buscarlo en el catálogo
@@ -310,44 +310,44 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
                           <Boton size="sm" onClick={() => marcarAlta(l)}><Plus size={13} /> Darlo de alta</Boton>
                         </div>
                       </td>
-                      <td className="py-2 text-right f-m text-stone-400">—</td>
-                      <td className="py-2 text-right"><button onClick={() => quitar(l.uid)} className="text-stone-300 hover:text-red-600"><Trash2 size={15} /></button></td>
+                      <td className="py-2 text-right f-m text-texto-tenue">—</td>
+                      <td className="py-2 text-right"><button onClick={() => quitar(l.uid)} className="text-texto-tenue hover:text-mal"><Trash2 size={15} /></button></td>
                     </tr>
                   );
                   const dif = Number(l.costo) / l.costoAnterior - 1;
                   const mNuevo = (Number(l.precio) - Number(l.costo)) / Number(l.precio);
                   const sug = sugerido(l);
                   return (
-                    <tr key={l.uid} className="hover:bg-stone-50">
+                    <tr key={l.uid} className="hover:bg-superficie-2">
                       <td className="py-2 pr-2">
                         <div className="font-medium">{l.nombre}</div>
-                        {l.origen === "foto" && <div className="text-[10px] text-stone-400">Remito: {l.desc} · coincidencia {pct(l.conf, 0)}</div>}
+                        {l.origen === "foto" && <div className="text-[10px] text-texto-tenue">Remito: {l.desc} · coincidencia {pct(l.conf, 0)}</div>}
                       </td>
                       <td className="py-2 text-right">
                         <input value={l.cant} onChange={(e) => set(l.uid, "cant", e.target.value.replace(/[^\d.]/g, ""))}
-                          className="f-m w-14 text-right border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-orange-400" />
+                          className="f-m w-14 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
                       </td>
                       <td className="py-2 text-right">
                         <input value={l.costo} onChange={(e) => set(l.uid, "costo", e.target.value.replace(/\D/g, ""))}
-                          className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-orange-400" />
-                        {Math.abs(dif) > 0.005 && <div className={`text-[10px] ${dif > 0 ? "text-red-500" : "text-emerald-600"}`}>{dif > 0 ? "+" : ""}{pct(dif, 0)} vs. {money(l.costoAnterior)}</div>}
+                          className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
+                        {Math.abs(dif) > 0.005 && <div className={`text-[10px] ${dif > 0 ? "text-mal" : "text-bien"}`}>{dif > 0 ? "+" : ""}{pct(dif, 0)} vs. {money(l.costoAnterior)}</div>}
                       </td>
                       <td className="py-2 text-right">
                         <input value={l.precio} onChange={(e) => set(l.uid, "precio", e.target.value.replace(/\D/g, ""))}
-                          className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-orange-400" />
+                          className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
                         {sug !== Number(l.precio) && (
-                          <button onClick={() => set(l.uid, "precio", sug)} className="block ml-auto text-[10px] font-semibold text-orange-600 hover:underline mt-0.5">
+                          <button onClick={() => set(l.uid, "precio", sug)} className="block ml-auto text-[10px] font-semibold text-acento hover:underline mt-0.5">
                             poner {money(sug)}
                           </button>
                         )}
                       </td>
                       <td className="py-2 text-right f-m text-xs">
-                        <span className="text-stone-400">{pct(l.margenAnterior, 0)}</span>
-                        <span className="text-stone-300 mx-1">→</span>
-                        <span className={mNuevo < l.margenAnterior - 0.005 ? "text-red-600 font-semibold" : "text-emerald-600"}>{pct(mNuevo, 0)}</span>
+                        <span className="text-texto-tenue">{pct(l.margenAnterior, 0)}</span>
+                        <span className="text-texto-tenue mx-1">→</span>
+                        <span className={mNuevo < l.margenAnterior - 0.005 ? "text-mal font-semibold" : "text-bien"}>{pct(mNuevo, 0)}</span>
                       </td>
                       <td className="py-2 text-right f-m">{money(Number(l.cant) * Number(l.costo))}</td>
-                      <td className="py-2 text-right"><button onClick={() => quitar(l.uid)} className="text-stone-300 hover:text-red-600"><Trash2 size={15} /></button></td>
+                      <td className="py-2 text-right"><button onClick={() => quitar(l.uid)} className="text-texto-tenue hover:text-mal"><Trash2 size={15} /></button></td>
                     </tr>
                   );
                 })}
@@ -355,13 +355,13 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
             </table>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-stone-200">
-            <label className="flex items-center gap-2 text-sm text-stone-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-borde">
+            <label className="flex items-center gap-2 text-sm text-texto-suave">
               <input type="checkbox" checked={pagado} onChange={(e) => setPagado(e.target.checked)} className="w-4 h-4 accent-orange-500" />
               Lo pagué en efectivo · {money(total)} sale de caja
             </label>
             <div className="flex items-center gap-3">
-              <div className="text-right"><div className="text-[11px] text-stone-400">Total de la compra</div><div className="f-d text-xl">{money(total)}</div></div>
+              <div className="text-right"><div className="text-[11px] text-texto-tenue">Total de la compra</div><div className="f-d text-xl">{money(total)}</div></div>
               <Boton onClick={confirmar} disabled={!lineas.some((l) => l.pid || l.crear)}><Check size={16} /> Confirmar compra</Boton>
             </div>
           </div>
@@ -371,15 +371,15 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
       <Modal open={!!buscando} onClose={() => setBuscando(null)} ancho="max-w-md">
         <div className="p-5">
           <h3 className="f-d text-lg">¿A qué producto corresponde?</h3>
-          <p className="text-sm text-stone-500 mt-0.5">
+          <p className="text-sm text-texto-suave mt-0.5">
             {buscando && lineas.find((l) => l.uid === buscando) ? lineas.find((l) => l.uid === buscando).desc : ""}
           </p>
           <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Buscar en el catálogo"
-            className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm mt-3 outline-none focus:border-orange-400" />
-          <ul className="mt-2 border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-72 overflow-auto">
+            className="w-full border border-borde rounded-xl px-3 py-2 text-sm mt-3 outline-none focus:border-acento" />
+          <ul className="mt-2 border border-borde rounded-xl divide-y divide-borde max-h-72 overflow-auto">
             {candidatos.map((p) => (
               <li key={p.id}>
-                <button className="w-full text-left px-3 py-2 hover:bg-stone-50" onClick={() => {
+                <button className="w-full text-left px-3 py-2 hover:bg-superficie-2" onClick={() => {
                   const l = lineas.find((x) => x.uid === buscando);
                   const margen = (p.precio - p.costo) / p.precio;
                   setLineas((ls) => ls.map((x) => (x.uid === buscando ? {
@@ -390,7 +390,7 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
                   setBuscando(null); setQ("");
                 }}>
                   <div className="text-sm">{p.nombre}</div>
-                  <div className="f-m text-[11px] text-stone-400">{p.barcode} · costo {money(p.costo)}</div>
+                  <div className="f-m text-[11px] text-texto-tenue">{p.barcode} · costo {money(p.costo)}</div>
                 </button>
               </li>
             ))}
@@ -476,14 +476,14 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
 
         {tab === "sugerido" && (
           <div>
-            <div className="p-4 flex flex-wrap items-center gap-3 border-b border-stone-100">
-              <select value={prov} onChange={(e) => setProv(e.target.value)} className="text-sm border border-stone-200 rounded-xl px-3 py-2 bg-white outline-none focus:border-orange-400">
+            <div className="p-4 flex flex-wrap items-center gap-3 border-b border-borde">
+              <select value={prov} onChange={(e) => setProv(e.target.value)} className="text-sm border border-borde rounded-xl px-3 py-2 bg-superficie outline-none focus:border-acento">
                 {Object.keys(provs).map((p) => <option key={p}>{p}</option>)}
               </select>
-              <span className="text-xs text-stone-500">
+              <span className="text-xs text-texto-suave">
                 {(provs[prov] || {}).pago} · entrega {(provs[prov] || {}).entrega} · {(provs[prov] || {}).tel}
               </span>
-              <span className="text-xs text-stone-400 ml-auto">Cobertura objetivo: {cobertura} días</span>
+              <span className="text-xs text-texto-tenue ml-auto">Cobertura objetivo: {cobertura} días</span>
             </div>
             {sugeridos.length === 0 ? (
               <Vacio>Con este proveedor estás cubierto. No hace falta pedir nada.</Vacio>
@@ -492,7 +492,7 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[680px]">
                     <thead>
-                      <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
+                      <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde">
                         <th className="pl-4 py-2.5 w-8"></th>
                         <th className="px-2 py-2.5 font-semibold">Producto</th>
                         <th className="px-2 py-2.5 font-semibold text-right">Tenés</th>
@@ -502,20 +502,20 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
                         <th className="px-4 py-2.5 font-semibold text-right">Costo</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-stone-100">
+                    <tbody className="divide-y divide-borde">
                       {sugeridos.slice(0, 40).map(({ p, cant, cobertura: cob }) => (
-                        <tr key={p.id} className={sel[p.id] ? "bg-orange-50/40" : "hover:bg-stone-50"}>
+                        <tr key={p.id} className={sel[p.id] ? "bg-acento-suave/40" : "hover:bg-superficie-2"}>
                           <td className="pl-4 py-2">
                             <input type="checkbox" checked={!!sel[p.id]} onChange={(e) => setSel((s) => ({ ...s, [p.id]: e.target.checked ? cant : 0 }))}
                               className="w-4 h-4 accent-orange-500" />
                           </td>
-                          <td className="px-2 py-2"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-stone-400">bulto de {p.bulto}</div></td>
+                          <td className="px-2 py-2"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-texto-tenue">bulto de {p.bulto}</div></td>
                           <td className="px-2 py-2 text-right f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</td>
-                          <td className="px-2 py-2 text-right f-m text-stone-500">{p.vel.toFixed(1)}</td>
-                          <td className="px-2 py-2 text-right f-m"><span className={cob < 4 ? "text-red-600 font-semibold" : "text-stone-500"}>{Math.round(cob)} d</span></td>
+                          <td className="px-2 py-2 text-right f-m text-texto-suave">{p.vel.toFixed(1)}</td>
+                          <td className="px-2 py-2 text-right f-m"><span className={cob < 4 ? "text-mal font-semibold" : "text-texto-suave"}>{Math.round(cob)} d</span></td>
                           <td className="px-2 py-2 text-right">
                             <input value={sel[p.id] || ""} onChange={(e) => setSel((s) => ({ ...s, [p.id]: Number(e.target.value.replace(/\D/g, "")) }))}
-                              placeholder={String(cant)} className="f-m w-20 text-right border border-stone-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-orange-400" />
+                              placeholder={String(cant)} className="f-m w-20 text-right border border-borde rounded-lg px-2 py-1 text-sm outline-none focus:border-acento" />
                           </td>
                           <td className="px-4 py-2 text-right f-m">{money((sel[p.id] || 0) * p.costo)}</td>
                         </tr>
@@ -523,9 +523,9 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
                     </tbody>
                   </table>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-stone-200 bg-stone-50">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-borde bg-superficie-2">
                   <div className="text-sm">
-                    <span className="text-stone-500">{lineas.length} productos · </span>
+                    <span className="text-texto-suave">{lineas.length} productos · </span>
                     <span className="f-d text-xl">{money(totalPedido)}</span>
                   </div>
                   <Boton onClick={generar} disabled={!lineas.length}>Generar orden de compra <ArrowRight size={15} /></Boton>
@@ -537,17 +537,17 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
 
         {tab === "pedidos" && (
           pedidos.length === 0 ? <Vacio>Todavía no generaste ninguna orden. Empezá por el pedido sugerido.</Vacio> : (
-            <ul className="divide-y divide-stone-100">
+            <ul className="divide-y divide-borde">
               {pedidos.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-sm">{p.nro} · {p.prov}</div>
-                    <div className="text-xs text-stone-500">{p.items.length} productos · {fdatel(p.fecha)} · {(provs[p.prov] || {}).pago}</div>
+                    <div className="text-xs text-texto-suave">{p.items.length} productos · {fdatel(p.fecha)} · {(provs[p.prov] || {}).pago}</div>
                   </div>
                   <span className="f-m text-sm">{money(p.total)}</span>
                   {p.estado === "pendiente"
                     ? <Boton size="sm" onClick={() => setRecibiendo(p)}>Recibir mercadería</Boton>
-                    : <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1">Recibido</span>}
+                    : <span className="text-xs font-semibold text-bien bg-bien-suave border border-bien rounded-full px-2.5 py-1">Recibido</span>}
                 </li>
               ))}
             </ul>
@@ -557,7 +557,7 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
         {tab === "prov" && (
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm text-stone-500">
+              <p className="text-sm text-texto-suave">
                 {Object.entries(provs).filter(([, i]) => faltantesProveedor(i).length).length} de {Object.keys(provs).length} fichas necesitan datos.
               </p>
               <Boton size="sm" onClick={() => setAltaProv({})}><Plus size={14} /> Nuevo proveedor</Boton>
@@ -570,29 +570,29 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
               const subaProm = subas.length ? subas.reduce((s, p) => s + (p.costo / p.costoPrev - 1), 0) / subas.length : 0;
               const faltan = faltantesProveedor(i);
                 return (
-                <div key={n} className={`border rounded-xl p-4 ${faltan.length ? "border-amber-300 bg-amber-50/40" : "border-stone-200"}`}>
+                <div key={n} className={`border rounded-xl p-4 ${faltan.length ? "border-amber-300 bg-ojo-suave/40" : "border-borde"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-semibold flex items-center gap-2">
                         {n}
                         {faltan.length > 0 && <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-amber-100 text-amber-800 border-amber-300">incompleta</span>}
                       </div>
-                      <div className="text-xs text-stone-500 mt-0.5">{[i.pago, i.entrega && `entrega ${i.entrega}`, i.tel, i.cuit].filter(Boolean).join(" · ") || "Sin datos cargados"}</div>
+                      <div className="text-xs text-texto-suave mt-0.5">{[i.pago, i.entrega && `entrega ${i.entrega}`, i.tel, i.cuit].filter(Boolean).join(" · ") || "Sin datos cargados"}</div>
                     </div>
                     <Boton size="sm" variant="quiet" onClick={() => setAltaProv({ ...i, nombre: n, nombreOriginal: n })}>Editar</Boton>
                   </div>
                   <div className="grid grid-cols-3 gap-2 mt-3 text-center">
-                    <div><div className="f-m text-base">{ps.length}</div><div className="text-[10px] uppercase tracking-wider text-stone-400">Productos</div></div>
-                    <div><div className="f-m text-base">{moneyk(ps.reduce((s, p) => s + p.costo * p.u30, 0))}</div><div className="text-[10px] uppercase tracking-wider text-stone-400">Compra/mes</div></div>
-                    <div><div className={`f-m text-base ${subaProm > 0.06 ? "text-red-600" : ""}`}>{subaProm ? "+" + pct(subaProm, 0) : "—"}</div><div className="text-[10px] uppercase tracking-wider text-stone-400">Suba prom.</div></div>
+                    <div><div className="f-m text-base">{ps.length}</div><div className="text-[10px] uppercase tracking-wider text-texto-tenue">Productos</div></div>
+                    <div><div className="f-m text-base">{moneyk(ps.reduce((s, p) => s + p.costo * p.u30, 0))}</div><div className="text-[10px] uppercase tracking-wider text-texto-tenue">Compra/mes</div></div>
+                    <div><div className={`f-m text-base ${subaProm > 0.06 ? "text-mal" : ""}`}>{subaProm ? "+" + pct(subaProm, 0) : "—"}</div><div className="text-[10px] uppercase tracking-wider text-texto-tenue">Suba prom.</div></div>
                   </div>
                   {subas.length > 0 && (
-                    <p className="text-xs text-stone-600 mt-3 border-t border-stone-100 pt-2.5">
+                    <p className="text-xs text-texto-suave mt-3 border-t border-borde pt-2.5">
                       Aumentó {subas.length} productos en los últimos 30 días. Te cuesta <strong>{money(impacto)}</strong> al mes si no tocás precios.
                     </p>
                   )}
                   {faltan.length > 0 && (
-                    <p className="text-xs text-amber-800 mt-3 border-t border-amber-200 pt-2.5">Falta cargar: <strong>{faltan.join(", ")}</strong>.</p>
+                    <p className="text-xs text-amber-800 mt-3 border-t border-ojo pt-2.5">Falta cargar: <strong>{faltan.join(", ")}</strong>.</p>
                   )}
                 </div>
               );
@@ -639,43 +639,43 @@ function RecepcionModal({ ped, onClose, onConfirm, provs }) {
 
   return (
     <Modal open onClose={onClose} ancho="max-w-2xl">
-      <div className="sticky top-0 bg-white border-b border-stone-200 px-5 py-3.5 flex items-center justify-between">
+      <div className="sticky top-0 bg-superficie border-b border-borde px-5 py-3.5 flex items-center justify-between">
         <div>
           <h3 className="f-d text-lg">Recibir {ped.nro}</h3>
-          <p className="text-xs text-stone-500">Disparale a cada bulto con la pistola: {controlados} de {lineas.length} renglones controlados.</p>
+          <p className="text-xs text-texto-suave">Disparale a cada bulto con la pistola: {controlados} de {lineas.length} renglones controlados.</p>
         </div>
-        <button onClick={onClose} className="text-stone-400 hover:text-stone-900"><X size={18} /></button>
+        <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
       </div>
       <div className="p-5">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
+            <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde">
               <th className="py-2 font-semibold">Producto</th>
               <th className="py-2 font-semibold text-right w-28">Llegaron</th>
               <th className="py-2 font-semibold text-right w-28">Costo unit.</th>
               <th className="py-2 font-semibold text-right w-24">Total</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-stone-100">
+          <tbody className="divide-y divide-borde">
             {lineas.map((l) => {
               const orig = ped.items.find((i) => i.pid === l.pid).costo;
               const dif = Number(l.costo) / orig - 1;
               return (
                 <tr key={l.pid}>
                   <td className="py-2 pr-2">
-                    <span className={`inline-flex items-center gap-1.5 ${l.ver >= Number(l.cant) ? "text-emerald-700 font-medium" : ""}`}>
+                    <span className={`inline-flex items-center gap-1.5 ${l.ver >= Number(l.cant) ? "text-bien font-medium" : ""}`}>
                       {l.ver >= Number(l.cant) ? <Check size={14} /> : <span className="w-3.5" />}{l.nombre}
                     </span>
                   </td>
                   <td className="py-2 text-right">
                     <input value={l.cant} onChange={(e) => set(l.pid, "cant", e.target.value.replace(/\D/g, ""))}
-                      className="f-m w-16 text-right border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-orange-400" />
-                    {l.ver > 0 && <div className="text-[10px] text-stone-400">{l.ver} leídos</div>}
+                      className="f-m w-16 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
+                    {l.ver > 0 && <div className="text-[10px] text-texto-tenue">{l.ver} leídos</div>}
                   </td>
                   <td className="py-2 text-right">
                     <input value={l.costo} onChange={(e) => set(l.pid, "costo", e.target.value.replace(/\D/g, ""))}
-                      className="f-m w-24 text-right border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-orange-400" />
-                    {Math.abs(dif) > 0.005 && <div className={`text-[10px] ${dif > 0 ? "text-red-500" : "text-emerald-600"}`}>{dif > 0 ? "+" : ""}{pct(dif, 0)}</div>}
+                      className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
+                    {Math.abs(dif) > 0.005 && <div className={`text-[10px] ${dif > 0 ? "text-mal" : "text-bien"}`}>{dif > 0 ? "+" : ""}{pct(dif, 0)}</div>}
                   </td>
                   <td className="py-2 text-right f-m">{money(Number(l.cant) * Number(l.costo))}</td>
                 </tr>
@@ -684,13 +684,13 @@ function RecepcionModal({ ped, onClose, onConfirm, provs }) {
           </tbody>
         </table>
         {cambios.length > 0 && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 mt-4">
+          <p className="text-xs text-ojo bg-ojo-suave border border-ojo rounded-xl p-3 mt-4">
             {cambios.length} productos llegan con otro costo. Al confirmar se actualiza el costo, el historial y el margen — y vas a ver el aviso de precios a revisar.
           </p>
         )}
-        <div className="flex items-center justify-between mt-5 pt-4 border-t border-stone-200">
-          <div><span className="text-sm text-stone-500">Total a pagar </span><span className="f-d text-xl">{money(total)}</span>
-            <div className="text-xs text-stone-400">{(provs[ped.prov] || {}).pago === "Contado" ? "Sale de caja al confirmar" : "Queda en cuenta corriente"}</div>
+        <div className="flex items-center justify-between mt-5 pt-4 border-t border-borde">
+          <div><span className="text-sm text-texto-suave">Total a pagar </span><span className="f-d text-xl">{money(total)}</span>
+            <div className="text-xs text-texto-tenue">{(provs[ped.prov] || {}).pago === "Contado" ? "Sale de caja al confirmar" : "Queda en cuenta corriente"}</div>
           </div>
           <Boton onClick={() => onConfirm(ped, lineas)}><Check size={15} /> Confirmar recepción</Boton>
         </div>
@@ -723,7 +723,7 @@ export function Picking({ pedidos, setPedidos, productos, setProductos, cobrar, 
     setAbierto(p.id);
   };
 
-  const chip = { pendiente: "bg-amber-50 text-amber-700 border-amber-200", preparando: "bg-blue-50 text-blue-700 border-blue-200", listo: "bg-emerald-50 text-emerald-700 border-emerald-200", entregado: "bg-stone-100 text-stone-500 border-stone-200" };
+  const chip = { pendiente: "bg-ojo-suave text-ojo border-ojo", preparando: "bg-blue-50 text-blue-700 border-blue-200", listo: "bg-bien-suave text-bien border-bien", entregado: "bg-superficie-2 text-texto-suave border-borde" };
   const pend = pedidos.filter((p) => p.estado !== "entregado");
 
   return (
@@ -735,12 +735,12 @@ export function Picking({ pedidos, setPedidos, productos, setProductos, cobrar, 
         <Kpi label="A facturar" valor={money(pend.reduce((s, p) => s + p.items.reduce((a, l) => a + l.precio * l.pedido, 0), 0))} />
       </div>
 
-      <Card className="p-4 border-orange-200 bg-orange-50/60">
+      <Card className="p-4 border-acento bg-acento-suave/60">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-orange-500 text-white flex items-center justify-center shrink-0"><ScanLine size={20} /></div>
+          <div className="w-11 h-11 rounded-xl bg-acento text-sobre-acento flex items-center justify-center shrink-0"><ScanLine size={20} /></div>
           <div className="min-w-0 flex-1">
             <h3 className="f-d text-base">Armar una venta con la pistola</h3>
-            <p className="text-sm text-stone-600">Recorré el salón cargando el changuito: escaneás, se arma la lista sola y cobrás al final. Sirve para pedidos por teléfono o para el cliente que espera en el mostrador.</p>
+            <p className="text-sm text-texto-suave">Recorré el salón cargando el changuito: escaneás, se arma la lista sola y cobrás al final. Sirve para pedidos por teléfono o para el cliente que espera en el mostrador.</p>
           </div>
           <Boton onClick={nuevaVenta}><Plus size={16} /> Empezar</Boton>
         </div>
@@ -753,29 +753,29 @@ export function Picking({ pedidos, setPedidos, productos, setProductos, cobrar, 
             const unid = p.items.reduce((s, l) => s + l.pedido, 0);
             const listas = p.items.filter((l) => l.preparado >= l.pedido || l.faltante > 0).length;
             return (
-              <Card key={p.id} className="p-4 hover:border-stone-300 transition-colors">
+              <Card key={p.id} className="p-4 hover:border-borde-fuerte transition-colors">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="f-m text-xs text-stone-400">{p.nro}</span>
+                      <span className="f-m text-xs text-texto-tenue">{p.nro}</span>
                       <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border ${chip[p.estado]}`}>{p.estado}</span>
                     </div>
                     <h3 className="f-d text-base mt-1 truncate">{p.cliente}</h3>
-                    <div className="text-xs text-stone-500 flex items-center gap-1.5 mt-0.5">
+                    <div className="text-xs text-texto-suave flex items-center gap-1.5 mt-0.5">
                       {p.canal === "Teléfono" ? <Phone size={12} /> : <MessageCircle size={12} />} {p.canal} · {p.hora}
-                      <span className="text-stone-300">·</span>
+                      <span className="text-texto-tenue">·</span>
                       {p.entrega === "Envío" ? <Bike size={12} /> : <Store size={12} />} {p.entrega}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="f-d text-lg">{money(total)}</div>
-                    <div className="text-[11px] text-stone-400">{p.items.length} productos · {nf.format(Math.round(unid))} u</div>
+                    <div className="text-[11px] text-texto-tenue">{p.items.length} productos · {nf.format(Math.round(unid))} u</div>
                   </div>
                 </div>
-                {p.nota && <p className="text-xs text-stone-500 bg-stone-50 rounded-lg px-2.5 py-1.5 mt-2.5">{p.nota}</p>}
+                {p.nota && <p className="text-xs text-texto-suave bg-superficie-2 rounded-lg px-2.5 py-1.5 mt-2.5">{p.nota}</p>}
                 {p.estado !== "pendiente" && (
-                  <div className="h-1.5 bg-stone-100 rounded-full mt-3 overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(listas / p.items.length) * 100}%` }} />
+                  <div className="h-1.5 bg-superficie-2 rounded-full mt-3 overflow-hidden">
+                    <div className="h-full bg-bien rounded-full" style={{ width: `${(listas / p.items.length) * 100}%` }} />
                   </div>
                 )}
                 <Boton className="w-full mt-3" variant={p.estado === "listo" ? "ghost" : "primary"} onClick={() => setAbierto(p.id)}>
@@ -934,113 +934,113 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
               <input value={ped.cliente === "Venta en el salón" ? "" : ped.cliente}
                 onChange={(e) => setPedidos((ps) => ps.map((p) => (p.id === ped.id ? { ...p, cliente: e.target.value || "Venta en el salón" } : p)))}
                 placeholder="Cliente (opcional)"
-                className="text-xs text-stone-600 border border-stone-200 rounded-lg px-2 py-1 mt-1 outline-none focus:border-orange-400 w-56" />
+                className="text-xs text-texto-suave border border-borde rounded-lg px-2 py-1 mt-1 outline-none focus:border-acento w-56" />
             </>
           ) : (
             <>
               <div className="f-d text-lg">{ped.nro} · {ped.cliente}</div>
-              <div className="text-xs text-stone-500">{ped.entrega} · {ped.dir} · {ped.tel}</div>
+              <div className="text-xs text-texto-suave">{ped.entrega} · {ped.dir} · {ped.tel}</div>
             </>
           )}
         </div>
         <div className="text-right">
           <div className="f-d text-xl">{money(monto)}</div>
-          <div className="text-[11px] text-stone-400">{libre ? `${items.length} renglones · ${nf.format(Math.round(totalPrep))} u` : `${resueltos} de ${items.length} renglones`}</div>
+          <div className="text-[11px] text-texto-tenue">{libre ? `${items.length} renglones · ${nf.format(Math.round(totalPrep))} u` : `${resueltos} de ${items.length} renglones`}</div>
         </div>
       </div>
 
       {/* Zona de escaneo */}
-      <div className={`rounded-2xl p-5 text-center transition-colors ${error ? "bg-red-600" : ultimo ? "bg-emerald-600" : "bg-stone-900"}`}>
-        <div className="flex items-center justify-center gap-2 text-white/70 text-[11px] uppercase tracking-widest font-semibold">
+      <div className={`rounded-2xl p-5 text-center transition-colors ${error ? "bg-red-600" : ultimo ? "bg-emerald-600" : "bg-superficie-3"}`}>
+        <div className="flex items-center justify-center gap-2 text-texto/70 text-[11px] uppercase tracking-widest font-semibold">
           <ScanLine size={14} /> {libre ? "Pistola activa · cargá el changuito" : "Pistola activa · dispará sobre el producto"}
         </div>
         <button onClick={() => setCamara(true)}
-          className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-white/15 active:bg-white/25 border border-white/25 rounded-xl px-3 py-1.5">
+          className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/15 active:bg-superficie/25 border border-white/25 rounded-xl px-3 py-1.5">
           <Cam size={14} /> Usar la cámara
         </button>
         {error ? (
           <>
-            <div className="f-d text-white text-xl mt-2">{error.msg}</div>
+            <div className="f-d text-texto text-xl mt-2">{error.msg}</div>
             {error.extra && <Boton size="sm" variant="ghost" className="mt-3" onClick={() => agregarExtra(error.extra)}>Agregarlo igual al pedido</Boton>}
           </>
         ) : ultimo ? (
           <>
-            <div className="f-d text-white text-xl mt-2">{ultimo.nombre}</div>
-            <div className="f-m text-white/80 text-sm mt-1">
+            <div className="f-d text-texto text-xl mt-2">{ultimo.nombre}</div>
+            <div className="f-m text-texto/80 text-sm mt-1">
               {libre
                 ? `${ultimo.unidad === "kg" ? ultimo.preparado.toFixed(2) + " kg" : ultimo.preparado + " u"} · ${money(ultimo.precio * ultimo.preparado)}`
                 : ultimo.unidad === "kg" ? `${ultimo.preparado.toFixed(2)} de ${ultimo.pedido.toFixed(2)} kg` : `${ultimo.preparado} de ${ultimo.pedido} unidades`}
             </div>
-            {ultimo.aviso && <div className="text-white/70 text-xs mt-1">{ultimo.aviso}</div>}
+            {ultimo.aviso && <div className="text-texto/70 text-xs mt-1">{ultimo.aviso}</div>}
           </>
         ) : (
-          <div className="f-d text-white text-xl mt-2">{libre ? "Escaneá el primer producto" : "Esperando el primer disparo"}</div>
+          <div className="f-d text-texto text-xl mt-2">{libre ? "Escaneá el primer producto" : "Esperando el primer disparo"}</div>
         )}
         {libre ? (
-          <div className="f-m text-white/70 text-sm mt-4">{nf.format(Math.round(totalPrep))} unidades · {money(monto)}</div>
+          <div className="f-m text-texto/70 text-sm mt-4">{nf.format(Math.round(totalPrep))} unidades · {money(monto)}</div>
         ) : (
           <>
-            <div className="mt-4 h-2 bg-white/20 rounded-full overflow-hidden max-w-md mx-auto">
-              <div className="h-full bg-white rounded-full transition-all" style={{ width: `${totalPedido ? (totalPrep / totalPedido) * 100 : 0}%` }} />
+            <div className="mt-4 h-2 bg-superficie/20 rounded-full overflow-hidden max-w-md mx-auto">
+              <div className="h-full bg-superficie rounded-full transition-all" style={{ width: `${totalPedido ? (totalPrep / totalPedido) * 100 : 0}%` }} />
             </div>
-            <div className="f-m text-white/70 text-xs mt-1.5">{Math.round(totalPrep)} de {Math.round(totalPedido)} unidades</div>
+            <div className="f-m text-texto/70 text-xs mt-1.5">{Math.round(totalPrep)} de {Math.round(totalPedido)} unidades</div>
           </>
         )}
       </div>
 
       <Card className="overflow-hidden">
         {libre && items.length === 0 && <Vacio>El changuito está vacío. Disparale al primer producto o buscalo abajo.</Vacio>}
-        <ul className="divide-y divide-stone-100">
+        <ul className="divide-y divide-borde">
           {items.map((l) => {
             const ok = l.preparado >= l.pedido - 0.001;
             const falt = l.faltante > 0;
             return (
-              <li key={l.pid} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${ok ? "bg-emerald-50/40" : falt ? "bg-red-50/40" : ""}`}>
-                <div className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center ${libre ? "bg-stone-900 text-white" : ok ? "bg-emerald-500 text-white" : falt ? "bg-red-500 text-white" : "bg-stone-100 text-stone-400"}`}>
+              <li key={l.pid} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${ok ? "bg-bien-suave/40" : falt ? "bg-mal-suave/40" : ""}`}>
+                <div className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center ${libre ? "bg-superficie-3 text-texto" : ok ? "bg-bien text-texto" : falt ? "bg-mal text-texto" : "bg-superficie-2 text-texto-tenue"}`}>
                   {libre ? <span className="f-m text-[11px]">{l.unidad === "kg" ? l.preparado.toFixed(1) : l.preparado}</span>
                     : ok ? <Check size={15} /> : falt ? <X size={15} /> : <span className="f-m text-[11px]">{l.unidad === "kg" ? l.pedido.toFixed(1) : l.pedido}</span>}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-stone-900 truncate">{l.nombre} {l.extra && <span className="text-[10px] text-orange-600 font-bold">AGREGADO</span>}</div>
-                  <div className="f-m text-[11px] text-stone-400">{l.barcode} · {money(l.precio)}{l.unidad === "kg" ? "/kg" : ""}</div>
+                  <div className="text-sm font-medium text-texto truncate">{l.nombre} {l.extra && <span className="text-[10px] text-acento font-bold">AGREGADO</span>}</div>
+                  <div className="f-m text-[11px] text-texto-tenue">{l.barcode} · {money(l.precio)}{l.unidad === "kg" ? "/kg" : ""}</div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => setCant(l.pid, l.preparado - (l.unidad === "kg" ? 0.25 : 1))} className="w-7 h-7 rounded-lg border border-stone-200 hover:bg-stone-100 flex items-center justify-center"><Minus size={13} /></button>
+                  <button onClick={() => setCant(l.pid, l.preparado - (l.unidad === "kg" ? 0.25 : 1))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Minus size={13} /></button>
                   <span className="f-m w-16 text-center text-sm">
                     {l.unidad === "kg" ? l.preparado.toFixed(2) : l.preparado}
-                    {!libre && <span className="text-stone-300">/{l.unidad === "kg" ? l.pedido.toFixed(2) : l.pedido}</span>}
+                    {!libre && <span className="text-texto-tenue">/{l.unidad === "kg" ? l.pedido.toFixed(2) : l.pedido}</span>}
                   </span>
-                  <button onClick={() => setCant(l.pid, libre ? l.preparado + (l.unidad === "kg" ? 0.25 : 1) : Math.min(l.pedido, l.preparado + (l.unidad === "kg" ? 0.25 : 1)))} className="w-7 h-7 rounded-lg border border-stone-200 hover:bg-stone-100 flex items-center justify-center"><Plus size={13} /></button>
+                  <button onClick={() => setCant(l.pid, libre ? l.preparado + (l.unidad === "kg" ? 0.25 : 1) : Math.min(l.pedido, l.preparado + (l.unidad === "kg" ? 0.25 : 1)))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Plus size={13} /></button>
                 </div>
                 {libre
                   ? <><span className="f-m text-sm w-24 text-right">
                       {money((conPrecio.find((x) => x.pid === l.pid) || l).unit * l.preparado)}
-                      {(conPrecio.find((x) => x.pid === l.pid) || {}).lista && <span className="block text-[9px] text-emerald-600 font-bold uppercase">{(conPrecio.find((x) => x.pid === l.pid) || {}).listaNombre}</span>}
+                      {(conPrecio.find((x) => x.pid === l.pid) || {}).lista && <span className="block text-[9px] text-bien font-bold uppercase">{(conPrecio.find((x) => x.pid === l.pid) || {}).listaNombre}</span>}
                     </span>
-                      <button onClick={() => quitar(l.pid)} className="text-stone-300 hover:text-red-600"><Trash2 size={15} /></button></>
+                      <button onClick={() => quitar(l.pid)} className="text-texto-tenue hover:text-mal"><Trash2 size={15} /></button></>
                   : <Boton size="sm" variant={falt ? "danger" : "quiet"} onClick={() => marcarFaltante(l.pid)} title="No hay stock en góndola">Sin stock</Boton>}
               </li>
             );
           })}
         </ul>
-        <div className="border-t border-stone-200 p-4 bg-stone-50">
-          <div className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold mb-2">Buscar a mano, o escribir la cantidad del último escaneado</div>
+        <div className="border-t border-borde p-4 bg-superficie-2">
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Buscar a mano, o escribir la cantidad del último escaneado</div>
           <input value={q} onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && cantidadPendiente) { e.preventDefault(); aplicarCantidad(); } }}
             placeholder="Nombre, código, o una cantidad para el último"
-            className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-orange-400 bg-white" />
+            className="w-full border border-borde rounded-xl px-3 py-2 text-sm outline-none focus:border-acento bg-superficie" />
           {cantidadPendiente && (
-            <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 mt-2">
+            <p className="text-sm text-emerald-800 bg-bien-suave border border-bien rounded-xl px-3 py-2 mt-2">
               <strong className="f-d text-lg">{aNumero(q)}</strong> {ultimo.unidad === "kg" ? "kg" : "unidades"} de <strong>{ultimo.nombre}</strong> · Enter para aplicar
             </p>
           )}
           {busq.length > 0 && (
-            <ul className="mt-2 bg-white border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-56 overflow-auto">
+            <ul className="mt-2 bg-superficie border border-borde rounded-xl divide-y divide-borde max-h-56 overflow-auto">
               {busq.map((p) => (
                 <li key={p.id}>
-                  <button onClick={() => { registrar(p.barcode); setQ(""); }} className="w-full text-left px-3 py-2 hover:bg-stone-50 flex justify-between gap-3">
+                  <button onClick={() => { registrar(p.barcode); setQ(""); }} className="w-full text-left px-3 py-2 hover:bg-superficie-2 flex justify-between gap-3">
                     <span className="text-sm truncate">{p.nombre}</span>
-                    <span className="f-m text-xs text-stone-400 shrink-0">{p.barcode}</span>
+                    <span className="f-m text-xs text-texto-tenue shrink-0">{p.barcode}</span>
                   </button>
                 </li>
               ))}
@@ -1049,10 +1049,10 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
         </div>
       </Card>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 sticky bottom-24 md:bottom-4 bg-white border border-stone-200 rounded-2xl p-3 shadow-sm z-30">
+      <div className="flex flex-wrap items-center justify-between gap-3 sticky bottom-24 md:bottom-4 bg-superficie border border-borde rounded-2xl p-3 shadow-sm z-30">
         <div className="text-sm">
-          <span className="text-stone-500">{libre ? "Total " : "Preparado "}</span><span className="f-d text-xl">{money(monto)}</span>
-          {faltantes.length > 0 && <span className="text-red-600 text-xs font-semibold ml-2">{faltantes.length} sin stock</span>}
+          <span className="text-texto-suave">{libre ? "Total " : "Preparado "}</span><span className="f-d text-xl">{money(monto)}</span>
+          {faltantes.length > 0 && <span className="text-mal text-xs font-semibold ml-2">{faltantes.length} sin stock</span>}
         </div>
         <Boton onClick={() => setCerrando(true)} disabled={totalPrep === 0} variant={libre || completo ? "primary" : "dark"}>
           <PackageCheck size={16} /> {libre ? "Cobrar" : completo ? "Cerrar preparación" : "Cerrar igual"}
@@ -1063,29 +1063,29 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
       <Modal open={cerrando} onClose={() => setCerrando(false)} ancho="max-w-md">
         <div className="p-5">
           <h3 className="f-d text-lg">{libre ? `Cobrar ${ped.nro}` : `Pedido ${ped.nro} preparado`}</h3>
-          <p className="text-sm text-stone-500 mt-0.5">
+          <p className="text-sm text-texto-suave mt-0.5">
             {libre ? `${items.length} productos, ${nf.format(Math.round(totalPrep))} unidades. Al cobrar se emite el ticket, se descuenta el stock y entra en caja.`
               : "Esta es la comanda que sale por la impresora para el bolsón."}
           </p>
           {libre ? (
-            <ul className="mt-4 border border-stone-200 rounded-xl divide-y divide-stone-100 max-h-56 overflow-auto text-sm">
+            <ul className="mt-4 border border-borde rounded-xl divide-y divide-borde max-h-56 overflow-auto text-sm">
               {items.map((l) => (
                 <li key={l.pid} className="flex justify-between gap-3 px-3 py-2">
                   <span className="truncate">
                     {l.unidad === "kg" ? l.preparado.toFixed(2) + " kg" : l.preparado + " ×"} {l.nombre}
-                    {(conPrecio.find((x) => x.pid === l.pid) || {}).lista && <span className="ml-1.5 text-[9px] font-bold text-emerald-600 uppercase">{(conPrecio.find((x) => x.pid === l.pid) || {}).listaNombre}</span>}
+                    {(conPrecio.find((x) => x.pid === l.pid) || {}).lista && <span className="ml-1.5 text-[9px] font-bold text-bien uppercase">{(conPrecio.find((x) => x.pid === l.pid) || {}).listaNombre}</span>}
                   </span>
                   <span className="f-m shrink-0">{money((conPrecio.find((x) => x.pid === l.pid) || l).unit * l.preparado)}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <div className="bg-stone-100 rounded-xl p-3 mt-4 overflow-auto">
+            <div className="bg-superficie-2 rounded-xl p-3 mt-4 overflow-auto">
               <Comandera lineas={comandaPicking({ ...ped, items }, W)} ancho={ajustes.ancho} className="py-2 shadow-sm" />
             </div>
           )}
           {faltantes.length > 0 && (
-            <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 mt-3">
+            <div className="text-xs text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3 mt-3">
               Faltaron {faltantes.length} productos. Conviene avisarle a {ped.cliente.split(" ")[0]} antes de cobrar.
             </div>
           )}
@@ -1095,9 +1095,9 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
               <Boton variant="ghost" onClick={() => toast(`Aviso enviado a ${ped.cliente} por WhatsApp.`)}><MessageCircle size={15} /> Avisar al cliente</Boton>
             </div>
           )}
-          <div className="border-t border-stone-200 mt-4 pt-4">
+          <div className="border-t border-borde mt-4 pt-4">
             <div className="flex items-baseline justify-between">
-              <span className="text-sm text-stone-500">Total a cobrar</span>
+              <span className="text-sm text-texto-suave">Total a cobrar</span>
               <span className="f-d text-2xl">{money(monto)}</span>
             </div>
             <div className="grid grid-cols-2 gap-1.5 mt-3">

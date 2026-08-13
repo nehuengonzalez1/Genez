@@ -51,10 +51,10 @@ const ELEMENTOS = [
 const nombreElemento = (t) => (ELEMENTOS.find((e) => e.k === t) || { n: "Elemento" }).n;
 
 const ESTADOS = {
-  libre: { n: "Libre", caja: "bg-white border-stone-300 text-stone-700", punto: "bg-white border border-stone-300" },
-  ocupada: { n: "Ocupada", caja: "bg-orange-50 border-orange-400 text-orange-700", punto: "bg-orange-400" },
-  entregar: { n: "Por entregar", caja: "bg-emerald-50 border-emerald-400 text-emerald-700", punto: "bg-emerald-400" },
-  cuenta: { n: "Con cuenta", caja: "bg-sky-50 border-sky-400 text-sky-700", punto: "bg-sky-400" },
+  libre: { n: "Libre", caja: "bg-superficie border-borde-fuerte text-texto", punto: "bg-superficie border border-borde-fuerte" },
+  ocupada: { n: "Ocupada", caja: "bg-acento-suave border-acento text-acento", punto: "bg-acento-vivo" },
+  entregar: { n: "Por entregar", caja: "bg-bien-suave border-emerald-400 text-bien", punto: "bg-emerald-400" },
+  cuenta: { n: "Con cuenta", caja: "bg-info-suave border-sky-400 text-info", punto: "bg-sky-400" },
 };
 
 /* La cuenta pedida todavía no la informa la base. El estado queda armado
@@ -334,7 +334,7 @@ export function PlanoSalon({
   /* --- pantalla ------------------------------------------------------ */
 
   const plano = (
-    <div ref={cont} className="overflow-x-auto [-webkit-overflow-scrolling:touch] rounded-2xl border border-stone-200 bg-stone-100 p-2">
+    <div ref={cont} className="overflow-x-auto [-webkit-overflow-scrolling:touch] rounded-2xl border border-borde bg-superficie-2 p-2">
       <div
         className="relative mx-auto"
         style={{
@@ -361,7 +361,7 @@ export function PlanoSalon({
         ))}
 
         {!cargando && !mesasPlano.length && !elemPlano.length && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-stone-400 px-6 text-center">
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-texto-tenue px-6 text-center">
             {editando ? "Agregá la primera mesa para empezar a dibujar el salón." : "No hay nada dibujado en este sector."}
           </div>
         )}
@@ -373,10 +373,10 @@ export function PlanoSalon({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-4 text-sm">
-          <span className="text-stone-500"><strong className="text-stone-900 f-m">{ocupadas}</strong> ocupadas</span>
-          <span className="text-stone-500"><strong className="text-stone-900 f-m">{mesasVista.length - ocupadas}</strong> libres</span>
+          <span className="text-texto-suave"><strong className="text-texto f-m">{ocupadas}</strong> ocupadas</span>
+          <span className="text-texto-suave"><strong className="text-texto f-m">{mesasVista.length - ocupadas}</strong> libres</span>
           {consumido > 0 && (
-            <span className="text-stone-500"><strong className="text-stone-900 f-m">{money(consumido)}</strong> en el salón</span>
+            <span className="text-texto-suave"><strong className="text-texto f-m">{money(consumido)}</strong> en el salón</span>
           )}
         </div>
 
@@ -410,8 +410,8 @@ export function PlanoSalon({
             <button key={s.k} onClick={() => setSector(s.k)}
               className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-colors ${
                 s.k === sector
-                  ? "bg-stone-900 text-white border-stone-900"
-                  : "bg-white text-stone-600 border-stone-200 hover:bg-stone-50"}`}>
+                  ? "bg-superficie-3 text-texto border-superficie-3"
+                  : "bg-superficie text-texto-suave border-borde hover:bg-superficie-2"}`}>
               {s.n}
             </button>
           ))}
@@ -421,11 +421,11 @@ export function PlanoSalon({
       {editando && (
         <Card className="p-3 flex flex-wrap items-center gap-2">
           <Boton size="md" onClick={agregarMesa}><Plus size={15} /> Agregar mesa</Boton>
-          <span className="text-xs uppercase tracking-widest text-stone-400 font-bold ml-2">Elementos</span>
+          <span className="text-xs uppercase tracking-widest text-texto-tenue font-bold ml-2">Elementos</span>
           {ELEMENTOS.map((e) => (
             <Boton key={e.k} size="md" variant="ghost" onClick={() => agregarElemento(e.k)}>{e.n}</Boton>
           ))}
-          <span className="text-xs text-stone-400 ml-auto flex items-center gap-1.5">
+          <span className="text-xs text-texto-tenue ml-auto flex items-center gap-1.5">
             <Grid3x3 size={13} /> Arrastrá para mover, tocá para editar
           </span>
         </Card>
@@ -445,14 +445,14 @@ export function PlanoSalon({
           : plano
       )}
 
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-stone-500">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-texto-suave">
         {Object.values(ESTADOS).map((s) => (
           <span key={s.n} className="flex items-center gap-1.5">
             <span className={`w-3 h-3 rounded ${s.punto}`} /> {s.n}
           </span>
         ))}
         <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded bg-stone-200" /> Barra, cocina y demás
+          <span className="w-3 h-3 rounded bg-superficie-3" /> Barra, cocina y demás
         </span>
       </div>
     </div>
@@ -491,7 +491,7 @@ function PiezaMesa({ m, celda, editando, elegida, abriendo, onTocar, onBajar, on
       <span className="f-d leading-none truncate max-w-full" style={{ fontSize: tipo }}>{m.nombre}</span>
 
       {m.capacidad ? (
-        <span className="flex items-center gap-0.5 text-[10px] text-stone-400 leading-none mt-1">
+        <span className="flex items-center gap-0.5 text-[10px] text-texto-tenue leading-none mt-1">
           <Users size={10} /> {m.capacidad}
         </span>
       ) : null}
@@ -499,19 +499,19 @@ function PiezaMesa({ m, celda, editando, elegida, abriendo, onTocar, onBajar, on
       {!editando && m.ocupada && cuerpo && (
         <>
           <span className="f-m text-xs mt-1 leading-none">{money(m.consumido)}</span>
-          <span className="flex items-center gap-1 text-[10px] text-stone-500 leading-none mt-1">
+          <span className="flex items-center gap-1 text-[10px] text-texto-suave leading-none mt-1">
             <Clock size={10} /> {espera(m.minutos == null ? 0 : m.minutos)}
           </span>
           {(m.enCocina > 0 || m.listos > 0) && (
             <span className="flex items-center gap-1.5 mt-1 leading-none">
-              {m.enCocina > 0 && <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-700"><Flame size={9} /> {m.enCocina}</span>}
-              {m.listos > 0 && <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-700"><Check size={9} /> {m.listos}</span>}
+              {m.enCocina > 0 && <span className="flex items-center gap-0.5 text-[10px] font-bold text-ojo"><Flame size={9} /> {m.enCocina}</span>}
+              {m.listos > 0 && <span className="flex items-center gap-0.5 text-[10px] font-bold text-bien"><Check size={9} /> {m.listos}</span>}
             </span>
           )}
         </>
       )}
 
-      {abriendo && <span className="text-[10px] text-stone-500 mt-1">Abriendo…</span>}
+      {abriendo && <span className="text-[10px] text-texto-suave mt-1">Abriendo…</span>}
     </button>
   );
 }
@@ -535,7 +535,7 @@ function PiezaElemento({ e, celda, editando, elegida, onBajar, onMover, onSoltar
         touchAction: editando ? "none" : undefined,
       }}
       className={`absolute z-0 flex items-center justify-center overflow-hidden rounded-lg ${
-        texto ? "text-stone-400" : "bg-stone-200 text-stone-500"} ${
+        texto ? "text-texto-tenue" : "bg-superficie-3 text-texto-suave"} ${
         elegida ? "ring-2 ring-orange-500" : ""} ${editando ? "cursor-move" : "pointer-events-none"}`}
     >
       <span className="text-[10px] uppercase tracking-widest font-bold truncate px-1">{etiqueta}</span>
@@ -550,8 +550,8 @@ function PiezaElemento({ e, celda, editando, elegida, onBajar, onMover, onSoltar
 function PanelEdicion({ mesa, elemento, sectores, onMesa, onElemento, onBorrarMesa, onQuitarElemento }) {
   if (!mesa && !elemento) {
     return (
-      <Card className="p-4 text-sm text-stone-500">
-        <p className="font-semibold text-stone-900 mb-1">Nada elegido</p>
+      <Card className="p-4 text-sm text-texto-suave">
+        <p className="font-semibold text-texto mb-1">Nada elegido</p>
         <p>Tocá una mesa o un elemento del plano para cambiarle el nombre, el tamaño o la forma. Arrastralo para moverlo.</p>
       </Card>
     );
@@ -560,7 +560,7 @@ function PanelEdicion({ mesa, elemento, sectores, onMesa, onElemento, onBorrarMe
   if (mesa) {
     return (
       <Card className="p-4 space-y-3">
-        <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Mesa</div>
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Mesa</div>
 
         <Campo label="Nombre">
           <input className={inputCls} value={mesa.nombre || ""}
@@ -568,7 +568,7 @@ function PanelEdicion({ mesa, elemento, sectores, onMesa, onElemento, onBorrarMe
         </Campo>
 
         {!mesa.nueva && (
-          <p className="text-[11px] text-stone-400 -mt-1">
+          <p className="text-[11px] text-texto-tenue -mt-1">
             El nombre y la capacidad de una mesa que ya existe todavía no se guardan.
           </p>
         )}
@@ -608,7 +608,7 @@ function PanelEdicion({ mesa, elemento, sectores, onMesa, onElemento, onBorrarMe
 
         <div className="pt-1">
           {mesa.ocupada ? (
-            <p className="text-xs text-stone-400">Tiene una comanda abierta: cobrala antes de borrarla.</p>
+            <p className="text-xs text-texto-tenue">Tiene una comanda abierta: cobrala antes de borrarla.</p>
           ) : (
             <Boton variant="danger" size="md" className="w-full" onClick={() => onBorrarMesa(mesa)}>
               <Trash2 size={15} /> Borrar la mesa
@@ -621,7 +621,7 @@ function PanelEdicion({ mesa, elemento, sectores, onMesa, onElemento, onBorrarMe
 
   return (
     <Card className="p-4 space-y-3">
-      <div className="text-[11px] uppercase tracking-widest text-stone-400 font-bold">Elemento</div>
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Elemento</div>
 
       <Campo label="Qué es">
         <select className={inputCls} value={elemento.tipo}
@@ -653,7 +653,7 @@ function PanelEdicion({ mesa, elemento, sectores, onMesa, onElemento, onBorrarMe
             <Trash2 size={15} /> Quitar
           </Boton>
         ) : (
-          <p className="text-xs text-stone-400">
+          <p className="text-xs text-texto-tenue">
             Los elementos ya guardados todavía no se pueden borrar. Movelo fuera de la vista o cambiale el tipo.
           </p>
         )}
