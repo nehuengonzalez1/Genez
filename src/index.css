@@ -53,6 +53,27 @@
   --info:       56 189 248;
   --info-suave: 8 41 61;
 
+  /* Los canales de venta. Un estado dice si algo está bien o mal; un canal
+     dice por dónde entró el pedido, que no es lo mismo y no puede pedirle
+     el color prestado: en el tablero conviven los dos a la vez.
+     PedidosYa, Rappi y Uber Eats no son canales en la base —son todos
+     'app'— pero el que arma los bolsones los distingue de lejos, así que
+     acá sí tienen color propio. */
+  --canal-mostrador:       56 189 248;
+  --canal-mostrador-suave: 8 41 61;
+  --canal-retiro:          129 140 248;
+  --canal-retiro-suave:    27 27 66;
+  --canal-reparto:         45 212 191;
+  --canal-reparto-suave:   6 46 44;
+  --canal-pedidosya:       251 113 133;
+  --canal-pedidosya-suave: 63 20 32;
+  --canal-rappi:           232 121 249;
+  --canal-rappi-suave:     56 18 62;
+  --canal-ubereats:        163 230 53;
+  --canal-ubereats-suave:  32 47 8;
+  --canal-app:             148 163 184;
+  --canal-app-suave:       30 41 59;
+
   color-scheme: dark;
 }
 
@@ -82,6 +103,21 @@
   --mal-suave:  254 226 226;
   --info:       2 132 199;
   --info-suave: 224 242 254;
+
+  --canal-mostrador:       2 132 199;
+  --canal-mostrador-suave: 224 242 254;
+  --canal-retiro:          67 56 202;
+  --canal-retiro-suave:    224 231 255;
+  --canal-reparto:         15 118 110;
+  --canal-reparto-suave:   204 251 241;
+  --canal-pedidosya:       190 18 60;
+  --canal-pedidosya-suave: 255 228 230;
+  --canal-rappi:           162 28 175;
+  --canal-rappi-suave:     250 232 255;
+  --canal-ubereats:        77 124 15;
+  --canal-ubereats-suave:  236 252 203;
+  --canal-app:             71 85 105;
+  --canal-app-suave:       226 232 240;
 
   color-scheme: light;
 }

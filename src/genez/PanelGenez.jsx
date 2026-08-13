@@ -1483,7 +1483,9 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           )}
           {tab === "mostrador" && (
             <Mostrador empresaId={empresaId} config={config} ajustes={ajustes}
-              caja={caja} sesion={sesion} toast={toast} />
+              caja={caja} sesion={sesion} toast={toast}
+              onVolver={() => ir("inicio")}
+              onSalon={puedeVer("comandas") ? () => ir("comandas") : null} />
           )}
           {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}

@@ -26,7 +26,8 @@ import {
   StickyNote, X, RefreshCw, ChefHat, Store, ShoppingBag, Bike, Smartphone,
   UtensilsCrossed, ChevronRight,
   Users, MoreVertical, Pencil, CreditCard, Percent, Printer, Split, Filter,
-  Receipt, FileText, History,
+  Receipt, FileText, History, BellRing, Truck, Timer, ChevronDown,
+  BarChart3, Settings, Zap, ClipboardList,
   Pizza, Beef, Sandwich, Salad, Soup, Fish, Drumstick, Coffee, Wine, Beer,
   CupSoda, IceCream, Cake, Croissant, Cookie, Milk, Flame, Utensils,
 } from "lucide-react";
@@ -55,16 +56,37 @@ const activas = (lineas) => (lineas || []).filter((l) => l.estado !== "anulada")
    saber si el pedido sale por la puerta o lo viene a buscar un cadete,
    sin leer la etiqueta. */
 const TONO = {
-  mostrador: { i: Store, pill: "bg-info-suave text-info border-info", borde: "border-info" },
-  takeaway: { i: ShoppingBag, pill: "bg-acento-suave text-acento-vivo border-acento", borde: "border-acento" },
-  delivery: { i: Bike, pill: "bg-bien-suave text-bien border-bien", borde: "border-bien" },
-  app: { i: Smartphone, pill: "bg-ojo-suave text-ojo border-ojo", borde: "border-ojo" },
-  salon: { i: UtensilsCrossed, pill: "bg-superficie-2 text-texto-suave border-borde-fuerte", borde: "border-borde-fuerte" },
+  mostrador: { i: Store, pill: "bg-canal-mostrador-suave text-canal-mostrador border-canal-mostrador", borde: "border-canal-mostrador", punto: "bg-canal-mostrador", txt: "text-canal-mostrador" },
+  takeaway: { i: ShoppingBag, pill: "bg-canal-retiro-suave text-canal-retiro border-canal-retiro", borde: "border-canal-retiro", punto: "bg-canal-retiro", txt: "text-canal-retiro" },
+  delivery: { i: Bike, pill: "bg-canal-reparto-suave text-canal-reparto border-canal-reparto", borde: "border-canal-reparto", punto: "bg-canal-reparto", txt: "text-canal-reparto" },
+  app: { i: Smartphone, pill: "bg-canal-app-suave text-canal-app border-canal-app", borde: "border-canal-app", punto: "bg-canal-app", txt: "text-canal-app" },
+  salon: { i: UtensilsCrossed, pill: "bg-superficie-2 text-texto-suave border-borde-fuerte", borde: "border-borde-fuerte", punto: "bg-superficie-3", txt: "text-texto-suave" },
+};
+
+/* Las tres aplicaciones grandes tienen color propio aunque para la base
+   sean el mismo canal 'app'. Quien arma los pedidos las separa de lejos
+   por la bolsa, no por el nombre. */
+const TONO_APP = {
+  PedidosYa: { i: Smartphone, pill: "bg-canal-pedidosya-suave text-canal-pedidosya border-canal-pedidosya", borde: "border-canal-pedidosya", punto: "bg-canal-pedidosya", txt: "text-canal-pedidosya" },
+  Rappi: { i: Smartphone, pill: "bg-canal-rappi-suave text-canal-rappi border-canal-rappi", borde: "border-canal-rappi", punto: "bg-canal-rappi", txt: "text-canal-rappi" },
+  "Uber Eats": { i: Smartphone, pill: "bg-canal-ubereats-suave text-canal-ubereats border-canal-ubereats", borde: "border-canal-ubereats", punto: "bg-canal-ubereats", txt: "text-canal-ubereats" },
 };
 
 const APLICACIONES = ["PedidosYa", "Rappi", "Uber Eats", "Otra"];
 
 const tonoDe = (canal) => TONO[canal] || TONO.mostrador;
+
+/* El tablero no filtra por canal sino por "de dónde vino esto": un pedido
+   de Rappi y uno de PedidosYa son los dos canal 'app' y no se pueden
+   mezclar. La clave del tablero es el canal, salvo en app, donde es la
+   aplicación. */
+const claveCanal = (p) =>
+  p.canal === "app" ? `app:${(p.cliente && p.cliente.app) || "Aplicación"}` : p.canal;
+
+const tonoDeClave = (clave) => {
+  if (!clave.startsWith("app:")) return tonoDe(clave);
+  return TONO_APP[clave.slice(4)] || TONO.app;
+};
 
 /* La pantalla del pedido es una sola y atiende dos cosas distintas: una
    mesa del salón y un pedido que no ocupa lugar. Lo único que cambia son
@@ -1496,20 +1518,54 @@ function ModalCobro({ abierto, comanda, comandaId, empresaId, config, ajustes, c
    que mira todo el día lo mismo y necesita verlo por columna.
    ============================================================ */
 
-const ETAPAS = [
-  { k: "pendiente", n: "Pendientes" },
-  { k: "preparando", n: "En preparación" },
-  { k: "listo", n: "Listos" },
+/* Los cinco carriles del tablero. "En camino" no es una etapa del modelo
+   —hay pendiente, preparando, listo y cerrado— pero el carril va igual:
+   sin él, un delivery despachado desaparecería del tablero sin que nadie
+   entienda a dónde fue. Queda vacío y avisado hasta que exista. */
+const CARRILES = [
+  { k: "pendiente", n: "Pendientes", i: Timer, txt: "text-mal", fondo: "bg-mal-suave", borde: "border-mal" },
+  { k: "preparando", n: "En preparación", i: ChefHat, txt: "text-acento", fondo: "bg-acento-suave", borde: "border-acento" },
+  { k: "listo", n: "Listo para retirar", i: BellRing, txt: "text-ojo", fondo: "bg-ojo-suave", borde: "border-ojo" },
+  {
+    k: "camino", n: "En camino", i: Truck, txt: "text-bien", fondo: "bg-bien-suave", borde: "border-bien",
+    pronto: "Despachar un pedido con el cadete",
+  },
+  {
+    k: "cerrado", n: "Completados", sufijo: "Hoy", i: Check,
+    txt: "text-texto-tenue", fondo: "bg-superficie-2", borde: "border-borde-fuerte", angosto: true,
+  },
 ];
 
-export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, caja, sesion = null, toast }) {
+/* Los seis canales de la maqueta. En la base hay cuatro: PedidosYa, Rappi
+   y Uber Eats entran todos como 'app' y se distinguen por cliente.app.
+   El orden es el de la barra lateral y el de los chips, que tienen que
+   coincidir para que la vista no se lea dos veces. */
+const CANALES_TABLERO = [
+  { k: "mostrador", n: "Mostrador" },
+  { k: "delivery", n: "Delivery propio" },
+  { k: "app:PedidosYa", n: "PedidosYa" },
+  { k: "app:Rappi", n: "Rappi" },
+  { k: "app:Uber Eats", n: "Uber Eats" },
+  { k: "takeaway", n: "Pasar a buscar" },
+];
+
+/* Cuántas tarjetas entran en una columna antes de que la pantalla se
+   vuelva una lista infinita. Lo que sobra se despliega a pedido. */
+const TOPE_COLUMNA = 4;
+
+const horaDe = (f) => (f ? f.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "—");
+
+export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, caja, sesion = null, toast, onVolver = null, onSalon = null }) {
   const [pedidos, setPedidos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [abierto, setAbierto] = useState(null);   // el pedido que se está atendiendo
   const [nuevo, setNuevo] = useState(false);
   const [abriendo, setAbriendo] = useState(false);
-  const [canal, setCanal] = useState(null);       // filtro
+  const [canal, setCanal] = useState(null);       // filtro: clave de canal o null
   const [q, setQ] = useState("");
+  const [ultima, setUltima] = useState(null);     // cuándo se leyó por última vez
+  const [lateral, setLateral] = useState(false);  // la barra plegada, en celular
+  const [desplegado, setDesplegado] = useState({});
 
   const avisar = useRef(toast);
   avisar.current = toast;
@@ -1523,7 +1579,7 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
     const leer = async () => {
       try {
         const d = await cargarPedidos(empresaId);
-        if (vivo) setPedidos(d);
+        if (vivo) { setPedidos(d); setUltima(new Date()); }
       } catch (e) {
         if (vivo) avisar.current(e.message || "No pudimos leer los pedidos.", "mal");
       } finally {
@@ -1553,12 +1609,30 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
   const visibles = useMemo(() => {
     const t = q.trim().toLowerCase();
     return pedidos.filter((p) => {
-      if (canal && p.canal !== canal) return false;
+      if (canal && claveCanal(p) !== canal) return false;
       if (!t) return true;
       const cli = p.cliente || {};
-      return [p.referencia, cli.nombre, cli.app].filter(Boolean).join(" ").toLowerCase().includes(t);
+      return [p.referencia, cli.nombre, cli.telefono, cli.app, rotuloCanal(p)]
+        .filter(Boolean).join(" ").toLowerCase().includes(t);
     });
   }, [pedidos, canal, q]);
+
+  /* Los canales fijos de la maqueta más los que aparezcan en los datos:
+     un comercio puede estar tomando pedidos de una aplicación que no está
+     en la lista, y esos no pueden quedar sin fila ni sin chip. */
+  const canales = useMemo(() => {
+    const cuenta = new Map();
+    for (const p of pedidos) {
+      if (p.etapa === "cerrado") continue;
+      const k = claveCanal(p);
+      cuenta.set(k, (cuenta.get(k) || 0) + 1);
+    }
+    const fijos = CANALES_TABLERO.map((c) => ({ ...c, cuantos: cuenta.get(c.k) || 0 }));
+    const extras = [...cuenta.keys()]
+      .filter((k) => !CANALES_TABLERO.some((c) => c.k === k))
+      .map((k) => ({ k, n: k.startsWith("app:") ? k.slice(4) : k, cuantos: cuenta.get(k) }));
+    return [...fijos, ...extras];
+  }, [pedidos]);
 
   if (abierto) {
     return (
@@ -1568,87 +1642,212 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
     );
   }
 
-  const completados = visibles.filter((p) => p.etapa === "cerrado");
+  const activos = pedidos.filter((p) => p.etapa !== "cerrado");
+  const enCarril = (k) => (k === "camino" ? [] : visibles.filter((p) => p.etapa === k));
+  const suma = (lista) => lista.reduce((s, p) => s + (p.total || 0), 0);
+  const porEtapa = (k) => pedidos.filter((p) => p.etapa === k);
+
+  const elegido = canal ? canales.find((c) => c.k === canal) : null;
+  const titulo = elegido ? elegido.n.toUpperCase() : "PEDIDOS ACTIVOS";
+
+  const resumen = [
+    { k: "todos", n: "Total activos", i: ClipboardList, txt: "text-acento", lista: activos },
+    { k: "pendiente", n: "Pendientes", i: Timer, txt: "text-mal", lista: porEtapa("pendiente") },
+    { k: "preparando", n: "En preparación", i: ChefHat, txt: "text-acento", lista: porEtapa("preparando") },
+    { k: "listo", n: "Listos", i: BellRing, txt: "text-ojo", lista: porEtapa("listo") },
+    { k: "camino", n: "En camino", i: Truck, txt: "text-bien", lista: [], pronto: "Los pedidos en camino" },
+    { k: "cerrado", n: "Completados hoy", i: Check, txt: "text-texto-suave", lista: porEtapa("cerrado") },
+  ];
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Boton size="lg" onClick={() => setNuevo(true)} disabled={abriendo}>
-          <Plus size={18} /> Nuevo pedido
+      {/* En celular la barra lateral se pliega: el tablero necesita todo el
+          ancho, y los canales ya están en los chips de arriba. */}
+      <div className="lg:hidden flex items-center gap-2">
+        <Boton size="md" variant="ghost" onClick={() => setLateral((v) => !v)}>
+          <ShoppingBag size={16} /> Canales
         </Boton>
-        <span className="text-sm text-texto-suave">
-          <strong className="text-texto f-m">{visibles.filter((p) => p.etapa !== "cerrado").length}</strong> en curso
-        </span>
-        <Boton size="sm" variant="ghost" className="ml-auto" onClick={() => releer.current()}>
-          <RefreshCw size={14} /> Actualizar
+        <Boton size="md" className="ml-auto" onClick={() => setNuevo(true)} disabled={abriendo}>
+          <Plus size={16} /> Nuevo pedido
         </Boton>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Boton size="md" variant={canal === null ? "dark" : "ghost"} onClick={() => setCanal(null)}>Todos</Boton>
-        {CANALES.map((c) => {
-          const Icono = tonoDe(c.k).i;
-          return (
-            <Boton key={c.k} size="md" variant={canal === c.k ? "dark" : "ghost"} onClick={() => setCanal(c.k)}>
-              <Icono size={15} /> {c.n}
+      <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5 lg:items-start">
+
+        {/* --- La barra de canales -------------------------------------- */}
+        <aside className={`${lateral ? "block" : "hidden"} lg:block mb-4 lg:mb-0 lg:sticky lg:top-6`}>
+          <div className="rounded-2xl border border-borde bg-superficie p-3">
+            <div className="flex items-center gap-3 px-1.5 pt-1.5 pb-3">
+              <span className="w-12 h-12 shrink-0 rounded-2xl bg-acento text-sobre-acento grid place-items-center">
+                <ShoppingBag size={24} />
+              </span>
+              <span className="f-d text-[15px] leading-tight tracking-wide">
+                TAKE AWAY<br />MOSTRADOR
+              </span>
+            </div>
+
+            <Boton size="lg" className="w-full" onClick={() => setNuevo(true)} disabled={abriendo}>
+              <Plus size={18} /> Nuevo pedido
             </Boton>
-          );
-        })}
-        <div className="flex items-center gap-2 border border-borde bg-superficie rounded-xl px-3 py-2 min-w-[200px] flex-1 md:flex-none md:w-64">
-          <Search size={16} className="text-texto-tenue shrink-0" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Referencia o cliente"
-            className="w-full text-sm outline-none bg-transparent" />
-          {q && <button onClick={() => setQ("")} className="text-texto-tenue shrink-0"><X size={15} /></button>}
-        </div>
-      </div>
 
-      {cargando && <Vacio>Cargando los pedidos…</Vacio>}
-      {!cargando && !pedidos.length && (
-        <Vacio>Todavía no entró ningún pedido hoy. Tocá "Nuevo pedido" para arrancar.</Vacio>
-      )}
-      {!cargando && pedidos.length > 0 && !visibles.length && (
-        <Vacio>Ningún pedido con ese filtro.</Vacio>
-      )}
+            <nav className="mt-4 space-y-0.5">
+              <FilaLateral icono={ClipboardList} tinte="text-acento" nombre="Pedidos activos"
+                cuantos={activos.length} activo={canal === null} onTocar={() => setCanal(null)} />
+              {canales.map((c) => {
+                const t = tonoDeClave(c.k);
+                return (
+                  <FilaLateral key={c.k} icono={t.i} tinte={t.txt} nombre={c.n} cuantos={c.cuantos}
+                    activo={canal === c.k} onTocar={() => setCanal(canal === c.k ? null : c.k)} />
+                );
+              })}
+            </nav>
 
-      <div className="grid md:grid-cols-3 gap-3 items-start">
-        {ETAPAS.map((et) => {
-          const suyos = visibles.filter((p) => p.etapa === et.k);
-          return (
-            <div key={et.k}>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="f-d text-base">{et.n}</h3>
-                <span className="f-m text-sm text-texto-tenue">{suyos.length}</span>
-              </div>
-              <div className="space-y-2">
-                {suyos.map((p) => <TarjetaPedido key={p.id} p={p} onTocar={() => setAbierto(p)} />)}
-                {!suyos.length && (
-                  <div className="rounded-2xl border-2 border-dashed border-borde py-6 text-center text-xs text-texto-tenue">
-                    vacío
-                  </div>
+            <div className="mt-3 pt-3 border-t border-borde space-y-0.5">
+              <FilaLateral icono={History} nombre="Historial" motivo="El historial de pedidos" />
+              <FilaLateral icono={BarChart3} nombre="Estadísticas" motivo="Las estadísticas del mostrador" />
+              <FilaLateral icono={Settings} nombre="Configuración" motivo="La configuración del mostrador" />
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-borde space-y-0.5">
+              <FilaLateral icono={ArrowLeft} nombre="Volver" onTocar={onVolver}
+                motivo={onVolver ? null : "Volver desde acá"} />
+              <FilaLateral icono={UtensilsCrossed} nombre="Salón" onTocar={onSalon}
+                motivo={onSalon ? null : "Ir al salón desde acá"} />
+              <FilaLateral icono={Zap} nombre="Acciones rápidas" motivo="Las acciones rápidas" />
+            </div>
+
+            <div className="mt-3 pt-3 px-2.5 border-t border-borde">
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Última actualización</div>
+              <div className="f-m text-xs text-texto-tenue mt-0.5">{ultima ? horaDe(ultima) : "—"}</div>
+            </div>
+          </div>
+        </aside>
+
+        {/* --- El tablero ------------------------------------------------ */}
+        <div className="min-w-0 space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="f-d text-2xl md:text-3xl tracking-tight">{titulo}</h2>
+            <div className="ml-auto flex items-center gap-2 w-full md:w-auto md:min-w-[400px]">
+              <div className="flex-1 flex items-center gap-2.5 rounded-xl border border-borde bg-superficie px-4 py-3">
+                <Search size={18} className="text-texto-tenue shrink-0" />
+                <input value={q} onChange={(e) => setQ(e.target.value)}
+                  placeholder="Buscar pedido, cliente, N°…"
+                  className="w-full text-sm bg-transparent outline-none" />
+                {q && (
+                  <button onClick={() => setQ("")} title="Limpiar" className="text-texto-tenue shrink-0">
+                    <X size={16} />
+                  </button>
                 )}
               </div>
+              <Apagado motivo="Filtrar el tablero" className="shrink-0">
+                <span className="grid place-items-center w-12 h-12 rounded-xl border border-borde bg-superficie text-texto-suave">
+                  <Filter size={18} />
+                </span>
+              </Apagado>
             </div>
-          );
-        })}
-      </div>
+          </div>
 
-      {completados.length > 0 && (
-        <section>
-          <Rotulo className="mb-2">Completados · {completados.length}</Rotulo>
-          <ul className="flex flex-wrap gap-2">
-            {completados.map((p) => (
-              <li key={p.id}>
-                <button onClick={() => setAbierto(p)}
-                  className="flex items-center gap-2 text-left border border-borde bg-superficie rounded-xl px-3 py-2 hover:bg-superficie-2">
-                  <Check size={14} className="text-texto-tenue shrink-0" />
-                  <span className="text-sm text-texto-suave truncate max-w-[180px]">{encabezadoDe(p).titulo}</span>
-                  <span className="f-m text-sm">{money(p.total)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <ChipCanal nombre="Todos" cuantos={activos.length}
+              activo={canal === null} onTocar={() => setCanal(null)} />
+            {canales.map((c) => {
+              const t = tonoDeClave(c.k);
+              return (
+                <ChipCanal key={c.k} icono={t.i} tinte={t.txt} nombre={c.n} cuantos={c.cuantos}
+                  activo={canal === c.k} onTocar={() => setCanal(canal === c.k ? null : c.k)} />
+              );
+            })}
+            <span className="ml-auto shrink-0 pl-2">
+              <Boton size="sm" variant="ghost" onClick={() => releer.current()}>
+                <RefreshCw size={14} /> Actualizar
+              </Boton>
+            </span>
+          </div>
+
+          {cargando && <Vacio>Cargando los pedidos…</Vacio>}
+          {!cargando && !pedidos.length && (
+            <Vacio>Todavía no entró ningún pedido hoy. Tocá "Nuevo pedido" para arrancar.</Vacio>
+          )}
+          {!cargando && pedidos.length > 0 && !visibles.length && (
+            <Vacio>Ningún pedido con ese filtro.</Vacio>
+          )}
+
+          <div className="overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+            {/* Los carriles se reparten el ancho en partes iguales pero no
+                bajan de su mínimo: cuando no entran, el tablero scrollea de
+                costado en vez de apretar las tarjetas hasta ser ilegibles. */}
+            <div className="flex gap-3 items-start">
+              {CARRILES.map((c) => {
+                const suyos = enCarril(c.k);
+                const todo = !!desplegado[c.k];
+                const puestas = todo ? suyos : suyos.slice(0, TOPE_COLUMNA);
+                const Icono = c.i;
+                return (
+                  <section key={c.k}
+                    className={`grow shrink-0 basis-0 ${c.angosto ? "min-w-[190px] max-w-[240px]" : "min-w-[248px]"}`}>
+                    <div className={`flex items-center gap-2 rounded-xl border px-3.5 py-2.5 ${c.fondo} ${c.borde}`}>
+                      <Icono size={15} className={`shrink-0 ${c.txt}`} />
+                      <span className={`text-[11px] uppercase tracking-widest font-bold truncate ${c.txt}`}>{c.n}</span>
+                      {c.sufijo && <span className="text-[10px] text-texto-tenue shrink-0">{c.sufijo}</span>}
+                      <span className={`ml-auto f-m text-sm font-bold shrink-0 ${c.txt}`}>{suyos.length}</span>
+                    </div>
+
+                    <div className="mt-2.5 space-y-2.5">
+                      {puestas.map((p) => (c.angosto
+                        ? <TarjetaCerrada key={p.id} p={p} onTocar={() => setAbierto(p)} />
+                        : <TarjetaPedido key={p.id} p={p} onTocar={() => setAbierto(p)} />))}
+
+                      {suyos.length > puestas.length && (
+                        <button onClick={() => setDesplegado((d) => ({ ...d, [c.k]: true }))}
+                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-borde bg-superficie py-2.5 text-xs font-semibold text-texto-suave hover:bg-superficie-2 transition-colors">
+                          Ver todos ({suyos.length}) <ChevronDown size={14} />
+                        </button>
+                      )}
+                      {todo && suyos.length > TOPE_COLUMNA && (
+                        <button onClick={() => setDesplegado((d) => ({ ...d, [c.k]: false }))}
+                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-borde bg-superficie py-2.5 text-xs font-semibold text-texto-suave hover:bg-superficie-2 transition-colors">
+                          Ver menos <ChevronDown size={14} className="rotate-180" />
+                        </button>
+                      )}
+
+                      {!suyos.length && (c.pronto ? (
+                        <Apagado motivo={c.pronto} className="w-full">
+                          <span className="block w-full rounded-2xl border-2 border-dashed border-borde px-4 py-8 text-center text-[11px] leading-relaxed text-texto-tenue">
+                            Todavía no se puede marcar un pedido como despachado.
+                          </span>
+                        </Apagado>
+                      ) : (
+                        <div className="rounded-2xl border-2 border-dashed border-borde py-8 text-center text-[11px] text-texto-tenue">
+                          Nada por acá
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* --- La barra de totales -------------------------------------- */}
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
+            {resumen.map((r) => {
+              const Icono = r.i;
+              return (
+                <div key={r.k}
+                  title={r.pronto ? `${r.pronto} todavía no está disponible.` : undefined}
+                  className={`rounded-2xl border border-borde bg-superficie px-4 py-3.5 ${r.pronto ? "opacity-40 cursor-not-allowed" : ""}`}>
+                  <div className="flex items-center gap-2">
+                    <Icono size={15} className={`shrink-0 ${r.txt}`} />
+                    <span className="f-d text-2xl leading-none">{r.lista.length}</span>
+                  </div>
+                  <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold mt-2 truncate">{r.n}</div>
+                  <div className="f-m text-sm text-texto-suave mt-0.5">{money(suma(r.lista))}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       <ModalNuevoPedido abierto={nuevo} trabajando={abriendo}
         onCerrar={() => setNuevo(false)} onCrear={crear} />
@@ -1656,8 +1855,59 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
   );
 }
 
+/* Una fila de la barra lateral. Las que todavía no existen se ven en el
+   mismo lugar y con el mismo peso, apagadas y con el motivo: que falten
+   de la lista sería peor que verlas y entender que no andan. */
+function FilaLateral({ icono: Icono, tinte = "text-texto-tenue", nombre, cuantos = null, activo = false, motivo = null, onTocar }) {
+  const forma = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors";
+  const cuerpo = (
+    <>
+      <Icono size={16} className={`shrink-0 ${activo ? "text-acento" : tinte}`} />
+      <span className="flex-1 min-w-0 truncate text-left">{nombre}</span>
+      {cuantos != null && (
+        <span className={`f-m text-[11px] font-bold rounded-full px-2 py-0.5 shrink-0 ${
+          activo ? "bg-acento text-sobre-acento" : "bg-superficie-2 text-texto-suave"}`}>
+          {cuantos}
+        </span>
+      )}
+    </>
+  );
+
+  if (motivo) {
+    return (
+      <Apagado motivo={motivo} className="w-full">
+        <span className={`${forma} text-texto-suave`}>{cuerpo}</span>
+      </Apagado>
+    );
+  }
+
+  return (
+    <button onClick={onTocar}
+      className={`${forma} ${activo ? "bg-superficie-2 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
+      {cuerpo}
+    </button>
+  );
+}
+
+function ChipCanal({ icono: Icono, tinte = "", nombre, cuantos, activo, onTocar }) {
+  return (
+    <button onClick={onTocar}
+      className={`shrink-0 inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ${
+        activo
+          ? "border-acento bg-acento-suave text-texto"
+          : "border-borde bg-superficie text-texto-suave hover:bg-superficie-2"}`}>
+      {Icono && <Icono size={15} className={`shrink-0 ${activo ? "text-acento" : tinte}`} />}
+      {nombre}
+      <span className="f-m text-[11px] font-bold rounded-full bg-superficie-2 text-texto px-1.5 py-0.5">{cuantos}</span>
+    </button>
+  );
+}
+
+/* La tarjeta del tablero. El canal se lee por la barra de color de la
+   izquierda y por el rótulo; el cliente y el monto son lo que pesa, y el
+   número de pedido y los platos van atrás en gris. */
 function TarjetaPedido({ p, onTocar }) {
-  const t = tonoDe(p.canal);
+  const t = tonoDeClave(claveCanal(p));
   const Icono = t.i;
   const min = minutosDesde(p.abiertaEn);
   const cli = p.cliente || {};
@@ -1665,24 +1915,32 @@ function TarjetaPedido({ p, onTocar }) {
 
   return (
     <button onClick={onTocar}
-      className={`w-full text-left rounded-2xl border-2 bg-superficie p-3 hover:bg-superficie-2 transition-colors ${t.borde}`}>
+      className="relative w-full text-left overflow-hidden rounded-2xl border border-borde bg-superficie p-4 pl-5 transition-colors hover:bg-superficie-2 hover:border-borde-fuerte">
+      <span className={`absolute left-0 top-0 bottom-0 w-1 ${t.punto}`} />
+
       <div className="flex items-center gap-2">
-        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border ${t.pill}`}>
-          <Icono size={12} /> {rotuloCanal(p)}
+        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide truncate ${t.txt}`}>
+          <Icono size={13} className="shrink-0" /> {rotuloCanal(p)}
         </span>
-        {p.referencia && <span className="f-m text-sm font-bold truncate">#{p.referencia}</span>}
-        <span className="ml-auto flex items-center gap-1 text-[11px] text-texto-suave shrink-0">
-          <Clock size={11} /> {espera(min)}
-        </span>
+        <span className="ml-auto f-m text-[11px] text-texto-tenue shrink-0">{horaDe(p.abiertaEn)}</span>
       </div>
 
-      {cli.nombre && <div className="text-base leading-tight mt-1.5 truncate">{cli.nombre}</div>}
+      <div className="f-m text-[11px] text-texto-tenue mt-2.5">
+        {p.referencia ? `#${p.referencia}` : "Sin número"}
+      </div>
+
+      <div className="flex items-baseline justify-between gap-3 mt-0.5">
+        <span className="text-[15px] font-bold leading-tight truncate">
+          {cli.nombre || rotuloCanal(p)}
+        </span>
+        <span className="f-m text-[15px] font-bold shrink-0">{money(p.total)}</span>
+      </div>
 
       {primeras.length > 0 && (
-        <div className="mt-1.5 space-y-0.5">
+        <div className="mt-2.5 space-y-1">
           {primeras.map((l) => (
-            <div key={l.id} className="text-sm text-texto-suave leading-tight truncate">
-              <span className="f-m font-bold">{l.cantidad}×</span> {l.nombre}
+            <div key={l.id} className="text-xs text-texto-suave leading-tight truncate">
+              <span className="f-m">{l.cantidad}x</span> {l.nombre}
             </div>
           ))}
           {p.lineas.length > primeras.length && (
@@ -1691,7 +1949,47 @@ function TarjetaPedido({ p, onTocar }) {
         </div>
       )}
 
-      <div className="f-m text-xl mt-2">{money(p.total)}</div>
+      {/* Lo listo lleva campanita: es lo único que hay que mirar dos veces.
+          El minutaje sigue siendo desde que se abrió el pedido —la base no
+          guarda cuándo quedó listo— y es igual el número que importa,
+          porque es lo que hace que espera el cliente. */}
+      <div className="mt-3 pt-3 border-t border-borde flex items-center gap-1.5 text-[11px]">
+        {p.etapa === "listo" ? (
+          <>
+            <BellRing size={12} className="shrink-0 text-ojo" />
+            <span className="font-semibold text-ojo">Listo</span>
+            <span className="text-texto-tenue">· hace {espera(min)}</span>
+          </>
+        ) : (
+          <>
+            <Clock size={12} className="shrink-0 text-texto-tenue" />
+            <span className="text-texto-suave">Hace {espera(min)}</span>
+          </>
+        )}
+      </div>
+    </button>
+  );
+}
+
+/* La de completados es más chica a propósito: ya no hay nada que hacer con
+   ella, solo se consulta. */
+function TarjetaCerrada({ p, onTocar }) {
+  const t = tonoDeClave(claveCanal(p));
+  const Icono = t.i;
+  return (
+    <button onClick={onTocar}
+      className="w-full text-left rounded-xl border border-borde bg-superficie px-3.5 py-3 transition-colors hover:bg-superficie-2">
+      <div className="flex items-center gap-1.5">
+        <Icono size={13} className={`shrink-0 ${t.txt}`} />
+        <span className={`text-[11px] font-bold truncate ${t.txt}`}>{rotuloCanal(p)}</span>
+        <span className="ml-auto f-m text-[11px] text-texto-tenue shrink-0">{horaDe(p.abiertaEn)}</span>
+      </div>
+      <div className="flex items-baseline justify-between gap-2 mt-1.5">
+        <span className="f-m text-[11px] text-texto-tenue truncate">
+          {p.referencia ? `#${p.referencia}` : "—"}
+        </span>
+        <span className="f-m text-sm font-bold shrink-0">{money(p.total)}</span>
+      </div>
     </button>
   );
 }
