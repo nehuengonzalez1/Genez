@@ -732,7 +732,7 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
             )}
             <div className="flex items-baseline justify-between gap-2 mt-1">
               <span className="f-d text-sm font-bold tracking-wider">TOTAL</span>
-              <span className="f-m text-4xl font-bold text-acento leading-none">{money(comanda.total)}</span>
+              <span className="f-m text-2xl font-bold text-acento leading-none">{money(comanda.total)}</span>
             </div>
 
             <div className="grid grid-cols-3 gap-1.5 mt-3">
@@ -758,13 +758,16 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
                 {voz.volver}
               </Accion>
 
-              {/* Una mesa tocada por error queda ocupada para siempre si no
-                  hay forma de soltarla. */}
-              {!lineas.length && (
-                <Accion icono={X} disabled={trabajando} onClick={liberar} title={voz.soltar}>
-                  {voz.soltar}
-                </Accion>
-              )}
+              {/* Siempre visible aunque no siempre se pueda usar. Un botón que
+                  aparece y desaparece según lo que haya cargado hace que la
+                  grilla se mueva abajo de la mano: se va a tocar otra cosa.
+                  Con líneas cargadas queda apagado porque soltar la mesa así
+                  perdería lo que ya se pidió. */}
+              <Accion icono={X} disabled={trabajando || !!lineas.length} onClick={liberar}
+                pronto={lineas.length ? "Anular un pedido que ya tiene cosas cargadas" : null}
+                title={voz.soltar}>
+                {voz.soltar}
+              </Accion>
             </div>
           </div>
         </Card>
