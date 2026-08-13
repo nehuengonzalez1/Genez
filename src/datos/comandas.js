@@ -113,6 +113,19 @@ export async function abrirPedido({ empresaId, sucursalId = null, canal = "mostr
   return data;
 }
 
+/* El canal se decide al comandar y no antes: quien está parado en el
+   mostrador todavía no sabe si le van a pedir para llevar, o si lo que
+   suena es un pedido de aplicación. Por eso un pedido nace como
+   'mostrador' y se corrige mientras se carga. */
+export async function cambiarCanal(comandaId, { canal, referencia = null, cliente = null }) {
+  const fila = { canal, referencia };
+  if (cliente !== undefined) fila.campos_extra = cliente ? { cliente } : {};
+
+  const { error } = await supabase
+    .from("operaciones").update(fila).eq("id", comandaId).eq("estado", "abierta");
+  if (error) throw error;
+}
+
 export const CANALES = [
   { k: "mostrador", n: "Mostrador", d: "Come acá o espera en la barra" },
   { k: "takeaway", n: "Para llevar", d: "Pasa a buscar" },

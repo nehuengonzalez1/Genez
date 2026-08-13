@@ -31,7 +31,7 @@ import { siguienteNumero } from "../datos/ventas.js";
 import {
   cargarSalon, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
   anularLinea, cambiarEstadoLinea, cargarPendientes, cerrarComanda,
-  CANALES, abrirPedido, cargarPedidos, cargarElementosPlano,
+  CANALES, abrirPedido, cargarPedidos, cargarElementosPlano, cambiarCanal,
 } from "../datos/comandas.js";
 import { Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
@@ -128,6 +128,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
   const [elementos, setElementos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [nuevo, setNuevo] = useState(null);         // canal elegido, esperando los datos
+  const [cambiando, setCambiando] = useState(false);
   const [abriendo, setAbriendo] = useState(null);   // id de mesa o clave de canal
 
   /* toast se redefine en cada render de Sistema. Si entra como dependencia,
@@ -195,14 +196,33 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
     }
   };
 
+  /* El canal se corrige mientras se carga el pedido. Una mesa no: ya se
+     sabe de dónde viene. */
+  const corregirCanal = async (datos) => {
+    try {
+      await cambiarCanal(abierta.id, datos);
+      setAbierta((a) => ({ ...a, encabezado: encabezadoDe(datos) }));
+      setCambiando(false);
+    } catch (e) {
+      avisar.current(e.message || "No se pudo cambiar el canal.", "mal");
+    }
+  };
+
   if (abierta) {
+    const esMesa = abierta.volverA === "salon";
     return (
-      <Pedido
-        pleno comandaId={abierta.id} empresaId={empresaId} config={config}
-        ajustes={ajustes} caja={caja} toast={toast}
-        voz={abierta.volverA === "salon" ? VOZ_MESA : { ...abierta.voz, volver: "Pedidos" }}
-        encabezado={abierta.encabezado}
-        onVolver={() => { setDonde(abierta.volverA); setAbierta(null); }} />
+      <>
+        <Pedido
+          pleno comandaId={abierta.id} empresaId={empresaId} config={config}
+          ajustes={ajustes} caja={caja} toast={toast}
+          voz={esMesa ? VOZ_MESA : { ...abierta.voz, volver: "Pedidos" }}
+          encabezado={abierta.encabezado}
+          onCambiarCanal={esMesa ? null : () => setCambiando(true)}
+          onVolver={() => { setDonde(abierta.volverA); setAbierta(null); }} />
+
+        <ModalNuevoPedido abierto={cambiando} rotulo="¿Para dónde es?"
+          onCerrar={() => setCambiando(false)} onCrear={corregirCanal} />
+      </>
     );
   }
 
@@ -234,53 +254,52 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-6xl space-y-5 pb-6">
+        {/* Dos caminos y no cinco. Lo que se decide acá es dónde se atiende
+            —una mesa o el mostrador—, no por qué canal entró el pedido. El
+            canal recién importa al comandar: quien está en el mostrador
+            todavía no sabe si le van a pedir para llevar o si es un pedido
+            de aplicación que acaba de sonar. */}
         <section>
           <Rotulo className="mb-2">Tomar un pedido</Rotulo>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {CANALES.map((c) => {
-              const t = tonoDe(c.k);
-              const Icono = t.i;
-              return (
-                <button key={c.k} onClick={() => tocarCanal(c.k)} disabled={!!abriendo}
-                  className="flex flex-col items-start gap-2 rounded-2xl border border-borde bg-superficie p-4 text-left transition-colors hover:bg-superficie-2 hover:border-borde-fuerte disabled:opacity-40">
-                  <span className={`w-11 h-11 rounded-xl border flex items-center justify-center ${t.pill}`}>
-                    <Icono size={22} />
+          <div className="grid sm:grid-cols-2 gap-3">
+            {haySalon && (
+              <button onClick={() => setDonde("salon")}
+                className="flex items-center gap-4 rounded-2xl border border-borde bg-superficie p-5 text-left transition-colors hover:bg-superficie-2 hover:border-borde-fuerte">
+                <span className="w-14 h-14 rounded-2xl bg-superficie-2 border border-borde-fuerte text-texto-suave flex items-center justify-center shrink-0">
+                  <UtensilsCrossed size={26} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="f-d text-xl leading-tight block">Salón</span>
+                  <span className="text-xs text-texto-tenue block mt-0.5">
+                    {mesas.length
+                      ? `${ocupadas.length} ocupadas de ${mesas.length} mesas`
+                      : "Todavía no hay mesas dibujadas"}
                   </span>
-                  <span className="f-d text-lg leading-tight">{c.n}</span>
-                  <span className="text-xs text-texto-tenue leading-tight">
-                    {abriendo === c.k ? "Abriendo…" : c.d}
+                </span>
+                {ocupadas.length > 0 && (
+                  <span className="f-m text-lg shrink-0">
+                    {money(ocupadas.reduce((s, m) => s + (m.consumido || 0), 0))}
                   </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                )}
+                <ChevronRight size={20} className="text-texto-tenue shrink-0" />
+              </button>
+            )}
 
-        {haySalon && (
-          <section>
-            <Rotulo className="mb-2">El local</Rotulo>
-            <button onClick={() => setDonde("salon")}
-              className="w-full flex items-center gap-4 rounded-2xl border border-borde bg-superficie p-4 text-left transition-colors hover:bg-superficie-2 hover:border-borde-fuerte">
-              <span className="w-12 h-12 rounded-xl bg-superficie-2 border border-borde-fuerte text-texto-suave flex items-center justify-center shrink-0">
-                <UtensilsCrossed size={24} />
+            <button onClick={() => tocarCanal("mostrador")} disabled={!!abriendo}
+              className="flex items-center gap-4 rounded-2xl border border-acento bg-acento-suave p-5 text-left transition-colors hover:bg-superficie-2 disabled:opacity-40">
+              <span className="w-14 h-14 rounded-2xl bg-acento text-sobre-acento flex items-center justify-center shrink-0">
+                <Store size={26} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="f-d text-lg leading-tight block">Salón</span>
-                <span className="text-xs text-texto-tenue block">
-                  {mesas.length
-                    ? `${ocupadas.length} ocupadas de ${mesas.length} mesas`
-                    : "Todavía no hay mesas dibujadas"}
+                <span className="f-d text-xl leading-tight block">Mostrador</span>
+                <span className="text-xs text-texto-suave block mt-0.5">
+                  {abriendo === "mostrador" ? "Abriendo…" : "Para llevar, delivery o aplicación"}
                 </span>
               </span>
-              {ocupadas.length > 0 && (
-                <span className="f-m text-xl shrink-0">
-                  {money(ocupadas.reduce((s, m) => s + (m.consumido || 0), 0))}
-                </span>
-              )}
-              <ChevronRight size={20} className="text-texto-tenue shrink-0" />
+              <ChevronRight size={20} className="text-texto-suave shrink-0" />
             </button>
-          </section>
-        )}
+          </div>
+        </section>
 
         <section>
           <div className="flex items-center justify-between mb-2">
@@ -444,7 +463,7 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
 
 /* `encabezado` y `voz` son lo único que distingue una mesa de un pedido de
    mostrador. Sin ellos se comporta como siempre: la mesa que abrió el mozo. */
-function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, encabezado = null, voz = VOZ_MESA, pleno = false }) {
+function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, pleno = false }) {
   const [comanda, setComanda] = useState(null);
   const [carta, setCarta] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -587,11 +606,28 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
     <div className={pleno ? "h-full min-h-0 flex flex-col gap-3" : "flex flex-col gap-3"}>
       <div className="shrink-0 flex items-center gap-3">
         <Boton variant="ghost" size="lg" onClick={onVolver}><ArrowLeft size={18} /> {voz.volver}</Boton>
+        {/* En un pedido sin mesa el rótulo es un botón: quien está en el
+            mostrador arranca la comanda y recién después se entera de si es
+            para llevar o si entró por una aplicación. */}
         <div className="min-w-0">
-          <div className="f-d text-lg leading-tight truncate">{rotulo}</div>
-          <div className="text-[11px] text-texto-tenue truncate">
-            {sub}{comanda.abiertaEn ? `${sub ? " · " : ""}hace ${espera(minutosDesde(comanda.abiertaEn))}` : ""}
-          </div>
+          {onCambiarCanal ? (
+            <button onClick={onCambiarCanal}
+              className="text-left group max-w-full">
+              <span className="f-d text-lg leading-tight truncate block group-hover:text-acento transition-colors">
+                {rotulo} <span className="text-xs font-normal text-texto-tenue group-hover:text-acento">cambiar</span>
+              </span>
+              <span className="text-[11px] text-texto-tenue truncate block">
+                {sub}{comanda.abiertaEn ? `${sub ? " · " : ""}hace ${espera(minutosDesde(comanda.abiertaEn))}` : ""}
+              </span>
+            </button>
+          ) : (
+            <>
+              <div className="f-d text-lg leading-tight truncate">{rotulo}</div>
+              <div className="text-[11px] text-texto-tenue truncate">
+                {sub}{comanda.abiertaEn ? `${sub ? " · " : ""}hace ${espera(minutosDesde(comanda.abiertaEn))}` : ""}
+              </div>
+            </>
+          )}
         </div>
         <div className="ml-auto text-right">
           <Rotulo>Total</Rotulo>
