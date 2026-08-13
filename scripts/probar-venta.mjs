@@ -141,9 +141,16 @@ if (!bar) {
 
   const esperado = Number(plato.precio) * 2 + Number(bebida.precio) * 3;
 
-  const cocina = await una(
-    "select count(*) n from operacion_lineas where operacion_id = $1 and destino = 'cocina' and estado = 'pedido'", [c1.id]);
-  decir(cocina.n === "1", "la linea de cocina queda pendiente para la pantalla");
+  /* Cargar no despacha. Antes esta prueba esperaba lo contrario, que era
+     el comportamiento que rompia el servicio: lo que el mozo tipeaba
+     mientras el cliente todavia se estaba decidiendo ya salia a la
+     plancha. */
+  const sinMandar = await una(
+    "select count(*) n from operacion_lineas where operacion_id = $1 and estado = 'borrador'", [c1.id]);
+  decir(sinMandar.n === "2", "lo cargado queda sin despachar hasta que alguien lo mande");
+
+  const salieron = await una("select enviar_a_cocina($1) n", [c1.id]);
+  decir(Number(salieron.n) === 2, "despachar manda lo que estaba esperando");
 
   await c.query("select cerrar_comanda($1, $2, $3::jsonb, $4)", [
     c1.id, sesionBar.id, JSON.stringify([{ medio: "efectivo", monto: esperado }]), "PRUEBA-C1",

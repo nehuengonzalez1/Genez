@@ -175,6 +175,46 @@ await comoUsuario(MOZO, async () => {
 });
 
 /* ------------------------------------------------------------
+   4 bis · Lo cargado no sale solo a la cocina
+   ------------------------------------------------------------ */
+console.log("\nDespachar a cocina");
+
+await comoUsuario(MOZO, async () => {
+  const emp = await una("select empresa_id from perfiles where id = auth.uid()");
+  const platos = (await c.query(
+    "select id, nombre, precio, costo from items where empresa_id = $1 limit 3", [emp.empresa_id])).rows;
+
+  const cm = await una("select abrir_comanda($1::jsonb) id",
+    [JSON.stringify({ empresa_id: emp.empresa_id, canal: "mostrador" })]);
+
+  const cargar = (p) => c.query(
+    `insert into operacion_lineas (operacion_id, empresa_id, item_id, descripcion, cantidad,
+       precio_unitario, costo_unitario, total, destino)
+     values ($1,$2,$3,$4,1,$5,$6,$5,'cocina')`,
+    [cm.id, emp.empresa_id, p.id, p.nombre, p.precio, p.costo]);
+
+  await cargar(platos[0]);
+  await cargar(platos[1]);
+
+  const enCocina = async () => Number((await una(
+    "select count(*) n from operacion_lineas where operacion_id = $1 and estado <> 'borrador'", [cm.id])).n);
+
+  decir(await enCocina() === 0, "cargar dos platos no manda nada a la cocina");
+
+  const a = await una("select enviar_a_cocina($1) n", [cm.id]);
+  decir(Number(a.n) === 2, `despachar manda los dos (${a.n})`);
+
+  /* El caso que importa: se agrega algo a la media hora y la cocina no
+     tiene que volver a recibir lo de antes. */
+  await cargar(platos[2]);
+  const b = await una("select enviar_a_cocina($1) n", [cm.id]);
+  decir(Number(b.n) === 1, `agregar uno mas manda solo ese, no los tres (${b.n})`);
+
+  const c2 = await una("select enviar_a_cocina($1) n", [cm.id]);
+  decir(Number(c2.n) === 0, "despachar de nuevo sin cargar nada no manda nada");
+});
+
+/* ------------------------------------------------------------
    5 · Juntar y separar mesas
    ------------------------------------------------------------ */
 console.log("\nJuntar mesas");

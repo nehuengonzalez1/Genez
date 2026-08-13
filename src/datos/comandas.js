@@ -317,6 +317,16 @@ export async function anularLinea(lineaId) {
   if (error) throw error;
 }
 
+/* Manda a la cocina lo que todavía no salió, y solo eso. Si a las nueve
+   se pidieron dos hamburguesas y a las diez una porción de papas, la
+   cocina recibe las papas: repetir las hamburguesas es cómo se arruina
+   un servicio. Devuelve cuántas salieron. */
+export async function enviarACocina(comandaId) {
+  const { data, error } = await supabase.rpc("enviar_a_cocina", { comanda: comandaId });
+  if (error) throw error;
+  return data || 0;
+}
+
 export async function cambiarEstadoLinea(lineaId, estado) {
   const campos = { estado };
   if (estado === "preparando") campos.enviada_en = new Date().toISOString();

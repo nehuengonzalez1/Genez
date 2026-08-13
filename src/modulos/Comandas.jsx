@@ -34,7 +34,7 @@ import { money, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js
 import { siguienteNumero } from "../datos/ventas.js";
 import {
   cargarSalon, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
-  anularLinea, cambiarEstadoLinea, cargarPendientes, cerrarComanda,
+  anularLinea, cambiarEstadoLinea, enviarACocina, cargarPendientes, cerrarComanda,
   CANALES, abrirPedido, cargarPedidos, cargarElementosPlano, cambiarCanal,
 } from "../datos/comandas.js";
 import { Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
@@ -591,19 +591,24 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
 
   /* La comanda impresa se perdió o la cocina nunca la vio: lo que ya salió
      de la cola vuelve al principio, sin tener que cargar todo de nuevo. */
-  const reenviar = async () => {
+  /* Lo cargado no sale solo: el cliente pide, se arrepiente y agrega, y el
+     mozo corrige. Nada de eso tiene por qué llegar a la plancha. Sale
+     cuando alguien despacha, y sale solo lo que todavía no había salido:
+     agregar papas a la media hora no vuelve a mandar las hamburguesas. */
+  const sinEnviar = activas(comanda ? comanda.lineas : []).filter((l) => l.estado === "borrador");
+
+  const despachar = async () => {
     if (trabajando || !comanda) return;
-    const vuelven = activas(comanda.lineas).filter((l) => l.estado === "preparando" || l.estado === "listo");
-    if (!vuelven.length) {
-      return avisar.current("No hay nada para reenviar: la cocina todavía no lo tocó.", "mal");
-    }
     setTrabajando(true);
     try {
-      await Promise.all(vuelven.map((l) => cambiarEstadoLinea(l.id, "pedido")));
-      avisar.current(vuelven.length === 1 ? "1 plato volvió a la cocina." : `${vuelven.length} platos volvieron a la cocina.`);
+      const n = await enviarACocina(comandaId);
+      avisar.current(n === 0
+        ? "Ya estaba todo en la cocina."
+        : n === 1 ? "1 plato salió a la cocina." : `${n} platos salieron a la cocina.`,
+        n === 0 ? "mal" : "bien");
       await leerComanda();
     } catch (e) {
-      avisar.current(e.message || "No se pudo reenviar a cocina.", "mal");
+      avisar.current(e.message || "No se pudo mandar a la cocina.", "mal");
     } finally {
       setTrabajando(false);
     }
@@ -736,9 +741,13 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
             </div>
 
             <div className="grid grid-cols-3 gap-1.5 mt-3">
-              <Accion icono={ChefHat} tono="acento" disabled={trabajando || !lineas.length} onClick={reenviar}
-                title="Vuelve a mandar a la cocina lo que ya había salido">
-                Enviar a cocina
+              {/* El número dice cuánto falta despachar: es la diferencia
+                  entre "ya salió" y "el cliente sigue esperando y nadie
+                  en la cocina lo sabe". */}
+              <Accion icono={ChefHat} tono="acento" disabled={trabajando || !sinEnviar.length}
+                onClick={despachar}
+                title={sinEnviar.length ? `Mandar a la cocina ${sinEnviar.length} sin despachar` : "Ya está todo en la cocina"}>
+                A cocina{sinEnviar.length ? ` · ${sinEnviar.length}` : ""}
               </Accion>
               <Accion icono={Receipt} pronto="La pre cuenta">Pre cuenta</Accion>
 
@@ -956,8 +965,13 @@ function iconoDeCategoria(categoria) {
 
 /* "pedido" no se muestra: es el estado normal de una línea recién cargada
    y repetirlo en todas las filas no dice nada. */
+/* 'borrador' es el único que hay que mirar mientras se atiende: significa
+   que el cliente lo pidió y la cocina todavía no se enteró. Por eso va en
+   el color de aviso y no en gris como los demás. */
 const ESTADO_LINEA = {
-  preparando: { n: "En cocina", tono: "text-ojo" },
+  borrador: { n: "Sin mandar", tono: "text-acento" },
+  pedido: { n: "En cocina", tono: "text-texto-tenue" },
+  preparando: { n: "Preparando", tono: "text-ojo" },
   listo: { n: "Listo", tono: "text-bien" },
   entregado: { n: "Entregado", tono: "text-texto-tenue" },
 };
