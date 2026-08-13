@@ -122,6 +122,23 @@
   color-scheme: light;
 }
 
+/* ============================================================
+   LA ESCALA
+   ============================================================
+
+   Todo el espaciado y casi toda la tipografía de Tailwind están en rem,
+   o sea que salen de acá: bajar este número achica el sistema entero de
+   forma pareja, sin ir clase por clase.
+
+   Va en 15 y no en 16 porque la mayoría de las pantallas donde corre
+   Genez están al 125% de Windows: lo que en el diseño entra cómodo, en
+   el local se ve un cuarto más grande y deja de entrar.
+
+   No se usa `zoom` para esto: las alturas en dvh —la pantalla de comanda
+   ocupa 100dvh— no acompañan al zoom y queda una franja muerta abajo.
+   ============================================================ */
+html { font-size: 15px; }
+
 html, body, #root { height: 100%; }
 
 body {

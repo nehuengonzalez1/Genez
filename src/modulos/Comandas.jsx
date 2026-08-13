@@ -23,7 +23,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ArrowLeft, Clock, Check, Plus, Minus, Trash2, Search,
-  StickyNote, X, RefreshCw, ChefHat, Store, History,
+  StickyNote, X, RefreshCw, ChefHat, Store, History, Filter,
   UtensilsCrossed, ChevronRight,
   Users, MoreVertical, Pencil, CreditCard, Percent, Printer, Split,
   Receipt, FileText,
@@ -70,6 +70,10 @@ const VOZ_MESA = {
   cobrar: "Cobrar la mesa",
   cobrarYCerrar: "Cobrar y liberar la mesa",
   soltar: "Liberar la mesa",
+  /* En la grilla de acciones el rótulo entra en un tercio del panel:
+     "Cancelar el pedido" se cortaba en "Cancelar el ...". El largo va en
+     el title, que es donde se puede leer entero. */
+  soltarCorto: "Liberar",
   soltado: "quedó libre",
 };
 
@@ -81,6 +85,7 @@ const VOZ_CANAL = {
   cobrar: "Cobrar el pedido",
   cobrarYCerrar: "Cobrar y cerrar el pedido",
   soltar: "Cancelar el pedido",
+  soltarCorto: "Cancelar",
   soltado: "quedó cancelado",
 };
 
@@ -990,7 +995,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
               <Accion icono={X} disabled={trabajando || !!lineas.length} onClick={liberar}
                 pronto={lineas.length ? "Anular un pedido que ya tiene cosas cargadas" : null}
                 title={voz.soltar}>
-                {voz.soltar}
+                {voz.soltarCorto || voz.soltar}
               </Accion>
             </div>
           </div>
