@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave } from "../datos/sesion.js";
-import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, numeroALetras } from "../utils/helpers.js";
+import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
@@ -33,7 +33,7 @@ import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
-import { Comandas, Cocina, Mostrador, PantallaComandas } from "../modulos/Comandas.jsx";
+import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
    14. APP
    ============================================================ */
@@ -1005,7 +1005,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
      cobros de Mercado Pago) nadie más lo guarda: eso sí se persiste acá. */
   const sumarMovLocal = (m) => setCaja((c) => ({
     ...c,
-    movimientos: [...c.movimientos, { id: uid(), hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), ...m }],
+    movimientos: [...c.movimientos, { id: uid(), hora: hora(new Date()), ...m }],
   }));
 
   const movCaja = async (m) => {
@@ -1097,7 +1097,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
 
     const t = {
       id: venta.id, nro, cae,
-      hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+      hora: hora(new Date()),
       items, sub, desc, total, medio: ps[0].medio, pagos: ps, ganancia, recibe: recibe || null,
       recargo: recargo || 0, recargoNombre: recargoNombre || "", fiscal: esFiscal,
       cliente: cliente || null, sincronizada: null,
@@ -1497,7 +1497,10 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
             <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes}
               abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
           )}
-          {tab === "reportes" && <Reportes productos={productos} k={k} ir={ir} />}
+          {tab === "reportes" && (
+            <Reportes productos={productos} k={k} ir={ir}
+              empresaId={empresaId} conPedidos={modulos.includes("comandas")} />
+          )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
           {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
         </main>

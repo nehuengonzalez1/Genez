@@ -33,8 +33,11 @@ const decir = (ok, texto) => { if (!ok) fallas++; console.log(`  ${ok ? "ok " : 
    quedó abierta de la vez anterior se reutiliza —abrir_comanda hace bien
    su trabajo— y las líneas se suman encima: todo da el doble y parece un
    bug del código. */
+/* Los pedidos de la semilla de desarrollo quedan afuera: no ocupan mesa,
+   así que no ensucian nada de lo que se prueba acá, y borrarlos obligaba
+   a resembrar el tablero cada vez que se corren las pruebas. */
 async function barrerRestos() {
-  const cond = "tipo = 'comanda' or numero like 'PRUEBA%'";
+  const cond = "(tipo = 'comanda' or numero like 'PRUEBA%') and campos_extra->>'demo' is distinct from 'pedidos'";
   await c.query(`delete from movimientos_stock where operacion_id in (select id from operaciones where ${cond})`);
   await c.query(`delete from movimientos_caja  where operacion_id in (select id from operaciones where ${cond})`);
   const r = await c.query(`delete from operaciones where ${cond}`);

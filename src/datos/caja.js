@@ -14,11 +14,9 @@
    ============================================================ */
 
 import { supabase } from "./supabase.js";
+import { hora } from "../utils/helpers.js";
 
 const n = (v) => (v === null || v === undefined ? 0 : Number(v));
-
-const hora = (iso) =>
-  new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 
 function aMovimiento(f) {
   return {

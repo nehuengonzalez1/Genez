@@ -13,6 +13,7 @@
    ============================================================ */
 
 import { supabase } from "./supabase.js";
+import { cargarCanales } from "./pedidos.js";
 
 const n = (v) => (v === null || v === undefined ? 0 : Number(v));
 
@@ -135,58 +136,9 @@ export async function cambiarCanal(comandaId, { canal, referencia = null, client
   if (error) throw error;
 }
 
-export const CANALES = [
-  { k: "mostrador", n: "Mostrador", d: "Come acá o espera en la barra" },
-  { k: "takeaway", n: "Para llevar", d: "Pasa a buscar" },
-  { k: "delivery", n: "Delivery propio", d: "Lo lleva el local" },
-  { k: "app", n: "Aplicación", d: "PedidosYa, Rappi, Uber Eats" },
-];
-
-/* Los pedidos que no son de mesa, para el tablero de mostrador. El estado
-   de cada uno sale de sus líneas: si todas están listas el pedido está
-   listo, si alguna sigue en cocina el pedido está en preparación. */
-export async function cargarPedidos(empresaId) {
-  const desde = new Date();
-  desde.setHours(0, 0, 0, 0);
-
-  const { data, error } = await supabase
-    .from("operaciones")
-    .select(`
-      id, canal, referencia, estado, fecha, abierta_en, cerrada_en, total, campos_extra,
-      operacion_lineas ( id, descripcion, cantidad, estado, total )
-    `)
-    .eq("empresa_id", empresaId)
-    .eq("tipo", "comanda")
-    .neq("canal", "salon")
-    .gte("fecha", desde.toISOString())
-    .order("abierta_en", { ascending: true });
-
-  if (error) throw error;
-
-  return (data || []).map((o) => {
-    const lineas = (o.operacion_lineas || []).filter((l) => l.estado !== "anulada");
-    const listas = lineas.filter((l) => l.estado === "listo" || l.estado === "entregado").length;
-
-    let etapa = "pendiente";
-    if (o.estado === "confirmada") etapa = "cerrado";
-    else if (lineas.length && listas === lineas.length) etapa = "listo";
-    else if (lineas.some((l) => l.estado === "preparando")) etapa = "preparando";
-
-    const abierta = o.abierta_en ? new Date(o.abierta_en) : null;
-    return {
-      id: o.id,
-      canal: o.canal,
-      referencia: o.referencia,
-      etapa,
-      cerrado: o.estado === "confirmada",
-      cliente: (o.campos_extra && o.campos_extra.cliente) || null,
-      abiertaEn: abierta,
-      minutos: abierta ? Math.floor((Date.now() - abierta.getTime()) / 60000) : null,
-      lineas: lineas.map((l) => ({ id: l.id, nombre: l.descripcion, cantidad: n(l.cantidad), estado: l.estado })),
-      total: n(o.total) || lineas.reduce((s, l) => s + n(l.total), 0),
-    };
-  });
-}
+/* Los canales ya no viven acá: son filas de la tabla `canales` y se leen
+   con `cargarCanales` de src/datos/pedidos.js. Los pedidos que no ocupan
+   mesa, con su estado y sus tiempos, también salen de ahí. */
 
 /* ------------------------------------------------------------
    EL PLANO
@@ -457,6 +409,10 @@ export async function cargarCocina(empresaId, destino = null) {
       porComanda.set(l.comandaId, {
         id: l.comandaId,
         canal: l.canal,
+        canalNombre: l.canalNombre,
+        familia: l.familia,
+        color: l.color,
+        icono: l.icono,
         referencia: l.referencia,
         mesa: l.mesa,
         sector: l.sector,
@@ -500,6 +456,9 @@ export async function moverComanda(comandaId, estado, destino = null) {
    pantalla de la cocina de la de la barra: al que hace los tragos no le
    sirve ver las hamburguesas. */
 export async function cargarPendientes(empresaId, destino = null) {
+  const canales = await cargarCanales(empresaId, { conSalon: true });
+  const porClave = new Map(canales.map((c) => [c.clave, c]));
+
   let q = supabase
     .from("operacion_lineas")
     .select(`
@@ -518,17 +477,22 @@ export async function cargarPendientes(empresaId, destino = null) {
   return (data || [])
     .map((f) => {
       const o = f.operaciones;
-      const app = o.campos_extra && o.campos_extra.cliente && o.campos_extra.cliente.app;
       /* La cocina necesita saber para dónde va el plato, no solo qué es.
          Un pedido sin mesa llegaba con el título vacío y el que cocina no
-         podía distinguir un delivery de una mesa del salón. */
-      const nombreCanal = { mostrador: "Mostrador", takeaway: "Para llevar", delivery: "Delivery", app: app || "Aplicación" };
+         podía distinguir un delivery de una mesa del salón. El nombre lo
+         pone el canal, así una aplicación nueva se lee bien sin que nadie
+         toque este archivo. */
+      const canal = porClave.get(o.canal) || { nombre: "Pedido", familia: "mostrador", color: "app" };
       return {
         ...aLinea(f),
         comandaId: o.id,
         canal: o.canal || "salon",
+        canalNombre: canal.nombre,
+        familia: canal.familia,
+        color: canal.color,
+        icono: canal.icono,
         referencia: o.referencia || null,
-        mesa: o.recursos ? o.recursos.nombre : (nombreCanal[o.canal] || "Pedido"),
+        mesa: o.recursos ? o.recursos.nombre : canal.nombre,
         sector: o.recursos ? o.recursos.sector : (o.referencia ? `#${o.referencia}` : ""),
         desde: o.abierta_en ? new Date(o.abierta_en) : null,
       };

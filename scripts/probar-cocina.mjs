@@ -48,14 +48,18 @@ const enMesa = await comanda({ recurso_id: mesa.id }, 2);
 const paraLlevar = await comanda({ canal: "takeaway" }, 1);
 const deApp = await comanda({ canal: "app", referencia: "5893" }, 3);
 
+/* Solo las tres que abrió esta prueba. Antes miraba todo lo que hubiera
+   en cocina, así que bastaba con que el comercio tuviera pedidos
+   cargados —la semilla de desarrollo, por ejemplo— para que fallara sin
+   que nada estuviera roto. */
 const filas = (await c.query(`
   select o.id, o.canal, o.referencia, r.nombre as mesa, count(l.*) as lineas
   from operaciones o
   left join recursos r on r.id = o.recurso_id
   join operacion_lineas l on l.operacion_id = o.id
-  where o.empresa_id = $1 and o.estado = 'abierta' and l.estado in ('pedido','preparando','listo')
+  where o.id = any($1) and o.estado = 'abierta' and l.estado in ('pedido','preparando','listo')
   group by o.id, o.canal, o.referencia, r.nombre
-  order by o.abierta_en`, [emp.id])).rows;
+  order by o.abierta_en`, [hechas])).rows;
 
 decir(filas.length === 3, `tres comandas distintas, no seis lineas sueltas (${filas.length})`);
 

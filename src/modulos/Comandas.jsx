@@ -23,24 +23,26 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ArrowLeft, Clock, Check, Plus, Minus, Trash2, Search,
-  StickyNote, X, RefreshCw, ChefHat, Store, ShoppingBag, Bike, Smartphone,
+  StickyNote, X, RefreshCw, ChefHat, Store, History,
   UtensilsCrossed, ChevronRight,
-  Users, MoreVertical, Pencil, CreditCard, Percent, Printer, Split, Filter,
-  Receipt, FileText, History, BellRing, Truck, Timer, ChevronDown,
-  BarChart3, Settings, Zap, ClipboardList,
+  Users, MoreVertical, Pencil, CreditCard, Percent, Printer, Split,
+  Receipt, FileText,
   Pizza, Beef, Sandwich, Salad, Soup, Fish, Drumstick, Coffee, Wine, Beer,
   CupSoda, IceCream, Cake, Croissant, Cookie, Milk, Flame, Utensils,
 } from "lucide-react";
-import { money, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
+import { money, hora, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
 import { siguienteNumero } from "../datos/ventas.js";
 import {
   cargarSalon, cargarRecursos, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
   anularLinea, cambiarCantidad, enviarACocina, cargarCocina, moverComanda, cerrarComanda,
-  CANALES, abrirPedido, cargarPedidos, cargarElementosPlano, cambiarCanal,
+  abrirPedido, cargarElementosPlano, cambiarCanal,
   aplicarDescuento, quitarDescuento, guardarComensales,
 } from "../datos/comandas.js";
+import { cargarPedidos, cargarCanales } from "../datos/pedidos.js";
 import { Card, Boton, Modal, Vacio, Apagado, imprimirComandera, preCuenta } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
+import { tonoCanal, IconoCanal } from "../ui/canales.jsx";
+import { CentroPedidos, ModalNuevoPedido } from "./CentroPedidos.jsx";
 import { PlanoSalon } from "./PlanoSalon.jsx";
 
 /* Los minutos se calculan contra el reloj real y no contra HOY: acá no se
@@ -52,41 +54,10 @@ const espera = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m}
 
 const activas = (lineas) => (lineas || []).filter((l) => l.estado !== "anulada");
 
-/* Cada canal tiene su color y su ícono: a un metro de distancia hay que
-   saber si el pedido sale por la puerta o lo viene a buscar un cadete,
-   sin leer la etiqueta. */
-const TONO = {
-  mostrador: { i: Store, pill: "bg-canal-mostrador-suave text-canal-mostrador border-canal-mostrador", borde: "border-canal-mostrador", punto: "bg-canal-mostrador", txt: "text-canal-mostrador" },
-  takeaway: { i: ShoppingBag, pill: "bg-canal-retiro-suave text-canal-retiro border-canal-retiro", borde: "border-canal-retiro", punto: "bg-canal-retiro", txt: "text-canal-retiro" },
-  delivery: { i: Bike, pill: "bg-canal-reparto-suave text-canal-reparto border-canal-reparto", borde: "border-canal-reparto", punto: "bg-canal-reparto", txt: "text-canal-reparto" },
-  app: { i: Smartphone, pill: "bg-canal-app-suave text-canal-app border-canal-app", borde: "border-canal-app", punto: "bg-canal-app", txt: "text-canal-app" },
-  salon: { i: UtensilsCrossed, pill: "bg-superficie-2 text-texto-suave border-borde-fuerte", borde: "border-borde-fuerte", punto: "bg-superficie-3", txt: "text-texto-suave" },
-};
-
-/* Las tres aplicaciones grandes tienen color propio aunque para la base
-   sean el mismo canal 'app'. Quien arma los pedidos las separa de lejos
-   por la bolsa, no por el nombre. */
-const TONO_APP = {
-  PedidosYa: { i: Smartphone, pill: "bg-canal-pedidosya-suave text-canal-pedidosya border-canal-pedidosya", borde: "border-canal-pedidosya", punto: "bg-canal-pedidosya", txt: "text-canal-pedidosya" },
-  Rappi: { i: Smartphone, pill: "bg-canal-rappi-suave text-canal-rappi border-canal-rappi", borde: "border-canal-rappi", punto: "bg-canal-rappi", txt: "text-canal-rappi" },
-  "Uber Eats": { i: Smartphone, pill: "bg-canal-ubereats-suave text-canal-ubereats border-canal-ubereats", borde: "border-canal-ubereats", punto: "bg-canal-ubereats", txt: "text-canal-ubereats" },
-};
-
-const APLICACIONES = ["PedidosYa", "Rappi", "Uber Eats", "Otra"];
-
-const tonoDe = (canal) => TONO[canal] || TONO.mostrador;
-
-/* El tablero no filtra por canal sino por "de dónde vino esto": un pedido
-   de Rappi y uno de PedidosYa son los dos canal 'app' y no se pueden
-   mezclar. La clave del tablero es el canal, salvo en app, donde es la
-   aplicación. */
-const claveCanal = (p) =>
-  p.canal === "app" ? `app:${(p.cliente && p.cliente.app) || "Aplicación"}` : p.canal;
-
-const tonoDeClave = (clave) => {
-  if (!clave.startsWith("app:")) return tonoDe(clave);
-  return TONO_APP[clave.slice(4)] || TONO.app;
-};
+/* Cómo se ve cada canal está en src/ui/canales.jsx, y qué canales hay
+   sale de la base (migración 0020). Acá no hay una lista de canales a
+   propósito: era el lugar donde había que acordarse de agregar cada
+   aplicación nueva, y nadie se acuerda. */
 
 /* La pantalla del pedido es una sola y atiende dos cosas distintas: una
    mesa del salón y un pedido que no ocupa lugar. Lo único que cambia son
@@ -113,19 +84,19 @@ const VOZ_CANAL = {
   soltado: "quedó cancelado",
 };
 
-/* En un pedido de aplicación lo que importa es cuál, no la palabra
-   "Aplicación": el que arma mira la pantalla y tiene que ver PedidosYa. */
-function rotuloCanal(p) {
-  const c = CANALES.find((x) => x.k === p.canal);
-  const app = p.cliente && p.cliente.app;
-  if (p.canal === "app" && app) return app;
-  return c ? c.n : p.canal;
+/* El nombre del canal sale de su fila, no de una constante: si el
+   comercio le puso "Pedidos por WhatsApp", eso es lo que tiene que
+   leerse arriba del pedido. */
+function rotuloCanal(p, canales = []) {
+  if (p.canalNombre) return p.canalNombre;
+  const c = canales.find((x) => x.clave === p.canal);
+  return c ? c.nombre : p.canal;
 }
 
-function encabezadoDe(p) {
+function encabezadoDe(p, canales = []) {
   const cli = p.cliente || {};
   return {
-    titulo: [rotuloCanal(p), p.referencia ? `#${p.referencia}` : null].filter(Boolean).join(" · "),
+    titulo: [rotuloCanal(p, canales), p.referencia ? `#${p.referencia}` : null].filter(Boolean).join(" · "),
     sub: [cli.nombre, cli.telefono].filter(Boolean).join(" · "),
   };
 }
@@ -187,12 +158,21 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
   const [nuevo, setNuevo] = useState(null);         // canal elegido, esperando los datos
   const [cambiando, setCambiando] = useState(false);
   const [abriendo, setAbriendo] = useState(null);   // id de mesa o clave de canal
+  const [canales, setCanales] = useState([]);
 
   /* toast se redefine en cada render de Sistema. Si entra como dependencia,
      el efecto de carga se vuelve a disparar para siempre. */
   const avisar = useRef(toast);
   avisar.current = toast;
   const releer = useRef(() => {});
+
+  useEffect(() => {
+    let vivo = true;
+    cargarCanales(empresaId)
+      .then((cs) => { if (vivo) setCanales(cs); })
+      .catch((e) => avisar.current(e.message || "No pudimos leer los canales.", "mal"));
+    return () => { vivo = false; };
+  }, [empresaId]);
 
   /* Mientras se está adentro de un pedido no se refresca nada: la pantalla
      no se ve y la lectura vieja no sirve para nada. */
@@ -227,7 +207,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
     try {
       const id = await abrirPedido({ empresaId, sucursalId, ...datos });
       setNuevo(null);
-      setAbierta({ id, voz: VOZ_CANAL, datos, encabezado: encabezadoDe(datos), volverA });
+      setAbierta({ id, voz: VOZ_CANAL, datos, encabezado: encabezadoDe(datos, canales), volverA });
     } catch (e) {
       avisar.current(e.message || "No se pudo abrir el pedido.", "mal");
     } finally {
@@ -242,9 +222,9 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
 
   /* Los datos del pedido viajan enteros para poder corregirle el canal sin
      perder de quién era ni con qué número entró. */
-  const retomar = (p) => {
+  const retomar = (p, volverA = "inicio") => {
     const datos = { canal: p.canal, referencia: p.referencia || null, cliente: p.cliente || null };
-    setAbierta({ id: p.id, voz: VOZ_CANAL, datos, encabezado: encabezadoDe(p), volverA: "inicio" });
+    setAbierta({ id: p.id, voz: VOZ_CANAL, datos, encabezado: encabezadoDe(p, canales), volverA });
   };
 
   const entrarAMesa = async (mesa, volverA) => {
@@ -268,7 +248,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
   const corregirCanal = async (datos) => {
     try {
       await cambiarCanal(abierta.id, datos);
-      setAbierta((a) => ({ ...a, datos, encabezado: encabezadoDe(datos) }));
+      setAbierta((a) => ({ ...a, datos, encabezado: encabezadoDe(datos, canales) }));
       setCambiando(false);
     } catch (e) {
       avisar.current(e.message || "No se pudo cambiar el canal.", "mal");
@@ -292,7 +272,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
             (otro ? corregirCanal({ ...(abierta.datos || {}), ...otro }) : setCambiando(true))}
           onVolver={() => { setDonde(abierta.volverA); setAbierta(null); }} />
 
-        <ModalNuevoPedido abierto={cambiando} rotulo="¿Para dónde es?"
+        <ModalNuevoPedido abierto={cambiando} canales={canales} rotulo="¿Para dónde es?"
           onCerrar={() => setCambiando(false)} onCrear={corregirCanal} />
       </>
     );
@@ -303,11 +283,15 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
      de otra: dos barras laterales compitiendo por el mismo trabajo. */
   if (donde === "mostrador") {
     return (
-      <Mostrador
-        empresaId={empresaId} sucursalId={sucursalId} config={config}
-        ajustes={ajustes} caja={caja} sesion={sesion} toast={toast}
+      <CentroPedidos
+        empresaId={empresaId} sucursalId={sucursalId}
+        ajustes={ajustes} permisos={permisos} toast={toast}
         onVolver={() => setDonde("inicio")}
         onSalon={() => setDonde("salon")}
+        /* El centro de pedidos no sabe cargar un plato ni cobrar: para eso
+           está la pantalla del pedido, que es la misma para una mesa y para
+           un delivery. Se la abre desde acá en vez de duplicarla adentro. */
+        onAbrirPedido={(p) => retomar(p, "mostrador")}
       />
     );
   }
@@ -331,13 +315,13 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
             onActualizar={() => releer.current()} onGuardado={() => releer.current()} />
         </div>
 
-        <ModalNuevoPedido abierto={!!nuevo} canalInicial={nuevo} trabajando={!!abriendo}
+        <ModalNuevoPedido abierto={!!nuevo} canales={canales} canalInicial={nuevo} trabajando={!!abriendo}
           onCerrar={() => setNuevo(null)} onCrear={(datos) => abrirCanal(datos, "salon")} />
       </div>
     );
   }
 
-  const enCurso = pedidos.filter((p) => p.etapa !== "cerrado");
+  const enCurso = pedidos.filter((p) => p.estado !== "completado" && p.estado !== "cancelado");
   const ocupadas = mesas.filter((m) => m.ocupada);
   const haySalon = mesas.length > 0 || elementos.length > 0 || !!permisos.ajustes;
   const activos = enCurso.length + ocupadas.length;
@@ -409,14 +393,14 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
           {activos > 0 && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
               {enCurso.map((p) => (
-                <TarjetaEnCurso key={p.id} tono={tonoDe(p.canal)} canal={rotuloCanal(p)}
-                  titulo={(p.cliente && p.cliente.nombre) || (p.referencia ? `#${p.referencia}` : rotuloCanal(p))}
-                  sub={p.cliente && p.cliente.nombre && p.referencia ? `#${p.referencia}` : null}
+                <TarjetaEnCurso key={p.id} canal={p} nombreCanal={rotuloCanal(p, canales)}
+                  titulo={p.cliente.nombre || (p.referencia ? `#${p.referencia}` : rotuloCanal(p, canales))}
+                  sub={p.cliente.nombre && p.referencia ? `#${p.referencia}` : null}
                   minutos={minutosDesde(p.abiertaEn)} total={p.total}
                   estado={estadoPedido(p)} onTocar={() => retomar(p)} />
               ))}
               {ocupadas.map((m) => (
-                <TarjetaEnCurso key={m.id} tono={TONO.salon} canal="Salón"
+                <TarjetaEnCurso key={m.id} canal={{ color: "salon" }} nombreCanal="Salón"
                   titulo={m.nombre} sub={m.sector || null}
                   minutos={m.minutos == null ? 0 : m.minutos} total={m.consumido}
                   estado={estadoMesa(m)}
@@ -428,7 +412,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
         </section>
       </div>
 
-      <ModalNuevoPedido abierto={!!nuevo} canalInicial={nuevo} trabajando={!!abriendo}
+      <ModalNuevoPedido abierto={!!nuevo} canales={canales} canalInicial={nuevo} trabajando={!!abriendo}
         onCerrar={() => setNuevo(null)} onCrear={abrirCanal} />
     </div>
   );
@@ -437,10 +421,10 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
 /* El estado se lee sin leer: lo que está listo y nadie retiró es lo único
    que tiene que gritar. */
 function estadoPedido(p) {
-  if (p.etapa === "listo") return { n: "Listo para entregar", tono: "text-bien" };
-  if (p.etapa === "preparando") return { n: "En preparación", tono: "text-ojo" };
-  const items = p.lineas.reduce((s, l) => s + l.cantidad, 0);
-  return { n: items ? `${items} item${items === 1 ? "" : "s"} sin enviar` : "Sin cargar", tono: "text-texto-tenue" };
+  if (p.estado === "en_camino") return { n: "En camino", tono: "text-bien" };
+  if (p.estado === "listo") return { n: "Listo para entregar", tono: "text-ojo" };
+  if (p.estado === "en_preparacion") return { n: "En preparación", tono: "text-acento" };
+  return { n: p.items ? `${p.items} item${p.items === 1 ? "" : "s"} sin enviar` : "Sin cargar", tono: "text-texto-tenue" };
 }
 
 function estadoMesa(m) {
@@ -449,14 +433,14 @@ function estadoMesa(m) {
   return { n: m.items ? `${m.items} item${m.items === 1 ? "" : "s"}` : "Recién abierta", tono: "text-texto-tenue" };
 }
 
-function TarjetaEnCurso({ tono, canal, titulo, sub, minutos, total, estado, abriendo, onTocar }) {
-  const Icono = tono.i;
+function TarjetaEnCurso({ canal, nombreCanal, titulo, sub, minutos, total, estado, abriendo, onTocar }) {
+  const t = tonoCanal(canal);
   return (
     <button onClick={onTocar} disabled={abriendo}
-      className={`w-full text-left rounded-2xl border-2 bg-superficie p-3.5 transition-colors hover:bg-superficie-2 disabled:opacity-50 ${tono.borde}`}>
+      className={`w-full text-left rounded-xl border bg-superficie p-3.5 transition-colors hover:bg-superficie-2 disabled:opacity-50 ${t.borde}`}>
       <div className="flex items-center gap-2">
-        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border ${tono.pill}`}>
-          <Icono size={12} /> {canal}
+        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${t.suave} ${t.txt} ${t.borde}`}>
+          <IconoCanal canal={canal} size={12} /> {nombreCanal}
         </span>
         <span className="ml-auto flex items-center gap-1 text-[11px] text-texto-suave shrink-0">
           <Clock size={11} /> {espera(minutos)}
@@ -795,7 +779,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
   const cuantos = lineas.reduce((s, l) => s + l.cantidad, 0);
   const sub = encabezado ? encabezado.sub : comanda.sector;
   const hace = comanda.abiertaEn ? `hace ${espera(minutosDesde(comanda.abiertaEn))}` : "";
-  const hora = reloj.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  const ahora = hora(reloj);
   const W = ajustes.ancho === 58 ? 32 : 48;
 
   /* Los comensales son de la mesa: un delivery o un pedido de mostrador no
@@ -1071,7 +1055,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
           <span className={`w-2 h-2 rounded-full ${caja.abierta ? "bg-bien" : "bg-mal"}`} />
           {caja.abierta ? "Caja abierta" : "Caja cerrada"}
         </span>
-        <span className="f-m">{hora}</span>
+        <span className="f-m">{ahora}</span>
         <Apagado motivo="El historial de comandas" className="ml-auto gap-1.5 font-semibold">
           <History size={14} /> Historial de comandas
         </Apagado>
@@ -1529,610 +1513,6 @@ function ModalCobro({ abierto, comanda, comandaId, empresaId, config, ajustes, c
 }
 
 /* ============================================================
-   4. MOSTRADOR · el tablero de los pedidos que no ocupan mesa
-   ============================================================
-
-   Lo que se pide en la barra, lo que pasan a buscar, lo que sale en moto
-   y lo que entra por una aplicación, ordenado por etapa. La pantalla de
-   comandas alcanza para tomarlos y retomarlos; esto es para el que arma,
-   que mira todo el día lo mismo y necesita verlo por columna.
-   ============================================================ */
-
-/* Los cinco carriles del tablero. "En camino" no es una etapa del modelo
-   —hay pendiente, preparando, listo y cerrado— pero el carril va igual:
-   sin él, un delivery despachado desaparecería del tablero sin que nadie
-   entienda a dónde fue. Queda vacío y avisado hasta que exista. */
-const CARRILES = [
-  { k: "pendiente", n: "Pendientes", i: Timer, txt: "text-mal", fondo: "bg-mal-suave", borde: "border-mal" },
-  { k: "preparando", n: "En preparación", i: ChefHat, txt: "text-acento", fondo: "bg-acento-suave", borde: "border-acento" },
-  { k: "listo", n: "Listo para retirar", i: BellRing, txt: "text-ojo", fondo: "bg-ojo-suave", borde: "border-ojo" },
-  {
-    k: "camino", n: "En camino", i: Truck, txt: "text-bien", fondo: "bg-bien-suave", borde: "border-bien",
-    pronto: "Despachar un pedido con el cadete",
-  },
-  {
-    k: "cerrado", n: "Completados", sufijo: "Hoy", i: Check,
-    txt: "text-texto-tenue", fondo: "bg-superficie-2", borde: "border-borde-fuerte", angosto: true,
-  },
-];
-
-/* Los seis canales de la maqueta. En la base hay cuatro: PedidosYa, Rappi
-   y Uber Eats entran todos como 'app' y se distinguen por cliente.app.
-   El orden es el de la barra lateral y el de los chips, que tienen que
-   coincidir para que la vista no se lea dos veces. */
-const CANALES_TABLERO = [
-  { k: "mostrador", n: "Mostrador" },
-  { k: "delivery", n: "Delivery propio" },
-  { k: "app:PedidosYa", n: "PedidosYa" },
-  { k: "app:Rappi", n: "Rappi" },
-  { k: "app:Uber Eats", n: "Uber Eats" },
-  { k: "takeaway", n: "Pasar a buscar" },
-];
-
-/* Cuántas tarjetas entran en una columna antes de que la pantalla se
-   vuelva una lista infinita. Lo que sobra se despliega a pedido. */
-const TOPE_COLUMNA = 4;
-
-const horaDe = (f) => (f ? f.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "—");
-
-export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, caja, sesion = null, toast, onVolver = null, onSalon = null }) {
-  const [pedidos, setPedidos] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [abierto, setAbierto] = useState(null);   // el pedido que se está atendiendo
-  const [nuevo, setNuevo] = useState(false);
-  const [abriendo, setAbriendo] = useState(false);
-  const [canal, setCanal] = useState(null);       // filtro: clave de canal o null
-  const [q, setQ] = useState("");
-  const [ultima, setUltima] = useState(null);     // cuándo se leyó por última vez
-  const [lateral, setLateral] = useState(false);  // la barra plegada, en celular
-  const [desplegado, setDesplegado] = useState({});
-
-  const avisar = useRef(toast);
-  avisar.current = toast;
-  const releer = useRef(() => {});
-
-  /* Mientras se está adentro de un pedido no se refresca el tablero: la
-     pantalla no se ve y la lectura vieja no sirve para nada. */
-  useEffect(() => {
-    if (abierto) return undefined;
-    let vivo = true;
-    const leer = async () => {
-      try {
-        const d = await cargarPedidos(empresaId);
-        if (vivo) { setPedidos(d); setUltima(new Date()); }
-      } catch (e) {
-        if (vivo) avisar.current(e.message || "No pudimos leer los pedidos.", "mal");
-      } finally {
-        if (vivo) setCargando(false);
-      }
-    };
-    releer.current = leer;
-    leer();
-    const id = setInterval(leer, 20000);
-    return () => { vivo = false; clearInterval(id); };
-  }, [empresaId, abierto]);
-
-  const crear = async (datos) => {
-    if (abriendo) return;
-    setAbriendo(true);
-    try {
-      const id = await abrirPedido({ empresaId, sucursalId, ...datos });
-      setNuevo(false);
-      setAbierto({ id, canal: datos.canal, referencia: datos.referencia || null, cliente: datos.cliente || null });
-    } catch (e) {
-      avisar.current(e.message || "No se pudo abrir el pedido.", "mal");
-    } finally {
-      setAbriendo(false);
-    }
-  };
-
-  const visibles = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    return pedidos.filter((p) => {
-      if (canal && claveCanal(p) !== canal) return false;
-      if (!t) return true;
-      const cli = p.cliente || {};
-      return [p.referencia, cli.nombre, cli.telefono, cli.app, rotuloCanal(p)]
-        .filter(Boolean).join(" ").toLowerCase().includes(t);
-    });
-  }, [pedidos, canal, q]);
-
-  /* Los canales fijos de la maqueta más los que aparezcan en los datos:
-     un comercio puede estar tomando pedidos de una aplicación que no está
-     en la lista, y esos no pueden quedar sin fila ni sin chip. */
-  const canales = useMemo(() => {
-    const cuenta = new Map();
-    for (const p of pedidos) {
-      if (p.etapa === "cerrado") continue;
-      const k = claveCanal(p);
-      cuenta.set(k, (cuenta.get(k) || 0) + 1);
-    }
-    const fijos = CANALES_TABLERO.map((c) => ({ ...c, cuantos: cuenta.get(c.k) || 0 }));
-    const extras = [...cuenta.keys()]
-      .filter((k) => !CANALES_TABLERO.some((c) => c.k === k))
-      .map((k) => ({ k, n: k.startsWith("app:") ? k.slice(4) : k, cuantos: cuenta.get(k) }));
-    return [...fijos, ...extras];
-  }, [pedidos]);
-
-  if (abierto) {
-    return (
-      <Pedido comandaId={abierto.id} empresaId={empresaId} config={config} ajustes={ajustes}
-        caja={caja} toast={toast} voz={VOZ_CANAL} encabezado={encabezadoDe(abierto)}
-        empleado={sesion ? sesion.nombre : ""} onVolver={() => setAbierto(null)} />
-    );
-  }
-
-  const activos = pedidos.filter((p) => p.etapa !== "cerrado");
-  const enCarril = (k) => (k === "camino" ? [] : visibles.filter((p) => p.etapa === k));
-  const suma = (lista) => lista.reduce((s, p) => s + (p.total || 0), 0);
-  const porEtapa = (k) => pedidos.filter((p) => p.etapa === k);
-
-  const elegido = canal ? canales.find((c) => c.k === canal) : null;
-  const titulo = elegido ? elegido.n.toUpperCase() : "PEDIDOS ACTIVOS";
-
-  const resumen = [
-    { k: "todos", n: "Total activos", i: ClipboardList, txt: "text-acento", lista: activos },
-    { k: "pendiente", n: "Pendientes", i: Timer, txt: "text-mal", lista: porEtapa("pendiente") },
-    { k: "preparando", n: "En preparación", i: ChefHat, txt: "text-acento", lista: porEtapa("preparando") },
-    { k: "listo", n: "Listos", i: BellRing, txt: "text-ojo", lista: porEtapa("listo") },
-    { k: "camino", n: "En camino", i: Truck, txt: "text-bien", lista: [], pronto: "Los pedidos en camino" },
-    { k: "cerrado", n: "Completados hoy", i: Check, txt: "text-texto-suave", lista: porEtapa("cerrado") },
-  ];
-
-  return (
-    /* min-h-full y fondo propio: sin eso, cuando el tablero tiene pocos
-       pedidos el contenido no llega abajo y se ve el fondo del contenedor
-       de atrás, como si la pantalla se cortara a la mitad. */
-    <div className="min-h-full bg-fondo space-y-4">
-      {/* En celular la barra lateral se pliega: el tablero necesita todo el
-          ancho, y los canales ya están en los chips de arriba. */}
-      <div className="lg:hidden flex items-center gap-2">
-        <Boton size="md" variant="ghost" onClick={() => setLateral((v) => !v)}>
-          <ShoppingBag size={16} /> Canales
-        </Boton>
-        <Boton size="md" className="ml-auto" onClick={() => setNuevo(true)} disabled={abriendo}>
-          <Plus size={16} /> Nuevo pedido
-        </Boton>
-      </div>
-
-      <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5 lg:items-start">
-
-        {/* --- La barra de canales -------------------------------------- */}
-        <aside className={`${lateral ? "block" : "hidden"} lg:block mb-4 lg:mb-0 lg:sticky lg:top-6`}>
-          <div className="rounded-2xl border border-borde bg-superficie p-3">
-            <div className="flex items-center gap-3 px-1.5 pt-1.5 pb-3">
-              <span className="w-12 h-12 shrink-0 rounded-2xl bg-acento text-sobre-acento grid place-items-center">
-                <ShoppingBag size={24} />
-              </span>
-              <span className="f-d text-[15px] leading-tight tracking-wide">
-                TAKE AWAY<br />MOSTRADOR
-              </span>
-            </div>
-
-            <Boton size="lg" className="w-full" onClick={() => setNuevo(true)} disabled={abriendo}>
-              <Plus size={18} /> Nuevo pedido
-            </Boton>
-
-            <nav className="mt-4 space-y-0.5">
-              <FilaLateral icono={ClipboardList} tinte="text-acento" nombre="Pedidos activos"
-                cuantos={activos.length} activo={canal === null} onTocar={() => setCanal(null)} />
-              {canales.map((c) => {
-                const t = tonoDeClave(c.k);
-                return (
-                  <FilaLateral key={c.k} icono={t.i} tinte={t.txt} nombre={c.n} cuantos={c.cuantos}
-                    activo={canal === c.k} onTocar={() => setCanal(canal === c.k ? null : c.k)} />
-                );
-              })}
-            </nav>
-
-            <div className="mt-3 pt-3 border-t border-borde space-y-0.5">
-              <FilaLateral icono={History} nombre="Historial" motivo="El historial de pedidos" />
-              <FilaLateral icono={BarChart3} nombre="Estadísticas" motivo="Las estadísticas del mostrador" />
-              <FilaLateral icono={Settings} nombre="Configuración" motivo="La configuración del mostrador" />
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-borde space-y-0.5">
-              <FilaLateral icono={ArrowLeft} nombre="Volver" onTocar={onVolver}
-                motivo={onVolver ? null : "Volver desde acá"} />
-              <FilaLateral icono={UtensilsCrossed} nombre="Salón" onTocar={onSalon}
-                motivo={onSalon ? null : "Ir al salón desde acá"} />
-              <FilaLateral icono={Zap} nombre="Acciones rápidas" motivo="Las acciones rápidas" />
-            </div>
-
-            <div className="mt-3 pt-3 px-2.5 border-t border-borde">
-              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Última actualización</div>
-              <div className="f-m text-xs text-texto-tenue mt-0.5">{ultima ? horaDe(ultima) : "—"}</div>
-            </div>
-          </div>
-        </aside>
-
-        {/* --- El tablero ------------------------------------------------ */}
-        <div className="min-w-0 space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="f-d text-2xl md:text-3xl tracking-tight">{titulo}</h2>
-            <div className="ml-auto flex items-center gap-2 w-full md:w-auto md:min-w-[400px]">
-              <div className="flex-1 flex items-center gap-2.5 rounded-xl border border-borde bg-superficie px-4 py-3">
-                <Search size={18} className="text-texto-tenue shrink-0" />
-                <input value={q} onChange={(e) => setQ(e.target.value)}
-                  placeholder="Buscar pedido, cliente, N°…"
-                  className="w-full text-sm bg-transparent outline-none" />
-                {q && (
-                  <button onClick={() => setQ("")} title="Limpiar" className="text-texto-tenue shrink-0">
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-              <Apagado motivo="Filtrar el tablero" className="shrink-0">
-                <span className="grid place-items-center w-12 h-12 rounded-xl border border-borde bg-superficie text-texto-suave">
-                  <Filter size={18} />
-                </span>
-              </Apagado>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            <ChipCanal nombre="Todos" cuantos={activos.length}
-              activo={canal === null} onTocar={() => setCanal(null)} />
-            {canales.map((c) => {
-              const t = tonoDeClave(c.k);
-              return (
-                <ChipCanal key={c.k} icono={t.i} tinte={t.txt} nombre={c.n} cuantos={c.cuantos}
-                  activo={canal === c.k} onTocar={() => setCanal(canal === c.k ? null : c.k)} />
-              );
-            })}
-            <span className="ml-auto shrink-0 pl-2">
-              <Boton size="sm" variant="ghost" onClick={() => releer.current()}>
-                <RefreshCw size={14} /> Actualizar
-              </Boton>
-            </span>
-          </div>
-
-          {cargando && <Vacio>Cargando los pedidos…</Vacio>}
-          {!cargando && !pedidos.length && (
-            <Vacio>Todavía no entró ningún pedido hoy. Tocá "Nuevo pedido" para arrancar.</Vacio>
-          )}
-          {!cargando && pedidos.length > 0 && !visibles.length && (
-            <Vacio>Ningún pedido con ese filtro.</Vacio>
-          )}
-
-          <div className="overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
-            {/* Los carriles se reparten el ancho en partes iguales pero no
-                bajan de su mínimo: cuando no entran, el tablero scrollea de
-                costado en vez de apretar las tarjetas hasta ser ilegibles. */}
-            <div className="flex gap-3 items-start">
-              {CARRILES.map((c) => {
-                const suyos = enCarril(c.k);
-                const todo = !!desplegado[c.k];
-                const puestas = todo ? suyos : suyos.slice(0, TOPE_COLUMNA);
-                const Icono = c.i;
-                return (
-                  <section key={c.k}
-                    className={`grow shrink-0 basis-0 ${c.angosto ? "min-w-[190px] max-w-[240px]" : "min-w-[248px]"}`}>
-                    <div className={`flex items-center gap-2 rounded-xl border px-3.5 py-2.5 ${c.fondo} ${c.borde}`}>
-                      <Icono size={15} className={`shrink-0 ${c.txt}`} />
-                      <span className={`text-[11px] uppercase tracking-widest font-bold truncate ${c.txt}`}>{c.n}</span>
-                      {c.sufijo && <span className="text-[10px] text-texto-tenue shrink-0">{c.sufijo}</span>}
-                      <span className={`ml-auto f-m text-sm font-bold shrink-0 ${c.txt}`}>{suyos.length}</span>
-                    </div>
-
-                    <div className="mt-2.5 space-y-2.5">
-                      {puestas.map((p) => (c.angosto
-                        ? <TarjetaCerrada key={p.id} p={p} onTocar={() => setAbierto(p)} />
-                        : <TarjetaPedido key={p.id} p={p} onTocar={() => setAbierto(p)} />))}
-
-                      {suyos.length > puestas.length && (
-                        <button onClick={() => setDesplegado((d) => ({ ...d, [c.k]: true }))}
-                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-borde bg-superficie py-2.5 text-xs font-semibold text-texto-suave hover:bg-superficie-2 transition-colors">
-                          Ver todos ({suyos.length}) <ChevronDown size={14} />
-                        </button>
-                      )}
-                      {todo && suyos.length > TOPE_COLUMNA && (
-                        <button onClick={() => setDesplegado((d) => ({ ...d, [c.k]: false }))}
-                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-borde bg-superficie py-2.5 text-xs font-semibold text-texto-suave hover:bg-superficie-2 transition-colors">
-                          Ver menos <ChevronDown size={14} className="rotate-180" />
-                        </button>
-                      )}
-
-                      {!suyos.length && (c.pronto ? (
-                        <Apagado motivo={c.pronto} className="w-full">
-                          <span className="block w-full rounded-2xl border-2 border-dashed border-borde px-4 py-8 text-center text-[11px] leading-relaxed text-texto-tenue">
-                            Todavía no se puede marcar un pedido como despachado.
-                          </span>
-                        </Apagado>
-                      ) : (
-                        <div className="rounded-2xl border-2 border-dashed border-borde py-8 text-center text-[11px] text-texto-tenue">
-                          Nada por acá
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* --- La barra de totales -------------------------------------- */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
-            {resumen.map((r) => {
-              const Icono = r.i;
-              return (
-                <div key={r.k}
-                  title={r.pronto ? `${r.pronto} todavía no está disponible.` : undefined}
-                  className={`rounded-2xl border border-borde bg-superficie px-4 py-3.5 ${r.pronto ? "opacity-40 cursor-not-allowed" : ""}`}>
-                  <div className="flex items-center gap-2">
-                    <Icono size={15} className={`shrink-0 ${r.txt}`} />
-                    <span className="f-d text-2xl leading-none">{r.lista.length}</span>
-                  </div>
-                  <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold mt-2 truncate">{r.n}</div>
-                  <div className="f-m text-sm text-texto-suave mt-0.5">{money(suma(r.lista))}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <ModalNuevoPedido abierto={nuevo} trabajando={abriendo}
-        onCerrar={() => setNuevo(false)} onCrear={crear} />
-    </div>
-  );
-}
-
-/* Una fila de la barra lateral. Las que todavía no existen se ven en el
-   mismo lugar y con el mismo peso, apagadas y con el motivo: que falten
-   de la lista sería peor que verlas y entender que no andan. */
-function FilaLateral({ icono: Icono, tinte = "text-texto-tenue", nombre, cuantos = null, activo = false, motivo = null, onTocar }) {
-  const forma = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors";
-  const cuerpo = (
-    <>
-      <Icono size={16} className={`shrink-0 ${activo ? "text-acento" : tinte}`} />
-      <span className="flex-1 min-w-0 truncate text-left">{nombre}</span>
-      {cuantos != null && (
-        <span className={`f-m text-[11px] font-bold rounded-full px-2 py-0.5 shrink-0 ${
-          activo ? "bg-acento text-sobre-acento" : "bg-superficie-2 text-texto-suave"}`}>
-          {cuantos}
-        </span>
-      )}
-    </>
-  );
-
-  if (motivo) {
-    return (
-      <Apagado motivo={motivo} className="w-full">
-        <span className={`${forma} text-texto-suave`}>{cuerpo}</span>
-      </Apagado>
-    );
-  }
-
-  return (
-    <button onClick={onTocar}
-      className={`${forma} ${activo ? "bg-superficie-2 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
-      {cuerpo}
-    </button>
-  );
-}
-
-function ChipCanal({ icono: Icono, tinte = "", nombre, cuantos, activo, onTocar }) {
-  return (
-    <button onClick={onTocar}
-      className={`shrink-0 inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ${
-        activo
-          ? "border-acento bg-acento-suave text-texto"
-          : "border-borde bg-superficie text-texto-suave hover:bg-superficie-2"}`}>
-      {Icono && <Icono size={15} className={`shrink-0 ${activo ? "text-acento" : tinte}`} />}
-      {nombre}
-      <span className="f-m text-[11px] font-bold rounded-full bg-superficie-2 text-texto px-1.5 py-0.5">{cuantos}</span>
-    </button>
-  );
-}
-
-/* La tarjeta del tablero. El canal se lee por la barra de color de la
-   izquierda y por el rótulo; el cliente y el monto son lo que pesa, y el
-   número de pedido y los platos van atrás en gris. */
-function TarjetaPedido({ p, onTocar }) {
-  const t = tonoDeClave(claveCanal(p));
-  const Icono = t.i;
-  const min = minutosDesde(p.abiertaEn);
-  const cli = p.cliente || {};
-  const primeras = p.lineas.slice(0, 3);
-
-  return (
-    <button onClick={onTocar}
-      className="relative w-full text-left overflow-hidden rounded-2xl border border-borde bg-superficie p-4 pl-5 transition-colors hover:bg-superficie-2 hover:border-borde-fuerte">
-      <span className={`absolute left-0 top-0 bottom-0 w-1 ${t.punto}`} />
-
-      <div className="flex items-center gap-2">
-        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide truncate ${t.txt}`}>
-          <Icono size={15} className="shrink-0" /> {rotuloCanal(p)}
-        </span>
-        <span className="ml-auto f-m text-[11px] text-texto-tenue shrink-0">{horaDe(p.abiertaEn)}</span>
-      </div>
-
-      <div className="f-m text-[11px] text-texto-tenue mt-2.5">
-        {p.referencia ? `#${p.referencia}` : "Sin número"}
-      </div>
-
-      <div className="flex items-baseline justify-between gap-3 mt-0.5">
-        <span className="text-[15px] font-bold leading-tight truncate">
-          {cli.nombre || rotuloCanal(p)}
-        </span>
-        <span className="f-m text-[15px] font-bold shrink-0">{money(p.total)}</span>
-      </div>
-
-      {primeras.length > 0 && (
-        <div className="mt-2.5 space-y-1">
-          {primeras.map((l) => (
-            <div key={l.id} className="text-xs text-texto-suave leading-tight truncate">
-              <span className="f-m">{l.cantidad}x</span> {l.nombre}
-            </div>
-          ))}
-          {p.lineas.length > primeras.length && (
-            <div className="text-[11px] text-texto-tenue">y {p.lineas.length - primeras.length} más</div>
-          )}
-        </div>
-      )}
-
-      {/* Lo listo lleva campanita: es lo único que hay que mirar dos veces.
-          El minutaje sigue siendo desde que se abrió el pedido —la base no
-          guarda cuándo quedó listo— y es igual el número que importa,
-          porque es lo que hace que espera el cliente. */}
-      <div className="mt-3 pt-3 border-t border-borde flex items-center gap-1.5 text-[11px]">
-        {p.etapa === "listo" ? (
-          <>
-            <BellRing size={12} className="shrink-0 text-ojo" />
-            <span className="font-semibold text-ojo">Listo</span>
-            <span className="text-texto-tenue">· hace {espera(min)}</span>
-          </>
-        ) : (
-          <>
-            <Clock size={12} className="shrink-0 text-texto-tenue" />
-            <span className="text-texto-suave">Hace {espera(min)}</span>
-          </>
-        )}
-      </div>
-    </button>
-  );
-}
-
-/* La de completados es más chica a propósito: ya no hay nada que hacer con
-   ella, solo se consulta. */
-function TarjetaCerrada({ p, onTocar }) {
-  const t = tonoDeClave(claveCanal(p));
-  const Icono = t.i;
-  return (
-    <button onClick={onTocar}
-      className="w-full text-left rounded-xl border border-borde bg-superficie px-3.5 py-3 transition-colors hover:bg-superficie-2">
-      <div className="flex items-center gap-1.5">
-        <Icono size={13} className={`shrink-0 ${t.txt}`} />
-        <span className={`text-[11px] font-bold truncate ${t.txt}`}>{rotuloCanal(p)}</span>
-        <span className="ml-auto f-m text-[11px] text-texto-tenue shrink-0">{horaDe(p.abiertaEn)}</span>
-      </div>
-      <div className="flex items-baseline justify-between gap-2 mt-1.5">
-        <span className="f-m text-[11px] text-texto-tenue truncate">
-          {p.referencia ? `#${p.referencia}` : "—"}
-        </span>
-        <span className="f-m text-sm font-bold shrink-0">{money(p.total)}</span>
-      </div>
-    </button>
-  );
-}
-
-/* --- Nuevo pedido ------------------------------------------------------
-   El que está parado en el mostrador no puede esperar a que alguien
-   complete un formulario: elegir "Mostrador" abre la comanda y listo. Los
-   demás canales sí necesitan un dato, porque después hay que saber a quién
-   entregarle qué.
-
-   `canalInicial` es para cuando el canal ya se eligió antes de abrir el
-   diálogo, que es lo que pasa en la pantalla de comandas: preguntar dos
-   veces lo mismo es un toque de más con gente esperando.               */
-function ModalNuevoPedido({ abierto, trabajando, canalInicial = null, onCerrar, onCrear }) {
-  const [canal, setCanal] = useState(null);
-  const [app, setApp] = useState(APLICACIONES[0]);
-  const [otraApp, setOtraApp] = useState("");
-  const [referencia, setReferencia] = useState("");
-  const [nombre, setNombre] = useState("");
-  const [telefono, setTelefono] = useState("");
-
-  useEffect(() => {
-    if (!abierto) return;
-    setCanal(canalInicial); setApp(APLICACIONES[0]); setOtraApp("");
-    setReferencia(""); setNombre(""); setTelefono("");
-  }, [abierto, canalInicial]);
-
-  if (!abierto) return null;
-
-  const elegir = (k) => (k === "mostrador" ? onCrear({ canal: "mostrador" }) : setCanal(k));
-
-  const confirmar = () => {
-    if (canal === "app") {
-      const cual = (app === "Otra" ? otraApp.trim() : app) || "Aplicación";
-      return onCrear({ canal: "app", referencia: referencia.trim() || null, cliente: { app: cual } });
-    }
-    const n = nombre.trim(), tel = telefono.trim();
-    onCrear({ canal, cliente: n || tel ? { nombre: n, telefono: tel } : null });
-  };
-
-  return (
-    <Modal open onClose={onCerrar} ancho="max-w-md">
-      <div className="p-5">
-        {!canal ? (
-          <>
-            <h3 className="f-d text-lg">¿Por dónde entró?</h3>
-            <div className="mt-4 space-y-2">
-              {CANALES.map((c) => {
-                const Icono = tonoDe(c.k).i;
-                return (
-                  <button key={c.k} onClick={() => elegir(c.k)} disabled={trabajando}
-                    className="w-full flex items-center gap-3 text-left px-4 py-3.5 rounded-xl border-2 border-borde hover:bg-superficie-2 disabled:opacity-40">
-                    <Icono size={20} className="text-texto-suave shrink-0" />
-                    <span className="min-w-0">
-                      <span className="block text-base font-semibold">{c.n}</span>
-                      {c.d && <span className="block text-xs text-texto-suave">{c.d}</span>}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <Boton variant="quiet" className="w-full mt-4" onClick={onCerrar}>Cancelar</Boton>
-          </>
-        ) : (
-          <>
-            <h3 className="f-d text-lg">{(CANALES.find((c) => c.k === canal) || {}).n}</h3>
-
-            {canal === "app" ? (
-              <>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  {APLICACIONES.map((a) => (
-                    <button key={a} onClick={() => setApp(a)}
-                      className={`px-3 py-3 rounded-xl border-2 text-base font-semibold ${
-                        app === a ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
-                      {a}
-                    </button>
-                  ))}
-                </div>
-                {app === "Otra" && (
-                  <Campo label="Cuál">
-                    <input value={otraApp} onChange={(e) => setOtraApp(e.target.value)}
-                      placeholder="Nombre de la aplicación" className={inputCls} />
-                  </Campo>
-                )}
-                <div className="mt-3">
-                  <Campo label="Número de pedido">
-                    <input value={referencia} onChange={(e) => setReferencia(e.target.value)}
-                      placeholder="El que muestra la aplicación" className={inputCls} />
-                  </Campo>
-                </div>
-              </>
-            ) : (
-              <div className="mt-4 space-y-3">
-                <Campo label="Nombre">
-                  <input value={nombre} onChange={(e) => setNombre(e.target.value)}
-                    placeholder="Para llamarlo cuando esté" className={inputCls} autoFocus />
-                </Campo>
-                <Campo label="Teléfono">
-                  <input value={telefono} onChange={(e) => setTelefono(e.target.value.replace(/[^\d\s+-]/g, ""))}
-                    placeholder="Opcional" className={inputCls} />
-                </Campo>
-              </div>
-            )}
-
-            <Boton size="lg" className="w-full mt-5" disabled={trabajando} onClick={confirmar}>
-              {trabajando ? "Abriendo…" : "Abrir el pedido"}
-            </Boton>
-            {canalInicial ? (
-              <Boton variant="quiet" className="w-full mt-1.5" onClick={onCerrar}>Cancelar</Boton>
-            ) : (
-              <Boton variant="quiet" className="w-full mt-1.5" onClick={() => setCanal(null)}>Cambiar el canal</Boton>
-            )}
-          </>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-/* ============================================================
    5. COCINA
    ============================================================
 
@@ -2239,9 +1619,9 @@ export function Cocina({ empresaId, config = {}, toast }) {
    aplicación que corresponda si entraron por una. Equivocarse acá
    significa rehacer el pedido. */
 function comoSeEntrega(p) {
-  if (p.canal === "salon") return { texto: "Al plato", tono: "bg-superficie-3 text-texto-suave" };
-  if (p.canal === "app") return { texto: `Bolsa ${p.mesa}`, tono: "bg-ojo-suave text-ojo" };
-  if (p.canal === "delivery") return { texto: "Packaging · delivery", tono: "bg-bien-suave text-bien" };
+  if (p.familia === "salon") return { texto: "Al plato", tono: "bg-superficie-3 text-texto-suave" };
+  if (p.familia === "app") return { texto: `Bolsa ${p.canalNombre}`, tono: "bg-ojo-suave text-ojo" };
+  if (p.familia === "reparto") return { texto: "Packaging · delivery", tono: "bg-bien-suave text-bien" };
   return { texto: "Packaging · para llevar", tono: "bg-acento-suave text-acento" };
 }
 

@@ -2,12 +2,14 @@
    11. REPORTES
    ============================================================ */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { money, moneyk, pct, nf } from "../utils/helpers.js";
-import { Kpi, Card, Boton, TablaSimple } from "../ui/Base.jsx";
+import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
+import { estadisticas } from "../datos/pedidos.js";
+import { tonoCanal } from "../ui/canales.jsx";
 
-export function Reportes({ productos, k, ir }) {
+export function Reportes({ productos, k, ir, empresaId = null, conPedidos = false }) {
   const [dias, setDias] = useState(30);
   const serie = k.diario.slice(-dias).map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
   const ventas = serie.reduce((s, d) => s + d.ventas, 0);
@@ -45,6 +47,8 @@ export function Reportes({ productos, k, ir }) {
         <Kpi label="Margen" valor={pct(ventas ? (ventas - costo) / ventas : 0)} />
         <Kpi label="Promedio por día" valor={money(ventas / dias)} />
       </div>
+
+      {conPedidos && <PorCanal empresaId={empresaId} dias={dias} ir={ir} />}
 
       <Card className="p-4">
         <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Ventas y ganancia por día</div>
@@ -139,5 +143,96 @@ export function Reportes({ productos, k, ir }) {
         />
       </Card>
     </div>
+  );
+}
+
+/* ============================================================
+   POR DÓNDE SE VENDIÓ
+   ============================================================
+
+   Un negocio que vende por mostrador, por delivery y por tres
+   aplicaciones necesita saber cuánto deja cada uno: no es lo mismo
+   facturar por PedidosYa que por la puerta, aunque el plato sea igual.
+
+   Las cuentas son las mismas que muestra el centro de pedidos —la misma
+   función de la base— para que dos pantallas del sistema no puedan decir
+   números distintos del mismo día.
+   ============================================================ */
+
+function PorCanal({ empresaId, dias, ir }) {
+  const [d, setD] = useState(null);
+  const [error, setError] = useState(false);
+  const vigente = useRef(0);
+
+  useEffect(() => {
+    const mio = ++vigente.current;
+    const desde = new Date();
+    desde.setHours(0, 0, 0, 0);
+    desde.setDate(desde.getDate() - (dias - 1));
+    const hasta = new Date();
+    hasta.setDate(hasta.getDate() + 1);
+
+    estadisticas(empresaId, desde, hasta)
+      .then((r) => { if (mio === vigente.current) { setD(r); setError(false); } })
+      .catch(() => { if (mio === vigente.current) setError(true); });
+  }, [empresaId, dias]);
+
+  if (error) return null;
+  if (!d) return <Card className="p-4"><Vacio>Calculando los pedidos…</Vacio></Card>;
+
+  const canales = d.por_canal || [];
+  const max = Math.max(1, ...canales.map((c) => Number(c.ventas)));
+  const min = (v) => (v == null ? "—" : `${Math.round(Number(v))} min`);
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Pedidos por canal</div>
+          <p className="text-xs text-texto-suave">Take away, delivery y aplicaciones. El salón va aparte.</p>
+        </div>
+        <div className="flex items-center gap-4 text-right">
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Pedidos</div>
+            <div className="f-m text-sm">{nf.format(d.pedidos || 0)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Ticket</div>
+            <div className="f-m text-sm">{money(d.ticket || 0)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Preparación</div>
+            <div className="f-m text-sm">{min(d.minutos_preparacion)}</div>
+          </div>
+        </div>
+      </div>
+
+      {!canales.length ? (
+        <Vacio>No entró ningún pedido en el período.</Vacio>
+      ) : (
+        <ul className="space-y-2.5">
+          {canales.map((c) => (
+            <li key={c.canal}>
+              <div className="flex justify-between text-sm gap-3">
+                <span className="truncate text-texto">{c.nombre}</span>
+                <span className="f-m shrink-0">
+                  {money(c.ventas)} <span className="text-[11px] text-texto-tenue">· {c.pedidos} ped.</span>
+                </span>
+              </div>
+              <div className="h-1.5 bg-superficie-2 rounded-full mt-1 overflow-hidden">
+                <div className={`h-full rounded-full ${tonoCanal({ color: c.color }).punto}`}
+                  style={{ width: `${(Number(c.ventas) / max) * 100}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {d.cancelados > 0 && (
+        <p className="text-xs text-texto-suave mt-3">
+          {d.cancelados} pedido{d.cancelados === 1 ? "" : "s"} cancelado{d.cancelados === 1 ? "" : "s"} en el período.
+        </p>
+      )}
+    </Card>
   );
 }

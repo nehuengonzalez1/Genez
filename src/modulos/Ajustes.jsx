@@ -10,7 +10,7 @@ import {
 import { uid, HOY, PROV_INFO } from "../datos/generador.js";
 import {
   FISCAL_INICIAL, CONDICIONES, letraComprobante, discriminaIVA,
-  condicionNombre, mediosDe, conRecargo, money, nf, nf2, pct,
+  condicionNombre, mediosDe, conRecargo, money, nf, nf2, pct, hora,
   MEDIOS_INICIALES, LISTAS_INICIALES, condicionLegal
 } from "../utils/helpers.js";
 import { Card, Boton, Modal, Kpi, Vacio } from "../ui/Base.jsx";
@@ -456,7 +456,7 @@ export function TarjetaCobro({ c, onCerrar }) {
       <div className="px-3 py-2.5">
         <div className="f-d text-3xl tabular-nums text-bien leading-none">{money(c.monto)}</div>
         <div className="text-[11px] text-texto-tenue mt-1.5">
-          Mercado Pago · {new Date(c.fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} · ya está en caja
+          Mercado Pago · {hora(c.fecha)} · ya está en caja
         </div>
       </div>
     </div>

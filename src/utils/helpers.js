@@ -14,6 +14,19 @@ export const moneyk = (v) => {
   return "$" + Math.round(v || 0);
 };
 export const pct = (v, dec = 1) => (v * 100).toFixed(dec).replace(".", ",") + "%";
+
+/* La hora, siempre de 24. Pedirle "es-AR" al navegador devuelve
+   "06:15 p. m.": son cuatro caracteres de más en cada renglón de una
+   pantalla que se lee de reojo, y acá nadie escribe la hora así. */
+export const hora = (f, conSegundos = false) => {
+  const d = f instanceof Date ? f : new Date(f);
+  if (!d || isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("es-AR", {
+    hour: "2-digit", minute: "2-digit",
+    ...(conSegundos ? { second: "2-digit" } : {}),
+    hour12: false,
+  });
+};
 export const diasDesde = (d) => Math.floor((HOY - d) / dayMs);
 export const diasHasta = (d) => Math.ceil((d - HOY) / dayMs);
 

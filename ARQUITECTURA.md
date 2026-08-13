@@ -33,6 +33,7 @@ node scripts/probar-venta.mjs      # las dos entradas de cobro
 node scripts/probar-cocina.mjs     # agrupado por comanda
 node scripts/probar-descuento.mjs  # descuento y comensales
 node scripts/probar-agrupado.mjs   # líneas repetidas
+node scripts/probar-pedidos.mjs    # estados, flujo por canal e historial
 ```
 
 `probar-rls.mjs` toma la identidad de un usuario con `set local role
@@ -63,9 +64,10 @@ rotación— y es lo que consume el front.
 `operaciones` es toda transacción: `venta`, `comanda`, `presupuesto`,
 `pedido`, `compra`, `orden_trabajo`, `devolucion`.
 
-Ya tiene: `canal` (`salon`, `mostrador`, `takeaway`, `delivery`, `app`),
-`referencia` (el número del pedido externo), `recurso_id` (la mesa),
-`comensales`, `descuento`, `descuento_pct`, `cliente_id`, `usuario_id`.
+Ya tiene: `canal` (apunta a `canales.clave`), `referencia` (el número del
+pedido externo), `recurso_id` (la mesa), `comensales`, `descuento`,
+`descuento_pct`, `cliente_id`, `usuario_id`, `actualizada_en` y
+`actualizada_por`.
 
 `operacion_lineas` tiene `estado` (`borrador`, `pedido`, `preparando`,
 `listo`, `entregado`, `anulada`), `modificadores`, `notas` y `destino`
@@ -74,11 +76,29 @@ Ya tiene: `canal` (`salon`, `mostrador`, `takeaway`, `delivery`, `app`),
 **Un pedido de take away ya es una `operacion`.** No hace falta un modelo
 nuevo, y crear uno duplicaría ventas, stock y caja.
 
+### El pedido
+
+`operaciones.estado_pedido` es la etapa del pedido —`pendiente`,
+`en_preparacion`, `listo`, `en_camino`, `completado`, `cancelado`— y no
+se deduce de las líneas: hay estados que las líneas no pueden expresar y
+los tiempos hay que poder medirlos.
+
+`pedido_estados` guarda cada transición con su hora, su motivo y quién la
+hizo. La escribe un disparador, así que vale para cualquier camino.
+
+`canales` son las filas de por dónde entra un pedido, una lista por
+comercio. Cada canal trae su `flujo`: los estados por los que pasa. Por
+eso mostrador no tiene "en camino" y delivery sí, sin un solo `if`.
+
+`pedidos_vista` arma la tarjeta entera del tablero —canal, cliente,
+platos, total, hace cuánto que está donde está— en una sola lectura.
+
 ### Lo demás
 - `pagos`, `movimientos_caja`, `sesiones_caja` — la caja
 - `movimientos_stock` — el stock es la suma de sus movimientos, nunca un
   campo que se pisa
 - `recursos` (mesas, habitaciones, sillones) y `plano_elementos`
+- `canales` y `pedido_estados` — ver "El pedido", más arriba
 - `bitacora` — solo admite insertar y leer
 
 ## Las funciones de la base
@@ -91,6 +111,9 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 | `cerrar_comanda(...)` | Cobra una mesa. Calcula totales de las líneas. |
 | `confirmar_operacion(...)` | Lo común a las dos: caja, pagos, stock. |
 | `abrir_comanda(jsonb)` | Ocupa una mesa o abre un pedido sin mesa. |
+| `mover_pedido(...)` | Cambia el estado: valida el flujo del canal, mueve la cocina y deja historial. |
+| `estadisticas_pedidos(...)` | Pedidos, ventas, tiempos y evolución de un período. |
+| `sembrar_canales(uuid)` | Los canales con los que arranca un comercio. |
 | `enviar_a_cocina(uuid)` | Despacha solo lo que falta despachar. |
 | `aplicar_descuento(...)` | Por porcentaje o por importe. |
 | `guardar_plano(jsonb)` | Acomoda el salón en una transacción. |
@@ -108,31 +131,42 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 5. **Lo que toca varias tablas va en una función**, no en varias llamadas
    desde el navegador.
 
-## Lo que le falta al sistema para el centro de pedidos
+## El centro de pedidos
 
-Cuatro huecos concretos, con lo que implica cada uno:
+`src/modulos/CentroPedidos.jsx` es el tablero de take away y mostrador:
+columnas por estado, canales a la izquierda, historial, estadísticas y la
+configuración de canales. Se entra desde la pantalla de comanda.
 
-**1. El pedido no tiene estado propio.** Hoy la etapa se deriva de los
-estados de sus líneas. `en_camino` y `cancelado` no existen. Hace falta un
-`estado_pedido` en `operaciones` —o una tabla de transiciones— con su
-máquina de estados por canal.
+Tres cosas que conviene no romper:
 
-**2. No hay historial de estados.** `bitacora` registra actos, pero no las
-transiciones de un pedido. Para medir tiempos de preparación y entrega
-hace falta guardar cuándo pasó a cada estado.
+**El color de la tarjeta es el estado, no el canal.** A un metro de
+distancia lo que hay que ver es qué falta hacer. El canal se lee después,
+en el sello y el nombre.
 
-**3. No hay tiempo real.** Todo es sondeo cada 15 o 20 segundos. Supabase
-Realtime no está activado. Para que cocina y mostrador se vean al
-instante hay que habilitarlo en las tablas que corresponda y suscribirse.
+**Completar un pedido es cobrarlo.** `mover_pedido` rechaza que alguien lo
+complete a mano: se completa por `cerrar_comanda`, que es donde viven la
+caja obligatoria, el stock y la numeración. Sin eso habría dos formas de
+terminar un pedido y una de ellas no dejaría plata en ninguna caja.
 
-**4. Los canales están escritos en el código**, en `CANALES` de
-`src/datos/comandas.js` y en la restricción de la columna `canal`. Para que
-se puedan agregar sin tocar código, tienen que ser filas de una tabla.
+**El tablero no edita el pedido.** Cargar platos, descontar y cobrar pasa
+por la pantalla de comanda, que es la misma para una mesa y para un
+delivery. El tablero la abre; no la duplica.
+
+Los cuatro huecos que tenía el sistema quedaron cerrados: estado propio
+del pedido (0021), historial de transiciones (0021), tiempo real (0022) y
+canales como filas (0020).
 
 ## Lo que ya funciona y no hay que rehacer
 
-Comandas de salón y mostrador, cocina agrupada por pedido, despacho
-incremental, descuento por porcentaje o importe, comensales, pre cuenta,
-plano de mesas configurable, juntar y separar mesas, cobro con caja
-obligatoria, venta sin internet con cola y reintento, numeración
-correlativa por punto de venta, bitácora automática.
+Comandas de salón y mostrador, centro de pedidos con estados reales y
+tiempo real, cocina agrupada por pedido, despacho incremental, descuento
+por porcentaje o importe, comensales, pre cuenta, plano de mesas
+configurable, juntar y separar mesas, cobro con caja obligatoria, venta
+sin internet con cola y reintento, numeración correlativa por punto de
+venta, bitácora automática.
+
+## Datos para desarrollar
+
+`supabase/seed/pedidos.sql` siembra un mediodía de pedidos en el Bar
+Rivadavia para poder mirar el tablero lleno. Queda marcado y se borra con
+`delete from operaciones where campos_extra->>'demo' = 'pedidos'`.

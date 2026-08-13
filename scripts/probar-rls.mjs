@@ -215,6 +215,55 @@ await comoUsuario(MOZO, async () => {
 });
 
 /* ------------------------------------------------------------
+   4 ter · El centro de pedidos
+
+   Mover un pedido es un UPDATE sobre una operación abierta, que es
+   exactamente la clase de cosa que la migración 0012 tuvo que venir a
+   arreglar. Se prueba con un usuario de verdad para que no vuelva a
+   pasar que "funciona" sin tocar una sola fila.
+   ------------------------------------------------------------ */
+console.log("\nCentro de pedidos");
+
+await comoUsuario(MOZO, async () => {
+  const emp = await una("select empresa_id from perfiles where id = auth.uid()");
+  const item = await una("select id, nombre, precio, costo from items where empresa_id = $1 limit 1", [emp.empresa_id]);
+
+  const canales = await una("select count(*) n from canales where empresa_id = $1", [emp.empresa_id]);
+  decir(Number(canales.n) >= 6, `ve los canales de su comercio (${canales.n})`);
+
+  const p = await una("select abrir_comanda($1::jsonb) id",
+    [JSON.stringify({ empresa_id: emp.empresa_id, canal: "delivery" })]);
+  await c.query(
+    `insert into operacion_lineas (operacion_id, empresa_id, item_id, descripcion, cantidad,
+       precio_unitario, costo_unitario, total, destino)
+     values ($1,$2,$3,$4,1,$5,$6,$5,'cocina')`,
+    [p.id, emp.empresa_id, item.id, item.nombre, item.precio, item.costo]);
+
+  await c.query("select mover_pedido($1, 'en_preparacion')", [p.id]);
+  const v = await una("select estado_pedido, en_cocina from pedidos_vista where id = $1", [p.id]);
+  decir(v.estado_pedido === "en_preparacion", "puede mover un pedido de estado de verdad");
+  decir(Number(v.en_cocina) === 1, "y la cocina lo recibe en el mismo acto");
+
+  const h = await una("select count(*) n from pedido_estados where operacion_id = $1", [p.id]);
+  decir(Number(h.n) === 2, `el historial queda escrito (${h.n} etapas)`);
+
+  const u = await c.query("update pedido_estados set estado = 'listo' where operacion_id = $1", [p.id]);
+  decir(u.rowCount === 0, "y no se puede retocar para tapar una demora");
+
+  await c.query("select mover_pedido($1, 'cancelado', 'prueba')", [p.id]);
+  const cerrado = await una("select estado, estado_pedido from operaciones where id = $1", [p.id]);
+  decir(cerrado.estado === "cancelada" && cerrado.estado_pedido === "cancelado", "puede cancelarlo");
+
+  const r = await c.query("update operaciones set estado_pedido = 'listo' where id = $1", [p.id]);
+  decir(r.rowCount === 0, "un pedido cancelado ya no admite cambios");
+});
+
+await comoUsuario(CAJERO, async () => {
+  const ajenos = await una("select count(*) n from pedidos_vista where empresa_id = $1", [barId]);
+  decir(ajenos.n === "0", "el comercio de al lado no ve un solo pedido del bar");
+});
+
+/* ------------------------------------------------------------
    5 · Juntar y separar mesas
    ------------------------------------------------------------ */
 console.log("\nJuntar mesas");

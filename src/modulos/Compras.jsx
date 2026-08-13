@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { uid, HOY, addDays, fdatel } from "../datos/generador.js";
 import {
-  money, moneyk, nf, pct, API_BASE, API_MODELO, esCantidad, aNumero,
+  money, moneyk, nf, pct, hora, API_BASE, API_MODELO, esCantidad, aNumero,
   precioAplicado, mediosDe, productoNuevo, faltantesProveedor
 } from "../utils/helpers.js";
 import {
@@ -716,7 +716,7 @@ export function Picking({ pedidos, setPedidos, productos, setProductos, cobrar, 
     const p = {
       id: uid(), nro, cliente: "Venta en el salón", tel: "", dir: "Retira en el local",
       canal: "Mostrador", entrega: "Retira",
-      hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+      hora: hora(new Date()),
       nota: "", estado: "preparando", libre: true, items: [],
     };
     setPedidos((ps) => [p, ...ps]);
