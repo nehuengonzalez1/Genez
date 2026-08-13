@@ -755,10 +755,14 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
 const NAV = [
   { k: "inicio", n: "Inicio", i: LayoutDashboard },
   { k: "comandas", n: "Salón", i: UtensilsCrossed },
-  /* Ni la cocina ni el mostrador son módulos que se contraten aparte:
-     vienen con el salón (ver `puedeVer`). Ojo con la clave: `pedidos` ya es
-     el picking del minimercado, que no tiene nada que ver. */
-  { k: "mostrador", n: "Mostrador", i: ShoppingBag },
+  /* El mostrador no está acá a propósito: vive adentro de la pantalla de
+     comanda, con su propia barra lateral. Ponerlo también como pestaña del
+     panel dejaba una ventana adentro de otra, con dos barras laterales
+     compitiendo por el mismo trabajo.
+
+     La cocina sí es una pestaña: es una pantalla colgada en la pared que
+     nadie toca, y no comparte nada con el flujo de tomar pedidos.
+     Ojo con la clave: `pedidos` ya es el picking del minimercado. */
   { k: "cocina", n: "Cocina", i: ChefHat },
   { k: "pedidos", n: "Pedidos", i: ClipboardList },
   { k: "clientes", n: "Clientes", i: Users },
@@ -774,7 +778,6 @@ const NAV = [
 const TITULOS = {
   inicio: ["Inicio", "Cómo viene el negocio hoy"],
   comandas: ["Salón", "Qué mesa está ocupada, qué lleva y cuánto hace que espera"],
-  mostrador: ["Mostrador", "Pedidos que no ocupan mesa: barra, para llevar, delivery y aplicaciones"],
   cocina: ["Cocina", "Lo que hay que preparar, en el orden en que se pidió"],
   pedidos: ["Pedidos", "Preparación con pistola y control de faltantes"],
   clientes: ["Clientes", "Para emitir facturas A, B o C según corresponda"],
@@ -821,7 +824,6 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     // La cocina viaja con el salón: no se contrata sola, se prende o no.
     if (k === "cocina") return !!config.cocinaEnPantalla && modulos.includes("comandas");
     // El mostrador tampoco se contrata solo: es la otra cara del salón.
-    if (k === "mostrador") return modulos.includes("comandas");
     return modulos.includes(k);
   };
   /* Con qué pantalla arranca el sistema lo decide cómo vende el negocio.
@@ -1480,12 +1482,6 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           {tab === "comandas" && (
             <Comandas empresaId={empresaId} config={config} ajustes={ajustes}
               caja={caja} permisos={permisos} sesion={sesion} toast={toast} />
-          )}
-          {tab === "mostrador" && (
-            <Mostrador empresaId={empresaId} config={config} ajustes={ajustes}
-              caja={caja} sesion={sesion} toast={toast}
-              onVolver={() => ir("inicio")}
-              onSalon={puedeVer("comandas") ? () => ir("comandas") : null} />
           )}
           {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}

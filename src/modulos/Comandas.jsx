@@ -235,7 +235,10 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
     }
   };
 
-  const tocarCanal = (k) => (k === "mostrador" ? abrirCanal({ canal: "mostrador" }) : setNuevo(k));
+  /* Mostrador lleva al tablero, no a una comanda en blanco. Quien atiende
+     necesita ver primero qué hay pendiente —cuántos esperan, hace cuánto,
+     de qué aplicación— y recién desde ahí decide si toma uno nuevo. */
+  const tocarCanal = (k) => (k === "mostrador" ? setDonde("mostrador") : setNuevo(k));
 
   /* Los datos del pedido viajan enteros para poder corregirle el canal sin
      perder de quién era ni con qué número entró. */
@@ -292,6 +295,20 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
         <ModalNuevoPedido abierto={cambiando} rotulo="¿Para dónde es?"
           onCerrar={() => setCambiando(false)} onCrear={corregirCanal} />
       </>
+    );
+  }
+
+  /* El tablero ocupa la pantalla entera, con su propia barra lateral. Antes
+     se mostraba como una pestaña del panel y quedaba una ventana adentro
+     de otra: dos barras laterales compitiendo por el mismo trabajo. */
+  if (donde === "mostrador") {
+    return (
+      <Mostrador
+        empresaId={empresaId} sucursalId={sucursalId} config={config}
+        ajustes={ajustes} caja={caja} sesion={sesion} toast={toast}
+        onVolver={() => setDonde("inicio")}
+        onSalon={() => setDonde("salon")}
+      />
     );
   }
 
