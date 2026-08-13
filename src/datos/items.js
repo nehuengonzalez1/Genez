@@ -55,6 +55,10 @@ function aProducto(f, historial) {
     u30p: n(f.u30p),
     vel: n(f.vel),
     ultimaVenta: fecha(f.ultima_venta),
+    descripcion: f.descripcion || "",
+    /* La foto es del producto y no de la pantalla que lo muestra: la
+       carta de la comanda y el catálogo leen la misma. */
+    imagen: f.imagen || "",
     activo: f.activo !== false,
     historial: historial || [],
   };
@@ -92,6 +96,8 @@ const COLUMNA = {
   stockMin: "stock_min",
   bulto: "bulto",
   proveedorId: "proveedor_id",
+  descripcion: "descripcion",
+  imagen: "imagen",
   activo: "activo",
 };
 

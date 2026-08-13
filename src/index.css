@@ -130,14 +130,15 @@
    o sea que salen de acá: bajar este número achica el sistema entero de
    forma pareja, sin ir clase por clase.
 
-   Va en 15 y no en 16 porque la mayoría de las pantallas donde corre
-   Genez están al 125% de Windows: lo que en el diseño entra cómodo, en
-   el local se ve un cuarto más grande y deja de entrar.
+   Va bastante abajo de los 16 de fábrica porque la mayoría de las
+   pantallas donde corre Genez están al 125% de Windows: lo que en el
+   diseño entra cómodo, en el local se ve un cuarto más grande y deja de
+   entrar. Subirlo o bajarlo acá reescala el sistema entero.
 
    No se usa `zoom` para esto: las alturas en dvh —la pantalla de comanda
    ocupa 100dvh— no acompañan al zoom y queda una franja muerta abajo.
    ============================================================ */
-html { font-size: 15px; }
+html { font-size: 13.5px; }
 
 html, body, #root { height: 100%; }
 

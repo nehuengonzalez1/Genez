@@ -23,7 +23,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ArrowLeft, Clock, Check, Plus, Minus, Trash2, Search,
-  StickyNote, X, RefreshCw, ChefHat, Store, History, Filter, ShoppingBag,
+  StickyNote, X, RefreshCw, ChefHat, Store, History, Filter, Ban,
   UtensilsCrossed, ChevronRight,
   Users, MoreVertical, Pencil, CreditCard, Percent, Printer, Split,
   Receipt, FileText,
@@ -39,7 +39,7 @@ import {
   aplicarDescuento, quitarDescuento, guardarComensales,
   guardarObservacion, cargarCuenta, registrarPago,
 } from "../datos/comandas.js";
-import { cargarPedidos, cargarCanales, buscarPedidos } from "../datos/pedidos.js";
+import { cargarPedidos, cargarCanales, buscarPedidos, cancelarPedido } from "../datos/pedidos.js";
 import { Card, Boton, Modal, Vacio, Apagado, imprimirComandera, preCuenta, comandaCocina } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { tonoCanal, IconoCanal } from "../ui/canales.jsx";
@@ -587,6 +587,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
   const [viendoCuenta, setViendoCuenta] = useState(false);
   const [dividiendo, setDividiendo] = useState(false);
   const [viendoHistorial, setViendoHistorial] = useState(false);
+  const [anulando, setAnulando] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
   const [panel, setPanel] = useState("carta");    // solo manda en pantalla chica
 
@@ -827,6 +828,24 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
     }, W), ajustes.ancho, null, toast);
   };
 
+  /* Anular es cerrar el pedido con lo que tenga cargado: las líneas
+     quedan anuladas —alguien las pidió y capaz se cocinaron— y el motivo
+     queda escrito. No es lo mismo que liberar una mesa vacía. */
+  const anularPedido = async (motivo) => {
+    if (trabajando) return;
+    setTrabajando(true);
+    try {
+      await cancelarPedido(comandaId, motivo);
+      avisar.current("Pedido anulado.");
+      setAnulando(false);
+      onVolver();
+    } catch (e) {
+      avisar.current(e.message || "No se pudo anular el pedido.", "mal");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   const ponerObservacion = async (texto) => {
     if (trabajando) return;
     setTrabajando(true);
@@ -908,10 +927,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                   onObservacion={() => setObservando(true)}
                   onCuenta={() => setViendoCuenta(true)}
                   onImprimir={imprimirComanda}
-                  onHistorial={() => setViendoHistorial(true)}
-                  soltar={lineas.length ? null : voz.soltar}
-                  soltarMotivo={lineas.length ? "Sacá primero lo que está cargado" : null}
-                  onSoltar={liberar} />
+                  onHistorial={() => setViendoHistorial(true)} />
               </div>
             </div>
             {(sub || hace) && (
@@ -928,7 +944,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
               <ul className="p-3 space-y-1">
                 {lineas.map((l) => (
                   <li key={l.id} className="flex items-start gap-3 rounded-xl px-2.5 py-3 hover:bg-superficie-2">
-                    <span className="shrink-0 w-9 h-9 rounded-lg bg-superficie-2 border border-borde grid place-items-center f-m text-base font-bold">
+                    <span className="shrink-0 w-8 h-8 rounded-md bg-superficie-2 border border-borde grid place-items-center f-m text-sm font-bold">
                       {l.cantidad}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -1014,10 +1030,11 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
               </div>
             )}
 
-            {/* Dos columnas y en este orden: la izquierda hace avanzar el
-                servicio —mandar, cobrar— y la derecha consulta o imprime.
-                La mano aprende el lado antes que el rótulo. */}
-            <div className="grid grid-cols-2 gap-2 mt-4">
+            {/* Tres por fila y en este orden: la primera fila hace avanzar
+                el servicio —mandar, cobrar—, la segunda consulta o toca la
+                cuenta, la tercera imprime y cuenta gente, y la última es la
+                de salir. La mano aprende la fila antes que el rótulo. */}
+            <div className="grid grid-cols-3 gap-1.5 mt-3">
               {/* El número dice cuánto falta despachar: es la diferencia
                   entre "ya salió" y "el cliente sigue esperando y nadie
                   en la cocina lo sabe". */}
@@ -1066,25 +1083,29 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                 title="Imprimir la comanda para la cocina">
                 Imprimir
               </Accion>
+              <Accion icono={Users} onClick={() => setContando(true)}
+                title="Cuánta gente hay, para el ticket por persona">
+                {comanda.comensales > 0 ? `${comanda.comensales} personas` : "Comensales"}
+              </Accion>
 
-              <Accion icono={ArrowLeft} className="col-span-2" onClick={onVolver} title={`Volver a ${voz.volver}`}>
+              <Accion icono={ArrowLeft} onClick={onVolver} title={`Volver a ${voz.volver}`}>
                 {voz.volver}
               </Accion>
 
-              {/* Mostrador y para llevar cambian de qué es este pedido, no
-                  abren otro. En una mesa no se ofrecen: pasar la Mesa 7 a
-                  mostrador de un toque la liberaría con gente sentada. */}
-              <Accion icono={Store} disabled={!onCambiarCanal || comanda.canal === "mostrador"}
-                onClick={() => onCambiarCanal && onCambiarCanal({ canal: "mostrador" })}
-                title={onCambiarCanal ? "Este pedido se atiende en el mostrador" : `Esta comanda es de ${rotulo}`}>
-                Mostrador
+              {/* Anular no es lo mismo que liberar. Anular cierra el pedido
+                  con lo que tenga cargado: queda anulado, con su motivo, y
+                  las líneas no se borran. Liberar suelta una mesa que se
+                  tocó por error y todavía está vacía. */}
+              <Accion icono={Ban} tono="mal" disabled={trabajando || !lineas.length}
+                onClick={() => setAnulando(true)}
+                title={lineas.length ? "Anular el pedido con lo que tiene cargado" : "No hay nada que anular"}>
+                Anular pedido
               </Accion>
-              <Accion icono={ShoppingBag} disabled={!onCambiarCanal || comanda.canal === "takeaway"}
-                onClick={() => onCambiarCanal && onCambiarCanal({ canal: "takeaway" })}
-                title={onCambiarCanal ? "Este pedido lo pasan a buscar" : `Esta comanda es de ${rotulo}`}>
-                Take away
+              <Accion icono={X} disabled={trabajando || !esSalon || !!lineas.length} onClick={liberar}
+                title={!esSalon ? "Solo las mesas se liberan"
+                  : lineas.length ? "Tiene consumos: anulalo o cobralo" : voz.soltar}>
+                Liberar mesa
               </Accion>
-
             </div>
           </div>
         </Card>
@@ -1111,7 +1132,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
               const puesta = !q && c === cat;
               return (
                 <button key={c} onClick={() => { setCat(c); setQ(""); }}
-                  className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                  className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-semibold border transition-colors ${
                     puesta
                       ? "bg-acento text-sobre-acento border-acento"
                       : "bg-superficie text-texto-suave border-borde hover:bg-superficie-2"}`}>
@@ -1173,6 +1194,9 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
       <ModalHistorial abierto={viendoHistorial} empresaId={empresaId}
         onCerrar={() => setViendoHistorial(false)} />
 
+      <ModalAnular abierto={anulando} rotulo={rotulo} cuantos={lineas.length} trabajando={trabajando}
+        onCerrar={() => setAnulando(false)} onAnular={anularPedido} />
+
       <ModalComensales abierto={contando} comanda={comanda} rotulo={rotulo} trabajando={trabajando}
         onCerrar={() => setContando(false)} onGuardar={ponerComensales} />
 
@@ -1191,16 +1215,16 @@ function Accion({ icono: Icono, children, onClick, tono = "oscuro", pronto = nul
     oscuro: "bg-superficie-2 text-texto border border-borde hover:bg-superficie-3",
     acento: "bg-acento text-sobre-acento hover:bg-acento-vivo",
     bien: "bg-bien text-fondo hover:bg-bien/90",
+    mal: "bg-superficie-2 text-mal border border-mal/50 hover:bg-mal-suave",
   }[tono];
   /* Bajos y en tres columnas: cada milímetro que ocupan las acciones se lo
-     sacan a la lista de lo pedido, que es lo que de verdad se mira. */
-  /* Ni los botones enormes del principio ni los diminutos de después. Esto
-     lo toca alguien de pie, con gente esperando: el área de toque tiene que
-     ser cómoda y el texto legible de un vistazo. */
-  const forma = "w-full inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide leading-tight transition-colors";
+     sacan a la lista de lo pedido, que es lo que de verdad se mira. Esto lo
+     toca alguien de pie y con gente esperando, así que el área de toque no
+     baja de acá aunque el texto sea chico. */
+  const forma = "w-full inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide leading-tight transition-colors";
   const cuerpo = (
     <>
-      {Icono && <Icono size={15} className="shrink-0" />}
+      {Icono && <Icono size={13} className="shrink-0" />}
       <span className="truncate">{children}</span>
     </>
   );
@@ -1235,12 +1259,12 @@ function FichaCarta({ item, onTocar, onSumar }) {
   return (
     <div className="relative">
       <button onClick={onTocar} title="Cantidad y cómo lo quieren"
-        className="w-full h-full flex items-center gap-3 text-left rounded-2xl border border-borde bg-superficie-2 p-2.5 pr-12 transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
+        className="w-full h-full flex items-center gap-2.5 text-left rounded-xl border border-borde bg-superficie-2 p-2 pr-10 transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
         {item.imagen ? (
           <img src={item.imagen} alt="" loading="lazy"
-            className="w-14 h-14 shrink-0 rounded-xl object-cover bg-superficie-3" />
+            className="w-12 h-12 shrink-0 rounded-lg object-cover bg-superficie-3" />
         ) : (
-          <span className="w-14 h-14 shrink-0 rounded-xl bg-acento-suave text-acento-vivo f-d text-2xl grid place-items-center">
+          <span className="w-12 h-12 shrink-0 rounded-lg bg-acento-suave text-acento-vivo f-d text-xl grid place-items-center">
             {(item.nombre || "?").trim().charAt(0).toUpperCase()}
           </span>
         )}
@@ -1250,9 +1274,11 @@ function FichaCarta({ item, onTocar, onSumar }) {
           {desc && <span className="block text-[11px] text-texto-tenue truncate">{desc}</span>}
         </span>
       </button>
+      {/* Cuadrado con las puntas redondeadas y chico: un círculo grande
+          pesa más que el plato al que pertenece. */}
       <button onClick={onSumar} title={`Agregar ${item.nombre}`}
-        className="absolute top-2 right-2 w-9 h-9 rounded-full bg-acento text-sobre-acento grid place-items-center hover:bg-acento-vivo transition-colors">
-        <Plus size={18} />
+        className="absolute top-2 right-2 w-7 h-7 rounded-md bg-acento text-sobre-acento grid place-items-center hover:bg-acento-vivo transition-colors">
+        <Plus size={15} />
       </button>
     </div>
   );
@@ -1545,7 +1571,7 @@ function ModalComensales({ abierto, comanda, rotulo, trabajando, onCerrar, onGua
 
 /* El menú de tres puntos: lo que se hace de vez en cuando y no merece un
    botón propio en la grilla, que es donde está lo de todo el rato. */
-function MenuComanda({ observacion, onObservacion, onCuenta, onImprimir, onHistorial, soltar, soltarMotivo, onSoltar }) {
+function MenuComanda({ observacion, onObservacion, onCuenta, onImprimir, onHistorial }) {
   const [abierto, setAbierto] = useState(false);
 
   const opciones = [
@@ -1553,9 +1579,6 @@ function MenuComanda({ observacion, onObservacion, onCuenta, onImprimir, onHisto
     { i: FileText, n: "Ver la cuenta", f: onCuenta },
     { i: Printer, n: "Imprimir la comanda", f: onImprimir },
     { i: History, n: "Historial de comandas", f: onHistorial },
-    /* Aparece siempre, pueda o no usarse: una opción que va y viene de la
-       lista hace que la de al lado quede abajo del dedo. */
-    { i: X, n: soltar || soltarMotivo, f: onSoltar, mal: true, muerta: !soltar },
   ];
 
   return (
@@ -1856,6 +1879,45 @@ function ModalDividir({ abierto, comanda, lineas, ajustes, caja, rotulo, onCerra
           <Boton variant="quiet" onClick={onCerrar}>Cerrar</Boton>
           <Boton size="lg" disabled={!puede || pagando} onClick={confirmar}>
             <CreditCard size={16} /> {pagando ? "Cobrando…" : `Cobrar ${money(cuanto)}`}
+          </Boton>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* Anular pide el motivo y no se puede deshacer, así que lo dice antes. El
+   motivo queda en el historial del pedido: "el cliente no atendió" y "se
+   equivocó la cocina" no son la misma noche. */
+function ModalAnular({ abierto, rotulo, cuantos, trabajando, onCerrar, onAnular }) {
+  const [motivo, setMotivo] = useState("");
+  useEffect(() => { if (abierto) setMotivo(""); }, [abierto]);
+  if (!abierto) return null;
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5">
+        <h3 className="f-d text-lg text-mal">Anular el pedido</h3>
+        <p className="text-sm text-texto-suave mt-1">
+          {rotulo} · se anulan {cuantos} renglón{cuantos === 1 ? "" : "es"} y el pedido se cierra.
+          Lo que ya salió a la cocina queda registrado igual. No se puede deshacer.
+        </p>
+        <Campo label="Por qué">
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} autoFocus
+            placeholder="El cliente se fue · error de carga" className={inputCls} />
+        </Campo>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {["El cliente se fue", "Error de carga", "Se cayó el pedido", "Lo pidió el cliente"].map((m) => (
+            <button key={m} onClick={() => setMotivo(m)}
+              className="text-[11px] px-2.5 py-1 rounded-md border border-borde text-texto-suave hover:bg-superficie-2">
+              {m}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <Boton variant="quiet" onClick={onCerrar}>Volver</Boton>
+          <Boton variant="danger" disabled={trabajando || !motivo.trim()} onClick={() => onAnular(motivo.trim())}>
+            <Ban size={15} /> {trabajando ? "Anulando…" : "Anular el pedido"}
           </Boton>
         </div>
       </div>

@@ -324,3 +324,68 @@ where o.tipo = 'comanda';
 
 comment on view cuenta_vista is
   'Lo que va, lo que se pagó y lo que falta de una comanda. Es lo que contesta el botón Cuenta.';
+
+/* ------------------------------------------------------------
+   La foto también en la vista del catálogo
+
+   `create or replace view` no admite agregar una columna en el medio,
+   así que va al final, igual que la descripción en la 0017.
+   ------------------------------------------------------------ */
+
+create or replace view items_vista
+with (security_invoker = true) as
+select
+  i.id, i.empresa_id, i.tipo, i.nombre, i.categoria, i.marca,
+  i.sku, i.barcode, i.unidad, i.costo, i.precio, i.precios, i.iva,
+  i.controla_stock, i.stock_min, i.bulto, i.duracion_min, i.campos_extra, i.activo,
+  pr.nombre as proveedor,
+  i.proveedor_id,
+
+  coalesce(st.stock, 0) as stock,
+  st.vence,
+
+  coalesce(hc.costo,  i.costo)  as costo_prev,
+  coalesce(hp.precio, i.precio) as precio_prev,
+
+  coalesce(v.u30, 0)  as u30,
+  coalesce(vp.u30, 0) as u30p,
+  round(coalesce(v.u30, 0) / 30.0, 4) as vel,
+  v.ultima_venta,
+  i.descripcion,
+  i.imagen
+
+from items i
+left join proveedores pr on pr.id = i.proveedor_id
+
+left join (
+  select item_id, sum(cantidad) as stock, min(vence) filter (where vence is not null) as vence
+  from movimientos_stock group by item_id
+) st on st.item_id = i.id
+
+left join lateral (
+  select h.costo from historial_costos h
+  where h.item_id = i.id and h.fecha < now() - interval '30 days'
+  order by h.fecha desc limit 1
+) hc on true
+
+left join lateral (
+  select h.precio from historial_precios h
+  where h.item_id = i.id and h.fecha < now() - interval '30 days'
+  order by h.fecha desc limit 1
+) hp on true
+
+left join (
+  select l.item_id, sum(l.cantidad) as u30, max(o.fecha) as ultima_venta
+  from operacion_lineas l join operaciones o on o.id = l.operacion_id
+  where o.tipo = 'venta' and o.fecha > now() - interval '30 days'
+  group by l.item_id
+) v on v.item_id = i.id
+
+left join (
+  select l.item_id, sum(l.cantidad) as u30
+  from operacion_lineas l join operaciones o on o.id = l.operacion_id
+  where o.tipo = 'venta'
+    and o.fecha > now() - interval '60 days'
+    and o.fecha <= now() - interval '30 days'
+  group by l.item_id
+) vp on vp.item_id = i.id;

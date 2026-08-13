@@ -330,11 +330,16 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
       <FormProducto abierto={!!alta} inicial={alta} productos={productos} provs={provs} ajustes0={ajustes} onClose={() => setAlta(null)}
         onGuardar={(d, faltan) => {
           if (d.id) {
+            /* Los campos se enumeran uno por uno a propósito —el formulario
+               trae cosas calculadas que no son columnas—, así que un campo
+               nuevo hay que sumarlo también acá o se guarda en silencio
+               todo menos ese. */
             actualizarProducto(d.id, {
               nombre: d.nombre, categoria: d.categoria, marca: d.marca, unidad: d.unidad,
               barcode: String(d.barcode || "").replace(/\D/g, ""),
               costo: Number(d.costo) || 0, precio: Number(d.precio) || 0,
               stockMin: Number(d.stockMin) || 0, bulto: Number(d.bulto) || 1, iva: Number(d.iva) || 21,
+              descripcion: d.descripcion || null, imagen: d.imagen || null,
               precios: Object.fromEntries(Object.entries(d.precios || {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)])),
             }, faltan.length ? `Guardado. Todavía falta ${faltan.join(", ")}.` : "Producto actualizado.");
           } else {

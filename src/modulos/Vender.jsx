@@ -1222,6 +1222,93 @@ export function TicketModal({ t, onClose, ajustes, toast }) {
    6 bis. ALTAS: PRODUCTO Y PROVEEDOR
    ============================================================ */
 
+/* --- La foto y la descripción del producto -----------------------------
+   Lo que ve el cliente en la carta. La foto se achica en el navegador
+   antes de guardarse: una foto de celular son cuatro megas, y cuatro
+   megas por plato multiplicado por una carta entera es una pantalla que
+   tarda diez segundos en abrir. A 400 px de ancho se ve igual de bien en
+   una tarjeta de 60 px y pesa treinta veces menos.
+
+   Se guarda adentro del producto y no en un servicio de archivos aparte:
+   el sistema no tiene todavía dónde subir archivos, y una carta que
+   depende de un servidor de imágenes que no existe no es una carta. */
+const ANCHO_FOTO = 400;
+
+function achicarFoto(archivo) {
+  return new Promise((resolver, fallar) => {
+    const lector = new FileReader();
+    lector.onerror = () => fallar(new Error("No se pudo leer la imagen."));
+    lector.onload = () => {
+      const img = new Image();
+      img.onerror = () => fallar(new Error("Ese archivo no es una imagen."));
+      img.onload = () => {
+        const escala = Math.min(1, ANCHO_FOTO / img.width);
+        const lienzo = document.createElement("canvas");
+        lienzo.width = Math.round(img.width * escala);
+        lienzo.height = Math.round(img.height * escala);
+        lienzo.getContext("2d").drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        resolver(lienzo.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = lector.result;
+    };
+    lector.readAsDataURL(archivo);
+  });
+}
+
+function FotoYDescripcion({ d, set }) {
+  const archivo = useRef(null);
+  const [error, setError] = useState("");
+
+  const elegir = async (f) => {
+    setError("");
+    if (!f) return;
+    if (f.size > 8 * 1024 * 1024) return setError("La imagen supera los 8 MB.");
+    try {
+      set("imagen", await achicarFoto(f));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className="shrink-0">
+        <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Foto</span>
+        <div className="mt-1">
+          {d.imagen ? (
+            <div className="relative">
+              <img src={d.imagen} alt="" className="w-24 h-24 rounded-lg object-cover border border-borde" />
+              <button onClick={() => set("imagen", "")} title="Sacar la foto"
+                className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-md bg-superficie-3 border border-borde text-texto-suave hover:text-mal grid place-items-center">
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => archivo.current && archivo.current.click()}
+              className="w-24 h-24 rounded-lg border border-dashed border-borde-fuerte text-texto-tenue hover:text-texto hover:bg-superficie-2 grid place-items-center text-[11px] font-semibold transition-colors">
+              + Foto
+            </button>
+          )}
+          <input ref={archivo} type="file" accept="image/*" className="hidden"
+            onChange={(e) => { const f = e.target.files[0]; e.target.value = ""; elegir(f); }} />
+        </div>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <Campo label="Descripción">
+          <textarea value={d.descripcion || ""} onChange={(e) => set("descripcion", e.target.value)} rows={3}
+            placeholder="Carne, lechuga, tomate, cebolla y mayo."
+            className={`${inputCls} resize-none`} />
+        </Campo>
+        <p className="text-[11px] text-texto-tenue mt-1">
+          Se muestran en la carta de la comanda. La foto se achica sola a {ANCHO_FOTO} px.
+        </p>
+        {error && <p className="text-[11px] text-mal mt-1">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
 export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onGuardar, onClose }) {
   const [d, setD] = useState({});
   useEffect(() => { if (abierto) setD({ iva: 21, unidad: "un", bulto: 1, stock: 0, ...(inicial || {}) }); }, [abierto, inicial]);
@@ -1261,6 +1348,11 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
             <input value={d.marca || ""} onChange={(e) => set("marca", e.target.value)} className={inputCls} />
           </Campo>
         </div>
+
+        {/* La descripción y la foto son para la carta: es lo que el cliente
+            mira antes de pedir. En un minimercado no molestan porque van
+            plegadas; en gastronomía son la mitad de la pantalla. */}
+        <FotoYDescripcion d={d} set={set} />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Campo label="Costo">
