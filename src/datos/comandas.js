@@ -21,10 +21,14 @@ function aMesa(f) {
     id: f.id,
     tipo: f.tipo,
     nombre: f.nombre,
+    piso: f.piso || "Planta baja",
     sector: f.sector || "",
     capacidad: f.capacidad,
     orden: f.orden,
     activo: f.activo !== false,
+    x: n(f.x), y: n(f.y),
+    ancho: n(f.ancho) || 2, alto: n(f.alto) || 2,
+    forma: f.forma || "rectangulo",
     comandaId: f.comanda_id,
     ocupada: !!f.comanda_id,
     abiertaEn: f.abierta_en ? new Date(f.abierta_en) : null,
@@ -86,6 +90,131 @@ export async function abrirComanda({ empresaId, sucursalId = null, recursoId, cl
   });
   if (error) throw error;
   return data;
+}
+
+/* Un pedido que no ocupa mesa: mostrador, para llevar, o el que entró por
+   una aplicación. Es la misma comanda con la misma carta; lo único
+   distinto es de dónde vino.
+
+   A diferencia de una mesa, cada llamada abre un pedido nuevo: dos
+   personas en el mostrador son dos pedidos aunque lleguen juntas. */
+export async function abrirPedido({ empresaId, sucursalId = null, canal = "mostrador", referencia = null, cliente = null }) {
+  const { data, error } = await supabase.rpc("abrir_comanda", {
+    datos: {
+      empresa_id: empresaId,
+      sucursal_id: sucursalId,
+      recurso_id: null,
+      canal,
+      referencia,
+      campos_extra: cliente ? { cliente } : {},
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+export const CANALES = [
+  { k: "mostrador", n: "Mostrador", d: "Come acá o espera en la barra" },
+  { k: "takeaway", n: "Para llevar", d: "Pasa a buscar" },
+  { k: "delivery", n: "Delivery propio", d: "Lo lleva el local" },
+  { k: "app", n: "Aplicación", d: "PedidosYa, Rappi, Uber Eats" },
+];
+
+/* Los pedidos que no son de mesa, para el tablero de mostrador. El estado
+   de cada uno sale de sus líneas: si todas están listas el pedido está
+   listo, si alguna sigue en cocina el pedido está en preparación. */
+export async function cargarPedidos(empresaId) {
+  const desde = new Date();
+  desde.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("operaciones")
+    .select(`
+      id, canal, referencia, estado, fecha, abierta_en, cerrada_en, total, campos_extra,
+      operacion_lineas ( id, descripcion, cantidad, estado, total )
+    `)
+    .eq("empresa_id", empresaId)
+    .eq("tipo", "comanda")
+    .neq("canal", "salon")
+    .gte("fecha", desde.toISOString())
+    .order("abierta_en", { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map((o) => {
+    const lineas = (o.operacion_lineas || []).filter((l) => l.estado !== "anulada");
+    const listas = lineas.filter((l) => l.estado === "listo" || l.estado === "entregado").length;
+
+    let etapa = "pendiente";
+    if (o.estado === "confirmada") etapa = "cerrado";
+    else if (lineas.length && listas === lineas.length) etapa = "listo";
+    else if (lineas.some((l) => l.estado === "preparando")) etapa = "preparando";
+
+    const abierta = o.abierta_en ? new Date(o.abierta_en) : null;
+    return {
+      id: o.id,
+      canal: o.canal,
+      referencia: o.referencia,
+      etapa,
+      cerrado: o.estado === "confirmada",
+      cliente: (o.campos_extra && o.campos_extra.cliente) || null,
+      abiertaEn: abierta,
+      minutos: abierta ? Math.floor((Date.now() - abierta.getTime()) / 60000) : null,
+      lineas: lineas.map((l) => ({ id: l.id, nombre: l.descripcion, cantidad: n(l.cantidad), estado: l.estado })),
+      total: n(o.total) || lineas.reduce((s, l) => s + n(l.total), 0),
+    };
+  });
+}
+
+/* ------------------------------------------------------------
+   EL PLANO
+   ------------------------------------------------------------ */
+
+export async function cargarElementosPlano(empresaId) {
+  const { data, error } = await supabase
+    .from("plano_elementos").select("*").eq("empresa_id", empresaId);
+  if (error) throw error;
+  return data || [];
+}
+
+/* Guarda las posiciones de una sola vez. Mover diez mesas y mandar diez
+   consultas deja el plano a medio guardar si algo se corta en el medio. */
+export async function guardarPlano(recursos) {
+  const cambios = recursos.map((r) => ({
+    id: r.id,
+    x: Math.round(r.x), y: Math.round(r.y),
+    ancho: Math.round(r.ancho), alto: Math.round(r.alto),
+    forma: r.forma,
+    piso: r.piso,
+    sector: r.sector || null,
+  }));
+  if (!cambios.length) return;
+
+  const { error } = await supabase.from("recursos").upsert(cambios, { onConflict: "id" });
+  if (error) throw error;
+}
+
+export async function guardarElementos(empresaId, elementos) {
+  const { error } = await supabase.from("plano_elementos").upsert(
+    elementos.map((e) => ({ ...e, empresa_id: empresaId })), { onConflict: "id" });
+  if (error) throw error;
+}
+
+export async function crearRecurso({ empresaId, sucursalId = null, nombre, tipo = "mesa", piso = "Planta baja", sector = null, capacidad = 4, x = 0, y = 0, forma = "rectangulo" }) {
+  const { data, error } = await supabase
+    .from("recursos")
+    .insert({ empresa_id: empresaId, sucursal_id: sucursalId, nombre, tipo, piso, sector, capacidad, x, y, forma })
+    .select("*").single();
+  if (error) {
+    if (error.code === "23505") throw new Error("Ya hay un lugar con ese nombre.");
+    throw error;
+  }
+  return data;
+}
+
+export async function borrarRecurso(id) {
+  const { error } = await supabase.from("recursos").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function cargarComanda(comandaId) {
