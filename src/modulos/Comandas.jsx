@@ -34,7 +34,7 @@ import { money, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js
 import { siguienteNumero } from "../datos/ventas.js";
 import {
   cargarSalon, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
-  anularLinea, cambiarEstadoLinea, enviarACocina, cargarPendientes, cerrarComanda,
+  anularLinea, cambiarCantidad, cambiarEstadoLinea, enviarACocina, cargarPendientes, cerrarComanda,
   CANALES, abrirPedido, cargarPedidos, cargarElementosPlano, cambiarCanal,
 } from "../datos/comandas.js";
 import { Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
@@ -573,6 +573,19 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
     }
   };
 
+  const cambiarCant = async (linea, cantidad) => {
+    if (trabajando) return;
+    setTrabajando(true);
+    try {
+      await cambiarCantidad(linea.id, cantidad);
+      await leerComanda();
+    } catch (e) {
+      avisar.current(e.message || "No se pudo cambiar la cantidad.", "mal");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   /* Una mesa que se tocó por error queda ocupada para siempre si no hay
      forma de soltarla. Sin líneas se cierra sin pagos: no hay venta que
      registrar, pero la mesa se libera igual. */
@@ -701,9 +714,25 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
                       )}
                     </div>
                     <span className="f-m text-sm shrink-0 pt-1">{money(l.total)}</span>
-                    <Apagado motivo="Editar una línea" className="shrink-0 pt-1">
-                      <Pencil size={15} />
-                    </Apagado>
+                    {/* El más y el menos solo mientras no salió: si la cocina
+                        ya lo tiene, cambiar la cantidad acá haría que el
+                        ticket y la plancha digan cosas distintas. */}
+                    {l.estado === "borrador" ? (
+                      <span className="shrink-0 flex items-center gap-0.5 pt-0.5">
+                        <button onClick={() => cambiarCant(l, l.cantidad - 1)} disabled={trabajando}
+                          title="Sacar uno" className="p-1 rounded text-texto-tenue hover:text-texto hover:bg-superficie-3 disabled:opacity-40">
+                          <Minus size={14} />
+                        </button>
+                        <button onClick={() => cambiarCant(l, l.cantidad + 1)} disabled={trabajando}
+                          title="Agregar uno" className="p-1 rounded text-texto-tenue hover:text-texto hover:bg-superficie-3 disabled:opacity-40">
+                          <Plus size={14} />
+                        </button>
+                      </span>
+                    ) : (
+                      <Apagado motivo="Cambiar algo que ya salió a la cocina" className="shrink-0 pt-1">
+                        <Pencil size={15} />
+                      </Apagado>
+                    )}
                     <button onClick={() => anular(l)} disabled={trabajando} title="Sacar de la comanda"
                       className="shrink-0 mt-1 text-mal/70 hover:text-mal disabled:opacity-40">
                       <Trash2 size={15} />

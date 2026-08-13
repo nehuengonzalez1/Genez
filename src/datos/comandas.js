@@ -281,9 +281,44 @@ export async function cargarComanda(comandaId) {
 
 /* Los modificadores con precio suman al total de la línea: "extra queso"
    no es una aclaración, es plata. */
+/* Dos líneas son la misma cosa si es el mismo producto pedido igual. El
+   orden de los modificadores no cuenta: "sin cebolla, extra queso" y
+   "extra queso, sin cebolla" son el mismo plato. */
+const firma = (itemId, modificadores, notas) => JSON.stringify([
+  itemId,
+  (modificadores || []).map((m) => `${m.nombre}:${n(m.precio)}`).sort(),
+  (notas || "").trim(),
+]);
+
 export async function agregarLinea({ comandaId, empresaId, item, cantidad = 1, modificadores = [], notas = "", destino = null }) {
   const extra = (modificadores || []).reduce((s, m) => s + n(m.precio), 0);
   const unitario = n(item.precio) + extra;
+
+  /* Cuatro cocas son un renglón que dice 4, no cuatro renglones. Pero
+     solo se agrupa con lo que todavía no salió: si la cocina ya recibió
+     una, sumarle al mismo renglón esconde que hay otra por hacer. */
+  const { data: previas } = await supabase
+    .from("operacion_lineas")
+    .select("id, item_id, cantidad, precio_unitario, modificadores, notas")
+    .eq("operacion_id", comandaId)
+    .eq("estado", "borrador")
+    .eq("item_id", item.id);
+
+  const igual = (previas || []).find(
+    (l) => firma(l.item_id, l.modificadores, l.notas) === firma(item.id, modificadores, notas)
+  );
+
+  if (igual) {
+    const total = n(igual.cantidad) + cantidad;
+    const { data, error } = await supabase
+      .from("operacion_lineas")
+      .update({ cantidad: total, total: Math.round(n(igual.precio_unitario) * total) })
+      .eq("id", igual.id)
+      .select("id, item_id, descripcion, cantidad, precio_unitario, costo_unitario, total, estado, notas, destino, modificadores, enviada_en")
+      .single();
+    if (error) throw error;
+    return aLinea(data);
+  }
 
   const { data, error } = await supabase
     .from("operacion_lineas")
@@ -325,6 +360,24 @@ export async function enviarACocina(comandaId) {
   const { data, error } = await supabase.rpc("enviar_a_cocina", { comanda: comandaId });
   if (error) throw error;
   return data || 0;
+}
+
+/* Cambiar la cantidad de algo que ya salió a la cocina no se puede: allá
+   ya lo están haciendo. Se anula y se pide de nuevo, que además deja
+   asiento de lo que pasó. */
+export async function cambiarCantidad(lineaId, cantidad) {
+  if (cantidad <= 0) return anularLinea(lineaId);
+
+  const { data: l, error: e1 } = await supabase
+    .from("operacion_lineas").select("precio_unitario, estado").eq("id", lineaId).single();
+  if (e1) throw e1;
+  if (l.estado !== "borrador") throw new Error("Ya salió a la cocina. Anulalo y pedilo de nuevo.");
+
+  const { error } = await supabase
+    .from("operacion_lineas")
+    .update({ cantidad, total: Math.round(n(l.precio_unitario) * cantidad) })
+    .eq("id", lineaId);
+  if (error) throw error;
 }
 
 export async function cambiarEstadoLinea(lineaId, estado) {
