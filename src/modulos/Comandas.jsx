@@ -1680,7 +1680,10 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
   ];
 
   return (
-    <div className="space-y-4">
+    /* min-h-full y fondo propio: sin eso, cuando el tablero tiene pocos
+       pedidos el contenido no llega abajo y se ve el fondo del contenedor
+       de atrás, como si la pantalla se cortara a la mitad. */
+    <div className="min-h-full bg-fondo space-y-4">
       {/* En celular la barra lateral se pliega: el tablero necesita todo el
           ancho, y los canales ya están en los chips de arriba. */}
       <div className="lg:hidden flex items-center gap-2">
