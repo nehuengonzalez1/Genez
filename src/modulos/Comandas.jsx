@@ -875,10 +875,10 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
             {!lineas.length ? (
               <Vacio>{voz.sinNada}</Vacio>
             ) : (
-              <ul className="p-2 space-y-0.5">
+              <ul className="p-3 space-y-1">
                 {lineas.map((l) => (
-                  <li key={l.id} className="flex items-start gap-2.5 rounded-xl px-1.5 py-2 hover:bg-superficie-2">
-                    <span className="shrink-0 w-8 h-8 rounded-lg bg-superficie-2 border border-borde grid place-items-center f-m text-sm font-bold">
+                  <li key={l.id} className="flex items-start gap-3 rounded-xl px-2.5 py-3 hover:bg-superficie-2">
+                    <span className="shrink-0 w-9 h-9 rounded-lg bg-superficie-2 border border-borde grid place-items-center f-m text-base font-bold">
                       {l.cantidad}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -902,12 +902,12 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                     {l.estado === "borrador" ? (
                       <span className="shrink-0 flex items-center gap-0.5 pt-0.5">
                         <button onClick={() => cambiarCant(l, l.cantidad - 1)} disabled={trabajando}
-                          title="Sacar uno" className="p-1 rounded text-texto-tenue hover:text-texto hover:bg-superficie-3 disabled:opacity-40">
-                          <Minus size={14} />
+                          title="Sacar uno" className="p-1.5 rounded-lg text-texto-tenue hover:text-texto hover:bg-superficie-3 disabled:opacity-40">
+                          <Minus size={16} />
                         </button>
                         <button onClick={() => cambiarCant(l, l.cantidad + 1)} disabled={trabajando}
-                          title="Agregar uno" className="p-1 rounded text-texto-tenue hover:text-texto hover:bg-superficie-3 disabled:opacity-40">
-                          <Plus size={14} />
+                          title="Agregar uno" className="p-1.5 rounded-lg text-texto-tenue hover:text-texto hover:bg-superficie-3 disabled:opacity-40">
+                          <Plus size={16} />
                         </button>
                       </span>
                     ) : (
@@ -957,7 +957,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-1.5 mt-3">
+            <div className="grid grid-cols-3 gap-2 mt-4">
               {/* El número dice cuánto falta despachar: es la diferencia
                   entre "ya salió" y "el cliente sigue esperando y nadie
                   en la cocina lo sabe". */}
@@ -1104,10 +1104,13 @@ function Accion({ icono: Icono, children, onClick, tono = "oscuro", pronto = nul
   }[tono];
   /* Bajos y en tres columnas: cada milímetro que ocupan las acciones se lo
      sacan a la lista de lo pedido, que es lo que de verdad se mira. */
-  const forma = "w-full inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide leading-tight transition-colors";
+  /* Ni los botones enormes del principio ni los diminutos de después. Esto
+     lo toca alguien de pie, con gente esperando: el área de toque tiene que
+     ser cómoda y el texto legible de un vistazo. */
+  const forma = "w-full inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide leading-tight transition-colors";
   const cuerpo = (
     <>
-      {Icono && <Icono size={13} className="shrink-0" />}
+      {Icono && <Icono size={15} className="shrink-0" />}
       <span className="truncate">{children}</span>
     </>
   );
@@ -1937,7 +1940,7 @@ function TarjetaPedido({ p, onTocar }) {
 
       <div className="flex items-center gap-2">
         <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide truncate ${t.txt}`}>
-          <Icono size={13} className="shrink-0" /> {rotuloCanal(p)}
+          <Icono size={15} className="shrink-0" /> {rotuloCanal(p)}
         </span>
         <span className="ml-auto f-m text-[11px] text-texto-tenue shrink-0">{horaDe(p.abiertaEn)}</span>
       </div>
