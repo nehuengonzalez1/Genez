@@ -754,26 +754,17 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
               <Accion icono={Split} pronto="Dividir la cuenta">Dividir cuenta</Accion>
               <Accion icono={Printer} pronto="Imprimir la comanda">Imprimir</Accion>
 
-              <Accion icono={ArrowLeft} className="col-span-3" onClick={onVolver}>
-                Volver a {voz.volver}
+              <Accion icono={ArrowLeft} onClick={onVolver} title={`Volver a ${voz.volver}`}>
+                {voz.volver}
               </Accion>
 
               {/* Una mesa tocada por error queda ocupada para siempre si no
                   hay forma de soltarla. */}
               {!lineas.length && (
-                <Accion icono={X} className="col-span-3" disabled={trabajando} onClick={liberar}>
+                <Accion icono={X} disabled={trabajando} onClick={liberar} title={voz.soltar}>
                   {voz.soltar}
                 </Accion>
               )}
-
-              <Accion icono={Store} pronto={onCambiarCanal ? null : "Cambiar el canal desde acá"}
-                onClick={() => onCambiarCanal({ canal: "mostrador" })} title="Pasar el pedido a mostrador">
-                Mostrador
-              </Accion>
-              <Accion icono={ShoppingBag} pronto={onCambiarCanal ? null : "Cambiar el canal desde acá"}
-                onClick={() => onCambiarCanal({ canal: "takeaway" })} title="Pasar el pedido a para llevar">
-                Take away
-              </Accion>
             </div>
           </div>
         </Card>
