@@ -104,7 +104,13 @@ export async function cargarComanda(comandaId) {
 
   if (error) throw error;
 
-  const lineas = (data.operacion_lineas || []).map(aLinea);
+  const todas = (data.operacion_lineas || []).map(aLinea);
+  /* Las anuladas viajan aparte. En la comanda no van: quien está tomando
+     el pedido necesita ver lo que la mesa va a pagar, no un historial
+     tachado. Pero no se pierden, porque alguien las pidió y capaz se
+     cocinaron. */
+  const lineas = todas.filter((l) => l.estado !== "anulada");
+
   return {
     id: data.id,
     numero: data.numero,
@@ -115,7 +121,8 @@ export async function cargarComanda(comandaId) {
     clienteId: data.cliente_id,
     abiertaEn: data.abierta_en ? new Date(data.abierta_en) : null,
     lineas,
-    total: lineas.filter((l) => l.estado !== "anulada").reduce((s, l) => s + l.total, 0),
+    anuladas: todas.filter((l) => l.estado === "anulada"),
+    total: lineas.reduce((s, l) => s + l.total, 0),
   };
 }
 

@@ -818,8 +818,12 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     if (k === "cocina") return !!config.cocinaEnPantalla && modulos.includes("comandas");
     return modulos.includes(k);
   };
-  const [vista, setVista] = useState(modulos.includes("cobro") ? "cobro" : "panel");
-  const [tab, setTab] = useState("inicio");
+  /* Con qué pantalla arranca el sistema lo decide cómo vende el negocio.
+     Un bar que abre en el mostrador del súper no entiende qué está
+     mirando: su pantalla de todos los días es el salón. */
+  const vender = modulos.includes("comandas") ? "comandas" : modulos.includes("cobro") ? "cobro" : null;
+  const [vista, setVista] = useState(vender === "cobro" ? "cobro" : "panel");
+  const [tab, setTab] = useState(vender === "comandas" ? "comandas" : "inicio");
   const [foco, setFoco] = useState(null);
   const [productos, setProductos] = useState([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
@@ -1183,7 +1187,14 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   });
 
   const ir = (t, f) => { setVista("panel"); setTab(t); setFoco(f || null); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const cobrar_ = () => { setVista("cobro"); window.scrollTo({ top: 0 }); };
+  /* "Ir a vender" no significa lo mismo en todos lados: en un mostrador
+     es la pantalla de cobro, en un salón es el mapa de mesas. */
+  const cobrar_ = () => {
+    if (vender === "comandas") { setVista("panel"); setTab("comandas"); }
+    else setVista("cobro");
+    window.scrollTo({ top: 0 });
+  };
+  const rotuloVender = vender === "comandas" ? "Salón" : "Cobrar";
 
   // Un único lector para todo el sistema: si la pantalla activa sabe qué hacer
   // con el código, se lo queda; si no, abre la ficha rápida del producto.
@@ -1354,7 +1365,10 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
               <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">1 caja · {nf.format(productos.length)} art.</div>
             </div>
           </div>
-          <Boton className="w-full mt-2" size="lg" onClick={cobrar_}><Barcode size={17} /> Cobrar <kbd className="f-m text-[10px] border border-white/30 rounded px-1 py-0.5">F10</kbd></Boton>
+          <Boton className="w-full mt-2" size="lg" onClick={cobrar_}>
+            {vender === "comandas" ? <ClipboardList size={17} /> : <Barcode size={17} />} {rotuloVender}
+            <kbd className="f-m text-[10px] border border-white/30 rounded px-1 py-0.5">F10</kbd>
+          </Boton>
           <nav className="mt-3 space-y-0.5">
             {NAV.filter((n) => puedeVer(n.k)).map((n) => (
               <button key={n.k} onClick={() => ir(n.k)}
@@ -1380,7 +1394,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 overflow-x-auto seguro-abajo">
           <div className="flex">
             <button onClick={cobrar_} className="flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 text-white bg-orange-500">
-              <Barcode size={17} /> Cobrar
+              {vender === "comandas" ? <ClipboardList size={17} /> : <Barcode size={17} />} {rotuloVender}
             </button>
             {NAV.filter((n) => puedeVer(n.k)).map((n) => (
               <button key={n.k} onClick={() => ir(n.k)}
