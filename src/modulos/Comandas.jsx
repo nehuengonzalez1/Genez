@@ -23,8 +23,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ArrowLeft, Clock, Check, Plus, Minus, Trash2, Search,
-  StickyNote, X, RefreshCw, ChefHat, Wallet, Store, ShoppingBag, Bike, Smartphone,
+  StickyNote, X, RefreshCw, ChefHat, Store, ShoppingBag, Bike, Smartphone,
   UtensilsCrossed, ChevronRight,
+  Users, MoreVertical, Pencil, CreditCard, Percent, Printer, Split, Filter,
+  Receipt, FileText, History,
+  Pizza, Beef, Sandwich, Salad, Soup, Fish, Drumstick, Coffee, Wine, Beer,
+  CupSoda, IceCream, Cake, Croissant, Cookie, Milk, Flame, Utensils,
 } from "lucide-react";
 import { money, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
 import { siguienteNumero } from "../datos/ventas.js";
@@ -120,7 +124,7 @@ function Rotulo({ children, className = "" }) {
    ve de un vistazo para poder retomarlo de un toque.
    ============================================================ */
 
-export function PantallaComandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, toast }) {
+export function PantallaComandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, sesion = null, toast }) {
   const [donde, setDonde] = useState("inicio");     // inicio | salon
   const [abierta, setAbierta] = useState(null);     // la comanda que se está atendiendo
   const [pedidos, setPedidos] = useState([]);
@@ -167,7 +171,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
     try {
       const id = await abrirPedido({ empresaId, sucursalId, ...datos });
       setNuevo(null);
-      setAbierta({ id, voz: VOZ_CANAL, encabezado: encabezadoDe(datos), volverA: "inicio" });
+      setAbierta({ id, voz: VOZ_CANAL, datos, encabezado: encabezadoDe(datos), volverA: "inicio" });
     } catch (e) {
       avisar.current(e.message || "No se pudo abrir el pedido.", "mal");
     } finally {
@@ -177,8 +181,12 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
 
   const tocarCanal = (k) => (k === "mostrador" ? abrirCanal({ canal: "mostrador" }) : setNuevo(k));
 
-  const retomar = (p) =>
-    setAbierta({ id: p.id, voz: VOZ_CANAL, encabezado: encabezadoDe(p), volverA: "inicio" });
+  /* Los datos del pedido viajan enteros para poder corregirle el canal sin
+     perder de quién era ni con qué número entró. */
+  const retomar = (p) => {
+    const datos = { canal: p.canal, referencia: p.referencia || null, cliente: p.cliente || null };
+    setAbierta({ id: p.id, voz: VOZ_CANAL, datos, encabezado: encabezadoDe(p), volverA: "inicio" });
+  };
 
   const entrarAMesa = async (mesa, volverA) => {
     if (abriendo) return;
@@ -201,7 +209,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
   const corregirCanal = async (datos) => {
     try {
       await cambiarCanal(abierta.id, datos);
-      setAbierta((a) => ({ ...a, encabezado: encabezadoDe(datos) }));
+      setAbierta((a) => ({ ...a, datos, encabezado: encabezadoDe(datos) }));
       setCambiando(false);
     } catch (e) {
       avisar.current(e.message || "No se pudo cambiar el canal.", "mal");
@@ -215,9 +223,11 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
         <Pedido
           pleno comandaId={abierta.id} empresaId={empresaId} config={config}
           ajustes={ajustes} caja={caja} toast={toast}
+          empleado={sesion ? sesion.nombre : ""}
           voz={esMesa ? VOZ_MESA : { ...abierta.voz, volver: "Pedidos" }}
           encabezado={abierta.encabezado}
-          onCambiarCanal={esMesa ? null : () => setCambiando(true)}
+          onCambiarCanal={esMesa ? null : (otro) =>
+            (otro ? corregirCanal({ ...(abierta.datos || {}), ...otro }) : setCambiando(true))}
           onVolver={() => { setDonde(abierta.volverA); setAbierta(null); }} />
 
         <ModalNuevoPedido abierto={cambiando} rotulo="¿Para dónde es?"
@@ -387,7 +397,7 @@ function TarjetaEnCurso({ tono, canal, titulo, sub, minutos, total, estado, abri
    2. SALÓN · la misma pantalla, adentro del panel
    ============================================================ */
 
-export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, toast }) {
+export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, sesion = null, toast }) {
   const [mesas, setMesas] = useState([]);
   const [elementos, setElementos] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -430,7 +440,8 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
   if (comandaId) {
     return (
       <Pedido comandaId={comandaId} empresaId={empresaId} config={config}
-        ajustes={ajustes} caja={caja} toast={toast} onVolver={volver} />
+        ajustes={ajustes} caja={caja} toast={toast}
+        empleado={sesion ? sesion.nombre : ""} onVolver={volver} />
     );
   }
 
@@ -462,8 +473,11 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
    ============================================================ */
 
 /* `encabezado` y `voz` son lo único que distingue una mesa de un pedido de
-   mostrador. Sin ellos se comporta como siempre: la mesa que abrió el mozo. */
-function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, pleno = false }) {
+   mostrador. Sin ellos se comporta como siempre: la mesa que abrió el mozo.
+
+   `onCambiarCanal` recibe un canal para pasar el pedido derecho a
+   mostrador o para llevar, o nada para preguntar por el canal completo. */
+function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, empleado = "", pleno = false }) {
   const [comanda, setComanda] = useState(null);
   const [carta, setCarta] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -473,6 +487,14 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
   const [cobrando, setCobrando] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
   const [panel, setPanel] = useState("carta");    // solo manda en pantalla chica
+
+  /* La hora de la barra de abajo es la del reloj de verdad y no HOY: el
+     que atiende la usa para saber cuánto hace que espera la mesa. */
+  const [reloj, setReloj] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setReloj(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const avisar = useRef(toast);
   avisar.current = toast;
@@ -601,40 +623,11 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
   const lineas = activas(comanda.lineas);
   const cuantos = lineas.reduce((s, l) => s + l.cantidad, 0);
   const sub = encabezado ? encabezado.sub : comanda.sector;
+  const hace = comanda.abiertaEn ? `hace ${espera(minutosDesde(comanda.abiertaEn))}` : "";
+  const hora = reloj.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className={pleno ? "h-full min-h-0 flex flex-col gap-3" : "flex flex-col gap-3"}>
-      <div className="shrink-0 flex items-center gap-3">
-        <Boton variant="ghost" size="lg" onClick={onVolver}><ArrowLeft size={18} /> {voz.volver}</Boton>
-        {/* En un pedido sin mesa el rótulo es un botón: quien está en el
-            mostrador arranca la comanda y recién después se entera de si es
-            para llevar o si entró por una aplicación. */}
-        <div className="min-w-0">
-          {onCambiarCanal ? (
-            <button onClick={onCambiarCanal}
-              className="text-left group max-w-full">
-              <span className="f-d text-lg leading-tight truncate block group-hover:text-acento transition-colors">
-                {rotulo} <span className="text-xs font-normal text-texto-tenue group-hover:text-acento">cambiar</span>
-              </span>
-              <span className="text-[11px] text-texto-tenue truncate block">
-                {sub}{comanda.abiertaEn ? `${sub ? " · " : ""}hace ${espera(minutosDesde(comanda.abiertaEn))}` : ""}
-              </span>
-            </button>
-          ) : (
-            <>
-              <div className="f-d text-lg leading-tight truncate">{rotulo}</div>
-              <div className="text-[11px] text-texto-tenue truncate">
-                {sub}{comanda.abiertaEn ? `${sub ? " · " : ""}hace ${espera(minutosDesde(comanda.abiertaEn))}` : ""}
-              </div>
-            </>
-          )}
-        </div>
-        <div className="ml-auto text-right">
-          <Rotulo>Total</Rotulo>
-          <div className="f-m text-xl">{money(comanda.total)}</div>
-        </div>
-      </div>
-
+    <div className={`flex flex-col gap-2.5 ${pleno ? "h-full min-h-0" : "h-[80vh]"}`}>
       {/* En el celular no entran las dos cosas: se muestra una y se cambia
           con un botón grande, sin menús. */}
       <div className="lg:hidden shrink-0 grid grid-cols-2 gap-2">
@@ -644,125 +637,211 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
         <Boton size="lg" variant={panel === "carta" ? "dark" : "ghost"} onClick={() => setPanel("carta")}>Carta</Boton>
       </div>
 
-      <div className={`grid lg:grid-cols-[minmax(320px,380px)_1fr] gap-3 ${
-        pleno ? "flex-1 min-h-0" : "lg:h-[70vh]"}`}>
+      <div className="flex-1 min-h-0 grid gap-2.5 lg:grid-cols-[minmax(300px,30%)_1fr]">
 
         {/* --- La comanda ------------------------------------------------ */}
         <Card className={`flex flex-col min-h-0 overflow-hidden ${panel === "comanda" ? "" : "hidden lg:flex"}`}>
-          <div className="shrink-0 px-4 py-3 border-b border-borde flex items-center justify-between">
-            <h3 className="f-d">{voz.panel}</h3>
-            <span className="text-[11px] text-texto-tenue">{cuantos} item{cuantos === 1 ? "" : "s"}</span>
+          <div className="shrink-0 px-3.5 pt-3 pb-2.5 border-b border-borde">
+            <div className="flex items-center gap-2">
+              <h3 className="f-d text-lg font-bold tracking-wider">COMANDA</h3>
+              <div className="ml-auto flex items-center gap-2 min-w-0">
+                {/* En un pedido sin mesa el rótulo es un botón: quien está en
+                    el mostrador arranca la comanda y recién después se entera
+                    de si es para llevar o si entró por una aplicación. */}
+                {onCambiarCanal ? (
+                  <button onClick={() => onCambiarCanal()} title="Cambiar el canal del pedido"
+                    className="text-acento hover:text-acento-vivo font-bold text-sm truncate transition-colors">
+                    {rotulo}
+                  </button>
+                ) : (
+                  <span className="text-acento font-bold text-sm truncate">{rotulo}</span>
+                )}
+                <Apagado motivo="Contar los comensales" className="gap-1 text-acento shrink-0">
+                  <Users size={15} /><span className="f-m text-sm">—</span>
+                </Apagado>
+                <Apagado motivo="El menú de la comanda" className="text-acento shrink-0">
+                  <MoreVertical size={17} />
+                </Apagado>
+              </div>
+            </div>
+            {(sub || hace) && (
+              <div className="text-[11px] text-texto-tenue truncate mt-0.5">
+                {[sub, hace].filter(Boolean).join(" · ")}
+              </div>
+            )}
           </div>
 
-          {!lineas.length ? (
-            <div className="flex-1 min-h-0 overflow-auto"><Vacio>{voz.sinNada}</Vacio></div>
-          ) : (
-            <ul className="flex-1 min-h-0 overflow-auto divide-y divide-borde">
-              {lineas.map((l) => (
-                <li key={l.id} className="flex items-start gap-2 px-3 py-2.5">
-                  <span className="f-m text-sm font-bold text-texto-suave shrink-0 w-7 pt-0.5">{l.cantidad}×</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm leading-tight">{l.nombre}</div>
-                    {(l.modificadores || []).map((m, x) => (
-                      <div key={x} className="text-[11px] text-texto-suave">
-                        · {m.nombre}{m.precio ? ` (+${money(m.precio)})` : ""}
-                      </div>
-                    ))}
-                    {l.notas && <div className="text-[11px] text-ojo italic">{l.notas}</div>}
-                    {ESTADO_LINEA[l.estado] && (
-                      <div className={`text-[10px] uppercase tracking-wider font-bold mt-0.5 ${ESTADO_LINEA[l.estado].tono}`}>
-                        {ESTADO_LINEA[l.estado].n}
-                      </div>
-                    )}
-                  </div>
-                  <span className="f-m text-sm shrink-0">{money(l.total)}</span>
-                  <button onClick={() => anular(l)} disabled={trabajando} title="Anular"
-                    className="shrink-0 text-texto-tenue hover:text-mal disabled:opacity-40 p-1">
-                    <Trash2 size={15} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="flex-1 min-h-0 overflow-auto">
+            {!lineas.length ? (
+              <Vacio>{voz.sinNada}</Vacio>
+            ) : (
+              <ul className="p-2 space-y-0.5">
+                {lineas.map((l) => (
+                  <li key={l.id} className="flex items-start gap-2.5 rounded-xl px-1.5 py-2 hover:bg-superficie-2">
+                    <span className="shrink-0 w-8 h-8 rounded-lg bg-superficie-2 border border-borde grid place-items-center f-m text-sm font-bold">
+                      {l.cantidad}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold leading-tight">{l.nombre}</div>
+                      {(l.modificadores || []).map((m, x) => (
+                        <div key={x} className="text-[11px] text-texto-tenue leading-tight">
+                          {m.nombre}{m.precio ? ` (+${money(m.precio)})` : ""}
+                        </div>
+                      ))}
+                      {l.notas && <div className="text-[11px] text-ojo italic leading-tight">{l.notas}</div>}
+                      {ESTADO_LINEA[l.estado] && (
+                        <div className={`text-[10px] uppercase tracking-wider font-bold mt-0.5 ${ESTADO_LINEA[l.estado].tono}`}>
+                          {ESTADO_LINEA[l.estado].n}
+                        </div>
+                      )}
+                    </div>
+                    <span className="f-m text-sm shrink-0 pt-1">{money(l.total)}</span>
+                    <Apagado motivo="Editar una línea" className="shrink-0 pt-1">
+                      <Pencil size={15} />
+                    </Apagado>
+                    <button onClick={() => anular(l)} disabled={trabajando} title="Sacar de la comanda"
+                      className="shrink-0 mt-1 text-mal/70 hover:text-mal disabled:opacity-40">
+                      <Trash2 size={15} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
-          <div className="shrink-0 border-t border-borde p-3">
+            <div className="px-2 pb-2">
+              <Apagado motivo="Agregar una observación" className="w-full">
+                <span className="w-full text-center rounded-xl border border-dashed border-borde-fuerte py-2.5 text-xs font-semibold text-texto-suave">
+                  + Agregar observación
+                </span>
+              </Apagado>
+            </div>
+          </div>
+
+          {/* El total no scrollea nunca: es lo que se mira antes de cobrar. */}
+          <div className="shrink-0 border-t border-borde px-3.5 py-3">
             <div className="flex items-baseline justify-between text-sm text-texto-suave">
               <span>Subtotal</span>
               <span className="f-m">{money(comanda.total)}</span>
             </div>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="text-sm text-texto-suave">Total</span>
-              <span className="f-m text-3xl">{money(comanda.total)}</span>
+            {/* Todavía no hay descuentos, pero la fila ya sabe dónde va. */}
+            {comanda.descuento > 0 && (
+              <div className="flex items-baseline justify-between text-sm text-acento mt-0.5">
+                <span>Descuento</span>
+                <span className="f-m">-{money(comanda.descuento)}</span>
+              </div>
+            )}
+            <div className="flex items-baseline justify-between gap-2 mt-1">
+              <span className="f-d text-sm font-bold tracking-wider">TOTAL</span>
+              <span className="f-m text-4xl font-bold text-acento leading-none">{money(comanda.total)}</span>
             </div>
 
-            {lineas.length ? (
-              <>
-                <Boton size="lg" className="w-full mt-3" onClick={() => setCobrando(true)}>
-                  <Wallet size={17} /> {voz.cobrar}
-                </Boton>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Boton size="lg" variant="ghost" disabled={trabajando} onClick={reenviar}>
-                    <ChefHat size={17} /> A cocina
-                  </Boton>
-                  <Boton size="lg" variant="ghost" onClick={onVolver}>
-                    <ArrowLeft size={17} /> {voz.volver}
-                  </Boton>
-                </div>
-              </>
-            ) : (
-              <Boton size="lg" variant="ghost" className="w-full mt-3" disabled={trabajando} onClick={liberar}>
-                {voz.soltar}
-              </Boton>
-            )}
+            <div className="grid grid-cols-2 gap-1.5 mt-3">
+              <Accion icono={ChefHat} tono="acento" disabled={trabajando || !lineas.length} onClick={reenviar}
+                title="Vuelve a mandar a la cocina lo que ya había salido">
+                Enviar a cocina
+              </Accion>
+              <Accion icono={Receipt} pronto="La pre cuenta">Pre cuenta</Accion>
+
+              <Accion icono={CreditCard} tono="bien" disabled={!lineas.length} onClick={() => setCobrando(true)}
+                title={voz.cobrar}>
+                Cobrar
+              </Accion>
+              <Accion icono={FileText} pronto="La cuenta">Cuenta</Accion>
+
+              <Accion icono={Percent} pronto="El descuento">Descuento</Accion>
+              <Accion icono={StickyNote} pronto="La observación">Observación</Accion>
+
+              <Accion icono={Split} pronto="Dividir la cuenta">Dividir cuenta</Accion>
+              <Accion icono={Printer} pronto="Imprimir la comanda">Imprimir</Accion>
+
+              <Accion icono={ArrowLeft} className="col-span-2" onClick={onVolver}>
+                Volver a {voz.volver}
+              </Accion>
+
+              {/* Una mesa tocada por error queda ocupada para siempre si no
+                  hay forma de soltarla. */}
+              {!lineas.length && (
+                <Accion icono={X} className="col-span-2" disabled={trabajando} onClick={liberar}>
+                  {voz.soltar}
+                </Accion>
+              )}
+
+              <Accion icono={Store} pronto={onCambiarCanal ? null : "Cambiar el canal desde acá"}
+                onClick={() => onCambiarCanal({ canal: "mostrador" })} title="Pasar el pedido a mostrador">
+                Mostrador
+              </Accion>
+              <Accion icono={ShoppingBag} pronto={onCambiarCanal ? null : "Cambiar el canal desde acá"}
+                onClick={() => onCambiarCanal({ canal: "takeaway" })} title="Pasar el pedido a para llevar">
+                Take away
+              </Accion>
+            </div>
           </div>
         </Card>
 
         {/* --- La carta -------------------------------------------------- */}
         <Card className={`flex flex-col min-h-0 overflow-hidden ${panel === "carta" ? "" : "hidden lg:flex"}`}>
-          <div className="shrink-0 px-3 py-2.5 border-b border-borde flex items-center gap-2">
-            <Search size={16} className="text-texto-tenue shrink-0" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la carta"
-              className="w-full text-base outline-none bg-transparent" />
-            {q && <button onClick={() => setQ("")} className="text-texto-tenue shrink-0"><X size={16} /></button>}
+          <div className="shrink-0 p-2.5 border-b border-borde flex items-center gap-2">
+            <div className="flex-1 min-w-0 flex items-center gap-2 rounded-xl border border-borde bg-superficie-2 px-3 py-2.5">
+              <Search size={17} className="text-texto-tenue shrink-0" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar productos…"
+                className="w-full text-base outline-none bg-transparent" />
+              {q && <button onClick={() => setQ("")} title="Limpiar" className="text-texto-tenue shrink-0"><X size={16} /></button>}
+            </div>
+            <Apagado motivo="Filtrar la carta" className="shrink-0">
+              <span className="grid place-items-center w-11 h-11 rounded-xl border border-borde bg-superficie-2 text-texto-suave">
+                <Filter size={17} />
+              </span>
+            </Apagado>
           </div>
 
-          {categorias.length > 1 && (
-            <div className="shrink-0 flex gap-1.5 overflow-x-auto px-3 py-2 border-b border-borde">
-              {categorias.map((c) => (
+          <div className="shrink-0 flex gap-1.5 overflow-x-auto px-2.5 py-2 border-b border-borde">
+            {categorias.map((c) => {
+              const Icono = iconoDeCategoria(c);
+              const puesta = !q && c === cat;
+              return (
                 <button key={c} onClick={() => { setCat(c); setQ(""); }}
-                  className={`shrink-0 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                    !q && c === cat
-                      ? "bg-superficie-3 text-texto border-borde-fuerte"
+                  className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                    puesta
+                      ? "bg-acento text-sobre-acento border-acento"
                       : "bg-superficie text-texto-suave border-borde hover:bg-superficie-2"}`}>
-                  {c}
+                  <Icono size={15} className="shrink-0" /> {c}
                 </button>
-              ))}
-            </div>
-          )}
+              );
+            })}
+            <Apagado motivo="Los extras" className="shrink-0">
+              <span className="px-3.5 py-2 rounded-xl text-sm font-semibold border border-borde bg-superficie text-texto-suave whitespace-nowrap">
+                + Extras
+              </span>
+            </Apagado>
+          </div>
 
           <div className="flex-1 min-h-0 overflow-auto p-2.5">
             {!items.length ? (
               <Vacio>{q ? "Ningún plato con ese nombre." : "Esta categoría está vacía."}</Vacio>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-2">
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {items.map((i) => (
-                  <div key={i.id} className="relative">
-                    <button onClick={() => agregar(i)}
-                      className="w-full h-full min-h-[92px] flex flex-col justify-between gap-2 text-left rounded-2xl border border-borde bg-superficie-2 p-3 pr-9 transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
-                      <span className="text-sm md:text-base leading-tight line-clamp-3">{i.nombre}</span>
-                      <span className="f-m text-base text-acento-vivo">{money(i.precio)}</span>
-                    </button>
-                    <button onClick={() => setDetalle(i)} title="Cómo lo quieren"
-                      className="absolute top-1.5 right-1.5 p-1.5 rounded-lg text-texto-tenue hover:text-texto hover:bg-superficie">
-                      <StickyNote size={16} />
-                    </button>
-                  </div>
+                  <FichaCarta key={i.id} item={i}
+                    onTocar={() => setDetalle(i)} onSumar={() => agregar(i)} />
                 ))}
               </div>
             )}
           </div>
         </Card>
       </div>
+
+      {/* --- La barra de abajo ------------------------------------------- */}
+      <Card className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2 text-xs text-texto-suave">
+        <span>Empleado: <strong className="text-texto font-semibold">{empleado || "—"}</strong></span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full ${caja.abierta ? "bg-bien" : "bg-mal"}`} />
+          {caja.abierta ? "Caja abierta" : "Caja cerrada"}
+        </span>
+        <span className="f-m">{hora}</span>
+        <Apagado motivo="El historial de comandas" className="ml-auto gap-1.5 font-semibold">
+          <History size={14} /> Historial de comandas
+        </Apagado>
+      </Card>
 
       <ModalDetalle item={detalle} onCerrar={() => setDetalle(null)}
         onAgregar={(extra) => { const i = detalle; setDetalle(null); agregar(i, extra); }} />
@@ -772,6 +851,108 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja, toast, onVolver, 
         onCerrar={() => setCobrando(false)} onCobrada={onVolver} />
     </div>
   );
+}
+
+/* Lo que la maqueta muestra y el sistema todavía no hace. Se ve, ocupa su
+   lugar y se entiende que no anda: apagado, con el cursor cruzado y el
+   motivo en el título. Nunca un botón que parece andar y no hace nada. */
+function Apagado({ motivo, children, className = "" }) {
+  return (
+    <span title={`${motivo} todavía no está disponible.`}
+      className={`inline-flex items-center justify-center opacity-35 cursor-not-allowed select-none ${className}`}>
+      {children}
+    </span>
+  );
+}
+
+/* Los botones de la comanda no son los de `Boton`: van en grilla, altos, en
+   mayúsculas y con el ícono pegado al texto. `pronto` los apaga y explica
+   por qué; `disabled` es para los que existen pero ahora no corresponden. */
+function Accion({ icono: Icono, children, onClick, tono = "oscuro", pronto = null, disabled = false, title, className = "" }) {
+  const pinta = {
+    oscuro: "bg-superficie-2 text-texto border border-borde hover:bg-superficie-3",
+    acento: "bg-acento text-sobre-acento hover:bg-acento-vivo",
+    bien: "bg-bien text-fondo hover:bg-bien/90",
+  }[tono];
+  const forma = "w-full inline-flex items-center gap-2 rounded-xl px-3 py-3 text-[11px] font-bold uppercase tracking-wide leading-tight transition-colors";
+  const cuerpo = (
+    <>
+      {Icono && <Icono size={16} className="shrink-0" />}
+      <span className="truncate">{children}</span>
+    </>
+  );
+
+  /* El título de un <button disabled> no lo muestra el navegador: el aviso
+     va en el envoltorio, que sí recibe el mouse. */
+  if (pronto) {
+    return (
+      <span title={`${pronto} todavía no está disponible.`} className={`block cursor-not-allowed ${className}`}>
+        <span className={`${forma} ${pinta} opacity-35`}>{cuerpo}</span>
+      </span>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} title={title}
+      className={`${forma} ${pinta} disabled:opacity-40 disabled:cursor-not-allowed ${className}`}>
+      {cuerpo}
+    </button>
+  );
+}
+
+/* No hay fotos de los platos y no vale la pena inventarlas: el cuadrado
+   lleva la inicial, que a la velocidad de lectura de una carta alcanza
+   para distinguir una fila de otra. */
+function FichaCarta({ item, onTocar, onSumar }) {
+  const desc = (item.campos_extra && item.campos_extra.descripcion) || item.destino || item.categoria || "";
+  return (
+    <div className="relative">
+      <button onClick={onTocar} title="Cantidad y cómo lo quieren"
+        className="w-full h-full flex items-center gap-3 text-left rounded-2xl border border-borde bg-superficie-2 p-2.5 pr-12 transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
+        <span className="w-14 h-14 shrink-0 rounded-xl bg-acento-suave text-acento-vivo f-d text-2xl grid place-items-center">
+          {(item.nombre || "?").trim().charAt(0).toUpperCase()}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold leading-tight line-clamp-2">{item.nombre}</span>
+          <span className="block f-m text-sm text-acento">{money(item.precio)}</span>
+          {desc && <span className="block text-[11px] text-texto-tenue truncate">{desc}</span>}
+        </span>
+      </button>
+      <button onClick={onSumar} title={`Agregar ${item.nombre}`}
+        className="absolute top-2 right-2 w-9 h-9 rounded-full bg-acento text-sobre-acento grid place-items-center hover:bg-acento-vivo transition-colors">
+        <Plus size={18} />
+      </button>
+    </div>
+  );
+}
+
+/* Un ícono por categoría, adivinado del nombre: la carta la escribe cada
+   comercio y nadie va a cargar un ícono por rubro. */
+const ICONOS_CATEGORIA = [
+  [/pizza|empanada|tarta/, Pizza],
+  [/hamburg|carne|parrilla|lomo|choripan|chorip/, Beef],
+  [/sandw|lomito|tostado|club/, Sandwich],
+  [/ensalad|verdur|vegan|vegetar/, Salad],
+  [/sopa|caldo|guiso|cazuela/, Soup],
+  [/pescado|mariscos|sushi/, Fish],
+  [/pollo|milanes|suprema/, Drumstick],
+  [/pasta|fideo|noqui|ñoqui|risotto/, Utensils],
+  [/caf|desayun|merienda|infusion|infusión/, Coffee],
+  [/vino|trago|coctel|cóctel|aperitivo|bebida con/, Wine],
+  [/cerve|birra|tap/, Beer],
+  [/bebida|gaseosa|jugo|agua|refresc|sin alcohol/, CupSoda],
+  [/helado|postre/, IceCream],
+  [/torta|pasteler|dulce/, Cake],
+  [/panader|factura|medialuna|sandwicher/, Croissant],
+  [/galle|snack|picada|copetin|copetín/, Cookie],
+  [/lacteo|lácteo|leche|yogur/, Milk],
+  [/promo|combo|especial|del dia|del día/, Flame],
+];
+
+function iconoDeCategoria(categoria) {
+  const t = String(categoria || "").toLowerCase();
+  const hallado = ICONOS_CATEGORIA.find(([re]) => re.test(t));
+  return hallado ? hallado[1] : UtensilsCrossed;
 }
 
 /* "pedido" no se muestra: es el estado normal de una línea recién cargada
@@ -963,7 +1144,7 @@ const ETAPAS = [
   { k: "listo", n: "Listos" },
 ];
 
-export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, caja, toast }) {
+export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, caja, sesion = null, toast }) {
   const [pedidos, setPedidos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [abierto, setAbierto] = useState(null);   // el pedido que se está atendiendo
@@ -1025,7 +1206,7 @@ export function Mostrador({ empresaId, sucursalId = null, config = {}, ajustes, 
     return (
       <Pedido comandaId={abierto.id} empresaId={empresaId} config={config} ajustes={ajustes}
         caja={caja} toast={toast} voz={VOZ_CANAL} encabezado={encabezadoDe(abierto)}
-        onVolver={() => setAbierto(null)} />
+        empleado={sesion ? sesion.nombre : ""} onVolver={() => setAbierto(null)} />
     );
   }
 

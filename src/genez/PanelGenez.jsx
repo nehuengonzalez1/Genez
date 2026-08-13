@@ -1401,7 +1401,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
 
           <main className="flex-1 min-h-0 p-3 md:p-4">
             <PantallaComandas empresaId={empresaId} config={config} ajustes={ajustes}
-              caja={caja} permisos={permisos} toast={toast} />
+              caja={caja} permisos={permisos} sesion={sesion} toast={toast} />
           </main>
         </div>
       )}
@@ -1479,11 +1479,11 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           {tab === "inicio" && <Inicio k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy} ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />}
           {tab === "comandas" && (
             <Comandas empresaId={empresaId} config={config} ajustes={ajustes}
-              caja={caja} permisos={permisos} toast={toast} />
+              caja={caja} permisos={permisos} sesion={sesion} toast={toast} />
           )}
           {tab === "mostrador" && (
             <Mostrador empresaId={empresaId} config={config} ajustes={ajustes}
-              caja={caja} toast={toast} />
+              caja={caja} sesion={sesion} toast={toast} />
           )}
           {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
