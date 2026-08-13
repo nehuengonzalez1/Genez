@@ -851,19 +851,9 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const [toasts, setToasts] = useState([]);
 
   /* Las pantallas siguen llamando a setAjustes como siempre; lo que cambia
-     es que ahora el cambio también viaja a la base. Se guarda desde un
-     efecto y no adentro del setter porque React puede llamar al setter dos
-     veces por render, y eso serían dos escrituras por cada tecla. */
+     es que ahora el cambio también viaja a la base. */
   const setAjustes = setAjustesLocal;
   const primerAjuste = useRef(true);
-  useEffect(() => {
-    if (primerAjuste.current) { primerAjuste.current = false; return; }
-    const t = setTimeout(() => {
-      guardarAjustes(empresaId, ajustes)
-        .catch((e) => toast(e.message || "No se pudieron guardar los ajustes.", "mal"));
-    }, 600);
-    return () => clearTimeout(t);
-  }, [ajustes, empresaId]);
 
   /* La caja arranca vacía y se lee de la base al montar: un arqueo sobre
      movimientos inventados no compara nada contra nada. */
@@ -890,6 +880,23 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   };
 
   const empresaId = sesion.comercio.id;
+
+  /* Va acá abajo y no junto al estado de ajustes por una razón que costó
+     una pantalla en negro: la lista de dependencias se evalúa durante el
+     render, así que no puede nombrar una constante declarada más abajo.
+     El build no lo ve porque es un error de ejecución, no de compilación.
+
+     Se guarda desde un efecto y no adentro del setter porque React puede
+     llamar al setter dos veces por render, y eso serían dos escrituras
+     por cada tecla. */
+  useEffect(() => {
+    if (primerAjuste.current) { primerAjuste.current = false; return; }
+    const t = setTimeout(() => {
+      guardarAjustes(empresaId, ajustes)
+        .catch((e) => toast(e.message || "No se pudieron guardar los ajustes.", "mal"));
+    }, 600);
+    return () => clearTimeout(t);
+  }, [ajustes, empresaId]);
 
   /* El catálogo ya no viene del generador: se pide a la base al montar.
      App remonta Sistema con cada comercio (key), así que una sola carga
@@ -1218,7 +1225,10 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     else setVista("cobro");
     window.scrollTo({ top: 0 });
   };
-  const rotuloVender = vender === "comandas" ? "Salón" : "Cobrar";
+  /* El botón dice qué se va a hacer, no dónde: desde ahí se comanda,
+     sea para una mesa o para el mostrador. "Salón" ya está en el menú
+     de la izquierda y repetirlo no agregaba nada. */
+  const rotuloVender = vender === "comandas" ? "Comanda" : "Cobrar";
 
   // Un único lector para todo el sistema: si la pantalla activa sabe qué hacer
   // con el código, se lo queda; si no, abre la ficha rápida del producto.
