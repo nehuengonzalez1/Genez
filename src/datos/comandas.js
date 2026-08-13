@@ -390,9 +390,67 @@ export async function cambiarEstadoLinea(lineaId, estado) {
   if (error) throw error;
 }
 
-/* Lo que está esperando en cocina, de todas las mesas a la vez. El
-   destino separa la pantalla de la cocina de la de la barra: al que hace
-   los tragos no le sirve ver las hamburguesas. */
+/* Lo que la cocina tiene que hacer, agrupado por comanda.
+
+   Agrupado y no en líneas sueltas porque la unidad de trabajo del que
+   cocina es el pedido entero: dos hamburguesas de la mesa 4 salen juntas
+   y en plato, las mismas dos para llevar van en packaging, y si entraron
+   por una aplicación van en la bolsa de esa aplicación. Con las líneas
+   cayendo sueltas eso no se puede saber, y se arma mal.
+
+   La etapa del pedido es la de lo menos avanzado que tenga: mientras
+   quede algo sin empezar, el pedido no está en preparación. */
+export async function cargarCocina(empresaId, destino = null) {
+  const lineas = await cargarPendientes(empresaId, destino);
+
+  const porComanda = new Map();
+  for (const l of lineas) {
+    if (!porComanda.has(l.comandaId)) {
+      porComanda.set(l.comandaId, {
+        id: l.comandaId,
+        canal: l.canal,
+        referencia: l.referencia,
+        mesa: l.mesa,
+        sector: l.sector,
+        desde: l.desde,
+        lineas: [],
+      });
+    }
+    porComanda.get(l.comandaId).lineas.push(l);
+  }
+
+  const orden = { pedido: 0, preparando: 1, listo: 2 };
+  return [...porComanda.values()]
+    .map((c) => ({
+      ...c,
+      etapa: c.lineas.reduce((peor, l) => (orden[l.estado] < orden[peor] ? l.estado : peor), "listo"),
+      items: c.lineas.reduce((s, l) => s + l.cantidad, 0),
+    }))
+    /* El que espera hace más tiempo va primero: es el orden en que la
+       cocina tiene que resolverlo. */
+    .sort((a, b) => (a.desde || 0) - (b.desde || 0));
+}
+
+/* Mover el pedido entero. El que cocina termina la comanda de la mesa 4,
+   no la tercera línea de la mesa 4. */
+export async function moverComanda(comandaId, estado, destino = null) {
+  const campos = { estado };
+  if (estado === "preparando") campos.enviada_en = new Date().toISOString();
+  if (estado === "listo") campos.lista_en = new Date().toISOString();
+
+  let q = supabase.from("operacion_lineas").update(campos)
+    .eq("operacion_id", comandaId)
+    .in("estado", ["pedido", "preparando", "listo"].filter((e) => e !== estado));
+
+  if (destino) q = q.eq("destino", destino);
+
+  const { error } = await q;
+  if (error) throw error;
+}
+
+/* Lo que está esperando en cocina, línea por línea. El destino separa la
+   pantalla de la cocina de la de la barra: al que hace los tragos no le
+   sirve ver las hamburguesas. */
 export async function cargarPendientes(empresaId, destino = null) {
   let q = supabase
     .from("operacion_lineas")

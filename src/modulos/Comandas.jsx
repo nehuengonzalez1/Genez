@@ -34,7 +34,7 @@ import { money, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js
 import { siguienteNumero } from "../datos/ventas.js";
 import {
   cargarSalon, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
-  anularLinea, cambiarCantidad, cambiarEstadoLinea, enviarACocina, cargarPendientes, cerrarComanda,
+  anularLinea, cambiarCantidad, enviarACocina, cargarCocina, moverComanda, cerrarComanda,
   CANALES, abrirPedido, cargarPedidos, cargarElementosPlano, cambiarCanal,
 } from "../datos/comandas.js";
 import { Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
@@ -1513,7 +1513,7 @@ const COLUMNAS = [
 export function Cocina({ empresaId, config = {}, toast }) {
   const destinos = config.destinos || [];
   const [destino, setDestino] = useState(null);
-  const [lineas, setLineas] = useState([]);
+  const [pedidos, setPedidos] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   const avisar = useRef(toast);
@@ -1524,8 +1524,8 @@ export function Cocina({ empresaId, config = {}, toast }) {
     let vivo = true;
     const leer = async () => {
       try {
-        const d = await cargarPendientes(empresaId, destino);
-        if (vivo) setLineas(d);
+        const d = await cargarCocina(empresaId, destino);
+        if (vivo) setPedidos(d);
       } catch (e) {
         if (vivo) avisar.current(e.message || "No pudimos leer la cocina.", "mal");
       } finally {
@@ -1538,14 +1538,17 @@ export function Cocina({ empresaId, config = {}, toast }) {
     return () => { vivo = false; clearInterval(id); };
   }, [empresaId, destino]);
 
-  /* El cambio se pinta antes de que conteste el servidor: el que cocina
-     tocó el botón y necesita ver que pasó, no esperar a la red. */
-  const mover = async (l, estado) => {
-    setLineas((xs) => estado === "entregado"
-      ? xs.filter((x) => x.id !== l.id)
-      : xs.map((x) => (x.id === l.id ? { ...x, estado } : x)));
+  /* Se mueve el pedido entero y no línea por línea: el que cocina termina
+     la comanda de la mesa 4, no la tercera línea de la mesa 4.
+
+     El cambio se pinta antes de que conteste el servidor: tocó el botón y
+     necesita ver que pasó, no esperar a la red. */
+  const mover = async (p, estado) => {
+    setPedidos((xs) => estado === "entregado"
+      ? xs.filter((x) => x.id !== p.id)
+      : xs.map((x) => (x.id === p.id ? { ...x, etapa: estado } : x)));
     try {
-      await cambiarEstadoLinea(l.id, estado);
+      await moverComanda(p.id, estado, destino);
     } catch (e) {
       avisar.current(e.message || "No se pudo cambiar el estado.", "mal");
     }
@@ -1566,11 +1569,11 @@ export function Cocina({ empresaId, config = {}, toast }) {
       )}
 
       {cargando && <Vacio>Cargando…</Vacio>}
-      {!cargando && !lineas.length && <Vacio>No hay nada esperando. Cocina al día.</Vacio>}
+      {!cargando && !pedidos.length && <Vacio>No hay nada esperando. Cocina al día.</Vacio>}
 
       <div className="grid md:grid-cols-3 gap-3 items-start">
         {COLUMNAS.map((col) => {
-          const suyas = lineas.filter((l) => l.estado === col.k);
+          const suyas = pedidos.filter((p) => p.etapa === col.k);
           return (
             <div key={col.k}>
               <div className="flex items-center justify-between mb-2">
@@ -1578,7 +1581,7 @@ export function Cocina({ empresaId, config = {}, toast }) {
                 <span className="f-m text-sm text-texto-tenue">{suyas.length}</span>
               </div>
               <div className="space-y-2">
-                {suyas.map((l) => <Comanda key={l.id} l={l} col={col} onMover={mover} />)}
+                {suyas.map((p) => <Comanda key={p.id} p={p} col={col} onMover={mover} />)}
                 {!suyas.length && (
                   <div className="rounded-2xl border-2 border-dashed border-borde py-6 text-center text-xs text-texto-tenue">
                     vacío
@@ -1593,29 +1596,56 @@ export function Cocina({ empresaId, config = {}, toast }) {
   );
 }
 
-function Comanda({ l, col, onMover }) {
-  const min = minutosDesde(l.enviadaEn || l.desde);
+/* Cómo se arma es lo primero que necesita saber el que cocina, antes
+   incluso de qué plato es: dos hamburguesas iguales salen en plato si son
+   de una mesa, en packaging si son para llevar, y en la bolsa de la
+   aplicación que corresponda si entraron por una. Equivocarse acá
+   significa rehacer el pedido. */
+function comoSeEntrega(p) {
+  if (p.canal === "salon") return { texto: "Al plato", tono: "bg-superficie-3 text-texto-suave" };
+  if (p.canal === "app") return { texto: `Bolsa ${p.mesa}`, tono: "bg-ojo-suave text-ojo" };
+  if (p.canal === "delivery") return { texto: "Packaging · delivery", tono: "bg-bien-suave text-bien" };
+  return { texto: "Packaging · para llevar", tono: "bg-acento-suave text-acento" };
+}
+
+function Comanda({ p, col, onMover }) {
+  const min = minutosDesde(p.desde);
   // Lo que espera hace rato tiene que gritar desde el otro lado de la cocina.
   const tono = min >= 20 ? "border-mal bg-mal-suave" : min >= 10 ? "border-ojo bg-ojo-suave" : "border-borde bg-superficie";
+  const entrega = comoSeEntrega(p);
 
   return (
     <div className={`rounded-2xl border-2 p-3 ${tono}`}>
       <div className="flex items-baseline justify-between gap-2">
-        {/* Un pedido de mostrador no tiene mesa, y la cocina igual tiene que
-            saber que eso hay que prepararlo. */}
-        <span className="f-d text-xl leading-none">{l.mesa || "Pedido"}</span>
+        <span className="f-d text-xl leading-none truncate">{p.mesa || "Pedido"}</span>
         <span className="f-m text-xs text-texto-suave shrink-0">{espera(min)}</span>
       </div>
-      <div className="text-base mt-2 leading-tight">
-        <span className="f-m font-bold">{l.cantidad}×</span> {l.nombre}
+
+      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+        <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${entrega.tono}`}>
+          {entrega.texto}
+        </span>
+        {p.referencia && <span className="f-m text-[11px] text-texto-suave">#{p.referencia}</span>}
       </div>
-      {(l.modificadores || []).map((m, i) => (
-        <div key={i} className="text-sm text-texto-suave">· {m.nombre}</div>
-      ))}
-      {l.notas && <div className="text-sm italic text-ojo mt-1">{l.notas}</div>}
-      {l.destino && <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold mt-1">{l.destino}</div>}
+
+      {/* Todo el pedido junto: lo que sale de la cocina es la comanda, no
+          un plato suelto que hay que adivinar con cuál va. */}
+      <ul className="mt-2.5 space-y-1.5">
+        {p.lineas.map((l) => (
+          <li key={l.id}>
+            <div className="text-base leading-tight">
+              <span className="f-m font-bold">{l.cantidad}×</span> {l.nombre}
+            </div>
+            {(l.modificadores || []).map((m, i) => (
+              <div key={i} className="text-sm text-texto-suave leading-tight">· {m.nombre}</div>
+            ))}
+            {l.notas && <div className="text-sm italic text-ojo leading-tight">{l.notas}</div>}
+          </li>
+        ))}
+      </ul>
+
       <Boton size="lg" className="w-full mt-3" variant={col.k === "listo" ? "dark" : "primary"}
-        onClick={() => onMover(l, col.sig)}>
+        onClick={() => onMover(p, col.sig)}>
         {col.accion}
       </Boton>
     </div>
