@@ -407,6 +407,52 @@ export function ticketVenta(t, ajustes, W) {
   return armarLineas(W, b);
 }
 
+/* --- Pre cuenta --------------------------------------------------------
+   Lo que se lleva a la mesa antes de cobrar, para que vean cómo va la
+   cuenta y decidan cómo pagan. No es un comprobante y no puede parecerlo:
+   sin numeración fiscal, sin CAE, y con el aviso al pie encerrado entre
+   asteriscos para que se lea de un vistazo aunque el papel esté flojo.
+
+   La fecha llega armada desde la pantalla y no sale de HOY: una comanda
+   es del reloj de verdad, no de la fecha congelada de los datos
+   simulados.                                                             */
+export function preCuenta(c, ajustes, W) {
+  const f = ajustes.fiscal || FISCAL_INICIAL;
+  const b = [{ t: "c", v: String(ajustes.negocio || f.nombreFactura || f.razonSocial || "").toUpperCase() }];
+  if (f.domicilio) b.push({ t: "c", v: f.domicilio });
+  b.push({ t: "sep", c: "=" });
+  b.push({ t: "c", v: "PRE CUENTA" });
+  b.push({ t: "lr", a: String(c.titulo || "").toUpperCase(), b: `${c.fecha} ${c.hora}` });
+  if (c.comensales > 0) b.push({ t: "lr", a: "COMENSALES", b: String(c.comensales) });
+
+  b.push({ t: "sep" });
+  for (const l of c.items) {
+    b.push({ t: "w", v: String(l.nombre).toUpperCase() });
+    b.push({ t: "lr", a: `  ${l.cantidad} x ${money(l.precio)}`, b: money(l.total) });
+  }
+
+  b.push({ t: "sep" });
+  b.push({ t: "lr", a: "SUBTOTAL", b: money(c.subtotal) });
+  if (c.descuento > 0) {
+    b.push({ t: "lr", a: `DESCUENTO${c.descuentoPct != null ? ` ${c.descuentoPct}%` : ""}`, b: "-" + money(c.descuento) });
+  }
+  b.push({ t: "sep", c: "=" });
+  b.push({ t: "lr", a: "TOTAL", b: money(c.total) });
+  b.push({ t: "sep", c: "=" });
+  if (c.comensales > 0) {
+    b.push({ t: "lr", a: `POR PERSONA (${c.comensales})`, b: money(Math.round(c.total / c.comensales)) });
+  }
+
+  b.push({ t: "b" });
+  b.push({ t: "sep", c: "*" });
+  const aviso = "NO VALIDO COMO COMPROBANTE FISCAL";
+  if (aviso.length <= W) b.push({ t: "c", v: aviso });
+  else { b.push({ t: "c", v: "NO VALIDO COMO" }); b.push({ t: "c", v: "COMPROBANTE FISCAL" }); }
+  b.push({ t: "sep", c: "*" });
+  b.push({ t: "b" });
+  return armarLineas(W, b);
+}
+
 export function comandaPicking(ped, W) {
   const b = [
     { t: "c", v: "PREPARACION DE PEDIDO" },

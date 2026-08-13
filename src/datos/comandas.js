@@ -246,6 +246,7 @@ export async function cargarComanda(comandaId) {
     .from("operaciones")
     .select(`
       id, numero, estado, fecha, abierta_en, recurso_id, cliente_id,
+      comensales, descuento, descuento_pct, canal, referencia, campos_extra,
       recursos ( nombre, sector ),
       operacion_lineas (
         id, item_id, descripcion, cantidad, precio_unitario, costo_unitario,
@@ -263,6 +264,7 @@ export async function cargarComanda(comandaId) {
      tachado. Pero no se pierden, porque alguien las pidió y capaz se
      cocinaron. */
   const lineas = todas.filter((l) => l.estado !== "anulada");
+  const subtotal = lineas.reduce((s, l) => s + l.total, 0);
 
   return {
     id: data.id,
@@ -275,7 +277,22 @@ export async function cargarComanda(comandaId) {
     abiertaEn: data.abierta_en ? new Date(data.abierta_en) : null,
     lineas,
     anuladas: todas.filter((l) => l.estado === "anulada"),
-    total: lineas.reduce((s, l) => s + l.total, 0),
+    comensales: data.comensales,
+    canal: data.canal,
+    referencia: data.referencia,
+
+    /* El descuento por porcentaje se recalcula acá contra el subtotal de
+       ahora y no se lee el monto guardado: si la mesa pidió algo más
+       después de pactarlo, el guardado quedó viejo. La base hace la misma
+       cuenta al cerrar, así que el número que se ve es el que se cobra. */
+    subtotal,
+    descuentoPct: data.descuento_pct == null ? null : Number(data.descuento_pct),
+    descuento: data.descuento_pct != null
+      ? Math.round(subtotal * Number(data.descuento_pct) / 100)
+      : n(data.descuento),
+    total: subtotal - (data.descuento_pct != null
+      ? Math.round(subtotal * Number(data.descuento_pct) / 100)
+      : n(data.descuento)),
   };
 }
 
@@ -490,22 +507,59 @@ export async function cargarPendientes(empresaId, destino = null) {
     .sort((a, b) => (a.desde || 0) - (b.desde || 0));
 }
 
+/* Un porcentaje se guarda como porcentaje y sigue al subtotal: si la mesa
+   pide el postre después de pactar el diez por ciento, el descuento
+   acompaña. Un importe fijo se guarda como importe y no se mueve.
+   Devuelve el monto que quedó, para que la pantalla no lo recalcule por
+   su cuenta y termine mostrando otro número que la base. */
+export async function aplicarDescuento(comandaId, { pct = null, monto = null }) {
+  const { data, error } = await supabase.rpc("aplicar_descuento", {
+    p_comanda: comandaId,
+    p_pct: pct,
+    p_monto: monto,
+  });
+  if (error) {
+    if (error.code === "P0009") throw new Error("El descuento no puede ser mayor que la cuenta.");
+    throw error;
+  }
+  return n(data);
+}
+
+export async function quitarDescuento(comandaId) {
+  return aplicarDescuento(comandaId, { monto: 0 });
+}
+
+/* Cuánta gente hay en la mesa. Sirve para el ticket por persona y para
+   ver de un vistazo cuánta gente hay en el salón. */
+export async function guardarComensales(comandaId, comensales) {
+  const { error } = await supabase
+    .from("operaciones")
+    .update({ comensales: comensales > 0 ? Math.round(comensales) : null })
+    .eq("id", comandaId).eq("estado", "abierta");
+  if (error) throw error;
+}
+
 /* Cobrar la mesa. Los totales los calcula la base a partir de las líneas
    guardadas y no de lo que informe esta pantalla, que puede estar
    mirando una comanda de hace media hora. */
-export async function cerrarComanda({ comandaId, sesionId, pagos, numero = null, descuento = 0, recargo = 0 }) {
+/* El descuento va en null y no en cero cuando nadie lo manda. La base
+   trata lo que llega como pisada de lo guardado, así que mandar cero
+   borraba el descuento que la mesa tenía pactado: se cobraba de más y
+   sin que nadie se enterara. */
+export async function cerrarComanda({ comandaId, sesionId, pagos, numero = null, descuento = null, recargo = 0 }) {
   const { data, error } = await supabase.rpc("cerrar_comanda", {
     p_comanda: comandaId,
     p_sesion: sesionId,
     p_pagos: pagos,
     p_numero: numero,
-    p_descuento: Math.round(descuento || 0),
+    p_descuento: descuento == null ? null : Math.round(descuento),
     p_recargo: Math.round(recargo || 0),
   });
 
   if (error) {
     if (error.code === "P0001") throw new Error("Abrí la caja antes de cobrar la mesa.");
     if (error.code === "P0003") throw new Error("Esa mesa ya fue cobrada.");
+    if (error.code === "P0009") throw new Error("El descuento no puede ser mayor que la cuenta.");
     throw error;
   }
   return data;

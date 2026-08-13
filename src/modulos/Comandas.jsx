@@ -36,8 +36,9 @@ import {
   cargarSalon, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
   anularLinea, cambiarCantidad, enviarACocina, cargarCocina, moverComanda, cerrarComanda,
   CANALES, abrirPedido, cargarPedidos, cargarElementosPlano, cambiarCanal,
+  aplicarDescuento, quitarDescuento, guardarComensales,
 } from "../datos/comandas.js";
-import { Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
+import { Card, Boton, Modal, Vacio, imprimirComandera, preCuenta } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { PlanoSalon } from "./PlanoSalon.jsx";
 
@@ -477,7 +478,7 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
 
    `onCambiarCanal` recibe un canal para pasar el pedido derecho a
    mostrador o para llevar, o nada para preguntar por el canal completo. */
-function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, empleado = "", pleno = false }) {
+function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, empleado = "", pleno = false }) {
   const [comanda, setComanda] = useState(null);
   const [carta, setCarta] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -485,6 +486,8 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
   const [cat, setCat] = useState(null);           // categoría elegida en las solapas
   const [detalle, setDetalle] = useState(null);   // item al que se le cargan modificadores
   const [cobrando, setCobrando] = useState(false);
+  const [descontando, setDescontando] = useState(false);
+  const [contando, setContando] = useState(false);  // cuánta gente hay en la mesa
   const [trabajando, setTrabajando] = useState(false);
   const [panel, setPanel] = useState("carta");    // solo manda en pantalla chica
 
@@ -627,6 +630,51 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
     }
   };
 
+  /* El monto lo devuelve la base y se relee la comanda igual: un
+     porcentaje sigue al subtotal, así que el número que hay que mostrar es
+     el que quedó allá y no el que se tipeó acá. */
+  const ponerDescuento = async (datos) => {
+    if (trabajando) return;
+    setTrabajando(true);
+    try {
+      await aplicarDescuento(comandaId, datos);
+      await leerComanda();
+      setDescontando(false);
+    } catch (e) {
+      avisar.current(e.message || "No se pudo aplicar el descuento.", "mal");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  const sacarDescuento = async () => {
+    if (trabajando) return;
+    setTrabajando(true);
+    try {
+      await quitarDescuento(comandaId);
+      await leerComanda();
+      setDescontando(false);
+    } catch (e) {
+      avisar.current(e.message || "No se pudo quitar el descuento.", "mal");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  const ponerComensales = async (cantidad) => {
+    if (trabajando) return;
+    setTrabajando(true);
+    try {
+      await guardarComensales(comandaId, cantidad);
+      await leerComanda();
+      setContando(false);
+    } catch (e) {
+      avisar.current(e.message || "No se pudo guardar los comensales.", "mal");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   const rotulo = encabezado ? encabezado.titulo : (comanda ? comanda.mesa : "");
 
   if (cargando || !comanda) {
@@ -643,6 +691,27 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
   const sub = encabezado ? encabezado.sub : comanda.sector;
   const hace = comanda.abiertaEn ? `hace ${espera(minutosDesde(comanda.abiertaEn))}` : "";
   const hora = reloj.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  const W = ajustes.ancho === 58 ? 32 : 48;
+
+  /* Los comensales son de la mesa: un delivery o un pedido de mostrador no
+     tiene gente sentada que dividir. */
+  const esSalon = comanda.canal === "salon";
+  const porPersona = esSalon && comanda.comensales > 0
+    ? Math.round(comanda.total / comanda.comensales) : null;
+
+  const imprimirPreCuenta = () => {
+    imprimirComandera(preCuenta({
+      titulo: rotulo,
+      fecha: reloj.toLocaleDateString("es-AR"),
+      hora,
+      items: lineas,
+      subtotal: comanda.subtotal,
+      descuento: comanda.descuento,
+      descuentoPct: comanda.descuentoPct,
+      total: comanda.total,
+      comensales: esSalon ? comanda.comensales : null,
+    }, ajustes, W), ajustes.ancho, null, toast);
+  };
 
   return (
     <div className={`flex flex-col gap-2.5 ${pleno ? "h-full min-h-0" : "h-[80vh]"}`}>
@@ -674,9 +743,17 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
                 ) : (
                   <span className="text-acento font-bold text-sm truncate">{rotulo}</span>
                 )}
-                <Apagado motivo="Contar los comensales" className="gap-1 text-acento shrink-0">
-                  <Users size={15} /><span className="f-m text-sm">—</span>
-                </Apagado>
+                {esSalon ? (
+                  <button onClick={() => setContando(true)} title="Cuánta gente hay en la mesa"
+                    className="inline-flex items-center gap-1 text-acento hover:text-acento-vivo shrink-0 transition-colors">
+                    <Users size={15} />
+                    <span className="f-m text-sm">{comanda.comensales > 0 ? comanda.comensales : "—"}</span>
+                  </button>
+                ) : (
+                  <Apagado motivo="Contar los comensales" className="gap-1 text-acento shrink-0">
+                    <Users size={15} /><span className="f-m text-sm">—</span>
+                  </Apagado>
+                )}
                 <Apagado motivo="El menú de la comanda" className="text-acento shrink-0">
                   <MoreVertical size={17} />
                 </Apagado>
@@ -755,12 +832,13 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
           <div className="shrink-0 border-t border-borde px-3.5 py-3">
             <div className="flex items-baseline justify-between text-sm text-texto-suave">
               <span>Subtotal</span>
-              <span className="f-m">{money(comanda.total)}</span>
+              <span className="f-m">{money(comanda.subtotal)}</span>
             </div>
-            {/* Todavía no hay descuentos, pero la fila ya sabe dónde va. */}
+            {/* El porcentaje va al lado del monto: quien mira la cuenta
+                pactó un diez por ciento, no dos mil cien pesos. */}
             {comanda.descuento > 0 && (
               <div className="flex items-baseline justify-between text-sm text-acento mt-0.5">
-                <span>Descuento</span>
+                <span>Descuento{comanda.descuentoPct != null ? ` (${comanda.descuentoPct}%)` : ""}</span>
                 <span className="f-m">-{money(comanda.descuento)}</span>
               </div>
             )}
@@ -768,6 +846,11 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
               <span className="f-d text-sm font-bold tracking-wider">TOTAL</span>
               <span className="f-m text-2xl font-bold text-acento leading-none">{money(comanda.total)}</span>
             </div>
+            {porPersona > 0 && (
+              <div className="text-[11px] text-texto-tenue text-right mt-0.5 f-m">
+                {money(porPersona)} por persona
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-1.5 mt-3">
               {/* El número dice cuánto falta despachar: es la diferencia
@@ -778,7 +861,10 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
                 title={sinEnviar.length ? `Mandar a la cocina ${sinEnviar.length} sin despachar` : "Ya está todo en la cocina"}>
                 A cocina{sinEnviar.length ? ` · ${sinEnviar.length}` : ""}
               </Accion>
-              <Accion icono={Receipt} pronto="La pre cuenta">Pre cuenta</Accion>
+              <Accion icono={Receipt} disabled={!lineas.length} onClick={imprimirPreCuenta}
+                title="Imprimir la pre cuenta para llevar a la mesa">
+                Pre cuenta
+              </Accion>
 
               <Accion icono={CreditCard} tono="bien" disabled={!lineas.length} onClick={() => setCobrando(true)}
                 title={voz.cobrar}>
@@ -786,7 +872,18 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
               </Accion>
               <Accion icono={FileText} pronto="La cuenta">Cuenta</Accion>
 
-              <Accion icono={Percent} pronto="El descuento">Descuento</Accion>
+              {/* Con descuento puesto el botón queda en acento: es la única
+                  forma de que se note desde la grilla que la cuenta no es
+                  la suma de lo pedido. */}
+              <Accion icono={Percent} tono={comanda.descuento > 0 ? "acento" : "oscuro"}
+                disabled={trabajando} onClick={() => setDescontando(true)}
+                title={comanda.descuento > 0
+                  ? `Descuento aplicado: -${money(comanda.descuento)}`
+                  : "Aplicar un descuento a la cuenta"}>
+                {comanda.descuento > 0
+                  ? (comanda.descuentoPct != null ? `Desc · ${comanda.descuentoPct}%` : `Desc · ${money(comanda.descuento)}`)
+                  : "Descuento"}
+              </Accion>
               <Accion icono={StickyNote} pronto="La observación">Observación</Accion>
 
               <Accion icono={Split} pronto="Dividir la cuenta">Dividir cuenta</Accion>
@@ -877,6 +974,12 @@ function Pedido({ comandaId, empresaId, config, ajustes, caja = {}, toast, onVol
 
       <ModalDetalle item={detalle} onCerrar={() => setDetalle(null)}
         onAgregar={(extra) => { const i = detalle; setDetalle(null); agregar(i, extra); }} />
+
+      <ModalDescuento abierto={descontando} comanda={comanda} rotulo={rotulo} trabajando={trabajando}
+        onCerrar={() => setDescontando(false)} onAplicar={ponerDescuento} onQuitar={sacarDescuento} />
+
+      <ModalComensales abierto={contando} comanda={comanda} rotulo={rotulo} trabajando={trabajando}
+        onCerrar={() => setContando(false)} onGuardar={ponerComensales} />
 
       <ModalCobro abierto={cobrando} comanda={comanda} comandaId={comandaId} empresaId={empresaId}
         config={config} ajustes={ajustes} caja={caja} toast={toast} rotulo={rotulo} voz={voz}
@@ -1089,6 +1192,160 @@ function ModalDetalle({ item, onCerrar, onAgregar }) {
   );
 }
 
+/* --- Descuento ---------------------------------------------------------
+   Las dos formas se usan de verdad: el diez por ciento del convenio y los
+   dos mil pesos que alguien pactó en la mesa. Lo que no puede pasar es
+   confirmar sin ver el total, porque ese —y no el descuento— es el número
+   que se le va a decir al cliente.                                       */
+function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onAplicar, onQuitar }) {
+  const [modo, setModo] = useState("pct");   // pct | monto
+  const [valor, setValor] = useState("");
+
+  /* Solo al abrir: mientras el diálogo está en pantalla la comanda se
+     relee, y reaccionar a eso le pisaría al usuario lo que está tipeando. */
+  useEffect(() => {
+    if (!abierto) return;
+    if (comanda.descuentoPct != null) { setModo("pct"); setValor(String(comanda.descuentoPct)); }
+    else if (comanda.descuento > 0) { setModo("monto"); setValor(String(comanda.descuento)); }
+    else { setModo("pct"); setValor(""); }
+  }, [abierto]);
+
+  if (!abierto) return null;
+
+  const esPct = modo === "pct";
+  const sub = comanda.subtotal;
+  const n = Number(valor) || 0;
+  const excede = esPct ? n > 100 : n > sub;
+  const desc = esPct ? Math.round(sub * Math.min(n, 100) / 100) : Math.min(n, sub);
+  const total = sub - desc;
+  const habia = comanda.descuento > 0;
+
+  const solapa = (k, texto) => (
+    <button onClick={() => { setModo(k); setValor(""); }}
+      className={`px-3 py-3 rounded-xl border-2 text-base font-semibold transition-colors ${
+        modo === k ? "border-acento bg-acento-suave text-texto" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+      {texto}
+    </button>
+  );
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5">
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Descuento</div>
+        <h3 className="f-d text-lg">{rotulo}</h3>
+
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          {solapa("pct", "Por porcentaje")}
+          {solapa("monto", "Por importe")}
+        </div>
+
+        <div className="mt-3 flex items-center gap-2 rounded-xl border-2 border-borde focus-within:border-acento px-4 py-3">
+          {!esPct && <span className="f-m text-2xl text-texto-tenue shrink-0">$</span>}
+          <input value={valor} onChange={(e) => setValor(e.target.value.replace(/\D/g, ""))}
+            inputMode="numeric" placeholder="0" autoFocus
+            className="f-m flex-1 min-w-0 text-3xl bg-transparent outline-none" />
+          {esPct && <span className="f-m text-2xl text-texto-tenue shrink-0">%</span>}
+        </div>
+
+        {/* Los de todos los días, para no tipear con gente esperando. */}
+        {esPct && (
+          <div className="grid grid-cols-4 gap-1.5 mt-2">
+            {[5, 10, 15, 20].map((p) => (
+              <button key={p} onClick={() => setValor(String(p))}
+                className={`f-m py-2.5 rounded-xl border text-sm font-semibold transition-colors ${
+                  n === p ? "border-acento bg-acento-suave text-acento" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+                {p}%
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="border-t border-borde mt-4 pt-3">
+          <div className="flex items-baseline justify-between text-sm text-texto-suave">
+            <span>Subtotal</span><span className="f-m">{money(sub)}</span>
+          </div>
+          <div className="flex items-baseline justify-between text-sm text-acento mt-0.5">
+            <span>Descuento{esPct && n > 0 ? ` (${Math.min(n, 100)}%)` : ""}</span>
+            <span className="f-m">-{money(desc)}</span>
+          </div>
+          <div className="flex items-baseline justify-between gap-2 mt-1">
+            <span className="f-d text-sm font-bold tracking-wider">QUEDA</span>
+            <span className="f-m text-3xl font-bold text-acento leading-none">{money(total)}</span>
+          </div>
+        </div>
+
+        {excede && (
+          <p className="text-xs text-mal mt-2">
+            {esPct ? "El porcentaje no puede pasar de 100." : "El descuento no puede ser mayor que la cuenta."}
+          </p>
+        )}
+
+        <Boton size="lg" className="w-full mt-4" disabled={trabajando || excede}
+          onClick={() => (n > 0 ? onAplicar(esPct ? { pct: n } : { monto: n }) : onQuitar())}>
+          <Check size={18} /> {n > 0 ? `Aplicar · queda ${money(total)}` : "Dejar sin descuento"}
+        </Boton>
+        {habia && (
+          <Boton variant="danger" className="w-full mt-1.5" disabled={trabajando} onClick={onQuitar}>
+            <X size={16} /> Quitar el descuento
+          </Boton>
+        )}
+        <Boton variant="quiet" className="w-full mt-1.5" onClick={onCerrar}>Cancelar</Boton>
+      </div>
+    </Modal>
+  );
+}
+
+/* --- Comensales --------------------------------------------------------
+   Se carga de pie y con la mesa mirando: los botones grandes ganan a
+   tipear, y los números de siempre ganan a los botones.                  */
+function ModalComensales({ abierto, comanda, rotulo, trabajando, onCerrar, onGuardar }) {
+  const [gente, setGente] = useState(0);
+
+  useEffect(() => { if (abierto) setGente(comanda.comensales || 0); }, [abierto]);
+
+  if (!abierto) return null;
+
+  const mover = (d) => setGente((g) => Math.max(0, Math.min(99, g + d)));
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-sm">
+      <div className="p-5">
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Comensales</div>
+        <h3 className="f-d text-lg">{rotulo}</h3>
+
+        <div className="flex items-center gap-3 mt-5">
+          <button onClick={() => mover(-1)} disabled={gente === 0} title="Uno menos"
+            className="w-16 h-16 shrink-0 rounded-2xl border-2 border-borde text-texto grid place-items-center hover:bg-superficie-2 disabled:opacity-30">
+            <Minus size={26} />
+          </button>
+          <input value={gente > 0 ? gente : ""} inputMode="numeric" placeholder="—"
+            onChange={(e) => setGente(Math.min(99, Number(e.target.value.replace(/\D/g, "")) || 0))}
+            className="f-m flex-1 min-w-0 text-center text-5xl bg-transparent outline-none" />
+          <button onClick={() => mover(1)} title="Uno más"
+            className="w-16 h-16 shrink-0 rounded-2xl border-2 border-acento bg-acento-suave text-acento grid place-items-center hover:bg-superficie-2">
+            <Plus size={26} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-5 gap-1.5 mt-4">
+          {[1, 2, 3, 4, 6].map((g) => (
+            <button key={g} onClick={() => setGente(g)}
+              className={`f-m py-2.5 rounded-xl border text-sm font-semibold transition-colors ${
+                gente === g ? "border-acento bg-acento-suave text-acento" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+              {g}
+            </button>
+          ))}
+        </div>
+
+        <Boton size="lg" className="w-full mt-5" disabled={trabajando} onClick={() => onGuardar(gente)}>
+          <Check size={18} /> {gente > 0 ? `Guardar · ${gente} en la mesa` : "Sin especificar"}
+        </Boton>
+        <Boton variant="quiet" className="w-full mt-1.5" onClick={onCerrar}>Cancelar</Boton>
+      </div>
+    </Modal>
+  );
+}
+
 /* --- Cobrar la mesa ---------------------------------------------------- */
 function ModalCobro({ abierto, comanda, comandaId, empresaId, config, ajustes, caja, toast, rotulo, voz = VOZ_MESA, onCerrar, onCobrada }) {
   const [sel, setSel] = useState(0);
@@ -1121,6 +1378,11 @@ function ModalCobro({ abierto, comanda, comandaId, empresaId, config, ajustes, c
         sesionId: caja.sesionId,
         pagos: [{ medio: medio.k, monto: rec.total, recargo: rec.recargo }],
         numero: siguienteNumero(empresaId, puntoVenta),
+        /* El descuento viaja explícito: quien cierra manda un monto y lo
+           que mande pisa lo guardado, así que omitirlo cerraría la mesa
+           en cero y cobraría de más. Es el mismo número que se está
+           mostrando en pantalla. */
+        descuento: comanda.descuento,
         recargo: rec.recargo,
       });
       toast(`${rotulo || "Comanda"} cobrada · ${money(rec.total)}`);
