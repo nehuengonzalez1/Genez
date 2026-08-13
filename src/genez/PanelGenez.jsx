@@ -15,6 +15,7 @@ import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES,
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
+import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
 import {
   cargarCaja, cargarCierres, cargarMovimientos, registrarMovimiento,
   abrirCaja as abrirCajaEnBase, cerrarCaja as cerrarCajaEnBase,
@@ -843,8 +844,26 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const [provs, setProvs] = useState(PROV_INFO);
   const [clientes, setClientes] = useState(CLIENTES_INICIALES);
   const [altaProd, setAltaProd] = useState(null);
-  const [ajustes, setAjustes] = useState({ negocio: "Super 25", cuit: "20-41564841-0", arca: false, medios: MEDIOS_INICIALES, fiscal: FISCAL_INICIAL, cobertura: 14, ancho: 80, sonido: true, listas: LISTAS_INICIALES, desc2: 10 });
+  /* Sale de la empresa, no del código. Antes cualquier comercio arrancaba
+     con el nombre y el CUIT de Super 25, así que imprimía comprobantes a
+     nombre de otro. */
+  const [ajustes, setAjustesLocal] = useState(() => ajustesDe(sesion.comercio));
   const [toasts, setToasts] = useState([]);
+
+  /* Las pantallas siguen llamando a setAjustes como siempre; lo que cambia
+     es que ahora el cambio también viaja a la base. Se guarda desde un
+     efecto y no adentro del setter porque React puede llamar al setter dos
+     veces por render, y eso serían dos escrituras por cada tecla. */
+  const setAjustes = setAjustesLocal;
+  const primerAjuste = useRef(true);
+  useEffect(() => {
+    if (primerAjuste.current) { primerAjuste.current = false; return; }
+    const t = setTimeout(() => {
+      guardarAjustes(empresaId, ajustes)
+        .catch((e) => toast(e.message || "No se pudieron guardar los ajustes.", "mal"));
+    }, 600);
+    return () => clearTimeout(t);
+  }, [ajustes, empresaId]);
 
   /* La caja arranca vacía y se lee de la base al montar: un arqueo sobre
      movimientos inventados no compara nada contra nada. */

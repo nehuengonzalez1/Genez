@@ -143,7 +143,39 @@ await comoUsuario(CAJERO, async () => {
 });
 
 /* ------------------------------------------------------------
-   4 · La bitácora no se corrige
+   4 · El comercio configura lo suyo, no lo que paga
+   ------------------------------------------------------------ */
+console.log("\nConfiguración del comercio");
+
+await comoUsuario(MOZO, async () => {
+  const emp = await una("select empresa_id from perfiles where id = auth.uid()");
+
+  const r = await c.query(
+    `update empresas set config = jsonb_set(config, '{ancho}', '80') where id = $1`, [emp.empresa_id]);
+  decir(r.rowCount === 1, "puede guardar su propia configuración");
+
+  /* Cada intento va entre puntos de guardado. Sin eso, la primera
+     excepción aborta la transacción y las que siguen fallan con otro
+     error: parecería que la regla no funciona cuando en realidad ni
+     llegaron a evaluarse. */
+  /* El valor tiene que ser distinto del que ya tiene: poner `activa` en
+     true sobre una cuenta activa no es un cambio, y la regla no tendría
+     nada que bloquear. La prueba pasaría sin probar nada. */
+  for (const [columna, valor] of [["modulos", `array['cobro']`], ["plan", `'gratis'`], ["activa", "false"], ["nombre", `'Otro nombre'`]]) {
+    await c.query("savepoint intento");
+    try {
+      await c.query(`update empresas set ${columna} = ${valor} where id = $1`, [emp.empresa_id]);
+      await c.query("release savepoint intento");
+      decir(false, `no puede cambiarse ${columna}`);
+    } catch (e) {
+      await c.query("rollback to savepoint intento");
+      decir(e.code === "P0004", `no puede cambiarse ${columna}`);
+    }
+  }
+});
+
+/* ------------------------------------------------------------
+   5 · La bitácora no se corrige
    ------------------------------------------------------------ */
 console.log("\nBitácora");
 
