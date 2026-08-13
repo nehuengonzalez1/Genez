@@ -29,12 +29,21 @@ function aMesa(f) {
     x: n(f.x), y: n(f.y),
     ancho: n(f.ancho) || 2, alto: n(f.alto) || 2,
     forma: f.forma || "rectangulo",
+    /* La vista ya trae con quién está unida y para cuánta gente quedó.
+       Sin exponerlo acá, la pantalla tenía que pedir los recursos otra
+       vez para saberlo: una consulta de más en cada refresco del salón. */
+    unidaA: f.unida_a || null,
+    unidas: n(f.unidas),
+    capacidadTotal: n(f.capacidad_total) || n(f.capacidad),
+
     comandaId: f.comanda_id,
     ocupada: !!f.comanda_id,
     abiertaEn: f.abierta_en ? new Date(f.abierta_en) : null,
     minutos: f.minutos == null ? null : Number(f.minutos),
+    comensales: f.comensales == null ? null : Number(f.comensales),
     consumido: n(f.consumido),
     items: n(f.items),
+    sinEnviar: n(f.sin_enviar),
     enCocina: n(f.en_cocina),
     listos: n(f.listos),
   };
@@ -234,6 +243,28 @@ export async function crearRecurso({ empresaId, sucursalId = null, nombre, tipo 
     throw error;
   }
   return data;
+}
+
+/* Juntar la 3 y la 4 cuando llegan seis y no hay mesa de seis. La unida
+   no abre cuenta propia: apunta a la que manda, y tocarla abre esa. */
+export async function unirMesas(principalId, secundariaId) {
+  const { error } = await supabase.rpc("unir_mesas", {
+    principal: principalId, secundaria: secundariaId,
+  });
+  if (error) {
+    const dicho = {
+      P0005: "Una mesa no se puede unir a sí misma.",
+      P0006: "Esa mesa ya está unida a otra. Uní a la principal.",
+      P0007: "Esta mesa tiene otras unidas. Separalas primero.",
+      P0008: "Esta mesa tiene una cuenta abierta. Cobrala antes de unirla.",
+    }[error.code];
+    throw new Error(dicho || error.message);
+  }
+}
+
+export async function separarMesa(mesaId) {
+  const { error } = await supabase.rpc("separar_mesa", { mesa: mesaId });
+  if (error) throw error;
 }
 
 export async function borrarRecurso(id) {

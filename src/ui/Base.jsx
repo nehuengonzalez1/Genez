@@ -52,6 +52,18 @@ export function Boton({ children, onClick, variant = "primary", size = "md", cla
   return <button title={title} disabled={disabled} onClick={onClick} className={`${base} ${v} ${s} ${className}`}>{children}</button>;
 }
 
+/* Lo que la maqueta muestra y el sistema todavía no hace. Se ve, ocupa su
+   lugar y se entiende que no anda: apagado, con el cursor cruzado y el
+   motivo en el título. Nunca un control que parece andar y no hace nada. */
+export function Apagado({ motivo, children, className = "" }) {
+  return (
+    <span title={`${motivo} todavía no está disponible.`}
+      className={`inline-flex items-center justify-center opacity-35 cursor-not-allowed select-none ${className}`}>
+      {children}
+    </span>
+  );
+}
+
 export function Modal({ open, onClose, children, ancho = "max-w-lg" }) {
   useEffect(() => {
     if (!open) return;

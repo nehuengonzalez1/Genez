@@ -33,12 +33,12 @@ import {
 import { money, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
 import { siguienteNumero } from "../datos/ventas.js";
 import {
-  cargarSalon, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
+  cargarSalon, cargarRecursos, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
   anularLinea, cambiarCantidad, enviarACocina, cargarCocina, moverComanda, cerrarComanda,
   CANALES, abrirPedido, cargarPedidos, cargarElementosPlano, cambiarCanal,
   aplicarDescuento, quitarDescuento, guardarComensales,
 } from "../datos/comandas.js";
-import { Card, Boton, Modal, Vacio, imprimirComandera, preCuenta } from "../ui/Base.jsx";
+import { Card, Boton, Modal, Vacio, Apagado, imprimirComandera, preCuenta } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { PlanoSalon } from "./PlanoSalon.jsx";
 
@@ -108,6 +108,36 @@ function encabezadoDe(p) {
   };
 }
 
+/* El salón con las uniones puestas.
+   `cargarSalon` mapea la vista con `aMesa`, que no expone `unida_a` aunque
+   la vista sí lo trae: sin ese dato el plano no puede dibujar dos mesas
+   juntas como un bloque ni sumar la capacidad. Hasta que el mapeo lo
+   exponga, se completa con los recursos crudos, que sí lo tienen. */
+async function leerSalon(empresaId) {
+  const [mesas, recursos] = await Promise.all([cargarSalon(empresaId), cargarRecursos(empresaId)]);
+
+  const jefa = new Map();
+  const sumadas = new Map();   // id de la principal -> { cuantas, lugares }
+  for (const r of recursos) {
+    jefa.set(r.id, r.unida_a || null);
+    if (!r.unida_a) continue;
+    const acum = sumadas.get(r.unida_a) || { cuantas: 0, lugares: 0 };
+    acum.cuantas += 1;
+    acum.lugares += Number(r.capacidad) || 0;
+    sumadas.set(r.unida_a, acum);
+  }
+
+  return mesas.map((m) => {
+    const acum = sumadas.get(m.id) || { cuantas: 0, lugares: 0 };
+    return {
+      ...m,
+      unidaA: jefa.get(m.id) || null,
+      unidas: acum.cuantas,
+      capacidadTotal: (Number(m.capacidad) || 0) + acum.lugares,
+    };
+  });
+}
+
 function Rotulo({ children, className = "" }) {
   return (
     <div className={`text-[11px] uppercase tracking-widest text-texto-tenue font-bold ${className}`}>
@@ -150,7 +180,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
     const leer = async () => {
       try {
         const [p, m, e] = await Promise.all([
-          cargarPedidos(empresaId), cargarSalon(empresaId), cargarElementosPlano(empresaId),
+          cargarPedidos(empresaId), leerSalon(empresaId), cargarElementosPlano(empresaId),
         ]);
         if (!vivo) return;
         setPedidos(p); setMesas(m); setElementos(e);
@@ -166,13 +196,16 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
     return () => { vivo = false; clearInterval(id); };
   }, [empresaId, abierta]);
 
-  const abrirCanal = async (datos) => {
+  /* `volverA` es de dónde salió el pedido: quien está mirando el salón y
+     toma un take away tiene que volver al salón, no a la pantalla de
+     inicio. */
+  const abrirCanal = async (datos, volverA = "inicio") => {
     if (abriendo) return;
     setAbriendo(datos.canal);
     try {
       const id = await abrirPedido({ empresaId, sucursalId, ...datos });
       setNuevo(null);
-      setAbierta({ id, voz: VOZ_CANAL, datos, encabezado: encabezadoDe(datos), volverA: "inicio" });
+      setAbierta({ id, voz: VOZ_CANAL, datos, encabezado: encabezadoDe(datos), volverA });
     } catch (e) {
       avisar.current(e.message || "No se pudo abrir el pedido.", "mal");
     } finally {
@@ -218,14 +251,17 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
   };
 
   if (abierta) {
-    const esMesa = abierta.volverA === "salon";
+    /* Es una mesa por su voz y no por dónde vuelve: desde el salón también
+       se toma un take away, y ese vuelve al salón sin ser una mesa. */
+    const esMesa = abierta.voz === VOZ_MESA;
+    const volver = abierta.volverA === "salon" ? "Salón" : "Pedidos";
     return (
       <>
         <Pedido
           pleno comandaId={abierta.id} empresaId={empresaId} config={config}
           ajustes={ajustes} caja={caja} toast={toast}
           empleado={sesion ? sesion.nombre : ""}
-          voz={esMesa ? VOZ_MESA : { ...abierta.voz, volver: "Pedidos" }}
+          voz={esMesa ? VOZ_MESA : { ...abierta.voz, volver }}
           encabezado={abierta.encabezado}
           onCambiarCanal={esMesa ? null : (otro) =>
             (otro ? corregirCanal({ ...(abierta.datos || {}), ...otro }) : setCambiando(true))}
@@ -246,13 +282,18 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
           </Boton>
           <h2 className="f-d text-lg">Salón</h2>
         </div>
-        <div className="flex-1 min-h-0 overflow-auto">
+        <div className="flex-1 min-h-0">
           <PlanoSalon
-            mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
+            pleno mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
             puedeEditar={!!permisos.ajustes} empresaId={empresaId} sucursalId={sucursalId}
             toast={toast} onTocarMesa={(m) => entrarAMesa(m, "salon")}
+            onMostrador={() => abrirCanal({ canal: "mostrador" }, "salon")}
+            onTakeAway={() => setNuevo("takeaway")}
             onActualizar={() => releer.current()} onGuardado={() => releer.current()} />
         </div>
+
+        <ModalNuevoPedido abierto={!!nuevo} canalInicial={nuevo} trabajando={!!abriendo}
+          onCerrar={() => setNuevo(null)} onCrear={(datos) => abrirCanal(datos, "salon")} />
       </div>
     );
   }
@@ -404,13 +445,14 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
   const [cargando, setCargando] = useState(true);
   const [comandaId, setComandaId] = useState(null);
   const [abriendo, setAbriendo] = useState(null);
+  const [nuevo, setNuevo] = useState(null);   // canal elegido, esperando los datos
 
   const avisar = useRef(toast);
   avisar.current = toast;
 
-  const leerSalon = useCallback(async () => {
+  const releerSalon = useCallback(async () => {
     try {
-      const [m, e] = await Promise.all([cargarSalon(empresaId), cargarElementosPlano(empresaId)]);
+      const [m, e] = await Promise.all([leerSalon(empresaId), cargarElementosPlano(empresaId)]);
       setMesas(m);
       setElementos(e);
     } catch (e) {
@@ -420,7 +462,7 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
     }
   }, [empresaId]);
 
-  useEffect(() => { leerSalon(); }, [leerSalon]);
+  useEffect(() => { releerSalon(); }, [releerSalon]);
 
   const entrar = async (mesa) => {
     if (abriendo) return;
@@ -436,7 +478,23 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
     }
   };
 
-  const volver = () => { setComandaId(null); leerSalon(); };
+  /* Del salón también salen pedidos que no ocupan mesa: el que atiende ve
+     el mapa y le piden un café para llevar. */
+  const abrirCanal = async (datos) => {
+    if (abriendo) return;
+    setAbriendo(datos.canal);
+    try {
+      const id = await abrirPedido({ empresaId, sucursalId, ...datos });
+      setNuevo(null);
+      setComandaId(id);
+    } catch (e) {
+      avisar.current(e.message || "No se pudo abrir el pedido.", "mal");
+    } finally {
+      setAbriendo(null);
+    }
+  };
+
+  const volver = () => { setComandaId(null); releerSalon(); };
 
   if (comandaId) {
     return (
@@ -453,10 +511,18 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
   }
 
   return (
-    <PlanoSalon
-      mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
-      puedeEditar={!!permisos.ajustes} empresaId={empresaId} sucursalId={sucursalId}
-      toast={toast} onTocarMesa={entrar} onActualizar={leerSalon} onGuardado={leerSalon} />
+    <>
+      <PlanoSalon
+        mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
+        puedeEditar={!!permisos.ajustes} empresaId={empresaId} sucursalId={sucursalId}
+        toast={toast} onTocarMesa={entrar}
+        onMostrador={() => abrirCanal({ canal: "mostrador" })}
+        onTakeAway={() => setNuevo("takeaway")}
+        onActualizar={releerSalon} onGuardado={releerSalon} />
+
+      <ModalNuevoPedido abierto={!!nuevo} canalInicial={nuevo} trabajando={!!abriendo}
+        onCerrar={() => setNuevo(null)} onCrear={abrirCanal} />
+    </>
   );
 }
 
@@ -985,18 +1051,6 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
         config={config} ajustes={ajustes} caja={caja} toast={toast} rotulo={rotulo} voz={voz}
         onCerrar={() => setCobrando(false)} onCobrada={onVolver} />
     </div>
-  );
-}
-
-/* Lo que la maqueta muestra y el sistema todavía no hace. Se ve, ocupa su
-   lugar y se entiende que no anda: apagado, con el cursor cruzado y el
-   motivo en el título. Nunca un botón que parece andar y no hace nada. */
-function Apagado({ motivo, children, className = "" }) {
-  return (
-    <span title={`${motivo} todavía no está disponible.`}
-      className={`inline-flex items-center justify-center opacity-35 cursor-not-allowed select-none ${className}`}>
-      {children}
-    </span>
   );
 }
 
