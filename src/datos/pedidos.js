@@ -244,15 +244,19 @@ export async function cargarPedidos(empresaId, { desde = null } = {}) {
 
 /* El historial, con filtros. Es la misma vista: un pedido de hace tres
    meses se mira igual que uno de hace tres minutos. */
+/* `conSalon` es la diferencia entre el historial del centro de pedidos
+   —que no tiene por qué mostrar mesas— y el de la comanda, donde lo que
+   se busca suele ser justamente la mesa de anoche. */
 export async function buscarPedidos(empresaId, {
-  desde = null, hasta = null, canal = null, estado = null, texto = "", tope = 200,
+  desde = null, hasta = null, canal = null, estado = null, texto = "", tope = 200, conSalon = false,
 } = {}) {
   let q = supabase
     .from("pedidos_vista").select(COLUMNAS)
     .eq("empresa_id", empresaId)
-    .neq("familia", "salon")
     .order("fecha", { ascending: false })
     .limit(tope);
+
+  if (!conSalon) q = q.neq("familia", "salon");
 
   if (desde) q = q.gte("fecha", desde);
   if (hasta) q = q.lt("fecha", hasta);
@@ -269,6 +273,8 @@ export async function buscarPedidos(empresaId, {
       `numero.ilike.${v}`,
       `cliente_nombre.ilike.${v}`,
       `canal_nombre.ilike.${v}`,
+      `mesa.ilike.${v}`,
+      `usuario_nombre.ilike.${v}`,
     ].join(","));
   }
 

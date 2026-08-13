@@ -34,6 +34,7 @@ node scripts/probar-cocina.mjs     # agrupado por comanda
 node scripts/probar-descuento.mjs  # descuento y comensales
 node scripts/probar-agrupado.mjs   # líneas repetidas
 node scripts/probar-pedidos.mjs    # estados, flujo por canal e historial
+node scripts/probar-comanda.mjs    # dividir la cuenta, cerrar y auditoría
 ```
 
 `probar-rls.mjs` toma la identidad de un usuario con `set local role
@@ -111,6 +112,7 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 | `cerrar_comanda(...)` | Cobra una mesa. Calcula totales de las líneas. |
 | `confirmar_operacion(...)` | Lo común a las dos: caja, pagos, stock. |
 | `abrir_comanda(jsonb)` | Ocupa una mesa o abre un pedido sin mesa. |
+| `registrar_pago(...)` | Un pago sobre una cuenta abierta. Dividir es esto, varias veces. |
 | `mover_pedido(...)` | Cambia el estado: valida el flujo del canal, mueve la cocina y deja historial. |
 | `estadisticas_pedidos(...)` | Pedidos, ventas, tiempos y evolución de un período. |
 | `sembrar_canales(uuid)` | Los canales con los que arranca un comercio. |
@@ -130,6 +132,24 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 4. **No se cobra sin caja abierta.** Se verifica en la base.
 5. **Lo que toca varias tablas va en una función**, no en varias llamadas
    desde el navegador.
+
+## La comanda
+
+`Pedido`, dentro de `src/modulos/Comandas.jsx`, es la misma pantalla para
+una mesa y para un delivery: lo único que cambia son las palabras
+(`VOZ_MESA` y `VOZ_CANAL`) y el encabezado.
+
+**Dividir la cuenta no parte la operación.** Una mesa que paga entre tres
+sigue siendo una comanda con tres pagos: partirla duplicaría líneas,
+descuadraría el stock y dejaría dos comandas donde hubo una. Lo que se
+divide es la plata, con `registrar_pago`, que exige caja abierta y no
+deja cobrar más que el saldo. `cuenta_vista` dice cuánto va, cuánto se
+pagó y cuánto falta.
+
+**Lo que achica una cuenta queda escrito.** Anular una línea, bajar una
+cantidad y aplicar un descuento van a la bitácora con quién y cuándo: es
+por donde se va la plata de un local. El alta no se anota porque la línea
+misma ya es el registro, y ahora lleva `usuario_id`.
 
 ## El centro de pedidos
 

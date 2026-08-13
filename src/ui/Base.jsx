@@ -465,6 +465,43 @@ export function preCuenta(c, ajustes, W) {
   return armarLineas(W, b);
 }
 
+/* --- Comanda de cocina -------------------------------------------------
+   El papel que va a la plancha. No lleva precios: al que cocina no le
+   sirven y le tapan lo único que importa, que es qué hacer y cómo.
+
+   Las cantidades van adelante y grandes, los modificadores debajo de su
+   plato y con sangría, y la observación del pedido arriba de todo,
+   porque "cliente alérgico" leído al final es tarde.                     */
+export function comandaCocina(c, W) {
+  const b = [
+    { t: "c", v: (c.titulo || "PEDIDO").toUpperCase() },
+    { t: "lr", a: c.referencia ? `#${c.referencia}` : "", b: c.hora },
+  ];
+  if (c.mozo) b.push({ t: "v", v: `MOZO ${c.mozo.toUpperCase()}` });
+  if (c.comensales > 0) b.push({ t: "v", v: `COMENSALES ${c.comensales}` });
+
+  if (c.observacion) {
+    b.push({ t: "sep", c: "*" });
+    b.push({ t: "w", v: c.observacion.toUpperCase() });
+    b.push({ t: "sep", c: "*" });
+  } else {
+    b.push({ t: "sep", c: "=" });
+  }
+
+  for (const l of c.items) {
+    b.push({ t: "w", v: `${l.cantidad}  ${String(l.nombre).toUpperCase()}` });
+    for (const m of l.modificadores || []) {
+      b.push({ t: "w", v: `   - ${String(m.nombre).toUpperCase()}` });
+    }
+    if (l.notas) b.push({ t: "w", v: `   ** ${String(l.notas).toUpperCase()}` });
+  }
+
+  b.push({ t: "sep" });
+  b.push({ t: "lr", a: "TOTAL DE PLATOS", b: String(c.items.reduce((s, l) => s + l.cantidad, 0)) });
+  b.push({ t: "b" });
+  return armarLineas(W, b);
+}
+
 export function comandaPicking(ped, W) {
   const b = [
     { t: "c", v: "PREPARACION DE PEDIDO" },

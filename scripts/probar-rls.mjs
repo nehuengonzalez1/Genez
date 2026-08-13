@@ -264,6 +264,43 @@ await comoUsuario(CAJERO, async () => {
 });
 
 /* ------------------------------------------------------------
+   4 quater · Dividir la cuenta con un usuario de verdad
+
+   Un pago parcial es un INSERT en pagos y otro en movimientos_caja desde
+   una función que corre con los permisos de quien llama. Si alguna
+   política no lo contempla, no falla: no escribe.
+   ------------------------------------------------------------ */
+console.log("\nDividir la cuenta");
+
+await comoUsuario(MOZO, async () => {
+  const emp = await una("select empresa_id from perfiles where id = auth.uid()");
+  const item = await una("select id, nombre, precio, costo from items where empresa_id = $1 limit 1", [emp.empresa_id]);
+
+  const cm = await una("select abrir_comanda($1::jsonb) id",
+    [JSON.stringify({ empresa_id: emp.empresa_id, canal: "mostrador" })]);
+  await c.query(
+    `insert into operacion_lineas (operacion_id, empresa_id, item_id, descripcion, cantidad,
+       precio_unitario, costo_unitario, total)
+     values ($1,$2,$3,$4,2,$5::numeric,$6::numeric,$5::numeric * 2)`,
+    [cm.id, emp.empresa_id, item.id, item.nombre, item.precio, item.costo]);
+
+  const r = await c.query("update operaciones set observacion = 'sin sal' where id = $1", [cm.id]);
+  decir(r.rowCount === 1, "puede dejar una observación en la comanda");
+
+  const ses = await una(
+    "insert into sesiones_caja (empresa_id, monto_inicial) values ($1, 0) returning id", [emp.empresa_id]);
+
+  const mitad = Math.round(Number(item.precio));
+  await c.query("select registrar_pago($1, $2, 'efectivo', $3::numeric, null, 'mitad')", [cm.id, ses.id, mitad]);
+
+  const cuenta = await una("select pagado::int, saldo::int from cuenta_vista where id = $1", [cm.id]);
+  decir(cuenta.pagado === mitad, `el pago parcial queda escrito (${cuenta.pagado})`);
+
+  const enCaja = await una("select count(*) n from movimientos_caja where operacion_id = $1", [cm.id]);
+  decir(enCaja.n === "1", "y entra a la caja, que es lo que la política tiene que permitir");
+});
+
+/* ------------------------------------------------------------
    5 · Juntar y separar mesas
    ------------------------------------------------------------ */
 console.log("\nJuntar mesas");

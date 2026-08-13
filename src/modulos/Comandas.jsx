@@ -23,23 +23,24 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ArrowLeft, Clock, Check, Plus, Minus, Trash2, Search,
-  StickyNote, X, RefreshCw, ChefHat, Store, History, Filter,
+  StickyNote, X, RefreshCw, ChefHat, Store, History, Filter, ShoppingBag,
   UtensilsCrossed, ChevronRight,
   Users, MoreVertical, Pencil, CreditCard, Percent, Printer, Split,
   Receipt, FileText,
   Pizza, Beef, Sandwich, Salad, Soup, Fish, Drumstick, Coffee, Wine, Beer,
   CupSoda, IceCream, Cake, Croissant, Cookie, Milk, Flame, Utensils,
 } from "lucide-react";
-import { money, hora, mediosDe, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
+import { money, hora, mediosDe, medioPorK, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
 import { siguienteNumero } from "../datos/ventas.js";
 import {
   cargarSalon, cargarRecursos, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
   anularLinea, cambiarCantidad, enviarACocina, cargarCocina, moverComanda, cerrarComanda,
   abrirPedido, cargarElementosPlano, cambiarCanal,
   aplicarDescuento, quitarDescuento, guardarComensales,
+  guardarObservacion, cargarCuenta, registrarPago,
 } from "../datos/comandas.js";
-import { cargarPedidos, cargarCanales } from "../datos/pedidos.js";
-import { Card, Boton, Modal, Vacio, Apagado, imprimirComandera, preCuenta } from "../ui/Base.jsx";
+import { cargarPedidos, cargarCanales, buscarPedidos } from "../datos/pedidos.js";
+import { Card, Boton, Modal, Vacio, Apagado, imprimirComandera, preCuenta, comandaCocina } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { tonoCanal, IconoCanal } from "../ui/canales.jsx";
 import { CentroPedidos, ModalNuevoPedido } from "./CentroPedidos.jsx";
@@ -582,6 +583,10 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
   const [cobrando, setCobrando] = useState(false);
   const [descontando, setDescontando] = useState(false);
   const [contando, setContando] = useState(false);  // cuánta gente hay en la mesa
+  const [observando, setObservando] = useState(false);
+  const [viendoCuenta, setViendoCuenta] = useState(false);
+  const [dividiendo, setDividiendo] = useState(false);
+  const [viendoHistorial, setViendoHistorial] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
   const [panel, setPanel] = useState("carta");    // solo manda en pantalla chica
 
@@ -787,24 +792,73 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
   const ahora = hora(reloj);
   const W = ajustes.ancho === 58 ? 32 : 48;
 
-  /* Los comensales son de la mesa: un delivery o un pedido de mostrador no
-     tiene gente sentada que dividir. */
   const esSalon = comanda.canal === "salon";
-  const porPersona = esSalon && comanda.comensales > 0
+  /* Dividir por gente no es solo de la mesa: un pedido de seis porciones
+     para llevar también se reparte entre los que lo pagan. */
+  const porPersona = comanda.comensales > 0
     ? Math.round(comanda.total / comanda.comensales) : null;
 
   const imprimirPreCuenta = () => {
     imprimirComandera(preCuenta({
       titulo: rotulo,
       fecha: reloj.toLocaleDateString("es-AR"),
-      hora,
+      hora: ahora,
       items: lineas,
       subtotal: comanda.subtotal,
       descuento: comanda.descuento,
       descuentoPct: comanda.descuentoPct,
       total: comanda.total,
-      comensales: esSalon ? comanda.comensales : null,
+      comensales: comanda.comensales,
     }, ajustes, W), ajustes.ancho, null, toast);
+  };
+
+  /* El papel que va a la plancha. Sale la comanda entera y no solo lo que
+     falta despachar: es la copia de referencia de lo que se pidió, no el
+     aviso a la cocina —para eso está "A cocina". */
+  const imprimirComanda = () => {
+    imprimirComandera(comandaCocina({
+      titulo: rotulo,
+      referencia: comanda.referencia,
+      hora: ahora,
+      mozo: empleado,
+      comensales: comanda.comensales,
+      observacion: comanda.observacion,
+      items: lineas,
+    }, W), ajustes.ancho, null, toast);
+  };
+
+  const ponerObservacion = async (texto) => {
+    if (trabajando) return;
+    setTrabajando(true);
+    try {
+      await guardarObservacion(comandaId, texto);
+      await leerComanda();
+      setObservando(false);
+    } catch (e) {
+      avisar.current(e.message || "No se pudo guardar la observación.", "mal");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  /* Un pago sobre la cuenta abierta: la mesa paga una parte y puede seguir
+     pidiendo. Lo que cierra la cuenta es el cobro del saldo. */
+  const pagarParte = async ({ medio, monto, detalle }) => {
+    if (!caja.sesionId) {
+      avisar.current("Abrí la caja antes de cobrar.", "mal");
+      return null;
+    }
+    try {
+      const saldo = await registrarPago({
+        comandaId, sesionId: caja.sesionId, medio, monto, detalle,
+      });
+      await leerComanda();
+      avisar.current(saldo > 0 ? `Pagado. Faltan ${money(saldo)}.` : "Cuenta saldada: cobrá para cerrarla.");
+      return saldo;
+    } catch (e) {
+      avisar.current(e.message || "No se pudo registrar el pago.", "mal");
+      return null;
+    }
   };
 
   return (
@@ -837,20 +891,27 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                 ) : (
                   <span className="text-acento font-bold text-sm truncate">{rotulo}</span>
                 )}
-                {esSalon ? (
-                  <button onClick={() => setContando(true)} title="Cuánta gente hay en la mesa"
-                    className="inline-flex items-center gap-1 text-acento hover:text-acento-vivo shrink-0 transition-colors">
-                    <Users size={15} />
-                    <span className="f-m text-sm">{comanda.comensales > 0 ? comanda.comensales : "—"}</span>
-                  </button>
-                ) : (
-                  <Apagado motivo="Contar los comensales" className="gap-1 text-acento shrink-0">
-                    <Users size={15} /><span className="f-m text-sm">—</span>
-                  </Apagado>
-                )}
-                <Apagado motivo="El menú de la comanda" className="text-acento shrink-0">
-                  <MoreVertical size={17} />
-                </Apagado>
+                {/* Contar la gente no es solo de la mesa: un take away de
+                    seis porciones también se reparte, y el ticket por
+                    persona sale de acá. */}
+                <button onClick={() => setContando(true)} title="Cuánta gente hay"
+                  className="inline-flex items-center gap-1 text-acento hover:text-acento-vivo shrink-0 transition-colors">
+                  <Users size={15} />
+                  <span className="f-m text-sm">{comanda.comensales > 0 ? comanda.comensales : "—"}</span>
+                </button>
+                {/* Soltar la comanda vive acá y no en la grilla: es lo que
+                    menos se hace y lo único que no tiene vuelta atrás.
+                    Abajo, entre "Cobrar" y "Descuento", era un botón que
+                    alguien iba a tocar de apurado. */}
+                <MenuComanda
+                  observacion={comanda.observacion}
+                  onObservacion={() => setObservando(true)}
+                  onCuenta={() => setViendoCuenta(true)}
+                  onImprimir={imprimirComanda}
+                  onHistorial={() => setViendoHistorial(true)}
+                  soltar={lineas.length ? null : voz.soltar}
+                  soltarMotivo={lineas.length ? "Sacá primero lo que está cargado" : null}
+                  onSoltar={liberar} />
               </div>
             </div>
             {(sub || hace) && (
@@ -913,12 +974,19 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
               </ul>
             )}
 
+            {/* La observación del pedido entero vive al pie de la lista y
+                no en un modal escondido: si dice "cliente alérgico" tiene
+                que verse mientras se carga, no cuando alguien la busque. */}
             <div className="px-2 pb-2">
-              <Apagado motivo="Agregar una observación" className="w-full">
-                <span className="w-full text-center rounded-xl border border-dashed border-borde-fuerte py-2.5 text-xs font-semibold text-texto-suave">
-                  + Agregar observación
-                </span>
-              </Apagado>
+              <button onClick={() => setObservando(true)}
+                className={`w-full text-left rounded-xl border py-2.5 px-3 text-xs font-semibold transition-colors ${
+                  comanda.observacion
+                    ? "border-ojo bg-ojo-suave text-ojo"
+                    : "border-dashed border-borde-fuerte text-texto-suave hover:bg-superficie-2 hover:text-texto text-center"}`}>
+                {comanda.observacion
+                  ? <span className="flex items-start gap-1.5"><StickyNote size={13} className="shrink-0 mt-0.5" /> {comanda.observacion}</span>
+                  : "+ Agregar observación"}
+              </button>
             </div>
           </div>
 
@@ -946,7 +1014,10 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-2 mt-4">
+            {/* Dos columnas y en este orden: la izquierda hace avanzar el
+                servicio —mandar, cobrar— y la derecha consulta o imprime.
+                La mano aprende el lado antes que el rótulo. */}
+            <div className="grid grid-cols-2 gap-2 mt-4">
               {/* El número dice cuánto falta despachar: es la diferencia
                   entre "ya salió" y "el cliente sigue esperando y nadie
                   en la cocina lo sabe". */}
@@ -964,7 +1035,10 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                 title={voz.cobrar}>
                 Cobrar
               </Accion>
-              <Accion icono={FileText} pronto="La cuenta">Cuenta</Accion>
+              <Accion icono={FileText} onClick={() => setViendoCuenta(true)}
+                title="Cuánto va, cuánto se pagó y cuánto falta">
+                Cuenta
+              </Accion>
 
               {/* Con descuento puesto el botón queda en acento: es la única
                   forma de que se note desde la grilla que la cuenta no es
@@ -978,25 +1052,39 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                   ? (comanda.descuentoPct != null ? `Desc · ${comanda.descuentoPct}%` : `Desc · ${money(comanda.descuento)}`)
                   : "Descuento"}
               </Accion>
-              <Accion icono={StickyNote} pronto="La observación">Observación</Accion>
+              <Accion icono={StickyNote} tono={comanda.observacion ? "acento" : "oscuro"}
+                onClick={() => setObservando(true)}
+                title={comanda.observacion || "Algo que hay que saber de este pedido"}>
+                Observación
+              </Accion>
 
-              <Accion icono={Split} pronto="Dividir la cuenta">Dividir cuenta</Accion>
-              <Accion icono={Printer} pronto="Imprimir la comanda">Imprimir</Accion>
+              <Accion icono={Split} disabled={!lineas.length} onClick={() => setDividiendo(true)}
+                title="Cobrar la cuenta en partes">
+                Dividir cuenta
+              </Accion>
+              <Accion icono={Printer} disabled={!lineas.length} onClick={imprimirComanda}
+                title="Imprimir la comanda para la cocina">
+                Imprimir
+              </Accion>
 
-              <Accion icono={ArrowLeft} onClick={onVolver} title={`Volver a ${voz.volver}`}>
+              <Accion icono={ArrowLeft} className="col-span-2" onClick={onVolver} title={`Volver a ${voz.volver}`}>
                 {voz.volver}
               </Accion>
 
-              {/* Siempre visible aunque no siempre se pueda usar. Un botón que
-                  aparece y desaparece según lo que haya cargado hace que la
-                  grilla se mueva abajo de la mano: se va a tocar otra cosa.
-                  Con líneas cargadas queda apagado porque soltar la mesa así
-                  perdería lo que ya se pidió. */}
-              <Accion icono={X} disabled={trabajando || !!lineas.length} onClick={liberar}
-                pronto={lineas.length ? "Anular un pedido que ya tiene cosas cargadas" : null}
-                title={voz.soltar}>
-                {voz.soltarCorto || voz.soltar}
+              {/* Mostrador y para llevar cambian de qué es este pedido, no
+                  abren otro. En una mesa no se ofrecen: pasar la Mesa 7 a
+                  mostrador de un toque la liberaría con gente sentada. */}
+              <Accion icono={Store} disabled={!onCambiarCanal || comanda.canal === "mostrador"}
+                onClick={() => onCambiarCanal && onCambiarCanal({ canal: "mostrador" })}
+                title={onCambiarCanal ? "Este pedido se atiende en el mostrador" : `Esta comanda es de ${rotulo}`}>
+                Mostrador
               </Accion>
+              <Accion icono={ShoppingBag} disabled={!onCambiarCanal || comanda.canal === "takeaway"}
+                onClick={() => onCambiarCanal && onCambiarCanal({ canal: "takeaway" })}
+                title={onCambiarCanal ? "Este pedido lo pasan a buscar" : `Esta comanda es de ${rotulo}`}>
+                Take away
+              </Accion>
+
             </div>
           </div>
         </Card>
@@ -1031,11 +1119,10 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                 </button>
               );
             })}
-            <Apagado motivo="Los extras" className="shrink-0">
-              <span className="px-3.5 py-2 rounded-xl text-sm font-semibold border border-borde bg-superficie text-texto-suave whitespace-nowrap">
-                + Extras
-              </span>
-            </Apagado>
+            {/* Las categorías son las del catálogo del comercio y nada más.
+                Antes había un "+ Extras" apagado al final: si el negocio
+                quiere una categoría Extras, la crea en Productos y aparece
+                acá como cualquier otra. */}
           </div>
 
           <div className="flex-1 min-h-0 overflow-auto p-2.5">
@@ -1061,9 +1148,10 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
           {caja.abierta ? "Caja abierta" : "Caja cerrada"}
         </span>
         <span className="f-m">{ahora}</span>
-        <Apagado motivo="El historial de comandas" className="ml-auto gap-1.5 font-semibold">
+        <button onClick={() => setViendoHistorial(true)}
+          className="ml-auto inline-flex items-center gap-1.5 font-semibold text-texto-suave hover:text-texto transition-colors">
           <History size={14} /> Historial de comandas
-        </Apagado>
+        </button>
       </Card>
 
       <ModalDetalle item={detalle} onCerrar={() => setDetalle(null)}
@@ -1071,6 +1159,19 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
 
       <ModalDescuento abierto={descontando} comanda={comanda} rotulo={rotulo} trabajando={trabajando}
         onCerrar={() => setDescontando(false)} onAplicar={ponerDescuento} onQuitar={sacarDescuento} />
+
+      <ModalObservacion abierto={observando} valor={comanda.observacion} rotulo={rotulo}
+        trabajando={trabajando} onCerrar={() => setObservando(false)} onGuardar={ponerObservacion} />
+
+      <ModalCuenta abierto={viendoCuenta} comandaId={comandaId} rotulo={rotulo} ajustes={ajustes}
+        onCerrar={() => setViendoCuenta(false)} onCobrar={() => { setViendoCuenta(false); setCobrando(true); }} />
+
+      <ModalDividir abierto={dividiendo} comandaId={comandaId} comanda={comanda} lineas={lineas}
+        ajustes={ajustes} caja={caja} rotulo={rotulo}
+        onCerrar={() => setDividiendo(false)} onPagar={pagarParte} />
+
+      <ModalHistorial abierto={viendoHistorial} empresaId={empresaId}
+        onCerrar={() => setViendoHistorial(false)} />
 
       <ModalComensales abierto={contando} comanda={comanda} rotulo={rotulo} trabajando={trabajando}
         onCerrar={() => setContando(false)} onGuardar={ponerComensales} />
@@ -1122,9 +1223,10 @@ function Accion({ icono: Icono, children, onClick, tono = "oscuro", pronto = nul
   );
 }
 
-/* No hay fotos de los platos y no vale la pena inventarlas: el cuadrado
-   lleva la inicial, que a la velocidad de lectura de una carta alcanza
-   para distinguir una fila de otra. */
+/* La foto sale del producto (items.imagen). El que no tiene queda con su
+   inicial sobre el mismo cuadrado: a la velocidad de lectura de una carta
+   alcanza para distinguir una fila de otra, y una carta a medio fotografiar
+   no se ve rota. Ninguna imagen escrita en el código. */
 function FichaCarta({ item, onTocar, onSumar }) {
   /* Qué lleva el plato, que es por lo que el cliente elige. Si no está
      cargado no se rellena con el destino ni con la categoría: decir
@@ -1134,9 +1236,14 @@ function FichaCarta({ item, onTocar, onSumar }) {
     <div className="relative">
       <button onClick={onTocar} title="Cantidad y cómo lo quieren"
         className="w-full h-full flex items-center gap-3 text-left rounded-2xl border border-borde bg-superficie-2 p-2.5 pr-12 transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
-        <span className="w-14 h-14 shrink-0 rounded-xl bg-acento-suave text-acento-vivo f-d text-2xl grid place-items-center">
-          {(item.nombre || "?").trim().charAt(0).toUpperCase()}
-        </span>
+        {item.imagen ? (
+          <img src={item.imagen} alt="" loading="lazy"
+            className="w-14 h-14 shrink-0 rounded-xl object-cover bg-superficie-3" />
+        ) : (
+          <span className="w-14 h-14 shrink-0 rounded-xl bg-acento-suave text-acento-vivo f-d text-2xl grid place-items-center">
+            {(item.nombre || "?").trim().charAt(0).toUpperCase()}
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold leading-tight line-clamp-2">{item.nombre}</span>
           <span className="block f-m text-sm text-acento">{money(item.precio)}</span>
@@ -1432,6 +1539,420 @@ function ModalComensales({ abierto, comanda, rotulo, trabajando, onCerrar, onGua
 }
 
 /* --- Cobrar la mesa ---------------------------------------------------- */
+/* ============================================================
+   3 bis. LO QUE CUELGA DE LA COMANDA
+   ============================================================ */
+
+/* El menú de tres puntos: lo que se hace de vez en cuando y no merece un
+   botón propio en la grilla, que es donde está lo de todo el rato. */
+function MenuComanda({ observacion, onObservacion, onCuenta, onImprimir, onHistorial, soltar, soltarMotivo, onSoltar }) {
+  const [abierto, setAbierto] = useState(false);
+
+  const opciones = [
+    { i: StickyNote, n: observacion ? "Editar la observación" : "Agregar observación", f: onObservacion },
+    { i: FileText, n: "Ver la cuenta", f: onCuenta },
+    { i: Printer, n: "Imprimir la comanda", f: onImprimir },
+    { i: History, n: "Historial de comandas", f: onHistorial },
+    /* Aparece siempre, pueda o no usarse: una opción que va y viene de la
+       lista hace que la de al lado quede abajo del dedo. */
+    { i: X, n: soltar || soltarMotivo, f: onSoltar, mal: true, muerta: !soltar },
+  ];
+
+  return (
+    <span className="relative shrink-0">
+      <button onClick={() => setAbierto((v) => !v)} title="Más cosas de esta comanda"
+        className="text-acento hover:text-acento-vivo transition-colors">
+        <MoreVertical size={17} />
+      </button>
+      {abierto && (
+        <>
+          {/* El velo cierra el menú al tocar cualquier lado. Sin esto queda
+              abierto atrás de lo próximo que se haga. */}
+          <span className="fixed inset-0 z-40" onClick={() => setAbierto(false)} />
+          <span className="absolute right-0 top-7 z-50 w-56 rounded-xl border border-borde bg-superficie shadow-lg overflow-hidden">
+            {opciones.map((o) => (
+              <button key={o.n} disabled={o.muerta}
+                onClick={() => { setAbierto(false); o.f(); }}
+                className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-sm transition-colors
+                  disabled:opacity-40 disabled:cursor-not-allowed ${
+                  o.mal ? "text-mal hover:bg-mal-suave" : "text-texto-suave hover:bg-superficie-2 hover:text-texto"}`}>
+                <o.i size={15} className={`shrink-0 ${o.mal ? "" : "text-texto-tenue"}`} /> {o.n}
+              </button>
+            ))}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+/* Lo que hay que saber de este pedido entero. Va sobre la comanda y no
+   sobre un plato: "cliente alérgico" no es de la hamburguesa. */
+function ModalObservacion({ abierto, valor, rotulo, trabajando, onCerrar, onGuardar }) {
+  const [texto, setTexto] = useState("");
+  useEffect(() => { if (abierto) setTexto(valor || ""); }, [abierto, valor]);
+  if (!abierto) return null;
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5">
+        <h3 className="f-d text-lg">Observación</h3>
+        <p className="text-xs text-texto-suave mt-1">
+          Se imprime en la comanda de cocina y se ve en la cuenta. {rotulo}
+        </p>
+        <textarea value={texto} onChange={(e) => setTexto(e.target.value)} autoFocus rows={3}
+          placeholder="Cliente alérgico al maní · enviar todo junto · sin sal"
+          className={`${inputCls} resize-none`} />
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {["Sin sal", "Cliente alérgico", "Enviar todo junto", "Para compartir"].map((s) => (
+            <button key={s} onClick={() => setTexto((t) => (t ? `${t} · ${s}` : s))}
+              className="text-[11px] px-2.5 py-1 rounded-md border border-borde text-texto-suave hover:bg-superficie-2">
+              {s}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-between gap-2 mt-4">
+          <Boton variant="quiet" disabled={trabajando || !valor} onClick={() => onGuardar("")}>Borrar</Boton>
+          <span className="flex gap-2">
+            <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
+            <Boton disabled={trabajando} onClick={() => onGuardar(texto)}><Check size={15} /> Guardar</Boton>
+          </span>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* Cuánto va, cuánto se pagó y cuánto falta. Los números salen de la base
+   —la misma cuenta que se va a cobrar— y no se recalculan acá. */
+function ModalCuenta({ abierto, comandaId, rotulo, ajustes, onCerrar, onCobrar }) {
+  const [c, setC] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!abierto) return;
+    let vivo = true;
+    setC(null); setError("");
+    cargarCuenta(comandaId)
+      .then((d) => { if (vivo) setC(d); })
+      .catch((e) => { if (vivo) setError(e.message || "No pudimos leer la cuenta."); });
+    return () => { vivo = false; };
+  }, [abierto, comandaId]);
+
+  if (!abierto) return null;
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5">
+        <h3 className="f-d text-lg">Cuenta</h3>
+        <p className="text-xs text-texto-suave mt-0.5">{rotulo}</p>
+
+        {error && <div className="text-sm text-mal mt-4">{error}</div>}
+        {!c && !error && <Vacio>Leyendo la cuenta…</Vacio>}
+
+        {c && (
+          <>
+            <div className="mt-4 space-y-1 text-sm">
+              <Fila rotulo="Subtotal" valor={money(c.subtotal)} />
+              {c.descuento > 0 && <Fila rotulo="Descuento" valor={`-${money(c.descuento)}`} tono="text-acento" />}
+              {c.recargo > 0 && <Fila rotulo="Recargo" valor={`+${money(c.recargo)}`} />}
+              <div className="flex items-baseline justify-between pt-2 mt-2 border-t border-borde">
+                <span className="f-d text-sm font-bold tracking-wider">TOTAL</span>
+                <span className="f-m text-xl font-bold">{money(c.total)}</span>
+              </div>
+            </div>
+
+            {c.observacion && (
+              <div className="mt-3 flex items-start gap-1.5 rounded-md border border-ojo bg-ojo-suave px-3 py-2 text-xs text-ojo">
+                <StickyNote size={13} className="shrink-0 mt-0.5" /> {c.observacion}
+              </div>
+            )}
+
+            <div className="mt-4">
+              <div className="text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold mb-1.5">
+                Pagos {c.pagos.length ? `· ${c.pagos.length}` : ""}
+              </div>
+              {!c.pagos.length ? (
+                <div className="text-sm text-texto-tenue">Todavía no se pagó nada.</div>
+              ) : (
+                <ul className="divide-y divide-borde rounded-md border border-borde overflow-hidden">
+                  {c.pagos.map((p) => (
+                    <li key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                      <span className="text-texto-suave">{medioPorK(ajustes, p.medio).n}</span>
+                      <span className="f-m text-[11px] text-texto-tenue">{hora(p.fecha)}</span>
+                      <span className="ml-auto f-m">{money(p.monto)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className={`flex items-baseline justify-between mt-4 rounded-md px-3.5 py-3 border ${
+              c.saldo > 0 ? "border-borde bg-superficie-2" : "border-bien bg-bien-suave"}`}>
+              <span className="text-[11px] uppercase tracking-[0.1em] font-bold">
+                {c.saldo > 0 ? "Falta pagar" : "Cuenta saldada"}
+              </span>
+              <span className={`f-m text-lg font-bold ${c.saldo > 0 ? "" : "text-bien"}`}>{money(c.saldo)}</span>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <Boton variant="quiet" onClick={onCerrar}>Cerrar</Boton>
+              <Boton onClick={onCobrar}><CreditCard size={15} /> Cobrar el saldo</Boton>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function Fila({ rotulo, valor, tono = "text-texto-suave" }) {
+  return (
+    <div className={`flex items-baseline justify-between ${tono}`}>
+      <span>{rotulo}</span>
+      <span className="f-m">{valor}</span>
+    </div>
+  );
+}
+
+/* ============================================================
+   DIVIDIR LA CUENTA
+   ============================================================
+
+   No parte la operación: una mesa que paga entre tres sigue siendo una
+   sola cuenta con tres pagos. Partirla duplicaría líneas, descuadraría
+   el stock y dejaría dos comandas donde hubo una.
+
+   Tres formas, que son las tres que se piden de verdad: en partes
+   iguales, por lo que consumió cada uno, o un importe suelto.
+   ============================================================ */
+
+function ModalDividir({ abierto, comanda, lineas, ajustes, caja, rotulo, onCerrar, onPagar }) {
+  const [modo, setModo] = useState("partes");
+  const [partes, setPartes] = useState(2);
+  const [elegidas, setElegidas] = useState([]);
+  const [monto, setMonto] = useState("");
+  const [medio, setMedio] = useState("efectivo");
+  const [pagando, setPagando] = useState(false);
+
+  const medios = useMemo(() => mediosDe(ajustes).filter((m) => m.activo !== false), [ajustes]);
+  const pagado = comanda.pagado || 0;
+  const saldo = Math.max(0, comanda.total - pagado);
+
+  useEffect(() => {
+    if (!abierto) return;
+    setModo("partes");
+    setPartes(comanda.comensales > 1 ? comanda.comensales : 2);
+    setElegidas([]); setMonto(""); setMedio(medios[0] ? medios[0].k : "efectivo");
+  }, [abierto, comanda.comensales]);
+
+  if (!abierto) return null;
+
+  const deLoElegido = lineas.filter((l) => elegidas.includes(l.id)).reduce((s, l) => s + l.total, 0);
+  const cuanto = modo === "partes" ? Math.round(saldo / Math.max(1, partes))
+    : modo === "consumo" ? deLoElegido
+    : Number(monto) || 0;
+
+  const puede = cuanto > 0 && cuanto <= saldo && !!caja.sesionId;
+
+  const confirmar = async () => {
+    setPagando(true);
+    const detalle = modo === "partes" ? `Parte ${1}/${partes} · ${rotulo}`
+      : modo === "consumo" ? `Lo que consumió · ${rotulo}`
+      : `Parte de la cuenta · ${rotulo}`;
+    const resto = await onPagar({ medio, monto: cuanto, detalle });
+    setPagando(false);
+    if (resto === 0) onCerrar();
+    else { setElegidas([]); setMonto(""); }
+  };
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-lg">
+      <div className="p-5">
+        <h3 className="f-d text-lg">Dividir la cuenta</h3>
+        <p className="text-xs text-texto-suave mt-0.5">
+          {rotulo} · cada parte entra a la caja como un pago. La cuenta se cierra al cobrar el saldo.
+        </p>
+
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[["partes", "En partes iguales"], ["consumo", "Por lo que consumió"], ["libre", "Un importe"]].map(([k, n]) => (
+            <button key={k} onClick={() => setModo(k)}
+              className={`px-3 py-2.5 rounded-md border text-xs font-semibold transition-colors ${
+                modo === k ? "border-acento bg-acento-suave text-texto" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+              {n}
+            </button>
+          ))}
+        </div>
+
+        {modo === "partes" && (
+          <div className="flex items-center justify-center gap-4 mt-4">
+            <Boton variant="ghost" size="lg" onClick={() => setPartes((p) => Math.max(2, p - 1))}><Minus size={18} /></Boton>
+            <div className="text-center">
+              <div className="f-d text-4xl leading-none">{partes}</div>
+              <div className="text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold mt-1">Personas</div>
+            </div>
+            <Boton variant="ghost" size="lg" onClick={() => setPartes((p) => Math.min(20, p + 1))}><Plus size={18} /></Boton>
+          </div>
+        )}
+
+        {modo === "consumo" && (
+          <ul className="mt-4 max-h-56 overflow-auto rounded-md border border-borde divide-y divide-borde">
+            {lineas.map((l) => {
+              const puesta = elegidas.includes(l.id);
+              return (
+                <li key={l.id}>
+                  <button onClick={() => setElegidas((e) => puesta ? e.filter((x) => x !== l.id) : [...e, l.id])}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
+                      puesta ? "bg-acento-suave" : "hover:bg-superficie-2"}`}>
+                    <span className={`w-4 h-4 rounded shrink-0 border grid place-items-center ${
+                      puesta ? "bg-acento border-acento text-sobre-acento" : "border-borde-fuerte"}`}>
+                      {puesta && <Check size={12} />}
+                    </span>
+                    <span className="f-m text-texto-tenue">{l.cantidad}x</span>
+                    <span className="flex-1 min-w-0 truncate">{l.nombre}</span>
+                    <span className="f-m shrink-0">{money(l.total)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {modo === "libre" && (
+          <Campo label="Cuánto paga">
+            <input value={monto} onChange={(e) => setMonto(e.target.value.replace(/\D/g, ""))} autoFocus
+              inputMode="numeric" placeholder={String(saldo)} className={`${inputCls} f-m text-lg`} />
+          </Campo>
+        )}
+
+        <div className="mt-4">
+          <div className="text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold mb-1.5">Con qué paga</div>
+          <div className="flex flex-wrap gap-1.5">
+            {medios.map((m) => (
+              <button key={m.k} onClick={() => setMedio(m.k)}
+                className={`px-3 py-2 rounded-md border text-xs font-semibold transition-colors ${
+                  medio === m.k ? "border-acento bg-acento-suave text-texto" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+                {m.n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-baseline justify-between mt-4 rounded-md border border-borde bg-superficie-2 px-3.5 py-3">
+          <span className="text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold">
+            Esta parte {pagado > 0 ? `· ya pagaron ${money(pagado)}` : ""}
+          </span>
+          <span className="f-m text-xl font-bold text-acento">{money(cuanto)}</span>
+        </div>
+
+        {!caja.sesionId && (
+          <div className="text-xs text-mal mt-2">La caja está cerrada: abrila para registrar el pago.</div>
+        )}
+        {cuanto > saldo && (
+          <div className="text-xs text-mal mt-2">Esa parte supera los {money(saldo)} que faltan.</div>
+        )}
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Boton variant="quiet" onClick={onCerrar}>Cerrar</Boton>
+          <Boton size="lg" disabled={!puede || pagando} onClick={confirmar}>
+            <CreditCard size={16} /> {pagando ? "Cobrando…" : `Cobrar ${money(cuanto)}`}
+          </Boton>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* El historial. Incluye el salón a propósito: desde la comanda, lo que se
+   busca casi siempre es la mesa de anoche. */
+function ModalHistorial({ abierto, empresaId, onCerrar }) {
+  const [desde, setDesde] = useState("");
+  const [texto, setTexto] = useState("");
+  const [filas, setFilas] = useState([]);
+  const [cargando, setCargando] = useState(false);
+  const [abierta, setAbierta] = useState(null);
+
+  useEffect(() => {
+    if (!abierto) return;
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    setDesde(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    setTexto(""); setAbierta(null);
+  }, [abierto]);
+
+  useEffect(() => {
+    if (!abierto || !desde) return;
+    let vivo = true;
+    setCargando(true);
+    const tarea = setTimeout(() => {
+      buscarPedidos(empresaId, { desde: new Date(`${desde}T00:00:00`).toISOString(), texto, conSalon: true, tope: 100 })
+        .then((r) => { if (vivo) setFilas(r); })
+        .catch(() => { if (vivo) setFilas([]); })
+        .finally(() => { if (vivo) setCargando(false); });
+    }, texto ? 300 : 0);
+    return () => { vivo = false; clearTimeout(tarea); };
+  }, [abierto, empresaId, desde, texto]);
+
+  if (!abierto) return null;
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-2xl">
+      <div className="p-5">
+        <h3 className="f-d text-lg">Historial de comandas</h3>
+
+        <div className="flex flex-wrap items-end gap-3 mt-3">
+          <Campo label="Desde">
+            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className={`${inputCls} f-m`} />
+          </Campo>
+          <label className="flex-1 min-w-[180px]">
+            <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Buscar</span>
+            <input value={texto} onChange={(e) => setTexto(e.target.value)}
+              placeholder="Mesa, cliente, número, mozo" className={inputCls} />
+          </label>
+        </div>
+
+        {cargando && <Vacio>Buscando…</Vacio>}
+        {!cargando && !filas.length && <Vacio>Ninguna comanda con esos filtros.</Vacio>}
+
+        {!cargando && filas.length > 0 && (
+          <ul className="mt-3 max-h-[50vh] overflow-auto rounded-md border border-borde divide-y divide-borde">
+            {filas.map((p) => (
+              <li key={p.id}>
+                <button onClick={() => setAbierta(abierta === p.id ? null : p.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-superficie-2">
+                  <span className="f-m text-[11px] text-texto-tenue shrink-0 w-24">
+                    {p.abiertaEn ? p.abiertaEn.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }) : "—"} {hora(p.abiertaEn)}
+                  </span>
+                  <span className="font-semibold truncate">{p.mesa || p.canalNombre}</span>
+                  <span className="text-xs text-texto-tenue truncate hidden sm:inline">
+                    {p.cliente.nombre || (p.referencia ? `#${p.referencia}` : "")}
+                  </span>
+                  <span className="ml-auto text-[10px] uppercase tracking-wider font-bold text-texto-tenue shrink-0">
+                    {p.cerrada ? "Cobrada" : p.cancelada ? "Cancelada" : "Abierta"}
+                  </span>
+                  <span className="f-m shrink-0 w-20 text-right">{money(p.total)}</span>
+                </button>
+                {abierta === p.id && (
+                  <div className="px-3 pb-3 pl-28 text-xs text-texto-suave space-y-0.5">
+                    {p.lineas.map((l) => (
+                      <div key={l.id}><span className="f-m">{l.cantidad}x</span> {l.nombre}</div>
+                    ))}
+                    {p.usuario && <div className="text-texto-tenue mt-1">Lo tomó {p.usuario}</div>}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="flex justify-end mt-4">
+          <Boton variant="quiet" onClick={onCerrar}>Cerrar</Boton>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function ModalCobro({ abierto, comanda, comandaId, empresaId, config, ajustes, caja, toast, rotulo, voz = VOZ_MESA, onCerrar, onCobrada }) {
   const [sel, setSel] = useState(0);
   const [cobrando, setCobrando] = useState(false);

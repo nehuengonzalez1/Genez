@@ -225,11 +225,18 @@ export async function borrarRecurso(id) {
 }
 
 export async function cargarComanda(comandaId) {
+  /* Lo pagado va junto con la comanda y no en una lectura aparte: la
+     pantalla lo necesita en el mismo momento en que muestra el total
+     —para saber si la cuenta ya está saldada— y pedirlo después dejaba
+     un parpadeo con el saldo equivocado. */
+  const cobrado = supabase
+    .from("cuenta_vista").select("pagado, saldo").eq("id", comandaId).maybeSingle();
+
   const { data, error } = await supabase
     .from("operaciones")
     .select(`
       id, numero, estado, fecha, abierta_en, recurso_id, cliente_id,
-      comensales, descuento, descuento_pct, canal, referencia, campos_extra,
+      comensales, descuento, descuento_pct, canal, referencia, campos_extra, observacion,
       recursos ( nombre, sector ),
       operacion_lineas (
         id, item_id, descripcion, cantidad, precio_unitario, costo_unitario,
@@ -240,6 +247,8 @@ export async function cargarComanda(comandaId) {
     .single();
 
   if (error) throw error;
+
+  const { data: pagos } = await cobrado;
 
   const todas = (data.operacion_lineas || []).map(aLinea);
   /* Las anuladas viajan aparte. En la comanda no van: quien está tomando
@@ -263,6 +272,9 @@ export async function cargarComanda(comandaId) {
     comensales: data.comensales,
     canal: data.canal,
     referencia: data.referencia,
+    observacion: data.observacion || "",
+    pagado: n(pagos && pagos.pagado),
+    saldo: n(pagos && pagos.saldo),
 
     /* El descuento por porcentaje se recalcula acá contra el subtotal de
        ahora y no se lee el monto guardado: si la mesa pidió algo más
@@ -524,6 +536,69 @@ export async function quitarDescuento(comandaId) {
   return aplicarDescuento(comandaId, { monto: 0 });
 }
 
+/* Lo que hay que saber de este pedido entero: "cliente alérgico",
+   "enviar separado". Lo de un plato en particular va en la línea. */
+export async function guardarObservacion(comandaId, texto) {
+  const { error } = await supabase
+    .from("operaciones")
+    .update({ observacion: (texto || "").trim() || null })
+    .eq("id", comandaId).eq("estado", "abierta");
+  if (error) throw error;
+}
+
+/* ------------------------------------------------------------
+   LA CUENTA
+
+   Cuánto va, cuánto se pagó y cuánto falta. Los números salen de la base
+   y no se recalculan acá: la pantalla no puede mostrar un total distinto
+   del que se va a cobrar.
+   ------------------------------------------------------------ */
+
+export async function cargarCuenta(comandaId) {
+  const [cuenta, pagos] = await Promise.all([
+    supabase.from("cuenta_vista")
+      .select("subtotal, descuento, recargo, total, pagado, saldo, observacion")
+      .eq("id", comandaId).single(),
+    supabase.from("pagos")
+      .select("id, medio, monto, recargo, referencia, fecha")
+      .eq("operacion_id", comandaId).order("fecha"),
+  ]);
+
+  if (cuenta.error) throw cuenta.error;
+  if (pagos.error) throw pagos.error;
+
+  const c = cuenta.data;
+  return {
+    subtotal: n(c.subtotal), descuento: n(c.descuento), recargo: n(c.recargo),
+    total: n(c.total), pagado: n(c.pagado), saldo: n(c.saldo),
+    observacion: c.observacion || "",
+    pagos: (pagos.data || []).map((p) => ({
+      id: p.id, medio: p.medio, monto: n(p.monto),
+      referencia: p.referencia || "", fecha: new Date(p.fecha),
+    })),
+  };
+}
+
+/* Un pago sobre una cuenta que sigue abierta: la mesa paga una parte y
+   puede seguir pidiendo. Dividir la cuenta es esto, varias veces. */
+export async function registrarPago({ comandaId, sesionId, medio, monto, referencia = null, detalle = null }) {
+  const { data, error } = await supabase.rpc("registrar_pago", {
+    p_comanda: comandaId, p_sesion: sesionId, p_medio: medio,
+    p_monto: Math.round(monto), p_referencia: referencia, p_detalle: detalle,
+  });
+  if (error) {
+    const dicho = {
+      P0001: "Abrí la caja antes de cobrar.",
+      P0002: "La caja de este pago ya fue cerrada.",
+      P0003: "Esa cuenta ya está cerrada.",
+      P0010: "No encontramos esa comanda.",
+      P0014: "Ese pago supera lo que falta de la cuenta.",
+    }[error.code];
+    throw new Error(dicho || error.message);
+  }
+  return n(data);
+}
+
 /* Cuánta gente hay en la mesa. Sirve para el ticket por persona y para
    ver de un vistazo cuánta gente hay en el salón. */
 export async function guardarComensales(comandaId, comensales) {
@@ -565,7 +640,7 @@ export async function cerrarComanda({ comandaId, sesionId, pagos, numero = null,
 export async function cargarCarta(empresaId) {
   const { data, error } = await supabase
     .from("items")
-    .select("id, nombre, descripcion, categoria, precio, costo, iva, campos_extra, controla_stock")
+    .select("id, nombre, descripcion, categoria, precio, costo, iva, campos_extra, controla_stock, imagen")
     .eq("empresa_id", empresaId)
     .eq("activo", true)
     .order("categoria")
