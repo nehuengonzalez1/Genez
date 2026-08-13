@@ -175,7 +175,58 @@ await comoUsuario(MOZO, async () => {
 });
 
 /* ------------------------------------------------------------
-   5 · La bitácora no se corrige
+   5 · Juntar y separar mesas
+   ------------------------------------------------------------ */
+console.log("\nJuntar mesas");
+
+await comoUsuario(MOZO, async () => {
+  const emp = await una("select empresa_id from perfiles where id = auth.uid()");
+  const m = (await c.query(
+    "select id, nombre, capacidad from recursos where empresa_id = $1 and tipo = 'mesa' order by orden limit 3",
+    [emp.empresa_id])).rows;
+
+  await c.query("select unir_mesas($1, $2)", [m[0].id, m[1].id]);
+  const v = await una("select unidas, capacidad, capacidad_total from salon_vista where id = $1", [m[0].id]);
+  decir(Number(v.unidas) === 1, `${m[0].nombre} queda con una mesa unida`);
+  decir(Number(v.capacidad_total) === Number(m[0].capacidad) + Number(m[1].capacidad),
+    `la capacidad se suma (${v.capacidad} + ${m[1].capacidad} = ${v.capacidad_total})`);
+
+  const abrir = (recurso) => una("select abrir_comanda($1::jsonb) id",
+    [JSON.stringify({ empresa_id: emp.empresa_id, recurso_id: recurso })]);
+  const a = await abrir(m[1].id);
+  const b = await abrir(m[0].id);
+  decir(a.id === b.id, "tocar la mesa unida abre la cuenta de la principal");
+
+  await c.query("savepoint u");
+  try {
+    await c.query("select unir_mesas($1, $2)", [m[1].id, m[2].id]);
+    await c.query("release savepoint u");
+    decir(false, "no deja encadenar uniones");
+  } catch (e) {
+    await c.query("rollback to savepoint u");
+    decir(e.code === "P0006" || e.code === "P0007", "no deja encadenar uniones");
+  }
+
+  await c.query("select separar_mesa($1)", [m[0].id]);
+  const s = await una("select unidas, capacidad_total from salon_vista where id = $1", [m[0].id]);
+  decir(Number(s.unidas) === 0 && Number(s.capacidad_total) === Number(m[0].capacidad), "separarlas devuelve todo como estaba");
+
+  /* Va después de separar a propósito: mientras m[0] tenía otra mesa
+     colgando, el disparador la rechazaba por eso y nunca llegaba a mirar
+     la cuenta abierta. La prueba pasaba sin probar lo que dice probar. */
+  await c.query("savepoint o");
+  try {
+    await c.query("select unir_mesas($1, $2)", [m[2].id, m[0].id]);
+    await c.query("release savepoint o");
+    decir(false, "no deja unir una mesa que tiene cuenta abierta");
+  } catch (e) {
+    await c.query("rollback to savepoint o");
+    decir(e.code === "P0008", "no deja unir una mesa que tiene cuenta abierta");
+  }
+});
+
+/* ------------------------------------------------------------
+   6 · La bitácora no se corrige
    ------------------------------------------------------------ */
 console.log("\nBitácora");
 
