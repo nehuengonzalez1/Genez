@@ -195,5 +195,14 @@ Rivadavia para poder mirar el tablero lleno. Queda marcado y se borra con
 Wikimedia Commons con su atribución. Las elige a mano: la búsqueda
 automática devuelve hamburguesas mordidas y ensaladas que son fettuccine.
 `--ver` deja las candidatas en una carpeta para mirarlas antes de aplicar,
-y `--borrar` las saca. Un comercio de verdad carga las suyas desde la
-ficha del producto.
+y `--borrar` las saca.
+
+Cuando las imágenes las trae el comercio —que es como tiene que ser— van
+a `fotos/` con el nombre del producto y las carga
+`scripts/fotos-propias.mjs`. Esa carpeta no va al repositorio.
+
+**Un recorte sin fondo se guarda como PNG y una foto como JPEG**, y de eso
+depende cómo se ve: el recorte flota sobre la tarjeta —como en la
+maqueta— y la foto se lleva hasta el borde, porque tiene fondo propio.
+Convertir un PNG con transparencia a JPEG le pone fondo negro, así que al
+subir una foto el navegador mira si tiene alfa antes de elegir formato.

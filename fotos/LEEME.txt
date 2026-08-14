@@ -1,0 +1,25 @@
+Las fotos de la carta.
+
+Dejá acá una imagen por producto, con el nombre del producto como nombre
+de archivo:
+
+  Hamburguesa completa.png
+  Papas fritas.png
+  Coca Cola 600ml.jpg
+
+El nombre se compara sin tildes ni mayúsculas, así que
+"hamburguesa-completa.png" también sirve.
+
+Lo mejor son PNG recortados, sin fondo: en la pantalla flotan sobre la
+tarjeta, que es como se ve en la referencia. Un JPG con fondo también
+funciona, y la pantalla lo lleva hasta el borde de la tarjeta.
+
+Ideal: 220 px de ancho y menos de 120 KB. Si son más grandes anda igual,
+pero la carta las carga todas juntas al abrir la comanda.
+
+Después:
+
+  node scripts/fotos-propias.mjs --ver     dice qué archivo va con qué producto
+  node scripts/fotos-propias.mjs           las carga
+
+Esta carpeta no va al repositorio: las imágenes son del comercio.

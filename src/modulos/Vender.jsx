@@ -1234,6 +1234,17 @@ export function TicketModal({ t, onClose, ajustes, toast }) {
    depende de un servidor de imágenes que no existe no es una carta. */
 const ANCHO_FOTO = 220;
 
+/* Un recorte sin fondo se guarda como PNG y una foto como JPEG, y no es
+   un detalle de formato: pasar un PNG con transparencia a JPEG le pone
+   fondo negro, que es exactamente lo que el recorte venía a evitar. El
+   JPEG pesa la mitad, así que se usa para todo lo demás. */
+function tieneTransparencia(lienzo) {
+  const { width, height } = lienzo;
+  const datos = lienzo.getContext("2d").getImageData(0, 0, width, height).data;
+  for (let i = 3; i < datos.length; i += 4) if (datos[i] < 250) return true;
+  return false;
+}
+
 function achicarFoto(archivo) {
   return new Promise((resolver, fallar) => {
     const lector = new FileReader();
@@ -1247,7 +1258,9 @@ function achicarFoto(archivo) {
         lienzo.width = Math.round(img.width * escala);
         lienzo.height = Math.round(img.height * escala);
         lienzo.getContext("2d").drawImage(img, 0, 0, lienzo.width, lienzo.height);
-        resolver(lienzo.toDataURL("image/jpeg", 0.75));
+        resolver(tieneTransparencia(lienzo)
+          ? lienzo.toDataURL("image/png")
+          : lienzo.toDataURL("image/jpeg", 0.75));
       };
       img.src = lector.result;
     };

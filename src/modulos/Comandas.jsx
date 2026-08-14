@@ -1256,23 +1256,31 @@ function FichaCarta({ item, onTocar, onSumar }) {
      cargado no se rellena con el destino ni con la categoría: decir
      "barra" abajo de una limonada no informa nada y ensucia la carta. */
   const desc = item.descripcion || "";
+
+  /* Un recorte sin fondo y una foto no se muestran igual. El recorte
+     tiene que flotar sobre la tarjeta, entero y con aire alrededor; una
+     foto tiene fondo propio, así que se la lleva hasta el borde para que
+     sea un lado de la tarjeta y no un rectángulo apoyado encima.
+
+     Se distinguen por el formato: al guardar, lo que tiene transparencia
+     queda como PNG y lo demás como JPEG. */
+  const recorte = /^data:image\/png/.test(item.imagen || "");
+
   return (
     <div className="relative">
       <button onClick={onTocar} title="Cantidad y cómo lo quieren"
         className="w-full h-full flex items-stretch text-left rounded-xl border border-borde bg-superficie-2 overflow-hidden transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
-        {/* La foto es un lado de la tarjeta y no un cuadrado apoyado
-            encima: llega hasta el borde y comparte su curva. Un recuadro
-            adentro de otro recuadro es el marco compitiendo con la
-            tarjeta, que ya tiene el suyo. */}
         {item.imagen ? (
           <img src={item.imagen} alt="" loading="lazy"
-            className="w-[84px] shrink-0 self-stretch object-cover" />
+            className={recorte
+              ? "w-[84px] shrink-0 self-center object-contain px-1.5 py-2 max-h-[76px]"
+              : "w-[84px] shrink-0 self-stretch object-cover"} />
         ) : (
           <span className="w-[84px] shrink-0 self-stretch bg-acento-suave text-acento-vivo f-d text-xl grid place-items-center">
             {(item.nombre || "?").trim().charAt(0).toUpperCase()}
           </span>
         )}
-        <span className="min-w-0 flex-1 py-2.5 pl-3 pr-10">
+        <span className={`min-w-0 flex-1 py-2.5 pr-10 ${recorte ? "pl-1.5" : "pl-3"}`}>
           <span className="block text-sm font-bold leading-tight line-clamp-2">{item.nombre}</span>
           <span className="block f-m text-sm text-acento">{money(item.precio)}</span>
           {desc && <span className="block text-[11px] text-texto-tenue truncate">{desc}</span>}

@@ -34,3 +34,7 @@ supabase/.branches/
 # logs
 *.log
 npm-debug.log*
+
+# Las fotos de la carta las trae el comercio, no el repositorio.
+fotos/*
+!fotos/LEEME.txt
