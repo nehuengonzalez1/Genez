@@ -62,14 +62,44 @@ function medirPNG(buf) {
   return { ancho: buf.readUInt32BE(16), alto: buf.readUInt32BE(20), alfa };
 }
 
+/* Dónde está la imagen adentro del lienzo. Un recorte exportado de un
+   programa de diseño viene centrado en una tela enorme —el primero que
+   llegó tenía 900 px transparentes arriba y otros 900 abajo—, y si eso
+   se guarda tal cual, la tarjeta reserva el mismo lugar de siempre y el
+   plato entra ahí adentro achicado: se ve como una estampilla. */
+function recortarAlContenido(png) {
+  let x0 = png.width, y0 = png.height, x1 = -1, y1 = -1;
+
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < png.width; x++) {
+      if (png.data[((y * png.width + x) << 2) + 3] > 16) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+
+  if (x1 < 0) return png;                       // todo transparente
+  if (x0 === 0 && y0 === 0 && x1 === png.width - 1 && y1 === png.height - 1) return png;
+
+  const cortado = new PNG({ width: x1 - x0 + 1, height: y1 - y0 + 1 });
+  for (let y = 0; y < cortado.height; y++) {
+    const desde = ((y + y0) * png.width + x0) << 2;
+    png.data.copy(cortado.data, (y * cortado.width) << 2, desde, desde + (cortado.width << 2));
+  }
+  return cortado;
+}
+
 /* Achicar promediando las cajas de píxeles que caen en cada uno del
    destino. Con transparencia el promedio va premultiplicado por el alfa:
    sin eso, el color de los píxeles invisibles del borde entra en la
    cuenta y el recorte queda con un halo oscuro alrededor, que es
    exactamente lo que se nota sobre una tarjeta negra. */
 function achicarPNG(buf, anchoDestino) {
-  const src = PNG.sync.read(buf);
-  if (src.width <= anchoDestino) return buf;
+  const src = recortarAlContenido(PNG.sync.read(buf));
+  if (src.width <= anchoDestino) return PNG.sync.write(src, { colorType: 6 });
 
   const escala = anchoDestino / src.width;
   const dst = new PNG({ width: anchoDestino, height: Math.max(1, Math.round(src.height * escala)) });
@@ -172,13 +202,14 @@ for (const archivo of archivos.sort()) {
 
   if (png) {
     if (!png.alfa) notas.push("sin transparencia: se va a ver con su fondo");
-    if (png.ancho > ANCHO) {
-      try {
-        buf = achicarPNG(original, ANCHO);
-        notas.push(`${png.ancho} px → ${ANCHO}`);
-      } catch (e) {
-        notas.push(`no se pudo achicar (${e.message})`);
+    try {
+      buf = achicarPNG(original, ANCHO);
+      const ahora = medirPNG(buf);
+      if (ahora && (ahora.ancho !== png.ancho || ahora.alto !== png.alto)) {
+        notas.push(`${png.ancho}×${png.alto} → ${ahora.ancho}×${ahora.alto}`);
       }
+    } catch (e) {
+      notas.push(`no se pudo achicar (${e.message})`);
     }
   }
 

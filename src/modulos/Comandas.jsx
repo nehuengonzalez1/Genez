@@ -43,6 +43,7 @@ import { cargarPedidos, cargarCanales, buscarPedidos, cancelarPedido } from "../
 import { Card, Boton, Modal, Vacio, Apagado, imprimirComandera, preCuenta, comandaCocina } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { tonoCanal, IconoCanal } from "../ui/canales.jsx";
+import { MADERA } from "../ui/madera.js";
 import { CentroPedidos, ModalNuevoPedido } from "./CentroPedidos.jsx";
 import { PlanoSalon } from "./PlanoSalon.jsx";
 
@@ -1270,17 +1271,23 @@ function FichaCarta({ item, onTocar, onSumar }) {
     <div className="relative">
       <button onClick={onTocar} title="Cantidad y cómo lo quieren"
         className="w-full h-full flex items-stretch text-left rounded-xl border border-borde bg-superficie-2 overflow-hidden transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
-        {item.imagen ? (
+        {/* El recorte se apoya sobre la tabla y ocupa la celda entera: solo
+            contra el negro quedaba flotando, plano y chico al lado de las
+            fotos, que traen su propia mesa. */}
+        {item.imagen && recorte ? (
+          <span className="w-[96px] shrink-0 self-stretch grid place-items-center bg-cover bg-center"
+            style={{ backgroundImage: `url(${MADERA})` }}>
+            <img src={item.imagen} alt="" loading="lazy" className="w-full h-full object-contain p-1" />
+          </span>
+        ) : item.imagen ? (
           <img src={item.imagen} alt="" loading="lazy"
-            className={recorte
-              ? "w-[84px] shrink-0 self-center object-contain px-1.5 py-2 max-h-[76px]"
-              : "w-[84px] shrink-0 self-stretch object-cover"} />
+            className="w-[96px] shrink-0 self-stretch object-cover" />
         ) : (
-          <span className="w-[84px] shrink-0 self-stretch bg-acento-suave text-acento-vivo f-d text-xl grid place-items-center">
+          <span className="w-[96px] shrink-0 self-stretch bg-acento-suave text-acento-vivo f-d text-xl grid place-items-center">
             {(item.nombre || "?").trim().charAt(0).toUpperCase()}
           </span>
         )}
-        <span className={`min-w-0 flex-1 py-2.5 pr-10 ${recorte ? "pl-1.5" : "pl-3"}`}>
+        <span className="min-w-0 flex-1 py-2.5 pr-10 pl-3">
           <span className="block text-sm font-bold leading-tight line-clamp-2">{item.nombre}</span>
           <span className="block f-m text-sm text-acento">{money(item.precio)}</span>
           {desc && <span className="block text-[11px] text-texto-tenue truncate">{desc}</span>}
