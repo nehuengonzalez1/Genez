@@ -1259,16 +1259,20 @@ function FichaCarta({ item, onTocar, onSumar }) {
   return (
     <div className="relative">
       <button onClick={onTocar} title="Cantidad y cómo lo quieren"
-        className="w-full h-full flex items-center gap-2.5 text-left rounded-xl border border-borde bg-superficie-2 p-2 pr-10 transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
+        className="w-full h-full flex items-stretch text-left rounded-xl border border-borde bg-superficie-2 overflow-hidden transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
+        {/* La foto es un lado de la tarjeta y no un cuadrado apoyado
+            encima: llega hasta el borde y comparte su curva. Un recuadro
+            adentro de otro recuadro es el marco compitiendo con la
+            tarjeta, que ya tiene el suyo. */}
         {item.imagen ? (
           <img src={item.imagen} alt="" loading="lazy"
-            className="w-12 h-12 shrink-0 rounded-lg object-cover bg-superficie-3" />
+            className="w-[84px] shrink-0 self-stretch object-cover" />
         ) : (
-          <span className="w-12 h-12 shrink-0 rounded-lg bg-acento-suave text-acento-vivo f-d text-xl grid place-items-center">
+          <span className="w-[84px] shrink-0 self-stretch bg-acento-suave text-acento-vivo f-d text-xl grid place-items-center">
             {(item.nombre || "?").trim().charAt(0).toUpperCase()}
           </span>
         )}
-        <span className="min-w-0 flex-1">
+        <span className="min-w-0 flex-1 py-2.5 pl-3 pr-10">
           <span className="block text-sm font-bold leading-tight line-clamp-2">{item.nombre}</span>
           <span className="block f-m text-sm text-acento">{money(item.precio)}</span>
           {desc && <span className="block text-[11px] text-texto-tenue truncate">{desc}</span>}
