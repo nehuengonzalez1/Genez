@@ -36,6 +36,8 @@ export default {
         "mal-suave": color("mal-suave"),
         info:       color("info"),
         "info-suave": color("info-suave"),
+        reserva:    color("reserva"),
+        "reserva-suave": color("reserva-suave"),
 
         "canal-mostrador":       color("canal-mostrador"),
         "canal-mostrador-suave": color("canal-mostrador-suave"),

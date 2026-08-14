@@ -165,6 +165,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
   const [cambiando, setCambiando] = useState(false);
   const [abriendo, setAbriendo] = useState(null);   // id de mesa o clave de canal
   const [canales, setCanales] = useState([]);
+  const [viendoHistorial, setViendoHistorial] = useState(false);
 
   /* toast se redefine en cada render de Sistema. Si entra como dependencia,
      el efecto de carga se vuelve a disparar para siempre. */
@@ -305,24 +306,22 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
   if (donde === "salon") {
     return (
       <div className="h-full flex flex-col min-h-0">
-        <div className="shrink-0 flex items-center gap-3 pb-3">
-          <Boton variant="ghost" size="lg" onClick={() => setDonde("inicio")}>
-            <ArrowLeft size={18} /> Pedidos
-          </Boton>
-          <h2 className="f-d text-lg">Salón</h2>
-        </div>
-        <div className="flex-1 min-h-0">
-          <PlanoSalon
-            pleno mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
-            puedeEditar={!!permisos.ajustes} empresaId={empresaId} sucursalId={sucursalId}
-            toast={toast} onTocarMesa={(m) => entrarAMesa(m, "salon")}
-            onMostrador={() => abrirCanal({ canal: "mostrador" }, "salon")}
-            onTakeAway={() => setNuevo("takeaway")}
-            onActualizar={() => releer.current()} onGuardado={() => releer.current()} />
-        </div>
+        {/* El plano ocupa la pantalla entera: la barra de "volver" vive
+            adentro, abajo a la izquierda, como en el resto del sistema. */}
+        <PlanoSalon
+          pleno mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
+          puedeEditar={!!permisos.ajustes} empresaId={empresaId} sucursalId={sucursalId}
+          toast={toast} onTocarMesa={(m) => entrarAMesa(m, "salon")}
+          empleado={sesion ? sesion.nombre : ""} cajaAbierta={!!caja.abierta}
+          onVolver={() => setDonde("inicio")}
+          onHistorial={() => setViendoHistorial(true)}
+          onActualizar={() => releer.current()} onGuardado={() => releer.current()} />
 
         <ModalNuevoPedido abierto={!!nuevo} canales={canales} canalInicial={nuevo} trabajando={!!abriendo}
           onCerrar={() => setNuevo(null)} onCrear={(datos) => abrirCanal(datos, "salon")} />
+
+        <ModalHistorial abierto={viendoHistorial} empresaId={empresaId}
+          onCerrar={() => setViendoHistorial(false)} />
       </div>
     );
   }
@@ -475,6 +474,8 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
   const [comandaId, setComandaId] = useState(null);
   const [abriendo, setAbriendo] = useState(null);
   const [nuevo, setNuevo] = useState(null);   // canal elegido, esperando los datos
+  const [canales, setCanales] = useState([]);
+  const [viendoHistorial, setViendoHistorial] = useState(false);
 
   const avisar = useRef(toast);
   avisar.current = toast;
@@ -545,12 +546,15 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
         mesas={mesas} elementos={elementos} cargando={cargando} abriendo={abriendo}
         puedeEditar={!!permisos.ajustes} empresaId={empresaId} sucursalId={sucursalId}
         toast={toast} onTocarMesa={entrar}
-        onMostrador={() => abrirCanal({ canal: "mostrador" })}
-        onTakeAway={() => setNuevo("takeaway")}
+        empleado={sesion ? sesion.nombre : ""} cajaAbierta={!!caja.abierta}
+        onHistorial={() => setViendoHistorial(true)}
         onActualizar={releerSalon} onGuardado={releerSalon} />
 
-      <ModalNuevoPedido abierto={!!nuevo} canalInicial={nuevo} trabajando={!!abriendo}
+      <ModalNuevoPedido abierto={!!nuevo} canales={canales} canalInicial={nuevo} trabajando={!!abriendo}
         onCerrar={() => setNuevo(null)} onCrear={abrirCanal} />
+
+      <ModalHistorial abierto={viendoHistorial} empresaId={empresaId}
+        onCerrar={() => setViendoHistorial(false)} />
     </>
   );
 }

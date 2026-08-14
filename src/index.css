@@ -52,6 +52,11 @@
   --mal-suave:  60 20 20;
   --info:       56 189 248;
   --info-suave: 8 41 61;
+  /* La mesa reservada. No es un estado de "está bien" o "hay que
+     mirarlo": es una mesa comprometida, y necesita un color propio para
+     no confundirse con la que ya pidió la cuenta. */
+  --reserva:       167 139 250;
+  --reserva-suave: 46 26 71;
 
   /* Los canales de venta. Un estado dice si algo está bien o mal; un canal
      dice por dónde entró el pedido, que no es lo mismo y no puede pedirle
@@ -103,6 +108,8 @@
   --mal-suave:  254 226 226;
   --info:       2 132 199;
   --info-suave: 224 242 254;
+  --reserva:       109 40 217;
+  --reserva-suave: 237 233 254;
 
   --canal-mostrador:       2 132 199;
   --canal-mostrador-suave: 224 242 254;

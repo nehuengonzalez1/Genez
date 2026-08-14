@@ -47,6 +47,20 @@ function aMesa(f) {
     sinEnviar: n(f.sin_enviar),
     enCocina: n(f.en_cocina),
     listos: n(f.listos),
+
+    /* El estado lo resuelve la vista y no la pantalla: el mapa, la lista
+       de mesas y el recuento de abajo tienen que decir lo mismo, y si
+       cada uno lo dedujera por su cuenta, un día dejan de coincidir. */
+    estado: f.estado || "libre",
+    pagado: n(f.pagado),
+    mozo: f.mozo || "",
+
+    reserva: f.reserva_id ? {
+      id: f.reserva_id,
+      nombre: f.reserva_nombre,
+      personas: n(f.reserva_personas),
+      desde: f.reserva_desde ? new Date(f.reserva_desde) : null,
+    } : null,
   };
 }
 

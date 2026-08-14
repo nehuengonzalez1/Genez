@@ -24,16 +24,25 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
    Map de JavaScript y `new Map()` pasa a construir un ícono. */
 import {
   Clock, Pencil, Plus, Trash2, X, Save, RefreshCw, Filter, Map as Mapa, List,
-  CalendarClock, Store, ShoppingBag, Link2, Unlink, DoorOpen, ChefHat, Sprout,
-  Type, Bath, GlassWater, Layers, Grid3x3, Square,
+  CalendarClock, Link2, Unlink, DoorOpen, ChefHat, Sprout, ArrowLeft, History, Layers,
+  Type, Bath, GlassWater, Grid3x3, Square, Search, ClipboardList, Receipt,
 } from "lucide-react";
-import { money } from "../utils/helpers.js";
+import { money, hora } from "../utils/helpers.js";
 import {
   guardarPlano, guardarElementos, borrarElemento, crearRecurso, borrarRecurso,
   unirMesas, separarMesa,
 } from "../datos/comandas.js";
-import { Card, Boton, Vacio, Apagado } from "../ui/Base.jsx";
+import {
+  cargarReservas, crearReserva, cambiarEstadoReserva, sentarReserva, nombreEstadoReserva,
+} from "../datos/reservas.js";
+import { escucharPedidos } from "../datos/pedidos.js";
+import { Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
+
+/* Una fecha como la espera un <input type="date">, en hora local: con
+   toISOString, a las nueve de la noche el día ya cambió. */
+const aCampoFecha = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 const espera = (m) => (m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${m}m`);
 
@@ -76,36 +85,24 @@ const PINTA = {
   texto: { caja: "", texto: "text-texto-tenue", rotulo: true },
 };
 
-/* Los cinco estados de la maqueta. Para "reservada" no hay violeta en el
-   sistema de diseño, así que va en `info` igual que la cuenta pedida: las
-   dos están apagadas, así que nunca se pintan sobre una mesa al mismo
-   tiempo. */
+/* Los cinco estados. El violeta de la reserva es color propio: una mesa
+   comprometida no es "algo que mirar" ni "algo que está bien", y
+   confundirla con la que ya pidió la cuenta manda a levantar una mesa
+   donde en un rato se sienta gente. */
 const ESTADOS = {
   libre: { n: "Libre", plural: "Libre", caja: "bg-bien-suave border-bien text-bien", punto: "bg-bien" },
   ocupada: { n: "Ocupada", plural: "Ocupadas", caja: "bg-mal-suave border-mal text-mal", punto: "bg-mal" },
   entregar: { n: "Por entregar", plural: "Por entregar", caja: "bg-ojo-suave border-ojo text-ojo", punto: "bg-ojo" },
-  reservada: { n: "Reservada", plural: "Reservadas", caja: "bg-info-suave border-info text-info", punto: "bg-info" },
+  reservada: { n: "Reservada", plural: "Reservadas", caja: "bg-reserva-suave border-reserva text-reserva", punto: "bg-reserva" },
   cuenta: { n: "Cuenta / Pagada", plural: "Cuenta / Pagada", caja: "bg-info-suave border-info text-info", punto: "bg-info" },
 };
 
 const ORDEN_ESTADOS = ["libre", "ocupada", "entregar", "reservada", "cuenta"];
 
-/* Lo que la maqueta muestra y el modelo de datos todavía no tiene. Se ve
-   apagado y con el motivo en el título; nunca un control que parece andar
-   y no hace nada. */
-const SIN_DATO = {
-  reservada: "Las reservas",
-  cuenta: "La cuenta pedida",
-};
-
-/* La cuenta pedida todavía no la informa la base. El estado queda armado
-   y el día que llegue el dato entra por acá, sin tocar el dibujo. */
-function estadoDe(m) {
-  if (m.cuentaPedida) return "cuenta";
-  if (m.listos > 0) return "entregar";
-  if (m.ocupada) return "ocupada";
-  return "libre";
-}
+/* El estado lo resuelve `salon_vista` y no esta pantalla: el mapa, la
+   lista de mesas y el recuento de abajo tienen que decir lo mismo, y si
+   cada uno lo dedujera por su cuenta, un día dejan de coincidir. */
+const estadoDe = (m) => m.estado || "libre";
 
 /* El mozo lee el número, no la palabra "Mesa": adentro va grande el
    número solo, con dos dígitos como en la maqueta. Si la mesa se llama de
@@ -133,7 +130,11 @@ const chocan = (a, b) =>
 export function PlanoSalon({
   mesas, elementos, cargando, abriendo, puedeEditar,
   empresaId, sucursalId = null, toast, onTocarMesa, onActualizar, onGuardado,
-  onMostrador = null, onTakeAway = null, pleno = false,
+  /* El estado del cajón viaja como `cajaAbierta` y no como `caja`: acá
+     `caja` ya es el tamaño medido del contenedor del plano, y dos cosas
+     distintas con el mismo nombre en el mismo componente es cómo se
+     rompe algo sin que el compilador diga nada. */
+  empleado = "", cajaAbierta = false, onVolver = null, onHistorial = null, pleno = false,
 }) {
   const [editando, setEditando] = useState(false);
   const [borrador, setBorrador] = useState(null);   // { mesas, elementos, borradas, elemBorrados }
@@ -149,6 +150,14 @@ export function PlanoSalon({
   const [elegidas, setElegidas] = useState([]);
   const [trabajando, setTrabajando] = useState(false);
   const [lateral, setLateral] = useState(false);    // en celular los costados se pliegan
+  const [vista, setVista] = useState("plano");      // plano | lista | reservas
+  const [mesaTocada, setMesaTocada] = useState(null);
+  const [reservando, setReservando] = useState(null);
+  const [verFiltros, setVerFiltros] = useState(false);
+  const [filtros, setFiltros] = useState({ estados: [], sectores: [], capacidad: "" });
+  /* El reloj de la barra de abajo. Va por minuto: es la hora que mira el
+     que atiende, no un cronómetro. */
+  const [reloj, setReloj] = useState(() => new Date());
 
   const arrastre = useRef(null);
   const observador = useRef(null);
@@ -228,6 +237,33 @@ export function PlanoSalon({
 
   const recuento = { libre: 0, ocupada: 0, entregar: 0, reservada: 0, cuenta: 0 };
   for (const m of mesasPiso) recuento[estadoReal(m)] += 1;
+
+  /* El filtro no esconde mesas: las apaga. Una mesa que desaparece del
+     dibujo rompe la referencia espacial, que es lo único que el plano
+     hace mejor que una lista. */
+  const hayFiltro = !!(filtros.estados.length || filtros.sectores.length || filtros.capacidad);
+  const pasaFiltro = useCallback((m) => {
+    if (filtros.estados.length && !filtros.estados.includes(estadoReal(m))) return false;
+    if (filtros.sectores.length && !filtros.sectores.includes(m.sector || "")) return false;
+    if (filtros.capacidad && (m.capacidadTotal || m.capacidad || 0) < Number(filtros.capacidad)) return false;
+    return true;
+  }, [filtros, principales]);
+
+  /* La hora de abajo y el refresco por reloj. Realtime avisa cuando algo
+     cambia de verdad; esto es solo el minutero. */
+  useEffect(() => {
+    const id = setInterval(() => setReloj(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  /* El salón se entera solo. Una mesa cambia de estado desde la comanda,
+     desde la cocina o desde la caja, y el que mira el plano no tiene por
+     qué apretar "actualizar" para enterarse. */
+  useEffect(() => {
+    if (!empresaId || !onActualizar || editando) return undefined;
+    const dejar = escucharPedidos(empresaId, () => onActualizar());
+    return dejar;
+  }, [empresaId, onActualizar, editando]);
 
   const consumido = mesasPiso.reduce((s, m) => s + (m.consumido || 0), 0);
 
@@ -455,7 +491,13 @@ export function PlanoSalon({
       return unir(juntas[0], juntas[1]);
     }
     if (modo === "separar") return separar(m);
-    onTocarMesa(m);
+
+    /* Tocar una mesa abre lo que esa mesa admite, no siempre la comanda:
+       una libre se puede reservar, una que ya pagó lo que necesita es que
+       la levanten. Una mesa unida no tiene cuenta propia, así que se
+       abre la de la principal. */
+    const jefa = m.unidaA ? principales.get(m.unidaA) : null;
+    setMesaTocada(jefa || m);
   };
 
   /* --- arrastre ------------------------------------------------------
@@ -562,6 +604,7 @@ export function PlanoSalon({
         {mesasPlano.map((m) => (
           <PiezaMesa key={m.id} m={m} celda={celda} editando={editando}
             estado={estadoReal(m)}
+            apagada={hayFiltro && !editando && !pasaFiltro(m)}
             abriendo={abriendo === m.id}
             elegida={sel && sel.tipo === "mesa" && sel.id === m.id}
             marcada={elegidas.includes(m.id)}
@@ -650,23 +693,22 @@ export function PlanoSalon({
             <div>
               <Rotulo>Vistas</Rotulo>
               <div className="mt-1.5 space-y-0.5">
-                <Opcion icono={Mapa} activa>Plano</Opcion>
-                <Apagado motivo="La lista de mesas" className="w-full">
-                  <Opcion icono={List}>Lista de mesas</Opcion>
-                </Apagado>
-                <Apagado motivo="Las reservas" className="w-full">
-                  <Opcion icono={CalendarClock}>Reservas</Opcion>
-                </Apagado>
+                <Opcion icono={Mapa} activa={vista === "plano"} onTocar={() => setVista("plano")}>Plano</Opcion>
+                <Opcion icono={List} activa={vista === "lista"} onTocar={() => setVista("lista")}>Lista de mesas</Opcion>
+                <Opcion icono={CalendarClock} activa={vista === "reservas"} onTocar={() => setVista("reservas")}>Reservas</Opcion>
               </div>
             </div>
           )}
 
-          {/* Solo mostrador. El canal —para llevar, delivery, aplicación— se
-              elige al comandar, así que ofrecerlo también acá era pedir dos
-              veces la misma decisión, y una de ellas antes de tiempo. */}
-          <div className="mt-auto pt-3">
-            <Canal icono={Store} rotulo="Mostrador" motivo="Tomar un pedido de mostrador" onTocar={onMostrador} />
-          </div>
+          {/* Mostrador y para llevar no viven acá: son otro flujo y tienen
+              su propia pantalla. Desde el salón solo se vuelve. */}
+          {onVolver && (
+            <div className="mt-auto pt-3">
+              <Boton size="md" variant="ghost" className="w-full" onClick={onVolver}>
+                <ArrowLeft size={16} /> Volver
+              </Boton>
+            </div>
+          )}
         </Card>
 
         {/* --- El plano ------------------------------------------------- */}
@@ -703,11 +745,11 @@ export function PlanoSalon({
                   </Boton>
                 </>
               )}
-              <Apagado motivo="Filtrar las mesas">
-                <span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold border border-borde bg-superficie text-texto whitespace-nowrap">
-                  <Filter size={15} /> Filtros
-                </span>
-              </Apagado>
+              {!editando && (
+                <Boton size="md" variant={hayFiltro ? "dark" : "ghost"} onClick={() => setVerFiltros(true)}>
+                  <Filter size={15} /> Filtros{hayFiltro ? " ·" : ""}
+                </Boton>
+              )}
             </div>
           </div>
 
@@ -724,7 +766,13 @@ export function PlanoSalon({
             </div>
           )}
 
-          {cargando ? <Vacio>Cargando el salón…</Vacio> : plano}
+          {cargando ? <Vacio>Cargando el salón…</Vacio>
+            : vista === "lista" ? <ListaMesas mesas={mesasPiso} onTocar={setMesaTocada} />
+            : vista === "reservas" ? (
+              <VistaReservas empresaId={empresaId} mesas={mesasPiso} toast={toast}
+                onAbrirComanda={(id) => onTocarMesa({ comandaId: id })}
+                alCambiar={onActualizar} />
+            ) : plano}
 
           <div className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-texto-suave px-1">
             {ORDEN_ESTADOS.map((k) => {
@@ -734,9 +782,7 @@ export function PlanoSalon({
                   <span className={`w-2.5 h-2.5 rounded-full ${s.punto}`} /> {s.n}
                 </span>
               );
-              return SIN_DATO[k]
-                ? <Apagado key={k} motivo={SIN_DATO[k]}>{marca}</Apagado>
-                : <React.Fragment key={k}>{marca}</React.Fragment>;
+              return <React.Fragment key={k}>{marca}</React.Fragment>;
             })}
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-superficie-3" /> Barra, cocina y demás
@@ -776,7 +822,7 @@ export function PlanoSalon({
       </div>
 
       {/* --- El recuento de abajo -------------------------------------- */}
-      <div className="shrink-0 grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="shrink-0 grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {ORDEN_ESTADOS.map((k) => {
           const s = ESTADOS[k];
           const cuadro = (
@@ -785,11 +831,64 @@ export function PlanoSalon({
               <div className="f-d text-2xl leading-none mt-1">{recuento[k]}</div>
             </div>
           );
-          return SIN_DATO[k]
-            ? <Apagado key={k} motivo={SIN_DATO[k]} className="block w-full">{cuadro}</Apagado>
-            : <React.Fragment key={k}>{cuadro}</React.Fragment>;
+          return <React.Fragment key={k}>{cuadro}</React.Fragment>;
         })}
       </div>
+
+      {/* --- Quién está, si hay caja y qué hora es --------------------- */}
+      <Card className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2 text-xs text-texto-suave">
+        <span>Empleado: <strong className="text-texto font-semibold">{empleado || "—"}</strong></span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full ${cajaAbierta ? "bg-bien" : "bg-mal"}`} />
+          {cajaAbierta ? "Caja abierta" : "Caja cerrada"}
+        </span>
+        <span className="f-m">{hora(reloj)}</span>
+        {onHistorial && (
+          <button onClick={onHistorial}
+            className="ml-auto inline-flex items-center gap-1.5 font-semibold text-texto-suave hover:text-texto transition-colors">
+            <History size={14} /> Historial de comandas
+          </button>
+        )}
+      </Card>
+
+      <MenuMesa mesa={mesaTocada} onCerrar={() => setMesaTocada(null)}
+        onComanda={() => { const m = mesaTocada; setMesaTocada(null); onTocarMesa(m); }}
+        onCuenta={() => { const m = mesaTocada; setMesaTocada(null); onTocarMesa(m); }}
+        onReservar={() => { setReservando(mesaTocada); setMesaTocada(null); }}
+        onVerReserva={() => { setMesaTocada(null); setVista("reservas"); }}
+        onSentar={async () => {
+          const m = mesaTocada;
+          setMesaTocada(null);
+          try {
+            const comanda = await sentarReserva(m.reserva.id);
+            onActualizar && onActualizar();
+            onTocarMesa({ ...m, comandaId: comanda });
+          } catch (e) {
+            toast(e.message || "No se pudo sentar la reserva.", "mal");
+          }
+        }}
+        onLiberar={() => { const m = mesaTocada; setMesaTocada(null); onTocarMesa(m); }} />
+
+      <FormReserva abierto={!!reservando} mesas={mesasPiso} mesaFija={reservando}
+        dia={aCampoFecha(new Date())} trabajando={trabajando}
+        onCerrar={() => setReservando(null)}
+        onGuardar={async (datos) => {
+          setTrabajando(true);
+          try {
+            await crearReserva(empresaId, { ...datos, sucursalId, recursoId: reservando.id });
+            setReservando(null);
+            onActualizar && onActualizar();
+            toast("Reserva guardada.");
+          } catch (e) {
+            toast(e.message || "No se pudo guardar la reserva.", "mal");
+          } finally {
+            setTrabajando(false);
+          }
+        }} />
+
+      <ModalFiltros abierto={verFiltros} filtros={filtros} sectores={sectores}
+        onCerrar={() => setVerFiltros(false)}
+        onAplicar={(x) => { setFiltros(x); setVerFiltros(false); }} />
     </div>
   );
 }
@@ -813,27 +912,11 @@ function Opcion({ icono: Icono, children, activa = false, onTocar }) {
   );
 }
 
-/* Mostrador y take away: el mozo que está mirando el salón también toma
-   pedidos que no ocupan mesa. Donde la pantalla no sabe abrirlos, el botón
-   se ve apagado en vez de desaparecer. */
-function Canal({ icono: Icono, rotulo, motivo, onTocar, alto = false }) {
-  const forma = `w-full h-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-borde-fuerte bg-superficie-2 text-texto font-bold uppercase tracking-widest ${
-    alto ? "px-3 py-2 text-[11px]" : "px-3 py-3 text-[11px]"}`;
-  if (!onTocar) {
-    return <Apagado motivo={motivo} className="block w-full"><span className={forma}><Icono size={16} /> {rotulo}</span></Apagado>;
-  }
-  return (
-    <button onClick={onTocar} title={motivo} className={`${forma} hover:bg-superficie-3 transition-colors`}>
-      <Icono size={16} /> {rotulo}
-    </button>
-  );
-}
-
 /* ------------------------------------------------------------
    Las piezas del plano
    ------------------------------------------------------------ */
 
-function PiezaMesa({ m, celda, editando, elegida, marcada, abriendo, estado, onTocar, onBajar, onMover, onSoltar }) {
+function PiezaMesa({ m, celda, editando, elegida, marcada, abriendo, estado, apagada = false, onTocar, onBajar, onMover, onSoltar }) {
   const est = ESTADOS[estado];
   const w = m.ancho * celda, h = m.alto * celda;
   const redonda = m.forma === "redonda";
@@ -858,7 +941,10 @@ function PiezaMesa({ m, celda, editando, elegida, marcada, abriendo, estado, onT
         touchAction: editando ? "none" : undefined,
         borderRadius: redonda ? "9999px" : m.forma === "barra" ? 8 : 14,
       }}
-      className={`absolute z-10 border-2 flex flex-col items-center justify-center px-1 text-center transition-colors disabled:opacity-50 ${est.caja} ${
+      /* La que no pasa el filtro se apaga en su lugar y no desaparece:
+         el plano sirve porque cada mesa está siempre donde está. */
+      className={`absolute z-10 border-2 flex flex-col items-center justify-center px-1 text-center transition-all disabled:opacity-50 ${est.caja} ${
+        apagada ? "opacity-20 saturate-0" : ""} ${
         elegida || marcada ? "ring-2 ring-acento ring-offset-2 ring-offset-fondo" : ""} ${
         editando ? "cursor-move" : "cursor-pointer"}`}
     >
@@ -1076,5 +1162,483 @@ function Listas({ sectores, pisos }) {
         {pisos.map((p) => <option key={p} value={p} />)}
       </datalist>
     </>
+  );
+}
+
+/* ============================================================
+   LO QUE SE ABRE AL TOCAR UNA MESA
+   ============================================================
+
+   Nunca las cinco acciones juntas: una mesa libre no se cobra y una
+   pagada no se reserva. Se ofrece lo que ese estado admite y nada más,
+   que es la diferencia entre elegir y buscar.
+   ============================================================ */
+
+function MenuMesa({ mesa, onCerrar, onComanda, onCuenta, onReservar, onVerReserva, onSentar, onLiberar }) {
+  if (!mesa) return null;
+
+  const e = estadoDe(mesa);
+  const s = ESTADOS[e];
+
+  const acciones = [];
+  if (e === "libre") {
+    acciones.push({ i: ClipboardList, n: "Abrir comanda", f: onComanda, fuerte: true });
+    acciones.push({ i: CalendarClock, n: "Reservar", f: onReservar });
+  } else if (e === "reservada") {
+    acciones.push({ i: ClipboardList, n: "Sentar la reserva", f: onSentar, fuerte: true });
+    acciones.push({ i: CalendarClock, n: "Ver la reserva", f: onVerReserva });
+  } else if (e === "cuenta") {
+    acciones.push({ i: Unlink, n: "Liberar la mesa", f: onLiberar, fuerte: true });
+    acciones.push({ i: Receipt, n: "Ver la cuenta", f: onCuenta });
+  } else {
+    acciones.push({ i: ClipboardList, n: "Abrir comanda", f: onComanda, fuerte: true });
+    acciones.push({ i: Receipt, n: "Ver la cuenta", f: onCuenta });
+  }
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-sm">
+      <div className="p-5">
+        <div className="flex items-start gap-3">
+          <span className={`shrink-0 w-12 h-12 rounded-lg border grid place-items-center f-d text-lg ${s.caja}`}>
+            {numeroDe(mesa.nombre)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="f-d text-lg leading-tight">{mesa.nombre}</h3>
+            <div className="text-xs text-texto-suave">
+              {mesa.capacidadTotal || mesa.capacidad} personas
+              {mesa.sector ? ` · ${mesa.sector}` : ""}
+              {mesa.unidas > 0 ? ` · ${mesa.unidas} unida${mesa.unidas === 1 ? "" : "s"}` : ""}
+            </div>
+          </div>
+          <span className={`shrink-0 text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded-md border ${s.caja}`}>
+            {s.n}
+          </span>
+        </div>
+
+        {mesa.ocupada && (
+          <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+            {[["Consumido", money(mesa.consumido)],
+              ["Hace", mesa.minutos == null ? "—" : espera(mesa.minutos)],
+              ["Ítems", String(mesa.items || 0)]].map(([r, v]) => (
+              <div key={r} className="rounded-md border border-borde bg-superficie-2 px-2 py-1.5">
+                <div className="text-[9px] uppercase tracking-widest text-texto-tenue font-bold">{r}</div>
+                <div className="f-m text-sm">{v}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mesa.mozo && mesa.ocupada && (
+          <div className="text-[11px] text-texto-tenue mt-2">La abrió {mesa.mozo}</div>
+        )}
+
+        {mesa.reserva && (
+          <div className="flex items-start gap-2 mt-4 rounded-md border border-reserva bg-reserva-suave px-3 py-2 text-xs text-reserva">
+            <CalendarClock size={14} className="shrink-0 mt-0.5" />
+            <span>
+              <strong>{mesa.reserva.nombre}</strong> · {mesa.reserva.personas} personas
+              {mesa.reserva.desde ? ` · ${hora(mesa.reserva.desde)}` : ""}
+            </span>
+          </div>
+        )}
+
+        <div className="mt-5 space-y-2">
+          {acciones.map((a) => (
+            <Boton key={a.n} size="lg" className="w-full justify-start"
+              variant={a.fuerte ? "primary" : "ghost"} onClick={a.f}>
+              <a.i size={17} /> {a.n}
+            </Boton>
+          ))}
+          <Boton variant="quiet" className="w-full" onClick={onCerrar}>Cerrar</Boton>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ============================================================
+   LA LISTA DE MESAS
+   ============================================================
+
+   El mismo salón sin el plano. Contesta lo que el dibujo contesta mal:
+   qué mesa de seis está libre, cuál lleva dos horas abierta, cuánto
+   acumuló cada una.
+   ============================================================ */
+
+function ListaMesas({ mesas, onTocar }) {
+  const [orden, setOrden] = useState("nombre");
+  const [q, setQ] = useState("");
+
+  const filas = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    const puestas = mesas.filter((m) => !t
+      || `${m.nombre} ${m.sector || ""} ${ESTADOS[estadoDe(m)].n} ${m.mozo || ""}`.toLowerCase().includes(t));
+
+    /* Por estado no es alfabético: primero lo que reclama una mano
+       —algo listo esperando, una cuenta pagada sin levantar— y al final
+       lo que no necesita nada. */
+    const peso = { entregar: 0, cuenta: 1, ocupada: 2, reservada: 3, libre: 4 };
+    return [...puestas].sort((a, b) => {
+      if (orden === "estado") return peso[estadoDe(a)] - peso[estadoDe(b)];
+      if (orden === "capacidad") return (b.capacidadTotal || b.capacidad || 0) - (a.capacidadTotal || a.capacidad || 0);
+      if (orden === "consumido") return (b.consumido || 0) - (a.consumido || 0);
+      if (orden === "tiempo") return (b.minutos || 0) - (a.minutos || 0);
+      return String(a.nombre).localeCompare(String(b.nombre), "es", { numeric: true });
+    });
+  }, [mesas, q, orden]);
+
+  return (
+    <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="shrink-0 flex flex-wrap items-center gap-2 p-2.5 border-b border-borde">
+        <label className="flex-1 min-w-[180px] flex items-center gap-2 rounded-md border border-borde bg-superficie-2 px-3 py-2">
+          <Search size={15} className="text-texto-tenue shrink-0" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Mesa, sector, estado, mozo"
+            className="w-full text-sm bg-transparent outline-none" />
+        </label>
+        <div className="flex items-center gap-1">
+          {[["nombre", "Número"], ["estado", "Estado"], ["capacidad", "Capacidad"],
+            ["tiempo", "Tiempo"], ["consumido", "Consumido"]].map(([k, n]) => (
+            <button key={k} onClick={() => setOrden(k)}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
+                orden === k ? "border-acento bg-acento-suave text-texto" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {!filas.length ? <Vacio>Ninguna mesa con ese filtro.</Vacio> : (
+          <ul className="divide-y divide-borde">
+            {filas.map((m) => {
+              const s = ESTADOS[estadoDe(m)];
+              return (
+                <li key={m.id}>
+                  <button onClick={() => onTocar(m)}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-superficie-2 transition-colors">
+                    <span className={`shrink-0 w-10 h-10 rounded-md border grid place-items-center f-d ${s.caja}`}>
+                      {numeroDe(m.nombre)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold truncate">{m.nombre}</span>
+                      <span className="block text-[11px] text-texto-tenue truncate">
+                        {m.capacidadTotal || m.capacidad} personas{m.sector ? ` · ${m.sector}` : ""}
+                        {m.mozo && m.ocupada ? ` · ${m.mozo}` : ""}
+                      </span>
+                    </span>
+                    <span className={`shrink-0 text-[10px] uppercase tracking-widest font-bold ${s.punto.replace("bg-", "text-")}`}>
+                      {s.n}
+                    </span>
+                    <span className="shrink-0 w-20 text-right">
+                      {m.ocupada && <span className="block f-m text-sm">{money(m.consumido)}</span>}
+                      {m.minutos != null && <span className="block f-m text-[11px] text-texto-tenue">{espera(m.minutos)}</span>}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/* ============================================================
+   LAS RESERVAS
+   ============================================================
+
+   Lo comprometido para hoy, en orden de llegada. Sentar una reserva abre
+   la mesa y la marca en el mismo acto: separado queda a medias, con la
+   mesa abierta y la reserva figurando pendiente toda la noche.
+   ============================================================ */
+
+function VistaReservas({ empresaId, mesas, toast, onAbrirComanda, alCambiar }) {
+  const [dia, setDia] = useState(() => aCampoFecha(new Date()));
+  const [filas, setFilas] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [alta, setAlta] = useState(false);
+  const [trabajando, setTrabajando] = useState(false);
+
+  const avisar = useRef(toast);
+  avisar.current = toast;
+
+  const releer = useCallback(async () => {
+    setCargando(true);
+    try {
+      const desde = new Date(`${dia}T00:00:00`);
+      const hasta = new Date(desde);
+      hasta.setDate(hasta.getDate() + 1);
+      setFilas(await cargarReservas(empresaId, { desde, hasta }));
+    } catch (e) {
+      avisar.current(e.message || "No pudimos leer las reservas.", "mal");
+    } finally {
+      setCargando(false);
+    }
+  }, [empresaId, dia]);
+
+  useEffect(() => { releer(); }, [releer]);
+
+  const mover = async (r, estado) => {
+    setTrabajando(true);
+    try {
+      await cambiarEstadoReserva(r.id, estado);
+      await releer();
+      alCambiar && alCambiar();
+    } catch (e) {
+      avisar.current(e.message || "No se pudo cambiar la reserva.", "mal");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  const sentar = async (r) => {
+    setTrabajando(true);
+    try {
+      const comanda = await sentarReserva(r.id);
+      await releer();
+      alCambiar && alCambiar();
+      onAbrirComanda && onAbrirComanda(comanda);
+    } catch (e) {
+      avisar.current(e.message || "No se pudo sentar la reserva.", "mal");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  return (
+    <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="shrink-0 flex flex-wrap items-center gap-2 p-2.5 border-b border-borde">
+        <input type="date" value={dia} onChange={(e) => setDia(e.target.value)}
+          className={`${inputCls} f-m w-auto`} />
+        <span className="text-xs text-texto-tenue">
+          {filas.filter((r) => r.estado === "pendiente").length} pendientes de {filas.length}
+        </span>
+        <Boton size="md" className="ml-auto" onClick={() => setAlta(true)}>
+          <Plus size={15} /> Nueva reserva
+        </Boton>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {cargando && <Vacio>Cargando…</Vacio>}
+        {!cargando && !filas.length && <Vacio>No hay reservas para ese día.</Vacio>}
+
+        {!cargando && filas.length > 0 && (
+          <ul className="divide-y divide-borde">
+            {filas.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center gap-3 px-3.5 py-3">
+                <span className="shrink-0 w-14 text-center">
+                  <span className="block f-m text-lg leading-none">{hora(r.desde)}</span>
+                  <span className="block text-[10px] text-texto-tenue mt-0.5">{r.duracion} min</span>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold truncate">{r.nombre}</span>
+                  <span className="block text-[11px] text-texto-tenue truncate">
+                    {r.personas} personas{r.mesa ? ` · ${r.mesa}` : " · sin mesa"}
+                    {r.telefono ? ` · ${r.telefono}` : ""}
+                    {r.notas ? ` · ${r.notas}` : ""}
+                  </span>
+                </span>
+
+                <span className={`shrink-0 text-[10px] uppercase tracking-widest font-bold ${
+                  r.estado === "pendiente" ? "text-reserva"
+                  : r.estado === "sentada" ? "text-bien"
+                  : r.estado === "ausente" ? "text-mal" : "text-texto-tenue"}`}>
+                  {nombreEstadoReserva(r.estado)}
+                </span>
+
+                {r.estado === "pendiente" && (
+                  <span className="shrink-0 flex items-center gap-1.5">
+                    <Boton size="sm" disabled={trabajando || !r.recursoId} onClick={() => sentar(r)}
+                      title={r.recursoId ? "Abrir la mesa y marcarla sentada" : "Asignale una mesa primero"}>
+                      Sentar
+                    </Boton>
+                    <Boton size="sm" variant="quiet" disabled={trabajando} onClick={() => mover(r, "ausente")}>
+                      No vino
+                    </Boton>
+                    <Boton size="sm" variant="quiet" disabled={trabajando} onClick={() => mover(r, "cancelada")}>
+                      Cancelar
+                    </Boton>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <FormReserva abierto={alta} mesas={mesas} dia={dia} trabajando={trabajando}
+        onCerrar={() => setAlta(false)}
+        onGuardar={async (datos) => {
+          setTrabajando(true);
+          try {
+            await crearReserva(empresaId, datos);
+            setAlta(false);
+            await releer();
+            alCambiar && alCambiar();
+          } catch (e) {
+            avisar.current(e.message || "No se pudo guardar la reserva.", "mal");
+          } finally {
+            setTrabajando(false);
+          }
+        }} />
+    </Card>
+  );
+}
+
+function FormReserva({ abierto, mesas, dia, trabajando, mesaFija = null, onCerrar, onGuardar }) {
+  const [d, setD] = useState({});
+
+  useEffect(() => {
+    if (!abierto) return;
+    const ahora = new Date();
+    setD({
+      nombre: "", telefono: "", personas: 2,
+      hora: `${String(ahora.getHours()).padStart(2, "0")}:00`,
+      duracion: 90, notas: "",
+      recursoId: mesaFija ? mesaFija.id : "",
+    });
+  }, [abierto, mesaFija]);
+
+  if (!abierto) return null;
+
+  const set = (k, v) => setD((x) => ({ ...x, [k]: v }));
+  const libres = mesas.filter((m) => !m.unidaA);
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5">
+        <h3 className="f-d text-lg">Nueva reserva</h3>
+        {mesaFija && <p className="text-xs text-texto-suave mt-0.5">{mesaFija.nombre}</p>}
+
+        <div className="space-y-3 mt-4">
+          <Campo label="A nombre de">
+            <input value={d.nombre || ""} onChange={(e) => set("nombre", e.target.value)} autoFocus className={inputCls} />
+          </Campo>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Campo label="Hora">
+              <input type="time" value={d.hora || ""} onChange={(e) => set("hora", e.target.value)} className={`${inputCls} f-m`} />
+            </Campo>
+            <Campo label="Personas">
+              <input value={d.personas} inputMode="numeric"
+                onChange={(e) => set("personas", e.target.value.replace(/\D/g, ""))} className={`${inputCls} f-m`} />
+            </Campo>
+            <Campo label="Minutos">
+              <input value={d.duracion} inputMode="numeric"
+                onChange={(e) => set("duracion", e.target.value.replace(/\D/g, ""))} className={`${inputCls} f-m`} />
+            </Campo>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Campo label="Teléfono">
+              <input value={d.telefono || ""} onChange={(e) => set("telefono", e.target.value)} className={`${inputCls} f-m`} />
+            </Campo>
+            {!mesaFija && (
+              <Campo label="Mesa">
+                <select value={d.recursoId || ""} onChange={(e) => set("recursoId", e.target.value)} className={inputCls}>
+                  <option value="">Sin asignar</option>
+                  {libres.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nombre} · {m.capacidadTotal || m.capacidad}p
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            )}
+          </div>
+
+          <Campo label="Nota">
+            <input value={d.notas || ""} onChange={(e) => set("notas", e.target.value)}
+              placeholder="Cumpleaños · junto a la ventana" className={inputCls} />
+          </Campo>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
+          <Boton disabled={trabajando || !String(d.nombre || "").trim()}
+            onClick={() => onGuardar({
+              nombre: d.nombre,
+              telefono: d.telefono,
+              personas: Number(d.personas) || 2,
+              duracion: Number(d.duracion) || 90,
+              notas: d.notas,
+              recursoId: d.recursoId || null,
+              desde: new Date(`${dia}T${d.hora || "20:00"}:00`),
+            })}>
+            <Plus size={15} /> Guardar
+          </Boton>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* Filtrar el salón. No esconde mesas del plano —una mesa que desaparece
+   del dibujo rompe la referencia espacial, que es para lo que existe el
+   plano— sino que apaga las que no cumplen y deja ver las que sí. */
+function ModalFiltros({ abierto, filtros, sectores, onCerrar, onAplicar }) {
+  const [d, setD] = useState(filtros);
+  useEffect(() => { if (abierto) setD(filtros); }, [abierto, filtros]);
+  if (!abierto) return null;
+
+  const alternar = (k, v) => setD((x) => ({
+    ...x, [k]: (x[k] || []).includes(v) ? x[k].filter((y) => y !== v) : [...(x[k] || []), v],
+  }));
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-sm">
+      <div className="p-5">
+        <h3 className="f-d text-lg">Filtrar el salón</h3>
+        <p className="text-xs text-texto-suave mt-1">
+          Las que no entran quedan apagadas, no desaparecen: el plano sirve porque cada mesa está siempre en el mismo lugar.
+        </p>
+
+        <div className="mt-4">
+          <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold mb-1.5">Estado</div>
+          <div className="flex flex-wrap gap-1.5">
+            {ORDEN_ESTADOS.map((k) => (
+              <button key={k} onClick={() => alternar("estados", k)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors ${
+                  (d.estados || []).includes(k)
+                    ? `${ESTADOS[k].caja}`
+                    : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+                {ESTADOS[k].n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {sectores.length > 0 && (
+          <div className="mt-4">
+            <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold mb-1.5">Sector</div>
+            <div className="flex flex-wrap gap-1.5">
+              {sectores.map((s) => (
+                <button key={s} onClick={() => alternar("sectores", s)}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors ${
+                    (d.sectores || []).includes(s)
+                      ? "border-acento bg-acento-suave text-texto"
+                      : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4">
+          <Campo label="Para cuánta gente (mínimo)">
+            <input value={d.capacidad || ""} inputMode="numeric"
+              onChange={(e) => setD({ ...d, capacidad: e.target.value.replace(/\D/g, "") })}
+              placeholder="Cualquiera" className={`${inputCls} f-m`} />
+          </Campo>
+        </div>
+
+        <div className="flex justify-between gap-2 mt-5">
+          <Boton variant="quiet" onClick={() => onAplicar({ estados: [], sectores: [], capacidad: "" })}>Limpiar</Boton>
+          <Boton onClick={() => onAplicar(d)}>Aplicar</Boton>
+        </div>
+      </div>
+    </Modal>
   );
 }

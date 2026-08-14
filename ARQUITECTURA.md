@@ -35,6 +35,7 @@ node scripts/probar-descuento.mjs  # descuento y comensales
 node scripts/probar-agrupado.mjs   # líneas repetidas
 node scripts/probar-pedidos.mjs    # estados, flujo por canal e historial
 node scripts/probar-comanda.mjs    # dividir la cuenta, cerrar y auditoría
+node scripts/probar-salon.mjs      # los cinco estados de una mesa y la reserva
 ```
 
 `probar-rls.mjs` toma la identidad de un usuario con `set local role
@@ -99,6 +100,7 @@ platos, total, hace cuánto que está donde está— en una sola lectura.
 - `movimientos_stock` — el stock es la suma de sus movimientos, nunca un
   campo que se pisa
 - `recursos` (mesas, habitaciones, sillones) y `plano_elementos`
+- `reservas` — una mesa comprometida para más tarde
 - `canales` y `pedido_estados` — ver "El pedido", más arriba
 - `bitacora` — solo admite insertar y leer
 
@@ -132,6 +134,23 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 4. **No se cobra sin caja abierta.** Se verifica en la base.
 5. **Lo que toca varias tablas va en una función**, no en varias llamadas
    desde el navegador.
+
+## El salón
+
+`salon_vista` resuelve el **estado de cada mesa**, y lo resuelve ahí y no
+en la pantalla: el plano, la lista de mesas y el recuento de abajo tienen
+que decir lo mismo, y si cada uno lo dedujera por su cuenta, un día dejan
+de coincidir.
+
+Son cinco y hay un orden entre ellos, porque una mesa puede cumplir dos
+condiciones a la vez: **cuenta** (pagó y sigue sentada) gana a **entregar**
+(algo listo esperando en la cocina), que gana a **ocupada**, que gana a
+**reservada**; lo que queda es **libre**. El criterio es qué hay que hacer
+ahora, no qué pasó antes.
+
+Ninguno se escribe: salen de la comanda, de sus líneas, de `pagos` y de
+`reservas`. Por eso el color de una mesa no se puede tocar desde la
+pantalla, solo empujar desde el servicio.
 
 ## La comanda
 
