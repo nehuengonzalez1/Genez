@@ -1232,7 +1232,7 @@ export function TicketModal({ t, onClose, ajustes, toast }) {
    Se guarda adentro del producto y no en un servicio de archivos aparte:
    el sistema no tiene todavía dónde subir archivos, y una carta que
    depende de un servidor de imágenes que no existe no es una carta. */
-const ANCHO_FOTO = 400;
+const ANCHO_FOTO = 220;
 
 function achicarFoto(archivo) {
   return new Promise((resolver, fallar) => {
@@ -1301,7 +1301,7 @@ function FotoYDescripcion({ d, set }) {
             className={`${inputCls} resize-none`} />
         </Campo>
         <p className="text-[11px] text-texto-tenue mt-1">
-          Se muestran en la carta de la comanda. La foto se achica sola a {ANCHO_FOTO} px.
+          Se muestran en la carta de la comanda. La foto se achica sola a {ANCHO_FOTO} px de ancho.
         </p>
         {error && <p className="text-[11px] text-mal mt-1">{error}</p>}
       </div>

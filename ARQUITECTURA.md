@@ -190,3 +190,10 @@ venta, bitácora automática.
 `supabase/seed/pedidos.sql` siembra un mediodía de pedidos en el Bar
 Rivadavia para poder mirar el tablero lleno. Queda marcado y se borra con
 `delete from operaciones where campos_extra->>'demo' = 'pedidos'`.
+
+`scripts/fotos-carta.mjs` le pone una foto a cada plato, bajándolas de
+Wikimedia Commons con su atribución. Las elige a mano: la búsqueda
+automática devuelve hamburguesas mordidas y ensaladas que son fettuccine.
+`--ver` deja las candidatas en una carpeta para mirarlas antes de aplicar,
+y `--borrar` las saca. Un comercio de verdad carga las suyas desde la
+ficha del producto.
