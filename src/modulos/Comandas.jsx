@@ -43,7 +43,6 @@ import { cargarPedidos, cargarCanales, buscarPedidos, cancelarPedido } from "../
 import { Card, Boton, Modal, Vacio, Apagado, imprimirComandera, preCuenta, comandaCocina } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { tonoCanal, IconoCanal } from "../ui/canales.jsx";
-import { MADERA } from "../ui/madera.js";
 import { CentroPedidos, ModalNuevoPedido } from "./CentroPedidos.jsx";
 import { PlanoSalon } from "./PlanoSalon.jsx";
 
@@ -1271,14 +1270,15 @@ function FichaCarta({ item, onTocar, onSumar }) {
     <div className="relative">
       <button onClick={onTocar} title="Cantidad y cómo lo quieren"
         className="w-full h-full flex items-stretch text-left rounded-xl border border-borde bg-superficie-2 overflow-hidden transition-colors hover:border-acento hover:bg-superficie-3 active:bg-superficie-3">
-        {/* El recorte se apoya sobre la tabla y ocupa la celda entera: solo
-            contra el negro quedaba flotando, plano y chico al lado de las
-            fotos, que traen su propia mesa. */}
+        {/* El recorte va sobre la tarjeta y nada más: sin recuadro, sin
+            textura y sin fondo, que es de lo que se trata un recorte.
+            Ocupa la celda entera —antes se veía como una estampilla— y lo
+            que lo hacía chico no era el marco sino el lienzo del archivo,
+            que viene con la imagen centrada y aire alrededor; eso se
+            recorta al cargarlo. */}
         {item.imagen && recorte ? (
-          <span className="w-[96px] shrink-0 self-stretch grid place-items-center bg-cover bg-center"
-            style={{ backgroundImage: `url(${MADERA})` }}>
-            <img src={item.imagen} alt="" loading="lazy" className="w-full h-full object-contain p-1" />
-          </span>
+          <img src={item.imagen} alt="" loading="lazy"
+            className="w-[96px] shrink-0 self-stretch object-contain p-1" />
         ) : item.imagen ? (
           <img src={item.imagen} alt="" loading="lazy"
             className="w-[96px] shrink-0 self-stretch object-cover" />
