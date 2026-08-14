@@ -210,6 +210,14 @@ venta, bitácora automática.
 Rivadavia para poder mirar el tablero lleno. Queda marcado y se borra con
 `delete from operaciones where campos_extra->>'demo' = 'pedidos'`.
 
+`supabase/seed/salon.sql` dibuja el local del Bar Rivadavia —paredes,
+barra, cocina, terraza y dieciocho mesas— para que el mapa se vea como un
+local. Todo en un solo sistema de coordenadas: los sectores son zonas del
+mismo plano, no planos separados, porque con un origen por sector "Todo
+el piso" los superpone. Las mesas se acomodan, no se recrean: borrar una
+deja en null el `recurso_id` de sus ventas y se pierde en qué mesa se
+vendió cada cosa.
+
 `scripts/fotos-carta.mjs` le pone una foto a cada plato, bajándolas de
 Wikimedia Commons con su atribución. Las elige a mano: la búsqueda
 automática devuelve hamburguesas mordidas y ensaladas que son fettuccine.

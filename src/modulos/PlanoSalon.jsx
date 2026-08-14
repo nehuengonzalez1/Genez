@@ -46,7 +46,11 @@ const aCampoFecha = (d) =>
 
 const espera = (m) => (m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${m}m`);
 
-const CELDA_MIN = 20;
+/* El mínimo existe para que una celda no quede impracticable de tocar,
+   pero cuando pisa al cálculo de alto el plano deja de entrar y se corta
+   por abajo, que es peor: un salón que no se ve entero no sirve. En 16 px
+   una mesa de tres celdas sigue midiendo 48 y se toca bien. */
+const CELDA_MIN = 16;
 const CELDA_MAX = 64;
 
 const PISO_POR_DEFECTO = "Planta baja";
@@ -107,9 +111,17 @@ const estadoDe = (m) => m.estado || "libre";
 /* El mozo lee el número, no la palabra "Mesa": adentro va grande el
    número solo, con dos dígitos como en la maqueta. Si la mesa se llama de
    otra forma —"Vereda", "VIP"— se muestra el nombre y listo. */
+/* La mesa 1 y la banqueta 1 de la barra son dos lugares distintos, y con
+   el número pelado las dos dicen "01". Cuando el nombre no empieza con
+   "Mesa", su inicial va adelante: B1 la banqueta, T3 la de la terraza. */
 function numeroDe(nombre) {
-  const d = String(nombre || "").match(/\d+/);
-  return d ? d[0].padStart(2, "0") : String(nombre || "?").slice(0, 6);
+  const texto = String(nombre || "").trim();
+  const d = texto.match(/\d+/);
+  if (!d) return texto.slice(0, 6) || "?";
+
+  const palabra = texto.split(/[\s-]+/)[0];
+  if (/^mesa$/i.test(palabra) || /^\d/.test(palabra)) return d[0].padStart(2, "0");
+  return palabra.charAt(0).toUpperCase() + d[0];
 }
 
 function idNuevo() {
@@ -165,8 +177,11 @@ export function PlanoSalon({
   /* Ref de función y no useRef: el contenedor del plano se desmonta al
      entrar en edición (cambia de lugar en el árbol) y un efecto de montaje
      se quedaría midiendo un nodo que ya no existe. */
+  const nodo = useRef(null);
+
   const cont = useCallback((el) => {
     if (observador.current) { observador.current.disconnect(); observador.current = null; }
+    nodo.current = el;
     if (!el) return;
     setCaja({ ancho: el.clientWidth, alto: el.clientHeight });
     if (!window.ResizeObserver) return;
@@ -176,6 +191,19 @@ export function PlanoSalon({
     });
     observador.current.observe(el);
   }, []);
+
+  /* Y se vuelve a medir después de cada render. La primera medición sale
+     antes de que se acomoden el recuento y la barra de abajo, así que el
+     plano quedaba calculado contra un alto que después no existía y se
+     pasaba por abajo del recuento. El observador no lo arregla solo: en
+     ese momento el contenedor todavía no cambió de tamaño, lo hacen los
+     hermanos que se agregan debajo. */
+  useEffect(() => {
+    const el = nodo.current;
+    if (!el) return;
+    const ancho = el.clientWidth, alto = el.clientHeight;
+    setCaja((c) => (c.ancho === ancho && c.alto === alto ? c : { ancho, alto }));
+  });
 
   const mesasVista = editando && borrador ? borrador.mesas : mesas;
   const elemVista = editando && borrador ? borrador.elementos : elementos;
@@ -638,7 +666,10 @@ export function PlanoSalon({
         <span className="f-d text-sm tracking-[0.2em] text-texto-suave ml-auto">MAPA DE MESAS</span>
       </div>
 
-      <div className="flex-1 min-h-0 grid gap-2.5 lg:grid-cols-[14rem_minmax(0,1fr)_13rem]">
+      {/* `minmax(0,1fr)` también en la fila: sin eso la fila del grid se
+          estira hasta lo que mida su contenido, el plano se pasa de alto
+          y el recuento de abajo termina dibujado encima. */}
+      <div className="flex-1 min-h-0 grid gap-2.5 grid-rows-[minmax(0,1fr)] lg:grid-cols-[14rem_minmax(0,1fr)_13rem]">
 
         {/* --- Los pisos y las vistas ---------------------------------- */}
         <Card className={`${lados} flex-col min-h-0 overflow-auto p-3 gap-4`}>
@@ -922,7 +953,11 @@ function PiezaMesa({ m, celda, editando, elegida, marcada, abriendo, estado, apa
   const redonda = m.forma === "redonda";
   const grande = numeroDe(m.nombre);
   const gente = m.capacidadTotal || m.capacidad || 0;
-  const cuerpo = w >= 96 && h >= 84;   // abajo de esto solo entra el número
+  /* Abajo de esto solo entra el número. El umbral es el que de verdad
+     hace falta para dos renglones —el número grande y la capacidad—, no
+     uno redondo: con el anterior, un salón entero se quedaba sin mostrar
+     para cuánta gente es cada mesa. */
+  const cuerpo = w >= 76 && h >= 62;
   const tipo = Math.max(13, Math.min(30, Math.round(Math.min(w, h) * 0.42)));
 
   return (
