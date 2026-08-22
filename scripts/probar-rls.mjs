@@ -369,6 +369,61 @@ await comoUsuario(MOZO, async () => {
   decir(d.rowCount === 0, "no se puede borrar un asiento");
 });
 
+/* ------------------------------------------------------------
+   7 · Los clientes son de cada comercio
+
+   Dejaron de vivir en memoria, así que ahora lo que separa la cartera
+   de un comercio de la del otro es una política y nada más.
+   ------------------------------------------------------------ */
+console.log("\nClientes");
+
+/* La empresa ajena se busca ACÁ, como administrador, y no adentro de la
+   sesión del mozo: ahí RLS también le tapa `empresas`, la consulta volvía
+   vacía y las dos pruebas que importan se salteaban sin decir nada. */
+const OTRA = await una(
+  "select e.id from empresas e where e.id <> (select empresa_id from perfiles p join auth.users u on u.id = p.id where u.email = $1) limit 1",
+  [MOZO]);
+
+await comoUsuario(MOZO, async () => {
+  const emp = await una("select empresa_id from perfiles where id = auth.uid()");
+
+  const nuevo = await una(
+    `insert into clientes (empresa_id, razon_social, tipo_doc, doc, condicion)
+     values ($1, 'Prueba RLS', 'DNI', '12345678', 'CF') returning id`,
+    [emp.empresa_id]);
+  decir(!!nuevo.id, "puede dar de alta un cliente propio");
+
+  const leido = await una("select razon_social from clientes where id = $1", [nuevo.id]);
+  decir(leido && leido.razon_social === "Prueba RLS", "lo vuelve a leer");
+
+  const u = await c.query("update clientes set tel = '11 0000 0000' where id = $1", [nuevo.id]);
+  decir(u.rowCount === 1, "puede editarlo");
+
+  /* Desactivar y no borrar: un cliente con ventas atrás dejaría
+     comprobantes emitidos sin a quién apuntar. */
+  const b = await c.query("update clientes set activo = false where id = $1", [nuevo.id]);
+  decir(b.rowCount === 1, "puede desactivarlo");
+
+  /* Lo que de verdad importa: la cartera del comercio de al lado. */
+  if (!OTRA) { decir(false, "hace falta una segunda empresa para probar el aislamiento"); return; }
+
+  const cuantos = await una(
+    "select count(*)::int n from clientes where empresa_id = $1", [OTRA.id]);
+  decir(cuantos.n === 0, "no ve los clientes de otro comercio");
+
+  let colado = false;
+  await c.query("savepoint cl");
+  try {
+    await c.query(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Colado')`, [OTRA.id]);
+    colado = true;
+    await c.query("rollback to savepoint cl");
+  } catch {
+    await c.query("rollback to savepoint cl");
+  }
+  decir(!colado, "no puede crear un cliente en otro comercio");
+});
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

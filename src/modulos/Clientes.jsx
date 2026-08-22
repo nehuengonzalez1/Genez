@@ -4,8 +4,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Search, Plus, Check } from "lucide-react";
-import { uid } from "../datos/generador.js";
-import { CONDICIONES, FISCAL_INICIAL, condicionNombre, money, letraComprobante, CLIENTES_INICIALES } from "../utils/helpers.js";
+import { CONDICIONES, FISCAL_INICIAL, condicionNombre, money, letraComprobante } from "../utils/helpers.js";
 import { Modal, Boton, Card, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 
@@ -64,7 +63,7 @@ export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
   );
 }
 
-export function Clientes({ clientes, setClientes, tickets, ajustes, toast }) {
+export function Clientes({ clientes, guardarCliente, tickets, ajustes }) {
   const [q, setQ] = useState("");
   const [alta, setAlta] = useState(null);
   const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -121,12 +120,13 @@ export function Clientes({ clientes, setClientes, tickets, ajustes, toast }) {
         Se cambia en Ajustes, en Datos fiscales.
       </p>
 
+      {/* El modal se cierra recién cuando la base confirmó. Cerrarlo antes
+          dejaba al usuario creyendo que había guardado cuando el alta podía
+          fallar, y el aviso de error aparecía sobre la lista sin el cliente. */}
       <FormCliente abierto={!!alta} inicial={alta} onCerrar={() => setAlta(null)}
-        onGuardar={(d) => {
-          if (d.id) setClientes((cs) => cs.map((c) => (c.id === d.id ? { ...c, ...d } : c)));
-          else setClientes((cs) => [...cs, { ...d, id: "c" + uid() }]);
-          setAlta(null);
-          toast(`${d.razonSocial} guardado.`);
+        onGuardar={async (d) => {
+          const c = await guardarCliente(d);
+          if (c) setAlta(null);
         }} />
     </div>
   );

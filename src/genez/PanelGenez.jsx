@@ -11,8 +11,9 @@ import {
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave } from "../datos/sesion.js";
-import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
+import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
+import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
 import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
 import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
@@ -847,7 +848,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const [pedidos, setPedidos] = useState([]);
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
   const [provs, setProvs] = useState(PROV_INFO);
-  const [clientes, setClientes] = useState(CLIENTES_INICIALES);
+  const [clientes, setClientes] = useState([]);
   const [altaProd, setAltaProd] = useState(null);
   /* Sale de la empresa, no del código. Antes cualquier comercio arrancaba
      con el nombre y el CUIT de Super 25, así que imprimía comprobantes a
@@ -920,6 +921,21 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     return () => { vigente = false; };
   }, [empresaId]);
 
+  /* Los clientes tampoco vienen del generador. Si la carga falla se queda la
+     lista vacía y se avisa: un cliente inventado en pantalla terminaría
+     impreso en un comprobante. */
+  useEffect(() => {
+    let vigente = true;
+    cargarClientes()
+      .then((cs) => { if (vigente) setClientes(cs); })
+      .catch((e) => {
+        if (!vigente) return;
+        setClientes([]);
+        toast(e.message || "No pudimos cargar los clientes.", "mal");
+      });
+    return () => { vigente = false; };
+  }, [empresaId]);
+
   /* El cierre guarda el saldo de apertura y lo que se contó, pero no lo que
      el sistema esperaba: eso es la suma de los movimientos de esa sesión y se
      recalcula al leerlo. Guardarlo aparte sería un número copiado a mano que
@@ -986,6 +1002,31 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
       return p;
     } catch (e) {
       toast(e.message || "No se pudo crear el producto.", "mal");
+      return null;
+    }
+  }, [empresaId]);
+
+  /* Un solo camino para el alta y la edición: quien llama pasa el cliente
+     entero y el id decide cuál de las dos es. Devuelve el cliente guardado
+     porque el POS lo necesita para seleccionarlo enseguida.
+
+     Acá no se cambia la pantalla primero, al revés que con los productos: un
+     cliente se guarda de a uno y el id lo genera la base, así que mostrarlo
+     antes de tenerlo obligaría a inventarle uno y después reemplazarlo. */
+  const guardarClienteEn = useCallback(async (datos) => {
+    try {
+      if (datos.id) {
+        const c = await guardarCliente(datos.id, datos);
+        if (c) setClientes((cs) => cs.map((x) => (x.id === c.id ? c : x)));
+        toast(`${datos.razonSocial} guardado.`);
+        return c;
+      }
+      const c = await crearCliente(empresaId, datos);
+      setClientes((cs) => [...cs, c].sort((a, b) => a.razonSocial.localeCompare(b.razonSocial, "es")));
+      toast(`${c.razonSocial} agregado.`);
+      return c;
+    } catch (e) {
+      toast(e.message || "No se pudo guardar el cliente.", "mal");
       return null;
     }
   }, [empresaId]);
@@ -1338,7 +1379,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
             {caja.abierta ? (
               <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
-                aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} setClientes={setClientes} permisos={permisos} />
+                aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos} />
             ) : (
               <div className="py-8">
                 <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia}
@@ -1485,7 +1526,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
           )}
           {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
-          {tab === "clientes" && <Clientes clientes={clientes} setClientes={setClientes} tickets={tickets} ajustes={ajustes} toast={toast} />}
+          {tab === "clientes" && <Clientes clientes={clientes} guardarCliente={guardarClienteEn} tickets={tickets} ajustes={ajustes} />}
           {tab === "productos" && (cargandoProductos
             ? <Vacio>Cargando catálogo…</Vacio>
             : <Productos key={foco || "todos"} productos={productos}

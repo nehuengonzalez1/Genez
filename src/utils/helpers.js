@@ -225,12 +225,6 @@ export const FISCAL_INICIAL = {
   domicilio: "Av. San Martín 1204 · Caseros",
 };
 
-export const CLIENTES_INICIALES = [
-  { id: "c1", razonSocial: "Almacén de Vicky", doc: "27-31456789-4", tipoDoc: "CUIT", condicion: "RI", domicilio: "Sarmiento 88", email: "", tel: "11 4478-9032" },
-  { id: "c2", razonSocial: "Rotisería Don Luis", doc: "20-28765432-1", tipoDoc: "CUIT", condicion: "MONOTRIBUTO", domicilio: "Belgrano 415", email: "", tel: "" },
-  { id: "c3", razonSocial: "Marta Gómez", doc: "27.345.678", tipoDoc: "DNI", condicion: "CF", domicilio: "Rivadavia 2140", email: "", tel: "11 5031-7742" },
-];
-
 export function mediosDe(ajustes) {
   const ms = (ajustes && ajustes.medios) || MEDIOS_INICIALES;
   return ms.filter((m) => m.activo !== false);
