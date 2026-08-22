@@ -2,5 +2,159 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   LOS COLORES DE GENEZ
+   ============================================================
+
+   Cada color se nombra por lo que es —superficie, texto, borde— y no por
+   lo que vale. Las pantallas piden "fondo de superficie", no "gris 50".
+
+   Por eso cambiar el tema es cambiar estos valores y nada más: ninguna
+   pantalla sabe de qué color es nada. Antes el claro estaba escrito en
+   cada componente y el oscuro lo pisaba con !important, así que cada
+   color nuevo que alguien usaba quedaba ilegible hasta que se acordaran
+   de remaparlo a mano.
+
+   El oscuro es el de fábrica porque es donde el sistema va a vivir: una
+   cocina, un salón de noche, una caja con la persiana baja.
+
+   Van como tres números y no como #hex para que Tailwind pueda
+   aplicarles transparencia: bg-superficie/60 funciona, con hex no.
+   ============================================================ */
+
+:root {
+  /* Superficies, de más al fondo a más al frente */
+  --fondo:        10 10 10;
+  --superficie:   23 23 23;
+  --superficie-2: 38 38 38;
+  --superficie-3: 56 56 56;
+
+  /* Texto, de más a menos importante */
+  --texto:        250 250 249;
+  --texto-suave:  168 162 158;
+  --texto-tenue:  115 115 115;
+
+  --borde:        41 41 41;
+  --borde-fuerte: 68 68 68;
+
+  /* El naranja de Genez. `sobre-acento` es lo que se lee encima. */
+  --acento:        249 115 22;
+  --acento-vivo:   251 146 60;
+  --acento-suave:  61 30 10;
+  --sobre-acento:  10 10 10;
+
+  /* Estados. No son decoración: dicen si algo está bien o hay que mirarlo. */
+  --bien:       34 197 94;
+  --bien-suave: 5 46 22;
+  --ojo:        245 158 11;
+  --ojo-suave:  53 34 4;
+  --mal:        248 113 113;
+  --mal-suave:  60 20 20;
+  --info:       56 189 248;
+  --info-suave: 8 41 61;
+  /* La mesa reservada. No es un estado de "está bien" o "hay que
+     mirarlo": es una mesa comprometida, y necesita un color propio para
+     no confundirse con la que ya pidió la cuenta. */
+  --reserva:       167 139 250;
+  --reserva-suave: 46 26 71;
+
+  /* Los canales de venta. Un estado dice si algo está bien o mal; un canal
+     dice por dónde entró el pedido, que no es lo mismo y no puede pedirle
+     el color prestado: en el tablero conviven los dos a la vez.
+     PedidosYa, Rappi y Uber Eats no son canales en la base —son todos
+     'app'— pero el que arma los bolsones los distingue de lejos, así que
+     acá sí tienen color propio. */
+  --canal-mostrador:       56 189 248;
+  --canal-mostrador-suave: 8 41 61;
+  --canal-retiro:          129 140 248;
+  --canal-retiro-suave:    27 27 66;
+  --canal-reparto:         45 212 191;
+  --canal-reparto-suave:   6 46 44;
+  --canal-pedidosya:       251 113 133;
+  --canal-pedidosya-suave: 63 20 32;
+  --canal-rappi:           232 121 249;
+  --canal-rappi-suave:     56 18 62;
+  --canal-ubereats:        163 230 53;
+  --canal-ubereats-suave:  32 47 8;
+  --canal-app:             148 163 184;
+  --canal-app-suave:       30 41 59;
+
+  color-scheme: dark;
+}
+
+.tema-claro {
+  --fondo:        250 250 249;
+  --superficie:   255 255 255;
+  --superficie-2: 245 245 244;
+  --superficie-3: 231 229 228;
+
+  --texto:        28 25 23;
+  --texto-suave:  87 83 78;
+  --texto-tenue:  120 113 108;
+
+  --borde:        231 229 228;
+  --borde-fuerte: 214 211 209;
+
+  --acento:        234 88 12;
+  --acento-vivo:   249 115 22;
+  --acento-suave:  255 237 213;
+  --sobre-acento:  255 255 255;
+
+  --bien:       21 128 61;
+  --bien-suave: 220 252 231;
+  --ojo:        180 83 9;
+  --ojo-suave:  254 243 199;
+  --mal:        185 28 28;
+  --mal-suave:  254 226 226;
+  --info:       2 132 199;
+  --info-suave: 224 242 254;
+  --reserva:       109 40 217;
+  --reserva-suave: 237 233 254;
+
+  --canal-mostrador:       2 132 199;
+  --canal-mostrador-suave: 224 242 254;
+  --canal-retiro:          67 56 202;
+  --canal-retiro-suave:    224 231 255;
+  --canal-reparto:         15 118 110;
+  --canal-reparto-suave:   204 251 241;
+  --canal-pedidosya:       190 18 60;
+  --canal-pedidosya-suave: 255 228 230;
+  --canal-rappi:           162 28 175;
+  --canal-rappi-suave:     250 232 255;
+  --canal-ubereats:        77 124 15;
+  --canal-ubereats-suave:  236 252 203;
+  --canal-app:             71 85 105;
+  --canal-app-suave:       226 232 240;
+
+  color-scheme: light;
+}
+
+/* ============================================================
+   LA ESCALA
+   ============================================================
+
+   Todo el espaciado y casi toda la tipografía de Tailwind están en rem,
+   o sea que salen de acá: bajar este número achica el sistema entero de
+   forma pareja, sin ir clase por clase.
+
+   Va bastante abajo de los 16 de fábrica porque la mayoría de las
+   pantallas donde corre Genez están al 125% de Windows: lo que en el
+   diseño entra cómodo, en el local se ve un cuarto más grande y deja de
+   entrar. Subirlo o bajarlo acá reescala el sistema entero.
+
+   No se usa `zoom` para esto: las alturas en dvh —la pantalla de comanda
+   ocupa 100dvh— no acompañan al zoom y queda una franja muerta abajo.
+   ============================================================ */
+html { font-size: 13.5px; }
+
 html, body, #root { height: 100%; }
-body { margin: 0; }
+
+body {
+  margin: 0;
+  background-color: rgb(var(--fondo));
+  color: rgb(var(--texto));
+}
+
+/* El fondo del tema tiene que ganarle al del navegador también cuando se
+   scrollea de más en celular. */
+html { background-color: rgb(var(--fondo)); }

@@ -1,0 +1,40 @@
+# dependencias
+node_modules/
+
+# build
+dist/
+dist-ssr/
+
+# variables de entorno y credenciales
+.env
+.env.*
+!.env.example
+
+# archivos de vite/local
+*.local
+vite.config.js.timestamp-*
+
+# sistema operativo
+.DS_Store
+Thumbs.db
+
+# editores
+.vscode/
+.idea/
+
+# configuración local de claude code (rutas de la máquina)
+.claude/settings.local.json
+
+# estado local del cli de supabase
+supabase/.temp/
+supabase/.branches/
+*.swp
+*.swo
+
+# logs
+*.log
+npm-debug.log*
+
+# Las fotos de la carta las trae el comercio, no el repositorio.
+fotos/*
+!fotos/LEEME.txt
