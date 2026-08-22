@@ -550,6 +550,58 @@ export function Vacio({ children }) {
   return <div className="text-center py-14 text-texto-tenue text-sm">{children}</div>;
 }
 
+/* Los otros tres estados que toda pantalla tiene y que hasta ahora cada
+   una resolvía a su manera: una decía "Cargando…", otra ponía un spinner,
+   otra no mostraba nada. Con una sola voz, el sistema se siente uno. */
+export function Cargando({ children = "Cargando…" }) {
+  return (
+    <div className="flex items-center justify-center gap-2.5 py-14 text-texto-tenue text-sm">
+      <span className="w-4 h-4 rounded-full border-2 border-borde-fuerte border-t-acento animate-spin" />
+      {children}
+    </div>
+  );
+}
+
+/* El error dice qué pasó y ofrece reintentar. Un mensaje sin salida deja
+   al usuario mirando una pantalla rota sin nada que hacer. */
+export function ErrorEstado({ children, onReintentar }) {
+  return (
+    <div className="text-center py-14">
+      <p className="text-sm text-mal">{children || "Algo salió mal."}</p>
+      {onReintentar && (
+        <button onClick={onReintentar} className="mt-3 text-xs font-semibold text-acento hover:underline">
+          Reintentar
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function SinPermiso({ children = "No tenés permiso para ver esta parte." }) {
+  return <div className="text-center py-14 text-texto-tenue text-sm">{children}</div>;
+}
+
+/* La pastilla de estado, que estaba copiada en seis pantallas con clases
+   distintas. El tono es semántico: verde está bien, rojo hay que mirarlo.
+   El fondo es el suave del mismo color y no el saturado, que es la regla
+   de DISENO.md. */
+const TONO_SELLO = {
+  bien: "text-bien border-bien bg-bien-suave",
+  ojo: "text-ojo border-ojo bg-ojo-suave",
+  mal: "text-mal border-mal bg-mal-suave",
+  info: "text-info border-info bg-info-suave",
+  acento: "text-acento border-acento bg-acento-suave",
+  tenue: "text-texto-tenue border-borde bg-superficie-2",
+};
+
+export function Sello({ tono = "tenue", children, className = "" }) {
+  return (
+    <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${TONO_SELLO[tono] || TONO_SELLO.tenue} ${className}`}>
+      {children}
+    </span>
+  );
+}
+
 export function TablaSimple({ cols, filas, vacio }) {
   if (!filas.length) return <Vacio>{vacio}</Vacio>;
   return (

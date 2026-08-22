@@ -33,6 +33,7 @@ import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
 import { Clientes } from "../modulos/Clientes.jsx";
 import { Equipo } from "../modulos/Equipo.jsx";
+import { Agenda } from "../modulos/Agenda.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
@@ -64,6 +65,7 @@ const MODULOS = [
   { k: "pedidos", n: "Pedidos", d: "Preparación con pistola" },
   { k: "clientes", n: "Clientes", d: "Facturación A, B y C" },
   { k: "equipo", n: "Equipo", d: "Quién trabaja, qué hace y cuándo" },
+  { k: "agenda", n: "Agenda", d: "Turnos, clases y disponibilidad" },
   { k: "reportes", n: "Informes", d: "Ventas, márgenes y rubros" },
   { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
 ];
@@ -81,12 +83,12 @@ const ROLES = [
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
-    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "reportes", "asistente"],
+    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "reportes", "asistente"],
     permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
   },
   {
     k: "cajero", n: "Cajero", d: "Cobra, sin ver costos ni ganancias",
-    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes", "equipo"],
+    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes", "equipo", "agenda"],
     permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false },
   },
   {
@@ -1710,6 +1712,7 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
           {tab === "clientes" && <Clientes clientes={clientes} guardarCliente={guardarClienteEn} tickets={tickets} ajustes={ajustes} />}
           {tab === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
+          {tab === "agenda" && <Agenda empresaId={empresaId} sucursalId={null} permisos={permisos} clientes={clientes} toast={toast} ir={ir} />}
           {tab === "productos" && (cargandoProductos
             ? <Vacio>Cargando catálogo…</Vacio>
             : <Productos key={foco || "todos"} productos={productos}

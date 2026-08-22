@@ -532,6 +532,119 @@ await comoUsuario(MOZO, async () => {
   decir(v.n === 0, `un comercio no ve el equipo ni los sueldos de otro (${v.n} de ${CON_EQUIPO})`);
 });
 
+/* ------------------------------------------------------------
+   11 · La agenda
+
+   Dos cosas distintas se prueban acá. Una es el aislamiento: que nadie
+   agende adentro de otro comercio ni con la sala o la persona de otro.
+   La otra son los choques, que tienen que impedirse en la base y no en la
+   pantalla: dos personas agendando desde dos dispositivos al mismo tiempo
+   solo se resuelven acá.
+   ------------------------------------------------------------ */
+console.log("\nAgenda");
+
+const ALMHA = await una("select id from empresas where nombre = 'Almha'");
+
+if (!ALMHA) {
+  decir(false, "hace falta Almha para probar la agenda (corré supabase/seed/almha.sql)");
+} else {
+  const SOFIA = await una(
+    "select id from personal where empresa_id = $1 and nombre = 'Sofía González'", [ALMHA.id]);
+  const SALA = await una(
+    "select id from recursos where empresa_id = $1 order by orden limit 1", [ALMHA.id]);
+  const SERVICIO = await una(
+    "select id, duracion_min from items where empresa_id = $1 and tipo = 'servicio' limit 1", [ALMHA.id]);
+  /* Un lunes a las 9 hora de Buenos Aires, que es cuando Sofía trabaja. */
+  const CUANDO = (await una(
+    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+             + interval '9 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
+
+  const turno = (extra = {}) => JSON.stringify({
+    empresa_id: ALMHA.id, personal_id: SOFIA.id, recurso_id: SALA.id,
+    item_id: SERVICIO.id, nombre: "Prueba RLS", desde: CUANDO,
+    duracion_min: 60, ...extra,
+  });
+
+  await comoUsuario(PLATAFORMA, async () => {
+    const t1 = await una("select agendar_turno($1::jsonb) id", [turno()]);
+    decir(!!t1.id, "se puede agendar un turno");
+
+    const leido = await una(
+      "select servicio, profesional, sala from agenda_vista where id = $1", [t1.id]);
+    decir(leido && leido.profesional === "Sofía González" && !!leido.servicio && !!leido.sala,
+      `la vista resuelve los nombres (${leido ? leido.servicio + " · " + leido.sala : "nada"})`);
+
+    /* Cada choque va en su savepoint: si no, el primer error aborta la
+       transacción entera y las pruebas de abajo no llegan a correr. */
+    const choque = async (etiqueta, args, codigo) => {
+      await c.query("savepoint ch");
+      try {
+        await c.query("select agendar_turno($1::jsonb)", [args]);
+        await c.query("rollback to savepoint ch");
+        decir(false, etiqueta);
+      } catch (e) {
+        await c.query("rollback to savepoint ch");
+        decir(e.code === codigo, `${etiqueta}${e.code === codigo ? "" : ` (dio ${e.code})`}`);
+      }
+    };
+
+    await choque("no deja pisar la misma sala", turno({ personal_id: null }), "P0034");
+    await choque("no deja pisarle el horario a la misma persona", turno({ recurso_id: null }), "P0035");
+
+    const tarde = (await una(
+      `select ($1::timestamptz + interval '12 hours') as t`, [CUANDO])).t;
+    await choque("no deja agendar fuera del horario de la persona",
+      turno({ desde: tarde, recurso_id: null }), "P0036");
+
+    await choque("no deja usar una sala de otro comercio",
+      turno({ recurso_id: (await una("select id from recursos where empresa_id <> $1 limit 1", [ALMHA.id])).id, personal_id: null }),
+      "P0032");
+
+    /* La persona ajena se crea acá adentro: hoy solo Almha tiene equipo,
+       y buscar una que no existe devolvía null, con lo cual la validación
+       se salteaba y la prueba pasaba sin probar nada. Se va con el
+       rollback junto con todo lo demás. */
+    const otraEmpresa = await una("select id from empresas where id <> $1 limit 1", [ALMHA.id]);
+    const ajena = await una(
+      `insert into personal (empresa_id, nombre, tipo) values ($1, 'Prueba ajena', 'profesional') returning id`,
+      [otraEmpresa.id]);
+    await choque("no deja usar una persona de otro comercio",
+      turno({ personal_id: ajena.id, recurso_id: null }), "P0033");
+
+    /* Reprogramar usa las mismas reglas e ignora al propio turno: moverlo
+       media hora no puede chocar contra sí mismo. */
+    const media = (await una(`select ($1::timestamptz + interval '30 minutes') as t`, [CUANDO])).t;
+    await c.query("select mover_turno($1, $2)", [t1.id, media]);
+    decir(true, "se puede reprogramar sin chocar contra sí mismo");
+
+    /* Un bloqueo tapa el horario aunque no haya ningún turno. */
+    await c.query(
+      `insert into excepciones (empresa_id, personal_id, desde, hasta, motivo)
+       values ($1, $2, $3::timestamptz + interval '3 hours', $3::timestamptz + interval '4 hours', 'ausencia')`,
+      [ALMHA.id, SOFIA.id, CUANDO]);
+    await choque("no deja agendar sobre una ausencia",
+      turno({ desde: (await una(`select ($1::timestamptz + interval '3 hours') as t`, [CUANDO])).t, recurso_id: null }),
+      "P0037");
+  });
+
+  /* Y el aislamiento, desde otro comercio. */
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from agenda_vista where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve los turnos de otro");
+
+    await c.query("savepoint ag");
+    let pudo = false;
+    try {
+      await c.query("select agendar_turno($1::jsonb)", [turno()]);
+      pudo = true;
+      await c.query("rollback to savepoint ag");
+    } catch {
+      await c.query("rollback to savepoint ag");
+    }
+    decir(!pudo, "un comercio no puede agendar adentro de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
