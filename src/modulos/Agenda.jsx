@@ -30,7 +30,8 @@ import {
   crearClase, inscribir, cargarInscriptos, cargarEspera, anotarEnEspera,
   marcarEspera, bloquear, MOTIVOS_BLOQUEO,
 } from "../datos/agenda.js";
-import { cargarEquipo, cargarServicios } from "../datos/equipo.js";
+import { cargarServicios } from "../datos/servicios.js";
+import { cargarEquipo } from "../datos/equipo.js";
 import { cargarAbonos } from "../datos/abonos.js";
 import { cargarRecursos } from "../datos/comandas.js";
 import { money } from "../utils/helpers.js";
