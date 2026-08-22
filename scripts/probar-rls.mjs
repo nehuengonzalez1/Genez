@@ -895,6 +895,91 @@ if (ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   14 · Liquidaciones
+
+   Lo que importa acá es que pagarle a alguien deje su egreso: si la
+   liquidación no genera el movimiento, los egresos del mes mienten y el
+   gasto más grande del negocio no aparece en ningún lado.
+   ------------------------------------------------------------ */
+console.log("\nLiquidaciones");
+
+if (ALMHA) {
+  const SOFIA = await una("select id, valor::float v from personal where empresa_id = $1 and nombre = 'Sofía González'", [ALMHA.id]);
+
+  await comoUsuario(PLATAFORMA, async () => {
+    /* Un par de turnos suyos, en un período apartado para no mezclarse
+       con los que alguien haya cargado de verdad. */
+    const lunes = (await una(
+      `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+               + interval '35 days' + interval '9 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
+
+    for (const d of [0, 2]) {
+      await c.query("select agendar_turno($1::jsonb)", [JSON.stringify({
+        empresa_id: ALMHA.id, personal_id: SOFIA.id, nombre: "Alguien",
+        desde: new Date(new Date(lunes).getTime() + d * 86400000).toISOString(),
+        duracion_min: 60,
+      })]);
+    }
+
+    const desde = (await una(`select ($1::timestamptz at time zone 'America/Argentina/Buenos_Aires')::date d`, [lunes])).d;
+    const hasta = (await una(`select (($1::timestamptz + interval '6 days') at time zone 'America/Argentina/Buenos_Aires')::date d`, [lunes])).d;
+
+    const liq = await una("select liquidar($1, $2, $3) id", [SOFIA.id, desde, hasta]);
+    decir(!!liq.id, "se arma la liquidación del período");
+
+    const v = await una("select horas::float h, total::float t, a_pagar::float p, estado from liquidaciones_vista where id = $1", [liq.id]);
+    decir(v.h === 2, `las horas salen de la agenda (${v.h} hs)`);
+    decir(v.t === SOFIA.v * 2, `el total usa su valor hora (${v.t})`);
+
+    /* Volver a armarla no duplica ni pisa el ajuste cargado a mano. */
+    await c.query("update liquidaciones set ajuste = 5000 where id = $1", [liq.id]);
+    await c.query("select liquidar($1, $2, $3)", [SOFIA.id, desde, hasta]);
+    const v2 = await una("select ajuste::float a, a_pagar::float p from liquidaciones_vista where id = $1", [liq.id]);
+    decir(v2.a === 5000, "recalcular respeta el ajuste cargado a mano");
+
+    /* Y lo que de verdad importa: pagar deja el egreso. */
+    const antes = (await una("select count(*)::int n from movimientos_caja where empresa_id = $1 and tipo = 'egreso'", [ALMHA.id])).n;
+    await c.query("select pagar_liquidacion($1, 'transferencia')", [liq.id]);
+    const despues = (await una("select count(*)::int n from movimientos_caja where empresa_id = $1 and tipo = 'egreso'", [ALMHA.id])).n;
+    decir(despues === antes + 1, "pagarla deja el egreso en la caja");
+
+    const mov = await una(
+      `select m.monto::float mo, m.categoria, m.sesion_id
+         from liquidaciones l join movimientos_caja m on m.id = l.movimiento_id
+        where l.id = $1`, [liq.id]);
+    decir(mov && mov.mo === v2.p && mov.categoria === "sueldos",
+      `el egreso es por lo que se paga y va como sueldo (${mov ? mov.mo : "?"})`);
+    decir(mov && mov.sesion_id === null,
+      "se puede pagar por transferencia sin caja abierta");
+
+    await c.query("savepoint dos");
+    try {
+      await c.query("select pagar_liquidacion($1, 'efectivo')", [liq.id]);
+      await c.query("rollback to savepoint dos");
+      decir(false, "no deja pagar dos veces la misma liquidación");
+    } catch (e) {
+      await c.query("rollback to savepoint dos");
+      decir(e.code === "P0061", "no deja pagar dos veces la misma liquidación");
+    }
+
+    await c.query("savepoint rec");
+    try {
+      await c.query("select liquidar($1, $2, $3)", [SOFIA.id, desde, hasta]);
+      await c.query("rollback to savepoint rec");
+      decir(false, "no deja recalcular una liquidación ya pagada");
+    } catch (e) {
+      await c.query("rollback to savepoint rec");
+      decir(e.code === "P0061", "no deja recalcular una liquidación ya pagada");
+    }
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from liquidaciones where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve las liquidaciones de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

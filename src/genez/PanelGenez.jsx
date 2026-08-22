@@ -35,6 +35,7 @@ import { Clientes } from "../modulos/Clientes.jsx";
 import { Equipo } from "../modulos/Equipo.jsx";
 import { Agenda } from "../modulos/Agenda.jsx";
 import { Ventas } from "../modulos/Ventas.jsx";
+import { Finanzas } from "../modulos/Finanzas.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
@@ -68,6 +69,7 @@ const MODULOS = [
   { k: "equipo", n: "Equipo", d: "Quién trabaja, qué hace y cuándo" },
   { k: "agenda", n: "Agenda", d: "Turnos, clases y disponibilidad" },
   { k: "ventas", n: "Ventas", d: "Abonos, packs y planes" },
+  { k: "finanzas", n: "Finanzas", d: "Caja, ingresos, egresos y sueldos" },
   { k: "reportes", n: "Informes", d: "Ventas, márgenes y rubros" },
   { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
 ];
@@ -85,12 +87,12 @@ const ROLES = [
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
-    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "reportes", "asistente"],
+    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "reportes", "asistente"],
     permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
   },
   {
     k: "cajero", n: "Cajero", d: "Cobra, sin ver costos ni ganancias",
-    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes", "equipo", "agenda", "ventas"],
+    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas"],
     permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false },
   },
   {
@@ -1715,6 +1717,11 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
           {tab === "clientes" && <Clientes clientes={clientes} guardarCliente={guardarClienteEn} tickets={tickets} ajustes={ajustes} />}
           {tab === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
           {tab === "agenda" && <Agenda empresaId={empresaId} sucursalId={null} permisos={permisos} clientes={clientes} toast={toast} ir={ir} />}
+          {tab === "finanzas" && (
+            <Finanzas empresaId={empresaId} caja={caja} movCaja={movCaja} ajustes={ajustes}
+              abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia}
+              permisos={permisos} toast={toast} />
+          )}
           {tab === "ventas" && <Ventas empresaId={empresaId} sucursalId={null} clientes={clientes} ajustes={ajustes} caja={caja} permisos={permisos} toast={toast} ir={ir} />}
           {tab === "productos" && (cargandoProductos
             ? <Vacio>Cargando catálogo…</Vacio>
