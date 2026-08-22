@@ -18,6 +18,29 @@ Un motor único —clientes, servicios, turnos, profesionales, recursos,
 ventas, finanzas— con **configuraciones verticales encima**. No un sistema
 por rubro.
 
+## Dónde vive el personal
+
+Lo que en este documento se llamó "el módulo de personal" **no es una
+sección**: se parte en dos, y el corte es el mismo que usa el resto del
+sistema —la operación por un lado, la plata por el otro—.
+
+- **Clientes y equipo → Equipo.** Quiénes son, qué servicios da cada uno,
+  horarios, ausencias, vacaciones y suplencias. Es lo que la agenda
+  necesita para poder ofrecer un turno.
+- **Finanzas → Liquidaciones.** Horas del período, valor hora, total y el
+  pago. Con las notas de reemplazo al costado.
+
+Van separadas porque **pagarle a alguien es un egreso**. Con la liquidación
+adentro de "Clientes y equipo", Finanzas no se entera del gasto más grande
+y más regular del negocio, y los egresos del mes mienten. Al marcarse
+pagada, la liquidación genera el movimiento y la caja cierra sola.
+
+Además las usan personas distintas: recepción mira Equipo todos los días
+—quién cubre, quién faltó—; el dueño mira Liquidaciones una vez por semana.
+
+Las horas las **propone** la agenda sumando las clases dadas y se corrigen
+a mano en la liquidación, que es el momento en que se las mira.
+
 La misma regla que el centro de pedidos: no crear nada paralelo. El
 catálogo, los clientes, las operaciones, la caja, los pagos, los permisos y
 la impresión ya existen y se reusan.

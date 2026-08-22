@@ -1380,7 +1380,10 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
 
   useEffect(() => {
     const h = (e) => {
-      if (e.key === "F10" && vista === "panel") { e.preventDefault(); cobrar_(); }
+      /* El atajo sigue a la acción del rubro: si el rubro no tiene una,
+         F10 no abre nada. Dejarlo vivo mientras se le saca el botón sería
+         dejar una puerta escondida a una pantalla que no corresponde. */
+      if (e.key === "F10" && vista === "panel" && accion) { e.preventDefault(); cobrar_(); }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
