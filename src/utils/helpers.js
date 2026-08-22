@@ -30,8 +30,11 @@ export const hora = (f, conSegundos = false) => {
 export const diasDesde = (d) => Math.floor((HOY - d) / dayMs);
 export const diasHasta = (d) => Math.ceil((d - HOY) / dayMs);
 
+/* Los dos valores los define index.html. El respaldo es para cuando este
+   módulo corre fuera del navegador, y tiene que decir lo mismo que ahí:
+   si se cambia el modelo, se cambia en los dos lados.                       */
 export const API_BASE = (typeof window !== "undefined" && window.__API_BASE__) || "https://api.anthropic.com";
-export const API_MODELO = (typeof window !== "undefined" && window.__API_MODELO__) || "claude-sonnet-4-6";
+export const API_MODELO = (typeof window !== "undefined" && window.__API_MODELO__) || "claude-sonnet-5";
 
 /* Lista 2: se activa sola cuando el renglón llega a la cantidad mínima, y
    solo en ese renglón. Tres fideos iguales pagan lista 2; el aceite que va
