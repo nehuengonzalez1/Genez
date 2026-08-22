@@ -56,12 +56,19 @@ function aFila(datos) {
    pasa ese número sin ser grande, así que se pagina siempre. */
 const PAGINA = 1000;
 
-export async function cargarClientes() {
+/* El filtro por empresa va explícito, igual que en el catálogo: RLS
+   contesta si podés ver algo, no de qué comercio es. El dueño de
+   plataforma ve todo, así que sin este filtro entraba a un comercio y se
+   le mezclaba la cartera de los otros. */
+export async function cargarClientes(empresaId) {
+  if (!empresaId) throw new Error("cargarClientes necesita saber de qué comercio.");
+
   const filas = [];
   for (let desde = 0; ; desde += PAGINA) {
     const { data, error } = await supabase
       .from("clientes")
       .select(SELECT)
+      .eq("empresa_id", empresaId)
       .eq("activo", true)
       .order("razon_social")
       .range(desde, desde + PAGINA - 1);

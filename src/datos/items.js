@@ -64,10 +64,22 @@ function aProducto(f, historial) {
   };
 }
 
-export async function cargarProductos() {
+/* El filtro por empresa va explícito y no se delega en RLS.
+
+   RLS contesta "¿podés ver esto?", no "¿de qué comercio es esto?". Para un
+   usuario de comercio las dos respuestas coinciden y por eso esto anduvo
+   mucho tiempo. Pero el dueño de plataforma puede ver todo, así que
+   entrando como Almha se cargaba también el catálogo de Super 25 y el del
+   bar: 990 productos en un comercio que tiene nueve servicios y ninguno.
+
+   Sin empresa no se consulta. Un id olvidado tiene que reventar acá y no
+   aparecer como una Coca-Cola en el informe de una estética. */
+export async function cargarProductos(empresaId) {
+  if (!empresaId) throw new Error("cargarProductos necesita saber de qué comercio.");
+
   const [filas, costos] = await Promise.all([
-    traerTodo("items_vista", "*", (q) => q.eq("tipo", "producto").order("nombre")),
-    traerTodo("historial_costos", "item_id, costo, fecha", (q) => q.order("fecha")),
+    traerTodo("items_vista", "*", (q) => q.eq("empresa_id", empresaId).eq("tipo", "producto").order("nombre")),
+    traerTodo("historial_costos", "item_id, costo, fecha", (q) => q.eq("empresa_id", empresaId).order("fecha")),
   ]);
 
   const porItem = new Map();

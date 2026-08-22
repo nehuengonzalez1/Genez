@@ -939,7 +939,7 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
   useEffect(() => {
     let vigente = true;
     setCargandoProductos(true);
-    cargarProductos()
+    cargarProductos(empresaId)
       .then((ps) => { if (vigente) setProductos(ps); })
       .catch((e) => {
         if (!vigente) return;
@@ -955,7 +955,7 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
      impreso en un comprobante. */
   useEffect(() => {
     let vigente = true;
-    cargarClientes()
+    cargarClientes(empresaId)
       .then((cs) => { if (vigente) setClientes(cs); })
       .catch((e) => {
         if (!vigente) return;
@@ -1037,11 +1037,11 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
     } catch (e) {
       toast(e.message || "No se pudo guardar el producto.", "mal");
       try {
-        const ps = await cargarProductos();
+        const ps = await cargarProductos(empresaId);
         setProductos(ps);
       } catch { /* el error ya se avisó; el catálogo queda como estaba */ }
     }
-  }, []);
+  }, [empresaId]);
 
   const agregarProducto = useCallback(async (datos, msg) => {
     try {

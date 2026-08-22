@@ -134,6 +134,16 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 4. **No se cobra sin caja abierta.** Se verifica en la base.
 5. **Lo que toca varias tablas va en una función**, no en varias llamadas
    desde el navegador.
+6. **Toda consulta de lista filtra por `empresa_id`, explícito.** RLS
+   contesta *si podés ver algo*, no *de qué comercio es*. Para un usuario
+   de comercio las dos respuestas coinciden, y por eso apoyarse en la
+   política parecía alcanzar. No alcanza: el dueño de plataforma ve todo, y
+   entrando como Almha se le cargaban los 972 productos de Super 25 —la
+   Coca-Cola apareciendo en el informe de una estética—. Las funciones de
+   `src/datos/` que traen listas revientan si no reciben la empresa, a
+   propósito: un id olvidado tiene que fallar ahí y no convertirse en datos
+   de otro negocio. Lo cubre `probar-rls.mjs`, en "Alcance de la
+   plataforma".
 
 ## El salón
 

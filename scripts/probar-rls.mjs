@@ -466,6 +466,44 @@ await comoUsuario(PLATAFORMA, async () => {
   decir(u.rowCount === 1, "la plataforma sí puede editar un rubro");
 });
 
+/* ------------------------------------------------------------
+   9 · La plataforma ve todo, y por eso la aplicación tiene que filtrar
+
+   Esto NO es un agujero: es lo que hace que el panel de plataforma pueda
+   existir. Lo que sí fue un error es haberse apoyado en RLS para saber de
+   qué comercio era cada fila.
+
+   RLS contesta "¿podés ver esto?". No contesta "¿de qué comercio es?".
+   Para un usuario de comercio las dos respuestas coinciden y por eso el
+   problema no aparecía nunca... hasta que el dueño de plataforma entró
+   como Almha y se le cargaron los 972 productos de Super 25, con la
+   Coca-Cola apareciendo en el informe de una estética.
+
+   Esta prueba deja escrito el comportamiento para que nadie lo "arregle"
+   apretando la política: si alguien la cambia, el panel de plataforma deja
+   de funcionar. Lo que tiene que filtrar es cada consulta de `src/datos/`,
+   con su `empresa_id` explícito.
+   ------------------------------------------------------------ */
+console.log("\nAlcance de la plataforma");
+
+const TOTAL_ITEMS = (await una("select count(*)::int n from items where tipo = 'producto'")).n;
+
+await comoUsuario(PLATAFORMA, async () => {
+  const v = await una("select count(*)::int n from items_vista where tipo = 'producto'");
+  decir(v.n === TOTAL_ITEMS, `sin filtro ve el catálogo de todos los comercios (${v.n} de ${TOTAL_ITEMS})`);
+
+  const emp = await una("select empresa_id from empresas e join items i on i.empresa_id = e.id where e.nombre = 'Almha' limit 1");
+  if (emp) {
+    const propio = await una("select count(*)::int n from items_vista where tipo = 'producto' and empresa_id = $1", [emp.empresa_id]);
+    decir(propio.n < TOTAL_ITEMS, `filtrando por empresa ve solo lo de ese comercio (${propio.n})`);
+  }
+});
+
+await comoUsuario(MOZO, async () => {
+  const v = await una("select count(*)::int n from items_vista where tipo = 'producto'");
+  decir(v.n > 0 && v.n < TOTAL_ITEMS, `un comercio, en cambio, nunca ve el catálogo de otro (${v.n} de ${TOTAL_ITEMS})`);
+});
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
