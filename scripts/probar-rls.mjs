@@ -645,6 +645,126 @@ if (!ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   12 · Clases grupales
+
+   Lo que se prueba acá es el cupo, que es donde esto se rompe feo: dos
+   personas apretando "anotar" sobre el último lugar tienen que terminar
+   con una adentro y una afuera, no con siete en una clase de seis.
+
+   Y lo otro es que las inscripciones NO ocupen la sala. Si ocuparan, la
+   segunda persona de una clase daría "sala ocupada" y nadie podría
+   anotarse.
+   ------------------------------------------------------------ */
+console.log("\nClases grupales");
+
+if (ALMHA) {
+  const SOFIA = await una("select id from personal where empresa_id = $1 and nombre = 'Sofía González'", [ALMHA.id]);
+  const SALA = await una(
+    "select id, capacidad from recursos where empresa_id = $1 and capacidad >= 6 order by orden limit 1", [ALMHA.id]);
+  const GRUPAL = await una(
+    `select id from items where empresa_id = $1 and tipo = 'servicio'
+       and campos_extra ->> 'modalidad' = 'grupal' limit 1`, [ALMHA.id]);
+  const CUANDO = (await una(
+    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+             + interval '10 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
+
+  await comoUsuario(PLATAFORMA, async () => {
+    const clase = await una("select crear_clase($1::jsonb) id", [JSON.stringify({
+      empresa_id: ALMHA.id, personal_id: SOFIA.id, recurso_id: SALA.id,
+      item_id: GRUPAL.id, nombre: "Reformer intermedio", desde: CUANDO,
+      duracion_min: 60, cupo: 3,
+    })]);
+    decir(!!clase.id, "se puede abrir una clase");
+
+    const vacia = await una(
+      "select forma, cupo, anotados, lugares from agenda_vista where id = $1", [clase.id]);
+    decir(vacia.forma === "clase" && vacia.anotados === "0" && Number(vacia.lugares) === 3,
+      `la clase existe sin nadie anotado (${vacia.lugares} lugares)`);
+
+    /* Tres inscripciones entran; la cuarta no. Y ninguna tiene que dar
+       "sala ocupada": ahí estaba el error que esta migración corrige. */
+    for (let i = 1; i <= 3; i++) {
+      try {
+        await c.query("select inscribir($1::jsonb)", [JSON.stringify({ clase_id: clase.id, nombre: `Alumna ${i}` })]);
+        decir(true, `entra la alumna ${i}`);
+      } catch (e) {
+        decir(false, `entra la alumna ${i} (${e.message})`);
+      }
+    }
+
+    await c.query("savepoint cl");
+    try {
+      await c.query("select inscribir($1::jsonb)", [JSON.stringify({ clase_id: clase.id, nombre: "Alumna 4" })]);
+      await c.query("rollback to savepoint cl");
+      decir(false, "no deja pasarse del cupo");
+    } catch (e) {
+      await c.query("rollback to savepoint cl");
+      decir(e.code === "P0045", `no deja pasarse del cupo${e.code === "P0045" ? "" : ` (dio ${e.code})`}`);
+    }
+
+    /* La misma persona dos veces ocupa un lugar que otro necesitaba. */
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Cliente prueba') returning id`, [ALMHA.id]);
+    /* Sin sala ni profesor: si los tuviera chocaría con la clase de
+       arriba, que ocupa esa sala a esa hora. */
+    const clase2 = await una("select crear_clase($1::jsonb) id", [JSON.stringify({
+      empresa_id: ALMHA.id, item_id: GRUPAL.id, nombre: "Otra",
+      desde: CUANDO, duracion_min: 60, cupo: 4,
+    })]);
+    await c.query("select inscribir($1::jsonb)", [JSON.stringify({ clase_id: clase2.id, cliente_id: cli.id, nombre: "Cliente prueba" })]);
+    await c.query("savepoint dup");
+    try {
+      await c.query("select inscribir($1::jsonb)", [JSON.stringify({ clase_id: clase2.id, cliente_id: cli.id, nombre: "Cliente prueba" })]);
+      await c.query("rollback to savepoint dup");
+      decir(false, "no deja anotar dos veces a la misma persona");
+    } catch (e) {
+      await c.query("rollback to savepoint dup");
+      decir(e.code === "P0046", "no deja anotar dos veces a la misma persona");
+    }
+
+    /* El cupo no puede pasarse de lo que entra en la sala. */
+    await c.query("savepoint cap");
+    try {
+      await c.query("select crear_clase($1::jsonb)", [JSON.stringify({
+        empresa_id: ALMHA.id, recurso_id: SALA.id, nombre: "Imposible",
+        desde: CUANDO, duracion_min: 60, cupo: (SALA.capacidad || 6) + 10,
+      })]);
+      await c.query("rollback to savepoint cap");
+      decir(false, "no deja abrir una clase más grande que la sala");
+    } catch (e) {
+      await c.query("rollback to savepoint cap");
+      decir(e.code === "P0041", "no deja abrir una clase más grande que la sala");
+    }
+
+    /* Y la clase sí ocupa: un turno individual encima tiene que chocar. */
+    await c.query("savepoint enc");
+    try {
+      await c.query("select agendar_turno($1::jsonb)", [JSON.stringify({
+        empresa_id: ALMHA.id, recurso_id: SALA.id, nombre: "Encima",
+        desde: CUANDO, duracion_min: 60,
+      })]);
+      await c.query("rollback to savepoint enc");
+      decir(false, "una clase ocupa la sala para un turno individual");
+    } catch (e) {
+      await c.query("rollback to savepoint enc");
+      decir(e.code === "P0034", "una clase ocupa la sala para un turno individual");
+    }
+
+    /* La lista de espera. */
+    await c.query(
+      `insert into espera (empresa_id, clase_id, nombre) values ($1, $2, 'La que espera')`,
+      [ALMHA.id, clase.id]);
+    const esp = await una("select esperando from agenda_vista where id = $1", [clase.id]);
+    decir(Number(esp.esperando) === 1, "la lista de espera cuenta en la vista");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from espera where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve la lista de espera de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

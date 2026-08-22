@@ -48,6 +48,15 @@ function aTurno(f) {
     notas: f.notas || "",
     personas: f.personas,
 
+    /* `forma` la resuelve la vista: turno, clase o inscripción. La
+       pantalla no tiene que deducirla mirando si hay cupo. */
+    forma: f.forma || "turno",
+    claseId: f.clase_id || null,
+    cupo: f.cupo,
+    anotados: n(f.anotados),
+    lugares: f.lugares === null || f.lugares === undefined ? null : n(f.lugares),
+    esperando: n(f.esperando),
+
     clienteId: f.cliente_id || null,
     cliente: f.cliente || f.nombre || "Sin nombre",
     telefono: f.telefono || "",
@@ -218,4 +227,157 @@ export function choca(turnos, { desde, duracion, ignorar = null }) {
   const fin = new Date(desde.getTime() + duracion * 60000);
   return turnos.some((t) =>
     t.id !== ignorar && OCUPAN.includes(t.estado) && t.desde < fin && t.hasta > desde);
+}
+
+/* ============================================================
+   CLASES GRUPALES
+   ============================================================
+
+   Una clase es una reserva con cupo; anotarse es una reserva que apunta a
+   ella. Ver la migración 0034 para por qué van en la misma tabla y por
+   qué las inscripciones no ocupan la sala.
+   ============================================================ */
+
+const MOTIVOS_CLASE = {
+  P0040: "Una clase necesita al menos un lugar.",
+  P0041: "En esa sala no entra tanta gente.",
+  P0042: "No existe esa clase.",
+  P0043: "Eso no es una clase.",
+  P0044: "Esa clase está cancelada.",
+  P0045: "Esa clase ya está completa.",
+  P0046: "Esa persona ya está anotada.",
+};
+
+function traducirClase(error) {
+  const codigo = error && error.code;
+  return new Error(MOTIVOS_CLASE[codigo] || MOTIVOS[codigo] || (error && error.message) || "No se pudo.");
+}
+
+export async function crearClase({
+  empresaId, sucursalId = null, personalId = null, recursoId = null,
+  itemId = null, nombre, desde, duracion = 60, cupo = 1, notas = "",
+}) {
+  const { data, error } = await supabase.rpc("crear_clase", {
+    p: {
+      empresa_id: empresaId,
+      sucursal_id: sucursalId,
+      personal_id: personalId,
+      recurso_id: recursoId,
+      item_id: itemId,
+      nombre: nombre || "Clase",
+      desde: desde.toISOString(),
+      duracion_min: duracion,
+      cupo,
+      notas,
+    },
+  });
+  if (error) throw traducirClase(error);
+  return data;
+}
+
+/* El cupo lo controla la base con la clase bloqueada: dos personas
+   apretando "anotar" sobre el último lugar terminan con una adentro y una
+   afuera, y no con siete en una clase de seis. */
+export async function inscribir({ claseId, clienteId = null, nombre, telefono = null, notas = "" }) {
+  const { data, error } = await supabase.rpc("inscribir", {
+    p: { clase_id: claseId, cliente_id: clienteId, nombre: nombre || "Sin nombre", telefono, notas },
+  });
+  if (error) throw traducirClase(error);
+  return data;
+}
+
+export async function cargarInscriptos(empresaId, claseId) {
+  if (!empresaId) throw new Error("cargarInscriptos necesita saber de qué comercio.");
+  const { data, error } = await supabase
+    .from("agenda_vista")
+    .select("*")
+    .eq("empresa_id", empresaId)
+    .eq("clase_id", claseId)
+    .order("creada_en");
+  if (error) throw error;
+  return (data || []).map(aTurno);
+}
+
+/* ------------------------------------------------------------
+   Lista de espera
+
+   No se promueve sola. Liberar un lugar y meter a alguien sin avisarle es
+   peor que el problema: la persona se entera cuando ya no puede ir.
+   ------------------------------------------------------------ */
+
+export async function cargarEspera(empresaId, claseId) {
+  const { data, error } = await supabase
+    .from("espera")
+    .select("id, cliente_id, nombre, telefono, notas, estado, orden, creada_en")
+    .eq("empresa_id", empresaId)
+    .eq("clase_id", claseId)
+    .in("estado", ["esperando", "avisado"])
+    .order("orden")
+    .order("creada_en");
+  if (error) throw error;
+  return data || [];
+}
+
+export async function anotarEnEspera({ empresaId, claseId, clienteId = null, nombre, telefono = null }) {
+  const { error } = await supabase.from("espera").insert({
+    empresa_id: empresaId, clase_id: claseId, cliente_id: clienteId,
+    nombre: nombre || "Sin nombre", telefono,
+  });
+  if (error) throw error;
+}
+
+export async function marcarEspera(id, estado) {
+  const { error } = await supabase.from("espera").update({ estado }).eq("id", id);
+  if (error) throw error;
+}
+
+/* ------------------------------------------------------------
+   Bloqueos y ausencias
+
+   Con `personalId` en null el bloqueo es de todo el comercio: eso es un
+   feriado o un corte de luz.
+   ------------------------------------------------------------ */
+
+export const MOTIVOS_BLOQUEO = [
+  { k: "ausencia", n: "Ausencia" },
+  { k: "vacaciones", n: "Vacaciones" },
+  { k: "feriado", n: "Feriado" },
+  { k: "licencia", n: "Licencia" },
+];
+
+export async function cargarBloqueos(empresaId, { desde, hasta }) {
+  if (!empresaId) throw new Error("cargarBloqueos necesita saber de qué comercio.");
+  const { data, error } = await supabase
+    .from("excepciones")
+    .select("id, personal_id, desde, hasta, motivo, nota")
+    .eq("empresa_id", empresaId)
+    .lt("desde", hasta.toISOString())
+    .gt("hasta", desde.toISOString())
+    .order("desde");
+  if (error) throw error;
+  return (data || []).map((b) => ({
+    id: b.id,
+    personalId: b.personal_id || null,
+    desde: new Date(b.desde),
+    hasta: new Date(b.hasta),
+    motivo: b.motivo,
+    nota: b.nota || "",
+  }));
+}
+
+export async function bloquear({ empresaId, personalId = null, desde, hasta, motivo = "ausencia", nota = "" }) {
+  const { error } = await supabase.from("excepciones").insert({
+    empresa_id: empresaId,
+    personal_id: personalId,
+    desde: desde.toISOString(),
+    hasta: hasta.toISOString(),
+    motivo,
+    nota: nota || null,
+  });
+  if (error) throw error;
+}
+
+export async function quitarBloqueo(id) {
+  const { error } = await supabase.from("excepciones").delete().eq("id", id);
+  if (error) throw error;
 }
