@@ -7,12 +7,15 @@ import {
   LayoutDashboard, Barcode, Package, Boxes, Truck, Wallet, BarChart3,
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
-  Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag
+  Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
+  Heart, MessageSquare
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave } from "../datos/sesion.js";
-import { CLIENTES_INICIALES, MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
+import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
+import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
+import { cargarTablero, tableroVacio } from "../datos/tablero.js";
 import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
 import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
@@ -21,7 +24,7 @@ import {
   abrirCaja as abrirCajaEnBase, cerrarCaja as cerrarCajaEnBase,
 } from "../datos/caja.js";
 import { calcular, insights } from "../utils/diagnostico.js";
-import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio } from "../ui/Base.jsx";
+import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apagado, Tabs } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
@@ -29,6 +32,10 @@ import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
 import { Clientes } from "../modulos/Clientes.jsx";
+import { Equipo } from "../modulos/Equipo.jsx";
+import { Agenda } from "../modulos/Agenda.jsx";
+import { Ventas } from "../modulos/Ventas.jsx";
+import { Finanzas } from "../modulos/Finanzas.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
@@ -59,6 +66,10 @@ const MODULOS = [
   { k: "compras", n: "Compras", d: "Remitos, costos y proveedores" },
   { k: "pedidos", n: "Pedidos", d: "Preparación con pistola" },
   { k: "clientes", n: "Clientes", d: "Facturación A, B y C" },
+  { k: "equipo", n: "Equipo", d: "Quién trabaja, qué hace y cuándo" },
+  { k: "agenda", n: "Agenda", d: "Turnos, clases y disponibilidad" },
+  { k: "ventas", n: "Ventas", d: "Abonos, packs y planes" },
+  { k: "finanzas", n: "Finanzas", d: "Caja, ingresos, egresos y sueldos" },
   { k: "reportes", n: "Informes", d: "Ventas, márgenes y rubros" },
   { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
 ];
@@ -76,12 +87,12 @@ const ROLES = [
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
-    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "reportes", "asistente"],
+    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "reportes", "asistente"],
     permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
   },
   {
     k: "cajero", n: "Cajero", d: "Cobra, sin ver costos ni ganancias",
-    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes"],
+    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas"],
     permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false },
   },
   {
@@ -752,43 +763,54 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
   );
 }
 
-const NAV = [
-  { k: "inicio", n: "Inicio", i: LayoutDashboard },
-  { k: "comandas", n: "Salón", i: UtensilsCrossed },
-  /* El mostrador no está acá a propósito: vive adentro de la pantalla de
-     comanda, con su propia barra lateral. Ponerlo también como pestaña del
-     panel dejaba una ventana adentro de otra, con dos barras laterales
-     compitiendo por el mismo trabajo.
+/* El menú ya no está escrito acá: sale de `rubros`, una fila por tipo de
+   negocio. Lo que queda en el código es lo que una fila no puede guardar.
 
-     La cocina sí es una pestaña: es una pantalla colgada en la pared que
-     nadie toca, y no comparte nada con el flujo de tomar pedidos.
-     Ojo con la clave: `pedidos` ya es el picking del minimercado. */
-  { k: "cocina", n: "Cocina", i: ChefHat },
-  { k: "pedidos", n: "Pedidos", i: ClipboardList },
-  { k: "clientes", n: "Clientes", i: Users },
-  { k: "productos", n: "Productos", i: Package },
-  { k: "stock", n: "Stock", i: Boxes },
-  { k: "compras", n: "Compras", i: Truck },
-  { k: "caja", n: "Caja", i: Wallet },
-  { k: "reportes", n: "Informes", i: BarChart3 },
-  { k: "asistente", n: "Asistente", i: Sparkles },
-  { k: "ajustes", n: "Ajustes", i: Settings },
-];
-
-const TITULOS = {
-  inicio: ["Inicio", "Cómo viene el negocio hoy"],
-  comandas: ["Salón", "Qué mesa está ocupada, qué lleva y cuánto hace que espera"],
-  cocina: ["Cocina", "Lo que hay que preparar, en el orden en que se pidió"],
-  pedidos: ["Pedidos", "Preparación con pistola y control de faltantes"],
-  clientes: ["Clientes", "Para emitir facturas A, B o C según corresponda"],
-  productos: ["Productos", "Costos, precios y margen de todo tu catálogo"],
-  stock: ["Stock", "Qué reponer, qué vence y qué no se mueve"],
-  compras: ["Compras", "Cargar remitos, pedidos sugeridos y proveedores"],
-  caja: ["Caja", "Ingresos, egresos y arqueo del día"],
-  reportes: ["Informes", "Qué se vende, qué deja plata y qué cambió"],
-  asistente: ["Asistente", "Tus datos explicados y qué conviene hacer"],
-  ajustes: ["Ajustes", "Configuración del negocio y del sistema"],
+   El ícono viaja como nombre porque la base no sabe de React. Un nombre
+   que no esté en esta tabla cae en uno neutro: un módulo con el ícono
+   equivocado se usa igual, una pantalla que revienta no. */
+const ICONOS = {
+  panel: LayoutDashboard, planilla: ClipboardList, gente: Users,
+  caja: Package, cajas: Boxes, camion: Truck, billetera: Wallet,
+  barras: BarChart3, chispas: Sparkles, tuerca: Settings,
+  cubiertos: UtensilsCrossed, cocina: ChefHat, agenda: CalendarDays,
+  barcode: Barcode, bolsa: ShoppingBag, corazon: Heart, mensaje: MessageSquare,
 };
+const iconoDe = (n) => ICONOS[n] || Store;
+
+/* El respaldo, para cuando el rubro no carga: sin conexión, o un comercio
+   con un rubro que nadie dio de alta. Sin esto una consulta fallida deja a
+   alguien sin manera de moverse por el sistema.
+
+   Va todo adentro y en un solo grupo sin rótulo, que es como se veía el
+   menú antes de este cambio. Lo que el comercio no contrató lo filtra
+   `puedeVer` igual.
+
+   El mostrador no está acá a propósito: vive adentro de la pantalla de
+   comanda, con su propia barra lateral. Ponerlo también como pestaña del
+   panel dejaba una ventana adentro de otra, con dos barras laterales
+   compitiendo por el mismo trabajo.
+
+   La cocina sí es una pestaña: es una pantalla colgada en la pared que
+   nadie toca, y no comparte nada con el flujo de tomar pedidos.
+   Ojo con la clave: `pedidos` ya es el picking del minimercado. */
+const MENU_POR_DEFECTO = [{
+  clave: "todo", nombre: null,
+  modulos: [
+    { k: "inicio", n: "Inicio", i: "panel", d: "Cómo viene el negocio hoy" },
+    { k: "comandas", n: "Salón", i: "cubiertos", d: "Qué mesa está ocupada, qué lleva y cuánto hace que espera" },
+    { k: "cocina", n: "Cocina", i: "cocina", d: "Lo que hay que preparar, en el orden en que se pidió" },
+    { k: "pedidos", n: "Pedidos", i: "planilla", d: "Preparación con pistola y control de faltantes" },
+    { k: "clientes", n: "Clientes", i: "gente", d: "Para emitir facturas A, B o C según corresponda" },
+    { k: "productos", n: "Productos", i: "caja", d: "Costos, precios y margen de todo tu catálogo" },
+    { k: "stock", n: "Stock", i: "cajas", d: "Qué reponer, qué vence y qué no se mueve" },
+    { k: "compras", n: "Compras", i: "camion", d: "Cargar remitos, pedidos sugeridos y proveedores" },
+    { k: "caja", n: "Caja", i: "billetera", d: "Ingresos, egresos y arqueo del día" },
+    { k: "reportes", n: "Informes", i: "barras", d: "Qué se vende, qué deja plata y qué cambió" },
+    { k: "asistente", n: "Asistente", i: "chispas", d: "Tus datos explicados y qué conviene hacer" },
+    { k: "ajustes", n: "Ajustes", i: "tuerca", d: "Configuración del negocio y del sistema" },
+  ],
+}];
 
 /* Los formularios entregan texto y la base espera números: una cadena
    vacía en una columna numérica la rechaza el servidor, no el navegador. */
@@ -810,7 +832,7 @@ function aDatosDeBase(d) {
   };
 }
 
-function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
+function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
   const { modulos, permisos, esPlataforma } = permisosDe(sesion);
 
   /* La configuración del comercio se lee directo de la sesión. `ajustes`
@@ -833,7 +855,22 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   /* Cada forma de vender tiene su pantalla a pantalla completa: el POS para
      el que cobra en un mostrador, la de comandas para el que atiende un
      salón. El panel es a dónde se va a mirar el negocio, no a trabajar. */
-  const [vista, setVista] = useState(vender === "comandas" ? "comanda" : vender === "cobro" ? "cobro" : "panel");
+  /* Por dónde abre el sistema lo decide el rubro y ya no lo que se
+     contrató. El criterio viejo era "si tenés cobro, abrís en la caja
+     registradora", y con eso una estética arrancaba en un lector de
+     códigos de barras con el carrito vacío, cuando el 95% de su día es
+     agendar y vender es la excepción.
+
+     Un rubro igual puede pedir abrir en una pantalla que este comercio no
+     contrató. Ahí manda lo que el comercio tiene: abrir en una pantalla
+     vacía es peor que abrir en otra. */
+  const entradaPorDefecto = vender === "comandas" ? "comanda" : vender === "cobro" ? "cobro" : "panel";
+  const entradaPedida = rubro && rubro.entrada;
+  const entrada =
+    entradaPedida === "comanda" && vender !== "comandas" ? entradaPorDefecto :
+    entradaPedida === "cobro" && !vender ? entradaPorDefecto :
+    entradaPedida || entradaPorDefecto;
+  const [vista, setVista] = useState(entrada);
   const [tab, setTab] = useState("inicio");
   const [foco, setFoco] = useState(null);
   const [productos, setProductos] = useState([]);
@@ -847,7 +884,8 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const [pedidos, setPedidos] = useState([]);
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
   const [provs, setProvs] = useState(PROV_INFO);
-  const [clientes, setClientes] = useState(CLIENTES_INICIALES);
+  const [clientes, setClientes] = useState([]);
+  const [tablero, setTablero] = useState(null);
   const [altaProd, setAltaProd] = useState(null);
   /* Sale de la empresa, no del código. Antes cualquier comercio arrancaba
      con el nombre y el CUIT de Super 25, así que imprimía comprobantes a
@@ -909,7 +947,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   useEffect(() => {
     let vigente = true;
     setCargandoProductos(true);
-    cargarProductos()
+    cargarProductos(empresaId)
       .then((ps) => { if (vigente) setProductos(ps); })
       .catch((e) => {
         if (!vigente) return;
@@ -919,6 +957,42 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
       .finally(() => { if (vigente) setCargandoProductos(false); });
     return () => { vigente = false; };
   }, [empresaId]);
+
+  /* Los clientes tampoco vienen del generador. Si la carga falla se queda la
+     lista vacía y se avisa: un cliente inventado en pantalla terminaría
+     impreso en un comprobante. */
+  useEffect(() => {
+    let vigente = true;
+    cargarClientes(empresaId)
+      .then((cs) => { if (vigente) setClientes(cs); })
+      .catch((e) => {
+        if (!vigente) return;
+        setClientes([]);
+        toast(e.message || "No pudimos cargar los clientes.", "mal");
+      });
+    return () => { vigente = false; };
+  }, [empresaId]);
+
+  /* El tablero se pide una sola vez y solo donde se usa: el de comercio se
+     calcula en el navegador sobre el catálogo y no necesita nada de esto.
+
+     Si falla no se rompe la pantalla ni se avisa con un cartel rojo: queda
+     el tablero en su estado vacío, que ya dice lo que corresponde. */
+  const esTableroDeServicios = !!rubro && rubro.inicio === "servicios";
+  useEffect(() => {
+    if (!esTableroDeServicios) return;
+    let vigente = true;
+    cargarTablero({ empresaId, demo: config.demo === true })
+      .then((t) => { if (vigente) setTablero(t); })
+      .catch((e) => {
+        /* Con el tablero vacío la pantalla se dibuja igual y cada bloque
+           dice que no tiene datos. Dejarlo en null la colgaba mostrando el
+           esqueleto de carga para siempre, que es la peor de las dos. */
+        console.error("No se pudo armar el tablero:", e);
+        if (vigente) setTablero(tableroVacio());
+      });
+    return () => { vigente = false; };
+  }, [empresaId, esTableroDeServicios]);
 
   /* El cierre guarda el saldo de apertura y lo que se contó, pero no lo que
      el sistema esperaba: eso es la suma de los movimientos de esa sesión y se
@@ -971,11 +1045,11 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
     } catch (e) {
       toast(e.message || "No se pudo guardar el producto.", "mal");
       try {
-        const ps = await cargarProductos();
+        const ps = await cargarProductos(empresaId);
         setProductos(ps);
       } catch { /* el error ya se avisó; el catálogo queda como estaba */ }
     }
-  }, []);
+  }, [empresaId]);
 
   const agregarProducto = useCallback(async (datos, msg) => {
     try {
@@ -986,6 +1060,31 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
       return p;
     } catch (e) {
       toast(e.message || "No se pudo crear el producto.", "mal");
+      return null;
+    }
+  }, [empresaId]);
+
+  /* Un solo camino para el alta y la edición: quien llama pasa el cliente
+     entero y el id decide cuál de las dos es. Devuelve el cliente guardado
+     porque el POS lo necesita para seleccionarlo enseguida.
+
+     Acá no se cambia la pantalla primero, al revés que con los productos: un
+     cliente se guarda de a uno y el id lo genera la base, así que mostrarlo
+     antes de tenerlo obligaría a inventarle uno y después reemplazarlo. */
+  const guardarClienteEn = useCallback(async (datos) => {
+    try {
+      if (datos.id) {
+        const c = await guardarCliente(datos.id, datos);
+        if (c) setClientes((cs) => cs.map((x) => (x.id === c.id ? c : x)));
+        toast(`${datos.razonSocial} guardado.`);
+        return c;
+      }
+      const c = await crearCliente(empresaId, datos);
+      setClientes((cs) => [...cs, c].sort((a, b) => a.razonSocial.localeCompare(b.razonSocial, "es")));
+      toast(`${c.razonSocial} agregado.`);
+      return c;
+    } catch (e) {
+      toast(e.message || "No se pudo guardar el cliente.", "mal");
       return null;
     }
   }, [empresaId]);
@@ -1232,7 +1331,16 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   /* El botón dice qué se va a hacer, no dónde: desde ahí se comanda,
      sea para una mesa o para el mostrador. "Salón" ya está en el menú
      de la izquierda y repetirlo no agregaba nada. */
-  const rotuloVender = vender === "comandas" ? "Comanda" : "Cobrar";
+  /* La acción principal también es del rubro. `destacada` es lo que decide
+     si va como el botón grande de arriba —cobrar en un minimercado, tomar
+     la comanda en un bar— o como un renglón más del menú, que es lo que
+     corresponde donde vender existe pero es la excepción. */
+  const accion = (rubro && rubro.accion) || (vender
+    ? { k: "cobro", n: vender === "comandas" ? "Comanda" : "Cobrar",
+        i: vender === "comandas" ? "planilla" : "barcode", destacada: true }
+    : null);
+  const rotuloVender = accion ? accion.n : "Cobrar";
+  const IconoAccion = iconoDe(accion ? accion.i : "barcode");
 
   // Un único lector para todo el sistema: si la pantalla activa sabe qué hacer
   // con el código, se lo queda; si no, abre la ficha rápida del producto.
@@ -1246,12 +1354,57 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
 
   const ventasHoy = resumenDia.total;
   const ticketsHoy = resumenDia.tickets;
-  const [titulo, bajada] = TITULOS[tab];
+  /* El menú que se dibuja: los grupos del rubro, con los módulos que el
+     comercio contrató y el rol habilita. Un grupo que se queda sin ningún
+     módulo no se dibuja — si no, una estética vería el rótulo "Finanzas"
+     con nada abajo. */
+  const grupos = useMemo(() => {
+    const base = rubro && rubro.grupos.length ? rubro.grupos : MENU_POR_DEFECTO;
+    return base
+      .map((g) => ({ ...g, modulos: (g.modulos || []).filter((m) => puedeVer(m.k)) }))
+      /* Una sección se queda si tiene algo que mostrar, o si está marcada
+         como próxima: esas se dibujan apagadas para que se vea a dónde va
+         el sistema. Lo que el comercio simplemente no contrató desaparece,
+         como siempre — un módulo no contratado no lo ve ni el dueño. */
+      .filter((g) => g.modulos.length > 0 || g.proximo);
+  }, [rubro, modulos, config.cocinaEnPantalla]);
+
+  /* Una sección con un solo módulo se dibuja con el nombre de la sección y
+     no con el del módulo: "Clientes y equipo" es un renglón, no un rótulo
+     con "Clientes" colgando abajo. Cuando una sección junte dos o más, ahí
+     van a hacer falta las pestañas internas.
+
+     El título de la pantalla sale de acá también. Antes eran dos listas
+     separadas que había que acordarse de actualizar juntas. */
+  /* Una sección con nombre es un solo renglón del menú, tenga uno o cinco
+     módulos adentro: "Clientes y equipo" es una fila, no un rótulo con
+     "Clientes" y "Equipo" colgando. Los de adentro se eligen con pestañas
+     arriba del contenido, que es a donde va la arquitectura de diez
+     secciones.
+
+     Las secciones sin nombre —comercio, gastronomía— siguen desplegando
+     sus módulos como una lista plana, igual que siempre. */
+  const items = useMemo(() => grupos.flatMap((g) => (
+    g.nombre && g.modulos.length
+      ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i }]
+      : g.modulos
+  )), [grupos]);
+
+  const seccion = grupos.find((g) => g.modulos.some((m) => m.k === tab)) || null;
+  const moduloActual = seccion ? seccion.modulos.find((m) => m.k === tab) : null;
+  /* El título es el de la sección y la bajada la del módulo: así el
+     encabezado y las pestañas dicen cosas distintas y no se repiten. */
+  const titulo = seccion && seccion.nombre ? seccion.nombre : moduloActual ? moduloActual.n : "";
+  const bajada = moduloActual ? moduloActual.d : "";
+  const pestanas = seccion && seccion.nombre && seccion.modulos.length > 1 ? seccion.modulos : null;
   const alertasAltas = ins.filter((i) => i.sev === "alta").length;
 
   useEffect(() => {
     const h = (e) => {
-      if (e.key === "F10" && vista === "panel") { e.preventDefault(); cobrar_(); }
+      /* El atajo sigue a la acción del rubro: si el rubro no tiene una,
+         F10 no abre nada. Dejarlo vivo mientras se le saca el botón sería
+         dejar una puerta escondida a una pantalla que no corresponde. */
+      if (e.key === "F10" && vista === "panel" && accion) { e.preventDefault(); cobrar_(); }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
@@ -1338,7 +1491,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
             {caja.abierta ? (
               <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
-                aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} setClientes={setClientes} permisos={permisos} />
+                aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos} />
             ) : (
               <div className="py-8">
                 <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia}
@@ -1420,23 +1573,71 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
               <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">1 caja · {nf.format(productos.length)} art.</div>
             </div>
           </div>
-          <Boton className="w-full mt-2" size="lg" onClick={cobrar_}>
-            {vender === "comandas" ? <ClipboardList size={17} /> : <Barcode size={17} />} {rotuloVender}
-            <kbd className="f-m text-[10px] border border-borde-fuerte rounded px-1 py-0.5">F10</kbd>
-          </Boton>
+          {accion && accion.destacada && (
+            <Boton className="w-full mt-2" size="lg" onClick={cobrar_}>
+              <IconoAccion size={17} /> {rotuloVender}
+              <kbd className="f-m text-[10px] border border-borde-fuerte rounded px-1 py-0.5">F10</kbd>
+            </Boton>
+          )}
+          {/* Sin destacar queda como un renglón más, arriba del menú: se
+              llega igual y con el mismo atajo, pero deja de ser lo más
+              grande de una pantalla donde no es lo que más se hace. */}
+          {accion && !accion.destacada && (
+            <button onClick={cobrar_}
+              className="w-full mt-3 flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium text-texto-suave hover:bg-superficie-2 transition-colors">
+              <IconoAccion size={16} className="text-texto-tenue" /> {rotuloVender}
+              <kbd className="f-m text-[10px] border border-borde rounded px-1 py-0.5 ml-auto text-texto-tenue">F10</kbd>
+            </button>
+          )}
+          {/* Un grupo sin nombre se dibuja como lista pelada: así se ve el
+              menú de un comercio o un bar, igual que antes de que esto
+              fuera configurable. El rótulo aparece solo donde el rubro lo
+              definió. */}
           <nav className="mt-3 space-y-0.5">
-            {NAV.filter((n) => puedeVer(n.k)).map((n) => (
-              <button key={n.k} onClick={() => ir(n.k)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors ${tab === n.k ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
-                <n.i size={16} className={tab === n.k ? "text-acento-vivo" : "text-texto-tenue"} /> {n.n}
-                {n.k === "compras" && k.criticos.filter((x) => x.cobertura < 4).length > 0 && (
-                  <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{k.criticos.filter((x) => x.cobertura < 4).length}</span>
-                )}
-                {n.k === "pedidos" && pedidosCli.filter((p) => p.estado !== "entregado").length > 0 && (
-                  <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{pedidosCli.filter((p) => p.estado !== "entregado").length}</span>
-                )}
-              </button>
-            ))}
+            {grupos.map((g) => {
+              const fila = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors";
+
+              /* Sección que va a existir y todavía no: se ve, no se toca. */
+              if (g.modulos.length === 0) {
+                const Icono = iconoDe(g.i);
+                return (
+                  <Apagado key={g.clave} motivo={g.nombre} className={`${fila} !justify-start text-texto-suave`}>
+                    <Icono size={16} className="text-texto-tenue" /> {g.nombre}
+                  </Apagado>
+                );
+              }
+
+              /* La sección con nombre es el renglón, tenga los módulos que
+                 tenga; los de adentro se eligen con las pestañas de
+                 arriba. Queda activa mientras se esté en cualquiera de
+                 ellos. */
+              const visibles = g.nombre
+                ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
+                : g.modulos;
+
+              return (
+                <div key={g.clave}>
+                  <div className="space-y-0.5">
+                    {visibles.map((n) => {
+                      const Icono = iconoDe(n.i);
+                      const aca = (n.claves || [n.k]).includes(tab);
+                      return (
+                        <button key={n.k} onClick={() => ir(n.k)}
+                          className={`${fila} ${aca ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
+                          <Icono size={16} className={aca ? "text-acento-vivo" : "text-texto-tenue"} /> {n.n}
+                          {n.k === "compras" && k.criticos.filter((x) => x.cobertura < 4).length > 0 && (
+                            <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{k.criticos.filter((x) => x.cobertura < 4).length}</span>
+                          )}
+                          {n.k === "pedidos" && pedidosCli.filter((p) => p.estado !== "entregado").length > 0 && (
+                            <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{pedidosCli.filter((p) => p.estado !== "entregado").length}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </nav>
           <div className="mt-auto px-2.5 py-3 border-t border-borde">
             <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Caja</div>
@@ -1448,15 +1649,25 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
         {/* Navegación móvil */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-superficie border-t border-borde overflow-x-auto seguro-abajo">
           <div className="flex">
-            <button onClick={cobrar_} className="flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 text-sobre-acento bg-acento">
-              {vender === "comandas" ? <ClipboardList size={17} /> : <Barcode size={17} />} {rotuloVender}
-            </button>
-            {NAV.filter((n) => puedeVer(n.k)).map((n) => (
-              <button key={n.k} onClick={() => ir(n.k)}
-                className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${tab === n.k ? "text-acento" : "text-texto-tenue"}`}>
-                <n.i size={17} /> {n.n}
+            {accion && (
+              <button onClick={cobrar_}
+                className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${
+                  accion.destacada ? "text-sobre-acento bg-acento" : "text-texto-tenue"}`}>
+                <IconoAccion size={17} /> {rotuloVender}
               </button>
-            ))}
+            )}
+            {/* En el celular los grupos se aplanan a propósito: es una tira
+                que se desliza, y meterle rótulos adentro la haría más larga
+                sin ordenar nada. */}
+            {items.map((n) => {
+              const Icono = iconoDe(n.i);
+              return (
+                <button key={n.k} onClick={() => ir(n.k)}
+                  className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${tab === n.k ? "text-acento" : "text-texto-tenue"}`}>
+                  <Icono size={17} /> {n.n}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -1471,21 +1682,47 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
               <span className="text-texto-tenue">·</span>
               <span className="f-m">{money(ventasHoy)} hoy</span>
               <BotonTema tema={tema} setTema={setTema} />
-              <Boton size="sm" variant="dark" className="md:hidden" onClick={cobrar_}>
-                {vender === "comandas" ? <ClipboardList size={14} /> : <Barcode size={14} />} {rotuloVender}
-              </Boton>
+              {accion && (
+                <Boton size="sm" variant="dark" className="md:hidden" onClick={cobrar_}>
+                  <IconoAccion size={14} /> {rotuloVender}
+                </Boton>
+              )}
               <Sesion sesion={sesion} onSalir={onSalir} />
             </div>
           </header>
 
-          {tab === "inicio" && <Inicio k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy} ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />}
+          {/* Los módulos de una sección se eligen acá y no en la barra
+              lateral: es lo que permite que el menú sean diez renglones y
+              no quince. Aparecen solo cuando la sección tiene más de uno,
+              porque una pestaña sola no es una elección. */}
+          {pestanas && (
+            <div className="-mt-2 mb-5">
+              <Tabs value={tab} onChange={ir} items={pestanas.map((m) => ({ k: m.k, n: m.n }))} />
+            </div>
+          )}
+
+          {tab === "inicio" && (
+            <Inicio tablero={rubro ? rubro.inicio : "comercio"}
+              k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy}
+              datos={tablero} cargando={esTableroDeServicios && !tablero}
+              usuario={sesion.nombre} puedeVer={puedeVer}
+              ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />
+          )}
           {tab === "comandas" && (
             <Comandas empresaId={empresaId} config={config} ajustes={ajustes}
               caja={caja} permisos={permisos} sesion={sesion} toast={toast} />
           )}
           {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
-          {tab === "clientes" && <Clientes clientes={clientes} setClientes={setClientes} tickets={tickets} ajustes={ajustes} toast={toast} />}
+          {tab === "clientes" && <Clientes clientes={clientes} guardarCliente={guardarClienteEn} tickets={tickets} ajustes={ajustes} />}
+          {tab === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
+          {tab === "agenda" && <Agenda empresaId={empresaId} sucursalId={null} permisos={permisos} clientes={clientes} toast={toast} ir={ir} />}
+          {tab === "finanzas" && (
+            <Finanzas empresaId={empresaId} caja={caja} movCaja={movCaja} ajustes={ajustes}
+              abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia}
+              permisos={permisos} toast={toast} />
+          )}
+          {tab === "ventas" && <Ventas empresaId={empresaId} sucursalId={null} clientes={clientes} ajustes={ajustes} caja={caja} permisos={permisos} toast={toast} ir={ir} />}
           {tab === "productos" && (cargandoProductos
             ? <Vacio>Cargando catálogo…</Vacio>
             : <Productos key={foco || "todos"} productos={productos}

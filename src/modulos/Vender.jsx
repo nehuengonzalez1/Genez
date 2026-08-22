@@ -8,7 +8,7 @@ import {
   Minus, Plus, Trash2, Printer, FileText, MessageCircle, Mail, QrCode,
   ArrowRight, Check, X, Percent, Users, Search
 } from "lucide-react";
-import { uid, HOY } from "../datos/generador.js";
+import { HOY } from "../datos/generador.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   letraComprobante, conRecargo, mediosDe, medioPorK, FISCAL_INICIAL,
@@ -463,7 +463,7 @@ const ATAJOS = [
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
-export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, setClientes, permisos }) {
+export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → monto → fin
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -993,7 +993,15 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {buscarCliente && (
         <BuscarCliente clientes={clientes} onCerrar={() => setBuscarCliente(false)}
           onElegir={(c) => { setCliente(c); setBuscarCliente(false); }}
-          onCrear={(d) => { const nuevo = { ...d, id: "c" + uid() }; setClientes((cs) => [...cs, nuevo]); setCliente(nuevo); setBuscarCliente(false); toast(`${d.razonSocial} agregado.`); }} />
+          onCrear={async (d) => {
+            /* Se espera el id que devuelve la base antes de seleccionarlo:
+               el cliente va impreso en el comprobante y uno inventado acá
+               no existiría en ningún lado. */
+            const c = await guardarCliente(d);
+            if (!c) return;
+            setCliente(c);
+            setBuscarCliente(false);
+          }} />
       )}
 
       {/* ---------- Ventana 2b: efectivo ---------- */}

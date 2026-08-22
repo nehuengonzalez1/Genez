@@ -369,6 +369,617 @@ await comoUsuario(MOZO, async () => {
   decir(d.rowCount === 0, "no se puede borrar un asiento");
 });
 
+/* ------------------------------------------------------------
+   7 · Los clientes son de cada comercio
+
+   Dejaron de vivir en memoria, así que ahora lo que separa la cartera
+   de un comercio de la del otro es una política y nada más.
+   ------------------------------------------------------------ */
+console.log("\nClientes");
+
+/* La empresa ajena se busca ACÁ, como administrador, y no adentro de la
+   sesión del mozo: ahí RLS también le tapa `empresas`, la consulta volvía
+   vacía y las dos pruebas que importan se salteaban sin decir nada. */
+const OTRA = await una(
+  "select e.id from empresas e where e.id <> (select empresa_id from perfiles p join auth.users u on u.id = p.id where u.email = $1) limit 1",
+  [MOZO]);
+
+await comoUsuario(MOZO, async () => {
+  const emp = await una("select empresa_id from perfiles where id = auth.uid()");
+
+  const nuevo = await una(
+    `insert into clientes (empresa_id, razon_social, tipo_doc, doc, condicion)
+     values ($1, 'Prueba RLS', 'DNI', '12345678', 'CF') returning id`,
+    [emp.empresa_id]);
+  decir(!!nuevo.id, "puede dar de alta un cliente propio");
+
+  const leido = await una("select razon_social from clientes where id = $1", [nuevo.id]);
+  decir(leido && leido.razon_social === "Prueba RLS", "lo vuelve a leer");
+
+  const u = await c.query("update clientes set tel = '11 0000 0000' where id = $1", [nuevo.id]);
+  decir(u.rowCount === 1, "puede editarlo");
+
+  /* Desactivar y no borrar: un cliente con ventas atrás dejaría
+     comprobantes emitidos sin a quién apuntar. */
+  const b = await c.query("update clientes set activo = false where id = $1", [nuevo.id]);
+  decir(b.rowCount === 1, "puede desactivarlo");
+
+  /* Lo que de verdad importa: la cartera del comercio de al lado. */
+  if (!OTRA) { decir(false, "hace falta una segunda empresa para probar el aislamiento"); return; }
+
+  const cuantos = await una(
+    "select count(*)::int n from clientes where empresa_id = $1", [OTRA.id]);
+  decir(cuantos.n === 0, "no ve los clientes de otro comercio");
+
+  let colado = false;
+  await c.query("savepoint cl");
+  try {
+    await c.query(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Colado')`, [OTRA.id]);
+    colado = true;
+    await c.query("rollback to savepoint cl");
+  } catch {
+    await c.query("rollback to savepoint cl");
+  }
+  decir(!colado, "no puede crear un cliente en otro comercio");
+});
+
+/* ------------------------------------------------------------
+   8 · El menú lo lee cualquiera, lo escribe la plataforma
+
+   Los rubros no son datos de un comercio sino la forma del producto, así
+   que la política es al revés que en todo lo demás: leer, todos; escribir,
+   solo plataforma. Si esto se invirtiera, un comercio podría reacomodarle
+   el menú a los otros.
+   ------------------------------------------------------------ */
+console.log("\nRubros");
+
+const PLATAFORMA = "nehuengonzalez1@gmail.com";
+
+await comoUsuario(MOZO, async () => {
+  const mio = await una(
+    `select r.clave, jsonb_array_length(r.menu) grupos
+     from rubros r join empresas e on e.rubro = r.clave
+     where e.id = (select empresa_id from perfiles where id = auth.uid())`);
+  decir(!!mio && mio.grupos > 0, `lee el menú de su rubro (${mio ? mio.clave : "ninguno"})`);
+
+  const otros = await una("select count(*)::int n from rubros");
+  decir(otros.n >= 3, `ve los demás rubros, que no son secreto (${otros.n})`);
+
+  const u = await c.query("update rubros set nombre = 'Pirateado' where clave = 'servicios'");
+  decir(u.rowCount === 0, "no puede reacomodarle el menú a otro rubro");
+
+  await c.query("savepoint ru");
+  let creo = false;
+  try {
+    await c.query("insert into rubros (clave, nombre) values ('trucho', 'Trucho')");
+    creo = true;
+    await c.query("rollback to savepoint ru");
+  } catch {
+    await c.query("rollback to savepoint ru");
+  }
+  decir(!creo, "no puede inventar un rubro");
+});
+
+await comoUsuario(PLATAFORMA, async () => {
+  const u = await c.query("update rubros set orden = orden where clave = 'servicios'");
+  decir(u.rowCount === 1, "la plataforma sí puede editar un rubro");
+});
+
+/* ------------------------------------------------------------
+   9 · La plataforma ve todo, y por eso la aplicación tiene que filtrar
+
+   Esto NO es un agujero: es lo que hace que el panel de plataforma pueda
+   existir. Lo que sí fue un error es haberse apoyado en RLS para saber de
+   qué comercio era cada fila.
+
+   RLS contesta "¿podés ver esto?". No contesta "¿de qué comercio es?".
+   Para un usuario de comercio las dos respuestas coinciden y por eso el
+   problema no aparecía nunca... hasta que el dueño de plataforma entró
+   como Almha y se le cargaron los 972 productos de Super 25, con la
+   Coca-Cola apareciendo en el informe de una estética.
+
+   Esta prueba deja escrito el comportamiento para que nadie lo "arregle"
+   apretando la política: si alguien la cambia, el panel de plataforma deja
+   de funcionar. Lo que tiene que filtrar es cada consulta de `src/datos/`,
+   con su `empresa_id` explícito.
+   ------------------------------------------------------------ */
+console.log("\nAlcance de la plataforma");
+
+const TOTAL_ITEMS = (await una("select count(*)::int n from items where tipo = 'producto'")).n;
+
+await comoUsuario(PLATAFORMA, async () => {
+  const v = await una("select count(*)::int n from items_vista where tipo = 'producto'");
+  decir(v.n === TOTAL_ITEMS, `sin filtro ve el catálogo de todos los comercios (${v.n} de ${TOTAL_ITEMS})`);
+
+  const emp = await una("select empresa_id from empresas e join items i on i.empresa_id = e.id where e.nombre = 'Almha' limit 1");
+  if (emp) {
+    const propio = await una("select count(*)::int n from items_vista where tipo = 'producto' and empresa_id = $1", [emp.empresa_id]);
+    decir(propio.n < TOTAL_ITEMS, `filtrando por empresa ve solo lo de ese comercio (${propio.n})`);
+  }
+});
+
+await comoUsuario(MOZO, async () => {
+  const v = await una("select count(*)::int n from items_vista where tipo = 'producto'");
+  decir(v.n > 0 && v.n < TOTAL_ITEMS, `un comercio, en cambio, nunca ve el catálogo de otro (${v.n} de ${TOTAL_ITEMS})`);
+});
+
+/* ------------------------------------------------------------
+   10 · Las vistas no pueden ser una puerta de atrás
+
+   Una vista sin `security_invoker` corre con los permisos de quien la
+   creó y saltea RLS por completo. Es un error silencioso: la vista
+   funciona, devuelve datos, y recién se nota cuando alguien ve lo que no
+   tenía que ver. `equipo_vista` nació así y expuso los sueldos de todos
+   los comercios hasta que se corrigió.
+
+   Se comprueban todas de una: la próxima que se agregue mal, cae acá.
+   ------------------------------------------------------------ */
+console.log("\nVistas");
+
+const VISTAS = (await c.query(
+  `select c.relname, coalesce(array_to_string(c.reloptions, ','), '') as opciones
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'v' order by 1`)).rows;
+
+for (const v of VISTAS) {
+  decir(v.opciones.includes("security_invoker=true"), `${v.relname} respeta RLS`);
+}
+
+const CON_EQUIPO = (await una("select count(*)::int n from personal")).n;
+await comoUsuario(MOZO, async () => {
+  const v = await una("select count(*)::int n from equipo_vista");
+  decir(v.n === 0, `un comercio no ve el equipo ni los sueldos de otro (${v.n} de ${CON_EQUIPO})`);
+});
+
+/* ------------------------------------------------------------
+   11 · La agenda
+
+   Dos cosas distintas se prueban acá. Una es el aislamiento: que nadie
+   agende adentro de otro comercio ni con la sala o la persona de otro.
+   La otra son los choques, que tienen que impedirse en la base y no en la
+   pantalla: dos personas agendando desde dos dispositivos al mismo tiempo
+   solo se resuelven acá.
+   ------------------------------------------------------------ */
+console.log("\nAgenda");
+
+const ALMHA = await una("select id from empresas where nombre = 'Almha'");
+
+if (!ALMHA) {
+  decir(false, "hace falta Almha para probar la agenda (corré supabase/seed/almha.sql)");
+} else {
+  const SOFIA = await una(
+    "select id from personal where empresa_id = $1 and nombre = 'Sofía González'", [ALMHA.id]);
+  const SALA = await una(
+    "select id from recursos where empresa_id = $1 order by orden limit 1", [ALMHA.id]);
+  const SERVICIO = await una(
+    "select id, duracion_min from items where empresa_id = $1 and tipo = 'servicio' limit 1", [ALMHA.id]);
+  /* Un lunes a las 9 hora de Buenos Aires, que es cuando Sofía trabaja. */
+  const CUANDO = (await una(
+    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+             + interval '9 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
+
+  const turno = (extra = {}) => JSON.stringify({
+    empresa_id: ALMHA.id, personal_id: SOFIA.id, recurso_id: SALA.id,
+    item_id: SERVICIO.id, nombre: "Prueba RLS", desde: CUANDO,
+    duracion_min: 60, ...extra,
+  });
+
+  await comoUsuario(PLATAFORMA, async () => {
+    const t1 = await una("select agendar_turno($1::jsonb) id", [turno()]);
+    decir(!!t1.id, "se puede agendar un turno");
+
+    const leido = await una(
+      "select servicio, profesional, sala from agenda_vista where id = $1", [t1.id]);
+    decir(leido && leido.profesional === "Sofía González" && !!leido.servicio && !!leido.sala,
+      `la vista resuelve los nombres (${leido ? leido.servicio + " · " + leido.sala : "nada"})`);
+
+    /* Cada choque va en su savepoint: si no, el primer error aborta la
+       transacción entera y las pruebas de abajo no llegan a correr. */
+    const choque = async (etiqueta, args, codigo) => {
+      await c.query("savepoint ch");
+      try {
+        await c.query("select agendar_turno($1::jsonb)", [args]);
+        await c.query("rollback to savepoint ch");
+        decir(false, etiqueta);
+      } catch (e) {
+        await c.query("rollback to savepoint ch");
+        decir(e.code === codigo, `${etiqueta}${e.code === codigo ? "" : ` (dio ${e.code})`}`);
+      }
+    };
+
+    await choque("no deja pisar la misma sala", turno({ personal_id: null }), "P0034");
+    await choque("no deja pisarle el horario a la misma persona", turno({ recurso_id: null }), "P0035");
+
+    const tarde = (await una(
+      `select ($1::timestamptz + interval '12 hours') as t`, [CUANDO])).t;
+    await choque("no deja agendar fuera del horario de la persona",
+      turno({ desde: tarde, recurso_id: null }), "P0036");
+
+    await choque("no deja usar una sala de otro comercio",
+      turno({ recurso_id: (await una("select id from recursos where empresa_id <> $1 limit 1", [ALMHA.id])).id, personal_id: null }),
+      "P0032");
+
+    /* La persona ajena se crea acá adentro: hoy solo Almha tiene equipo,
+       y buscar una que no existe devolvía null, con lo cual la validación
+       se salteaba y la prueba pasaba sin probar nada. Se va con el
+       rollback junto con todo lo demás. */
+    const otraEmpresa = await una("select id from empresas where id <> $1 limit 1", [ALMHA.id]);
+    const ajena = await una(
+      `insert into personal (empresa_id, nombre, tipo) values ($1, 'Prueba ajena', 'profesional') returning id`,
+      [otraEmpresa.id]);
+    await choque("no deja usar una persona de otro comercio",
+      turno({ personal_id: ajena.id, recurso_id: null }), "P0033");
+
+    /* Reprogramar usa las mismas reglas e ignora al propio turno: moverlo
+       media hora no puede chocar contra sí mismo. */
+    const media = (await una(`select ($1::timestamptz + interval '30 minutes') as t`, [CUANDO])).t;
+    await c.query("select mover_turno($1, $2)", [t1.id, media]);
+    decir(true, "se puede reprogramar sin chocar contra sí mismo");
+
+    /* Un bloqueo tapa el horario aunque no haya ningún turno. */
+    await c.query(
+      `insert into excepciones (empresa_id, personal_id, desde, hasta, motivo)
+       values ($1, $2, $3::timestamptz + interval '3 hours', $3::timestamptz + interval '4 hours', 'ausencia')`,
+      [ALMHA.id, SOFIA.id, CUANDO]);
+    await choque("no deja agendar sobre una ausencia",
+      turno({ desde: (await una(`select ($1::timestamptz + interval '3 hours') as t`, [CUANDO])).t, recurso_id: null }),
+      "P0037");
+  });
+
+  /* Y el aislamiento, desde otro comercio. */
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from agenda_vista where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve los turnos de otro");
+
+    await c.query("savepoint ag");
+    let pudo = false;
+    try {
+      await c.query("select agendar_turno($1::jsonb)", [turno()]);
+      pudo = true;
+      await c.query("rollback to savepoint ag");
+    } catch {
+      await c.query("rollback to savepoint ag");
+    }
+    decir(!pudo, "un comercio no puede agendar adentro de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   12 · Clases grupales
+
+   Lo que se prueba acá es el cupo, que es donde esto se rompe feo: dos
+   personas apretando "anotar" sobre el último lugar tienen que terminar
+   con una adentro y una afuera, no con siete en una clase de seis.
+
+   Y lo otro es que las inscripciones NO ocupen la sala. Si ocuparan, la
+   segunda persona de una clase daría "sala ocupada" y nadie podría
+   anotarse.
+   ------------------------------------------------------------ */
+console.log("\nClases grupales");
+
+if (ALMHA) {
+  const SOFIA = await una("select id from personal where empresa_id = $1 and nombre = 'Sofía González'", [ALMHA.id]);
+  const SALA = await una(
+    "select id, capacidad from recursos where empresa_id = $1 and capacidad >= 6 order by orden limit 1", [ALMHA.id]);
+  const GRUPAL = await una(
+    `select id from items where empresa_id = $1 and tipo = 'servicio'
+       and campos_extra ->> 'modalidad' = 'grupal' limit 1`, [ALMHA.id]);
+  const CUANDO = (await una(
+    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+             + interval '10 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
+
+  await comoUsuario(PLATAFORMA, async () => {
+    const clase = await una("select crear_clase($1::jsonb) id", [JSON.stringify({
+      empresa_id: ALMHA.id, personal_id: SOFIA.id, recurso_id: SALA.id,
+      item_id: GRUPAL.id, nombre: "Reformer intermedio", desde: CUANDO,
+      duracion_min: 60, cupo: 3,
+    })]);
+    decir(!!clase.id, "se puede abrir una clase");
+
+    const vacia = await una(
+      "select forma, cupo, anotados, lugares from agenda_vista where id = $1", [clase.id]);
+    decir(vacia.forma === "clase" && vacia.anotados === "0" && Number(vacia.lugares) === 3,
+      `la clase existe sin nadie anotado (${vacia.lugares} lugares)`);
+
+    /* Tres inscripciones entran; la cuarta no. Y ninguna tiene que dar
+       "sala ocupada": ahí estaba el error que esta migración corrige. */
+    for (let i = 1; i <= 3; i++) {
+      try {
+        await c.query("select inscribir($1::jsonb)", [JSON.stringify({ clase_id: clase.id, nombre: `Alumna ${i}` })]);
+        decir(true, `entra la alumna ${i}`);
+      } catch (e) {
+        decir(false, `entra la alumna ${i} (${e.message})`);
+      }
+    }
+
+    await c.query("savepoint cl");
+    try {
+      await c.query("select inscribir($1::jsonb)", [JSON.stringify({ clase_id: clase.id, nombre: "Alumna 4" })]);
+      await c.query("rollback to savepoint cl");
+      decir(false, "no deja pasarse del cupo");
+    } catch (e) {
+      await c.query("rollback to savepoint cl");
+      decir(e.code === "P0045", `no deja pasarse del cupo${e.code === "P0045" ? "" : ` (dio ${e.code})`}`);
+    }
+
+    /* La misma persona dos veces ocupa un lugar que otro necesitaba. */
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Cliente prueba') returning id`, [ALMHA.id]);
+    /* Sin sala ni profesor: si los tuviera chocaría con la clase de
+       arriba, que ocupa esa sala a esa hora. */
+    const clase2 = await una("select crear_clase($1::jsonb) id", [JSON.stringify({
+      empresa_id: ALMHA.id, item_id: GRUPAL.id, nombre: "Otra",
+      desde: CUANDO, duracion_min: 60, cupo: 4,
+    })]);
+    await c.query("select inscribir($1::jsonb)", [JSON.stringify({ clase_id: clase2.id, cliente_id: cli.id, nombre: "Cliente prueba" })]);
+    await c.query("savepoint dup");
+    try {
+      await c.query("select inscribir($1::jsonb)", [JSON.stringify({ clase_id: clase2.id, cliente_id: cli.id, nombre: "Cliente prueba" })]);
+      await c.query("rollback to savepoint dup");
+      decir(false, "no deja anotar dos veces a la misma persona");
+    } catch (e) {
+      await c.query("rollback to savepoint dup");
+      decir(e.code === "P0046", "no deja anotar dos veces a la misma persona");
+    }
+
+    /* El cupo no puede pasarse de lo que entra en la sala. */
+    await c.query("savepoint cap");
+    try {
+      await c.query("select crear_clase($1::jsonb)", [JSON.stringify({
+        empresa_id: ALMHA.id, recurso_id: SALA.id, nombre: "Imposible",
+        desde: CUANDO, duracion_min: 60, cupo: (SALA.capacidad || 6) + 10,
+      })]);
+      await c.query("rollback to savepoint cap");
+      decir(false, "no deja abrir una clase más grande que la sala");
+    } catch (e) {
+      await c.query("rollback to savepoint cap");
+      decir(e.code === "P0041", "no deja abrir una clase más grande que la sala");
+    }
+
+    /* Y la clase sí ocupa: un turno individual encima tiene que chocar. */
+    await c.query("savepoint enc");
+    try {
+      await c.query("select agendar_turno($1::jsonb)", [JSON.stringify({
+        empresa_id: ALMHA.id, recurso_id: SALA.id, nombre: "Encima",
+        desde: CUANDO, duracion_min: 60,
+      })]);
+      await c.query("rollback to savepoint enc");
+      decir(false, "una clase ocupa la sala para un turno individual");
+    } catch (e) {
+      await c.query("rollback to savepoint enc");
+      decir(e.code === "P0034", "una clase ocupa la sala para un turno individual");
+    }
+
+    /* La lista de espera. */
+    await c.query(
+      `insert into espera (empresa_id, clase_id, nombre) values ($1, $2, 'La que espera')`,
+      [ALMHA.id, clase.id]);
+    const esp = await una("select esperando from agenda_vista where id = $1", [clase.id]);
+    decir(Number(esp.esperando) === 1, "la lista de espera cuenta en la vista");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from espera where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve la lista de espera de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   13 · Abonos
+
+   Lo que se prueba es el crédito: que se descuente al reservar, que
+   vuelva al cancelar y que el tope semanal no se pueda pasar. Y que el
+   saldo salga de los turnos y no de un contador, que es lo que evita que
+   se desincronice.
+   ------------------------------------------------------------ */
+console.log("\nAbonos");
+
+if (ALMHA) {
+  const SOFIA = await una("select id from personal where empresa_id = $1 and nombre = 'Sofía González'", [ALMHA.id]);
+  /* Un lunes bastante adelante, por dos razones.
+
+     Una: el abono arranca hoy, así que reservar contra él para un día que
+     ya pasó da "el abono arranca el 22/08", que es correcto y no es lo que
+     se quiere probar.
+
+     Dos, y más importante: estas pruebas corren contra la base de verdad,
+     donde hay turnos que alguien cargó de verdad. Elegir un horario
+     cercano hace que la prueba choque contra el trabajo real de alguien y
+     falle por un motivo que no tiene nada que ver con lo que prueba. Ya
+     pasó: el lunes que viene a las nueve estaba ocupado.
+
+     Sigue dentro de la vigencia de 60 días del plan de prueba. */
+  const LUNES = (await una(
+    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+             + interval '28 days' + interval '9 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
+
+  await comoUsuario(PLATAFORMA, async () => {
+    /* El plan va al catálogo como cualquier otro item. */
+    const plan = await una(
+      `insert into items (empresa_id, tipo, nombre, precio, controla_stock, campos_extra)
+       values ($1, 'plan', 'Pack 3 clases', 30000, false,
+               '{"clases":3,"vigenciaDias":60,"topeSemanal":2}'::jsonb)
+       returning id`, [ALMHA.id]);
+    decir(!!plan.id, "un plan es un item del catálogo");
+
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Compradora') returning id`, [ALMHA.id]);
+
+    /* Cobrar un abono es cobrar: sin caja abierta la base lo rechaza,
+       igual que cualquier venta (regla 4). */
+    const ses = await una(
+      `insert into sesiones_caja (empresa_id, monto_inicial) values ($1, 0) returning id`, [ALMHA.id]);
+
+    const abono = await una("select vender_abono($1::jsonb) id", [JSON.stringify({
+      empresa_id: ALMHA.id, cliente_id: cli.id, item_id: plan.id,
+      sesion_id: ses.id,
+      pagos: [{ medio: "efectivo", monto: 30000 }],
+    })]);
+    decir(!!abono.id, "vender el abono crea el crédito");
+
+    /* La venta pasó por el camino de siempre: hay operación, línea y pago. */
+    const venta = await una(
+      `select o.total::float t, count(l.id)::int lineas,
+              (select count(*)::int from pagos where operacion_id = o.id) pagos,
+              (select count(*)::int from movimientos_caja where operacion_id = o.id) caja
+         from abonos a
+         join operaciones o on o.id = a.operacion_id
+         left join operacion_lineas l on l.operacion_id = o.id
+        where a.id = $1 group by o.id, o.total`, [abono.id]);
+    decir(venta && venta.t === 30000 && venta.lineas === 1 && venta.pagos === 1 && venta.caja === 1,
+      `la venta entra por el camino de siempre (línea, pago y caja)`);
+
+    const v0 = await una("select clases, usadas, restantes, estado from abonos_vista where id = $1", [abono.id]);
+    decir(Number(v0.restantes) === 3 && v0.estado === "activo", `arranca con ${v0.restantes} de ${v0.clases}`);
+
+    const conAbono = (dias, extra = {}) => JSON.stringify({
+      empresa_id: ALMHA.id, cliente_id: cli.id, abono_id: abono.id,
+      personal_id: SOFIA.id, nombre: "Compradora",
+      desde: new Date(new Date(LUNES).getTime() + dias * 86400000).toISOString(),
+      duracion_min: 60, ...extra,
+    });
+
+    const t1 = await una("select agendar_turno($1::jsonb) id", [conAbono(0)]);
+    const v1 = await una("select restantes from abonos_vista where id = $1", [abono.id]);
+    decir(Number(v1.restantes) === 2, `reservar descuenta una (${v1.restantes} restantes)`);
+
+    /* El tope es de dos por semana: la tercera del lunes al domingo no entra. */
+    await c.query("select agendar_turno($1::jsonb)", [conAbono(2)]);
+    await c.query("savepoint tope");
+    try {
+      await c.query("select agendar_turno($1::jsonb)", [conAbono(4)]);
+      await c.query("rollback to savepoint tope");
+      decir(false, "no deja pasar el tope semanal");
+    } catch (e) {
+      await c.query("rollback to savepoint tope");
+      decir(e.code === "P0059", `no deja pasar el tope semanal${e.code === "P0059" ? "" : ` (dio ${e.code})`}`);
+    }
+
+    /* Cancelar devuelve la clase. */
+    await c.query("update reservas set estado = 'cancelada' where id = $1", [t1.id]);
+    const v2 = await una("select restantes from abonos_vista where id = $1", [abono.id]);
+    decir(Number(v2.restantes) === 2, `cancelar devuelve la clase (${v2.restantes} restantes)`);
+
+    /* Faltar la gasta o no, según el comercio. */
+    await c.query("update reservas set estado = 'ausente' where id = $1", [t1.id]);
+    const conPolitica = await una("select restantes from abonos_vista where id = $1", [abono.id]);
+    decir(Number(conPolitica.restantes) === 1, "por defecto, faltar gasta la clase");
+
+    await c.query(
+      `update empresas set config = jsonb_set(config, '{turnos}', '{"ausenciaConsume": false}'::jsonb) where id = $1`,
+      [ALMHA.id]);
+    const sinCastigo = await una("select restantes from abonos_vista where id = $1", [abono.id]);
+    decir(Number(sinCastigo.restantes) === 2, "con la política del comercio en no, la devuelve");
+
+    /* Un abono es de quien lo compró. */
+    const otro = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Otro') returning id`, [ALMHA.id]);
+    await c.query("savepoint aj");
+    try {
+      await c.query("select agendar_turno($1::jsonb)", [JSON.stringify({
+        empresa_id: ALMHA.id, cliente_id: otro.id, abono_id: abono.id,
+        nombre: "Otro", desde: new Date(new Date(LUNES).getTime() + 6 * 86400000).toISOString(), duracion_min: 60,
+      })]);
+      await c.query("rollback to savepoint aj");
+      decir(false, "no deja usar el abono de otra persona");
+    } catch (e) {
+      await c.query("rollback to savepoint aj");
+      decir(e.code === "P0055", "no deja usar el abono de otra persona");
+    }
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from abonos where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve los abonos de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   14 · Liquidaciones
+
+   Lo que importa acá es que pagarle a alguien deje su egreso: si la
+   liquidación no genera el movimiento, los egresos del mes mienten y el
+   gasto más grande del negocio no aparece en ningún lado.
+   ------------------------------------------------------------ */
+console.log("\nLiquidaciones");
+
+if (ALMHA) {
+  const SOFIA = await una("select id, valor::float v from personal where empresa_id = $1 and nombre = 'Sofía González'", [ALMHA.id]);
+
+  await comoUsuario(PLATAFORMA, async () => {
+    /* Un par de turnos suyos, en un período apartado para no mezclarse
+       con los que alguien haya cargado de verdad. */
+    const lunes = (await una(
+      `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+               + interval '35 days' + interval '9 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
+
+    for (const d of [0, 2]) {
+      await c.query("select agendar_turno($1::jsonb)", [JSON.stringify({
+        empresa_id: ALMHA.id, personal_id: SOFIA.id, nombre: "Alguien",
+        desde: new Date(new Date(lunes).getTime() + d * 86400000).toISOString(),
+        duracion_min: 60,
+      })]);
+    }
+
+    const desde = (await una(`select ($1::timestamptz at time zone 'America/Argentina/Buenos_Aires')::date d`, [lunes])).d;
+    const hasta = (await una(`select (($1::timestamptz + interval '6 days') at time zone 'America/Argentina/Buenos_Aires')::date d`, [lunes])).d;
+
+    const liq = await una("select liquidar($1, $2, $3) id", [SOFIA.id, desde, hasta]);
+    decir(!!liq.id, "se arma la liquidación del período");
+
+    const v = await una("select horas::float h, total::float t, a_pagar::float p, estado from liquidaciones_vista where id = $1", [liq.id]);
+    decir(v.h === 2, `las horas salen de la agenda (${v.h} hs)`);
+    decir(v.t === SOFIA.v * 2, `el total usa su valor hora (${v.t})`);
+
+    /* Volver a armarla no duplica ni pisa el ajuste cargado a mano. */
+    await c.query("update liquidaciones set ajuste = 5000 where id = $1", [liq.id]);
+    await c.query("select liquidar($1, $2, $3)", [SOFIA.id, desde, hasta]);
+    const v2 = await una("select ajuste::float a, a_pagar::float p from liquidaciones_vista where id = $1", [liq.id]);
+    decir(v2.a === 5000, "recalcular respeta el ajuste cargado a mano");
+
+    /* Y lo que de verdad importa: pagar deja el egreso. */
+    const antes = (await una("select count(*)::int n from movimientos_caja where empresa_id = $1 and tipo = 'egreso'", [ALMHA.id])).n;
+    await c.query("select pagar_liquidacion($1, 'transferencia')", [liq.id]);
+    const despues = (await una("select count(*)::int n from movimientos_caja where empresa_id = $1 and tipo = 'egreso'", [ALMHA.id])).n;
+    decir(despues === antes + 1, "pagarla deja el egreso en la caja");
+
+    const mov = await una(
+      `select m.monto::float mo, m.categoria, m.sesion_id
+         from liquidaciones l join movimientos_caja m on m.id = l.movimiento_id
+        where l.id = $1`, [liq.id]);
+    decir(mov && mov.mo === v2.p && mov.categoria === "sueldos",
+      `el egreso es por lo que se paga y va como sueldo (${mov ? mov.mo : "?"})`);
+    decir(mov && mov.sesion_id === null,
+      "se puede pagar por transferencia sin caja abierta");
+
+    await c.query("savepoint dos");
+    try {
+      await c.query("select pagar_liquidacion($1, 'efectivo')", [liq.id]);
+      await c.query("rollback to savepoint dos");
+      decir(false, "no deja pagar dos veces la misma liquidación");
+    } catch (e) {
+      await c.query("rollback to savepoint dos");
+      decir(e.code === "P0061", "no deja pagar dos veces la misma liquidación");
+    }
+
+    await c.query("savepoint rec");
+    try {
+      await c.query("select liquidar($1, $2, $3)", [SOFIA.id, desde, hasta]);
+      await c.query("rollback to savepoint rec");
+      decir(false, "no deja recalcular una liquidación ya pagada");
+    } catch (e) {
+      await c.query("rollback to savepoint rec");
+      decir(e.code === "P0061", "no deja recalcular una liquidación ya pagada");
+    }
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from liquidaciones where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve las liquidaciones de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
