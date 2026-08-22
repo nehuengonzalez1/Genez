@@ -980,6 +980,63 @@ if (ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   15 · La ficha del cliente
+
+   Lo que se prueba son las cuentas: que "vino tantas veces y faltó
+   tantas" salga de los turnos y no de un contador, y que la asistencia no
+   se hunda por los turnos que todavía no pasaron.
+   ------------------------------------------------------------ */
+console.log("\nFicha del cliente");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social, tel) values ($1, 'Ficha de prueba', '11 5555 5555') returning id`,
+      [ALMHA.id]);
+
+    const vacia = await una(
+      "select turnos, asistio, ausencias, asistencia, gastado::float g, alertas from clientes_vista where id = $1", [cli.id]);
+    decir(Number(vacia.turnos) === 0 && vacia.asistencia === null,
+      "un cliente sin turnos no tiene asistencia que mostrar");
+
+    /* Tres turnos pasados: dos vino y uno faltó. Y uno futuro, que no
+       tiene que contar en la asistencia. */
+    const cuando = (dias) => new Date(Date.now() + dias * 86400000).toISOString();
+    for (const [d, e] of [[-30, "cumplida"], [-20, "cumplida"], [-10, "ausente"], [10, "confirmada"]]) {
+      await c.query(
+        `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado)
+         values ($1, $2, 'Ficha de prueba', $3, 60, $4)`,
+        [ALMHA.id, cli.id, cuando(d), e]);
+    }
+
+    const v = await una(
+      "select turnos, asistio, ausencias, asistencia::float a, ultima, proxima from clientes_vista where id = $1", [cli.id]);
+    decir(Number(v.turnos) === 4, `cuenta todos los turnos (${v.turnos})`);
+    decir(Number(v.asistio) === 2 && Number(v.ausencias) === 1, "separa los que vino de los que faltó");
+    decir(Math.abs(v.a - 2 / 3) < 0.01,
+      `la asistencia no cuenta los turnos futuros (${Math.round(v.a * 100)}%)`);
+    decir(!!v.ultima && !!v.proxima, "sabe cuándo vino la última vez y cuándo vuelve");
+
+    /* Una alerta es lo que hay que ver antes de atenderla. */
+    await c.query(
+      `insert into cliente_notas (empresa_id, cliente_id, texto, destacada)
+       values ($1, $2, 'Alérgica al glicólico', true)`, [ALMHA.id, cli.id]);
+    await c.query(
+      `insert into cliente_notas (empresa_id, cliente_id, texto) values ($1, $2, 'Prefiere a Carla')`,
+      [ALMHA.id, cli.id]);
+
+    const n = await una("select notas, alertas from clientes_vista where id = $1", [cli.id]);
+    decir(Number(n.notas) === 2 && Number(n.alertas) === 1,
+      "distingue una nota común de una que hay que ver antes");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from cliente_notas where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve las notas de los clientes de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

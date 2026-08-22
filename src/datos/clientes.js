@@ -111,3 +111,163 @@ export async function desactivarCliente(id) {
   const { error } = await supabase.from("clientes").update({ activo: false }).eq("id", id);
   if (error) throw error;
 }
+
+/* ============================================================
+   LA FICHA
+   ============================================================
+
+   En una estética la ficha es la mitad del valor del sistema: qué se le
+   hizo, cuándo, con qué y si hay algo que no se le puede hacer. Ver la
+   migración 0040 para por qué las notas son un cuaderno fechado y no un
+   campo que se pisa.
+   ============================================================ */
+
+const num = (v) => (v === null || v === undefined ? 0 : Number(v));
+
+function conCuentas(f) {
+  return {
+    ...aCliente(f),
+    turnos: num(f.turnos),
+    asistio: num(f.asistio),
+    ausencias: num(f.ausencias),
+    cancelados: num(f.cancelados),
+    asistencia: f.asistencia === null || f.asistencia === undefined ? null : Number(f.asistencia),
+    ultima: f.ultima ? new Date(f.ultima) : null,
+    proxima: f.proxima ? new Date(f.proxima) : null,
+    gastado: num(f.gastado),
+    compras: num(f.compras),
+    abonosActivos: num(f.abonos_activos),
+    notas: num(f.notas),
+    alertas: num(f.alertas),
+  };
+}
+
+/* La lista con las cuentas hechas. Es la misma consulta que la de arriba
+   pero contra la vista: se usa donde importa el resumen y no solo el
+   nombre, como la pantalla de clientes. */
+export async function cargarClientesConCuentas(empresaId) {
+  if (!empresaId) throw new Error("cargarClientesConCuentas necesita saber de qué comercio.");
+
+  const filas = [];
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await supabase
+      .from("clientes_vista")
+      .select("*")
+      .eq("empresa_id", empresaId)
+      .eq("activo", true)
+      .order("razon_social")
+      .range(desde, desde + PAGINA - 1);
+    if (error) throw error;
+    filas.push(...data);
+    if (data.length < PAGINA) return filas.map(conCuentas);
+  }
+}
+
+/* Todo lo de una persona, de una. Son cinco consultas y no una sola con
+   joins a propósito: cada cosa tiene su orden y su límite, y un join las
+   multiplicaría entre sí. */
+export async function cargarFicha(empresaId, clienteId) {
+  if (!empresaId || !clienteId) throw new Error("cargarFicha necesita el comercio y el cliente.");
+
+  const [cli, turnos, abonos, ventas, notas] = await Promise.all([
+    supabase.from("clientes_vista").select("*").eq("empresa_id", empresaId).eq("id", clienteId).maybeSingle(),
+
+    supabase.from("agenda_vista")
+      .select("id, desde, duracion_min, estado, servicio, profesional, sala, precio, forma, abono_id")
+      .eq("empresa_id", empresaId).eq("cliente_id", clienteId)
+      .order("desde", { ascending: false }).limit(200),
+
+    supabase.from("abonos_vista")
+      .select("*").eq("empresa_id", empresaId).eq("cliente_id", clienteId)
+      .order("creado_en", { ascending: false }).limit(50),
+
+    supabase.from("operaciones")
+      .select("id, fecha, numero, total, tipo, pagos(monto)")
+      .eq("empresa_id", empresaId).eq("cliente_id", clienteId).eq("estado", "confirmada")
+      .order("fecha", { ascending: false }).limit(100),
+
+    supabase.from("cliente_notas")
+      .select("id, texto, destacada, creada_en")
+      .eq("empresa_id", empresaId).eq("cliente_id", clienteId)
+      .order("creada_en", { ascending: false }).limit(100),
+  ]);
+
+  for (const r of [cli, turnos, abonos, ventas, notas]) if (r.error) throw r.error;
+  if (!cli.data) throw new Error("No encontramos ese cliente.");
+
+  return {
+    cliente: conCuentas(cli.data),
+
+    turnos: (turnos.data || []).map((t) => ({
+      id: t.id,
+      desde: new Date(t.desde),
+      duracion: t.duracion_min,
+      estado: t.estado,
+      servicio: t.servicio || "",
+      profesional: t.profesional || "",
+      sala: t.sala || "",
+      precio: num(t.precio),
+      forma: t.forma,
+      conAbono: !!t.abono_id,
+    })),
+
+    abonos: (abonos.data || []).map((a) => ({
+      id: a.id,
+      nombre: a.nombre,
+      clases: a.clases,
+      usadas: num(a.usadas),
+      restantes: a.restantes === null || a.restantes === undefined ? null : num(a.restantes),
+      vence: a.vence ? new Date(`${a.vence}T12:00:00`) : null,
+      estado: a.estado,
+    })),
+
+    ventas: (ventas.data || []).map((o) => {
+      const pagado = (o.pagos || []).reduce((s, p) => s + num(p.monto), 0);
+      return {
+        id: o.id,
+        fecha: new Date(o.fecha),
+        numero: o.numero || "",
+        total: num(o.total),
+        pagado,
+        falta: num(o.total) - pagado,
+      };
+    }),
+
+    notas: (notas.data || []).map((x) => ({
+      id: x.id,
+      texto: x.texto,
+      destacada: x.destacada,
+      fecha: new Date(x.creada_en),
+    })),
+  };
+}
+
+export async function anotarEnFicha(empresaId, clienteId, texto, destacada = false) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase.from("cliente_notas").insert({
+    empresa_id: empresaId, cliente_id: clienteId,
+    texto, destacada, usuario_id: user ? user.id : null,
+  });
+  if (error) throw error;
+}
+
+export async function borrarNota(id) {
+  const { error } = await supabase.from("cliente_notas").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/* Las alertas de una persona: lo que hay que ver antes de atenderla. Lo
+   usa la agenda al elegir un cliente, no solo la ficha. */
+export async function alertasDe(empresaId, clienteId) {
+  if (!empresaId || !clienteId) return [];
+  const { data, error } = await supabase
+    .from("cliente_notas")
+    .select("id, texto")
+    .eq("empresa_id", empresaId)
+    .eq("cliente_id", clienteId)
+    .eq("destacada", true)
+    .order("creada_en", { ascending: false })
+    .limit(5);
+  if (error) throw error;
+  return data || [];
+}

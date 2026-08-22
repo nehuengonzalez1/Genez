@@ -2,10 +2,12 @@
    9 ter. CLIENTES
    ============================================================ */
 
-import React, { useState, useEffect } from "react";
-import { Search, Plus, Check } from "lucide-react";
-import { CONDICIONES, FISCAL_INICIAL, condicionNombre, money, letraComprobante } from "../utils/helpers.js";
-import { Modal, Boton, Card, Vacio } from "../ui/Base.jsx";
+import React, { useState, useEffect, useCallback } from "react";
+import { Search, Plus, Check, AlertTriangle } from "lucide-react";
+import { CONDICIONES, FISCAL_INICIAL, condicionNombre, money, letraComprobante, nf } from "../utils/helpers.js";
+import { Modal, Boton, Card, Vacio, Sello, Cargando, ErrorEstado } from "../ui/Base.jsx";
+import { cargarClientesConCuentas } from "../datos/clientes.js";
+import { FichaCliente } from "./FichaCliente.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 
 export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
@@ -63,49 +65,117 @@ export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
   );
 }
 
-export function Clientes({ clientes, guardarCliente, tickets, ajustes }) {
+
+/* ============================================================
+   La lista
+
+   Muestra las cuentas de cada uno —cuántas veces vino, cuánto hace, si
+   debe— porque en un negocio de turnos eso es lo que se mira. La letra
+   del comprobante sigue estando: un comercio que factura la necesita, y
+   uno de servicios simplemente no la usa.
+
+   Se carga sola contra `clientes_vista` en vez de usar la lista que baja
+   por props: esa la necesitan el punto de venta y la agenda, y no tiene
+   por qué cargar las cuentas de todos para elegir un nombre.
+   ============================================================ */
+
+export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId, permisos, toast }) {
   const [q, setQ] = useState("");
   const [alta, setAlta] = useState(null);
-  const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const lista = q.trim().length >= 2
-    ? clientes.filter((c) => norm(c.razonSocial).includes(norm(q)) || String(c.doc || "").includes(q.trim()))
-    : clientes;
-  const emisor = (ajustes.fiscal || FISCAL_INICIAL).condicion;
+  const [ficha, setFicha] = useState(null);
+  const [lista, setLista] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
 
-  const facturadoA = (id) => tickets.filter((t) => t.cliente && t.cliente.id === id).reduce((s, t) => s + t.total, 0);
+  const releer = useCallback(async () => {
+    const xs = await cargarClientesConCuentas(empresaId);
+    setLista(xs);
+  }, [empresaId]);
+
+  useEffect(() => {
+    let vigente = true;
+    setCargando(true);
+    setError("");
+    releer()
+      .catch((e) => { if (vigente) setError(e.message || "No pudimos cargar los clientes."); })
+      .finally(() => { if (vigente) setCargando(false); });
+    return () => { vigente = false; };
+  }, [releer, clientes]);
+
+  if (ficha) {
+    return (
+      <FichaCliente empresaId={empresaId} clienteId={ficha} permisos={permisos} toast={toast}
+        onVolver={() => { setFicha(null); releer().catch(() => {}); }}
+        onEditar={(c) => setAlta(c)} />
+    );
+  }
+
+  const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const filtrados = q.trim().length >= 2
+    ? lista.filter((c) => norm(c.razonSocial).includes(norm(q)) || String(c.doc || "").includes(q.trim()) || String(c.tel || "").includes(q.trim()))
+    : lista;
+
+  const emisor = (ajustes.fiscal || FISCAL_INICIAL).condicion;
+  const conAlertas = lista.filter((c) => c.alertas > 0).length;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-tenue" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o CUIT"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, documento o teléfono"
             className="w-full pl-9 pr-3 py-2 text-sm border border-borde rounded-xl outline-none focus:border-acento bg-superficie" />
         </div>
         <Boton size="sm" onClick={() => setAlta({})}><Plus size={14} /> Nuevo cliente</Boton>
       </div>
 
       <Card className="overflow-hidden">
-        {lista.length === 0 ? <Vacio>No hay clientes cargados. Los necesitás solo para emitir facturas: la venta al mostrador no requiere ninguno.</Vacio> : (
+        {error ? (
+          <ErrorEstado onReintentar={() => releer().catch((e) => setError(e.message))}>{error}</ErrorEstado>
+        ) : cargando ? (
+          <Cargando />
+        ) : filtrados.length === 0 ? (
+          <Vacio>
+            {lista.length === 0
+              ? "Todavía no hay clientes cargados. Cada turno y cada abono apuntan a uno."
+              : "Nadie coincide con esa búsqueda."}
+          </Vacio>
+        ) : (
           <ul className="divide-y divide-borde">
-            {lista.map((c) => {
+            {filtrados.map((c) => {
               const letra = letraComprobante(emisor, c.condicion);
-              const total = facturadoA(c.id);
+              const debe = c.gastado > 0 && c.compras > 0;
               return (
                 <li key={c.id}>
-                  <button onClick={() => setAlta(c)} className="w-full text-left px-4 py-3 hover:bg-superficie-2 flex flex-wrap items-center gap-3">
+                  <button onClick={() => setFicha(c.id)}
+                    className="w-full text-left px-4 py-3 hover:bg-superficie-2 flex flex-wrap items-center gap-3">
+                    <span className="w-9 h-9 shrink-0 rounded-full bg-superficie-2 flex items-center justify-center text-[11px] font-bold text-texto-suave">
+                      {iniciales(c.razonSocial)}
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-texto">{c.razonSocial}</div>
+                      <div className="font-medium text-texto flex items-center gap-2">
+                        {c.razonSocial}
+                        {c.alertas > 0 && <AlertTriangle size={13} className="text-mal" />}
+                      </div>
                       <div className="f-m text-[11px] text-texto-tenue">
-                        {c.tipoDoc} {c.doc || "sin número"} · {condicionNombre(c.condicion)}
-                        {c.tel ? ` · ${c.tel}` : ""}
+                        {c.tel || (c.doc ? `${c.tipoDoc} ${c.doc}` : "sin contacto")}
+                        {c.turnos > 0 && ` · ${nf.format(c.turnos)} turnos`}
                       </div>
                     </div>
-                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${
-                      letra === "A" ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie-2 text-texto-suave border-borde"}`}>
-                      Factura {letra}
-                    </span>
-                    {total > 0 && <span className="f-m text-sm text-texto-suave">{money(total)}</span>}
+
+                    {c.abonosActivos > 0 && <Sello tono="bien">{c.abonosActivos} abono{c.abonosActivos > 1 ? "s" : ""}</Sello>}
+
+                    <div className="text-right shrink-0 w-28">
+                      <div className="f-m text-xs text-texto-suave">{haceCuanto(c.ultima)}</div>
+                      {c.gastado > 0 && <div className="f-m text-[11px] text-texto-tenue">{money(c.gastado)}</div>}
+                    </div>
+
+                    {/* La letra solo tiene sentido donde se factura. */}
+                    {c.doc && (
+                      <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border bg-superficie-2 text-texto-suave border-borde">
+                        {letra}
+                      </span>
+                    )}
                   </button>
                 </li>
               );
@@ -114,20 +184,30 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes }) {
         )}
       </Card>
 
-      <p className="text-xs text-texto-suave">
-        La letra la calcula el sistema: sos <strong>{condicionNombre(emisor)}</strong>, así que a un responsable inscripto
-        le emitís {letraComprobante(emisor, "RI")} y al resto {letraComprobante(emisor, "CF")}.
-        Se cambia en Ajustes, en Datos fiscales.
-      </p>
+      {conAlertas > 0 && (
+        <p className="text-xs text-texto-suave">
+          {conAlertas === 1 ? "Una persona tiene" : `${conAlertas} personas tienen`} algo anotado para ver antes de atenderla.
+        </p>
+      )}
 
-      {/* El modal se cierra recién cuando la base confirmó. Cerrarlo antes
-          dejaba al usuario creyendo que había guardado cuando el alta podía
-          fallar, y el aviso de error aparecía sobre la lista sin el cliente. */}
       <FormCliente abierto={!!alta} inicial={alta} onCerrar={() => setAlta(null)}
         onGuardar={async (d) => {
           const c = await guardarCliente(d);
-          if (c) setAlta(null);
+          if (c) { setAlta(null); await releer(); }
         }} />
     </div>
   );
 }
+
+const haceCuanto = (d) => {
+  if (!d) return "nunca vino";
+  const dias = Math.floor((Date.now() - d) / 86400000);
+  if (dias <= 0) return "hoy";
+  if (dias === 1) return "ayer";
+  if (dias < 30) return `hace ${dias} d`;
+  const meses = Math.floor(dias / 30);
+  return `hace ${meses} ${meses === 1 ? "mes" : "meses"}`;
+};
+
+const iniciales = (nombre) =>
+  String(nombre || "?").trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
