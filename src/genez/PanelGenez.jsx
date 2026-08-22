@@ -14,6 +14,7 @@ import { entrar as autenticar, pedirRecuperacion, cambiarClave } from "../datos/
 import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
+import { cargarRubro } from "../datos/rubros.js";
 import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
 import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
@@ -753,43 +754,53 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
   );
 }
 
-const NAV = [
-  { k: "inicio", n: "Inicio", i: LayoutDashboard },
-  { k: "comandas", n: "Salón", i: UtensilsCrossed },
-  /* El mostrador no está acá a propósito: vive adentro de la pantalla de
-     comanda, con su propia barra lateral. Ponerlo también como pestaña del
-     panel dejaba una ventana adentro de otra, con dos barras laterales
-     compitiendo por el mismo trabajo.
+/* El menú ya no está escrito acá: sale de `rubros`, una fila por tipo de
+   negocio. Lo que queda en el código es lo que una fila no puede guardar.
 
-     La cocina sí es una pestaña: es una pantalla colgada en la pared que
-     nadie toca, y no comparte nada con el flujo de tomar pedidos.
-     Ojo con la clave: `pedidos` ya es el picking del minimercado. */
-  { k: "cocina", n: "Cocina", i: ChefHat },
-  { k: "pedidos", n: "Pedidos", i: ClipboardList },
-  { k: "clientes", n: "Clientes", i: Users },
-  { k: "productos", n: "Productos", i: Package },
-  { k: "stock", n: "Stock", i: Boxes },
-  { k: "compras", n: "Compras", i: Truck },
-  { k: "caja", n: "Caja", i: Wallet },
-  { k: "reportes", n: "Informes", i: BarChart3 },
-  { k: "asistente", n: "Asistente", i: Sparkles },
-  { k: "ajustes", n: "Ajustes", i: Settings },
-];
-
-const TITULOS = {
-  inicio: ["Inicio", "Cómo viene el negocio hoy"],
-  comandas: ["Salón", "Qué mesa está ocupada, qué lleva y cuánto hace que espera"],
-  cocina: ["Cocina", "Lo que hay que preparar, en el orden en que se pidió"],
-  pedidos: ["Pedidos", "Preparación con pistola y control de faltantes"],
-  clientes: ["Clientes", "Para emitir facturas A, B o C según corresponda"],
-  productos: ["Productos", "Costos, precios y margen de todo tu catálogo"],
-  stock: ["Stock", "Qué reponer, qué vence y qué no se mueve"],
-  compras: ["Compras", "Cargar remitos, pedidos sugeridos y proveedores"],
-  caja: ["Caja", "Ingresos, egresos y arqueo del día"],
-  reportes: ["Informes", "Qué se vende, qué deja plata y qué cambió"],
-  asistente: ["Asistente", "Tus datos explicados y qué conviene hacer"],
-  ajustes: ["Ajustes", "Configuración del negocio y del sistema"],
+   El ícono viaja como nombre porque la base no sabe de React. Un nombre
+   que no esté en esta tabla cae en uno neutro: un módulo con el ícono
+   equivocado se usa igual, una pantalla que revienta no. */
+const ICONOS = {
+  panel: LayoutDashboard, planilla: ClipboardList, gente: Users,
+  caja: Package, cajas: Boxes, camion: Truck, billetera: Wallet,
+  barras: BarChart3, chispas: Sparkles, tuerca: Settings,
+  cubiertos: UtensilsCrossed, cocina: ChefHat, agenda: CalendarDays,
 };
+const iconoDe = (n) => ICONOS[n] || Store;
+
+/* El respaldo, para cuando el rubro no carga: sin conexión, o un comercio
+   con un rubro que nadie dio de alta. Sin esto una consulta fallida deja a
+   alguien sin manera de moverse por el sistema.
+
+   Va todo adentro y en un solo grupo sin rótulo, que es como se veía el
+   menú antes de este cambio. Lo que el comercio no contrató lo filtra
+   `puedeVer` igual.
+
+   El mostrador no está acá a propósito: vive adentro de la pantalla de
+   comanda, con su propia barra lateral. Ponerlo también como pestaña del
+   panel dejaba una ventana adentro de otra, con dos barras laterales
+   compitiendo por el mismo trabajo.
+
+   La cocina sí es una pestaña: es una pantalla colgada en la pared que
+   nadie toca, y no comparte nada con el flujo de tomar pedidos.
+   Ojo con la clave: `pedidos` ya es el picking del minimercado. */
+const MENU_POR_DEFECTO = [{
+  clave: "todo", nombre: null,
+  modulos: [
+    { k: "inicio", n: "Inicio", i: "panel", d: "Cómo viene el negocio hoy" },
+    { k: "comandas", n: "Salón", i: "cubiertos", d: "Qué mesa está ocupada, qué lleva y cuánto hace que espera" },
+    { k: "cocina", n: "Cocina", i: "cocina", d: "Lo que hay que preparar, en el orden en que se pidió" },
+    { k: "pedidos", n: "Pedidos", i: "planilla", d: "Preparación con pistola y control de faltantes" },
+    { k: "clientes", n: "Clientes", i: "gente", d: "Para emitir facturas A, B o C según corresponda" },
+    { k: "productos", n: "Productos", i: "caja", d: "Costos, precios y margen de todo tu catálogo" },
+    { k: "stock", n: "Stock", i: "cajas", d: "Qué reponer, qué vence y qué no se mueve" },
+    { k: "compras", n: "Compras", i: "camion", d: "Cargar remitos, pedidos sugeridos y proveedores" },
+    { k: "caja", n: "Caja", i: "billetera", d: "Ingresos, egresos y arqueo del día" },
+    { k: "reportes", n: "Informes", i: "barras", d: "Qué se vende, qué deja plata y qué cambió" },
+    { k: "asistente", n: "Asistente", i: "chispas", d: "Tus datos explicados y qué conviene hacer" },
+    { k: "ajustes", n: "Ajustes", i: "tuerca", d: "Configuración del negocio y del sistema" },
+  ],
+}];
 
 /* Los formularios entregan texto y la base espera números: una cadena
    vacía en una columna numérica la rechaza el servidor, no el navegador. */
@@ -849,6 +860,7 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
   const [provs, setProvs] = useState(PROV_INFO);
   const [clientes, setClientes] = useState([]);
+  const [rubro, setRubro] = useState(null);
   const [altaProd, setAltaProd] = useState(null);
   /* Sale de la empresa, no del código. Antes cualquier comercio arrancaba
      con el nombre y el CUIT de Super 25, así que imprimía comprobantes a
@@ -933,6 +945,17 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
         setClientes([]);
         toast(e.message || "No pudimos cargar los clientes.", "mal");
       });
+    return () => { vigente = false; };
+  }, [empresaId]);
+
+  /* La forma del menú también sale de la base. Si falla no se avisa nada:
+     queda el menú de respaldo, el sistema se usa igual, y un cartel rojo
+     sobre algo que el usuario no puede arreglar solo asusta al pedo. */
+  useEffect(() => {
+    let vigente = true;
+    cargarRubro(sesion.comercio && sesion.comercio.rubro)
+      .then((r) => { if (vigente) setRubro(r); })
+      .catch((e) => console.error("No se pudo cargar el rubro:", e));
     return () => { vigente = false; };
   }, [empresaId]);
 
@@ -1287,7 +1310,24 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
 
   const ventasHoy = resumenDia.total;
   const ticketsHoy = resumenDia.tickets;
-  const [titulo, bajada] = TITULOS[tab];
+  /* El menú que se dibuja: los grupos del rubro, con los módulos que el
+     comercio contrató y el rol habilita. Un grupo que se queda sin ningún
+     módulo no se dibuja — si no, una estética vería el rótulo "Finanzas"
+     con nada abajo. */
+  const grupos = useMemo(() => {
+    const base = rubro && rubro.grupos.length ? rubro.grupos : MENU_POR_DEFECTO;
+    return base
+      .map((g) => ({ ...g, modulos: (g.modulos || []).filter((m) => puedeVer(m.k)) }))
+      .filter((g) => g.modulos.length > 0);
+  }, [rubro, modulos, config.cocinaEnPantalla]);
+
+  /* El título de la pantalla sale del mismo lugar que su renglón del menú.
+     Antes eran dos listas separadas que había que acordarse de actualizar
+     juntas. */
+  const items = useMemo(() => grupos.flatMap((g) => g.modulos), [grupos]);
+  const actual = items.find((m) => m.k === tab);
+  const titulo = actual ? actual.n : "";
+  const bajada = actual ? actual.d : "";
   const alertasAltas = ins.filter((i) => i.sev === "alta").length;
 
   useEffect(() => {
@@ -1465,18 +1505,34 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
             {vender === "comandas" ? <ClipboardList size={17} /> : <Barcode size={17} />} {rotuloVender}
             <kbd className="f-m text-[10px] border border-borde-fuerte rounded px-1 py-0.5">F10</kbd>
           </Boton>
+          {/* Un grupo sin nombre se dibuja como lista pelada: así se ve el
+              menú de un comercio o un bar, igual que antes de que esto
+              fuera configurable. El rótulo aparece solo donde el rubro lo
+              definió. */}
           <nav className="mt-3 space-y-0.5">
-            {NAV.filter((n) => puedeVer(n.k)).map((n) => (
-              <button key={n.k} onClick={() => ir(n.k)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors ${tab === n.k ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
-                <n.i size={16} className={tab === n.k ? "text-acento-vivo" : "text-texto-tenue"} /> {n.n}
-                {n.k === "compras" && k.criticos.filter((x) => x.cobertura < 4).length > 0 && (
-                  <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{k.criticos.filter((x) => x.cobertura < 4).length}</span>
+            {grupos.map((g) => (
+              <div key={g.clave} className={g.nombre ? "pt-3" : ""}>
+                {g.nombre && (
+                  <div className="px-2.5 pb-1 text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">{g.nombre}</div>
                 )}
-                {n.k === "pedidos" && pedidosCli.filter((p) => p.estado !== "entregado").length > 0 && (
-                  <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{pedidosCli.filter((p) => p.estado !== "entregado").length}</span>
-                )}
-              </button>
+                <div className="space-y-0.5">
+                  {g.modulos.map((n) => {
+                    const Icono = iconoDe(n.i);
+                    return (
+                      <button key={n.k} onClick={() => ir(n.k)}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors ${tab === n.k ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
+                        <Icono size={16} className={tab === n.k ? "text-acento-vivo" : "text-texto-tenue"} /> {n.n}
+                        {n.k === "compras" && k.criticos.filter((x) => x.cobertura < 4).length > 0 && (
+                          <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{k.criticos.filter((x) => x.cobertura < 4).length}</span>
+                        )}
+                        {n.k === "pedidos" && pedidosCli.filter((p) => p.estado !== "entregado").length > 0 && (
+                          <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{pedidosCli.filter((p) => p.estado !== "entregado").length}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             ))}
           </nav>
           <div className="mt-auto px-2.5 py-3 border-t border-borde">
@@ -1492,12 +1548,18 @@ function Sistema({ sesion, onSalir, setComercios, tema, setTema }) {
             <button onClick={cobrar_} className="flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 text-sobre-acento bg-acento">
               {vender === "comandas" ? <ClipboardList size={17} /> : <Barcode size={17} />} {rotuloVender}
             </button>
-            {NAV.filter((n) => puedeVer(n.k)).map((n) => (
-              <button key={n.k} onClick={() => ir(n.k)}
-                className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${tab === n.k ? "text-acento" : "text-texto-tenue"}`}>
-                <n.i size={17} /> {n.n}
-              </button>
-            ))}
+            {/* En el celular los grupos se aplanan a propósito: es una tira
+                que se desliza, y meterle rótulos adentro la haría más larga
+                sin ordenar nada. */}
+            {items.map((n) => {
+              const Icono = iconoDe(n.i);
+              return (
+                <button key={n.k} onClick={() => ir(n.k)}
+                  className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${tab === n.k ? "text-acento" : "text-texto-tenue"}`}>
+                  <Icono size={17} /> {n.n}
+                </button>
+              );
+            })}
           </div>
         </div>
 

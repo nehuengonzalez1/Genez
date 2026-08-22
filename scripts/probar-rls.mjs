@@ -424,6 +424,48 @@ await comoUsuario(MOZO, async () => {
   decir(!colado, "no puede crear un cliente en otro comercio");
 });
 
+/* ------------------------------------------------------------
+   8 · El menú lo lee cualquiera, lo escribe la plataforma
+
+   Los rubros no son datos de un comercio sino la forma del producto, así
+   que la política es al revés que en todo lo demás: leer, todos; escribir,
+   solo plataforma. Si esto se invirtiera, un comercio podría reacomodarle
+   el menú a los otros.
+   ------------------------------------------------------------ */
+console.log("\nRubros");
+
+const PLATAFORMA = "nehuengonzalez1@gmail.com";
+
+await comoUsuario(MOZO, async () => {
+  const mio = await una(
+    `select r.clave, jsonb_array_length(r.menu) grupos
+     from rubros r join empresas e on e.rubro = r.clave
+     where e.id = (select empresa_id from perfiles where id = auth.uid())`);
+  decir(!!mio && mio.grupos > 0, `lee el menú de su rubro (${mio ? mio.clave : "ninguno"})`);
+
+  const otros = await una("select count(*)::int n from rubros");
+  decir(otros.n >= 3, `ve los demás rubros, que no son secreto (${otros.n})`);
+
+  const u = await c.query("update rubros set nombre = 'Pirateado' where clave = 'servicios'");
+  decir(u.rowCount === 0, "no puede reacomodarle el menú a otro rubro");
+
+  await c.query("savepoint ru");
+  let creo = false;
+  try {
+    await c.query("insert into rubros (clave, nombre) values ('trucho', 'Trucho')");
+    creo = true;
+    await c.query("rollback to savepoint ru");
+  } catch {
+    await c.query("rollback to savepoint ru");
+  }
+  decir(!creo, "no puede inventar un rubro");
+});
+
+await comoUsuario(PLATAFORMA, async () => {
+  const u = await c.query("update rubros set orden = orden where clave = 'servicios'");
+  decir(u.rowCount === 1, "la plataforma sí puede editar un rubro");
+});
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
