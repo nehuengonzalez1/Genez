@@ -765,6 +765,136 @@ if (ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   13 · Abonos
+
+   Lo que se prueba es el crédito: que se descuente al reservar, que
+   vuelva al cancelar y que el tope semanal no se pueda pasar. Y que el
+   saldo salga de los turnos y no de un contador, que es lo que evita que
+   se desincronice.
+   ------------------------------------------------------------ */
+console.log("\nAbonos");
+
+if (ALMHA) {
+  const SOFIA = await una("select id from personal where empresa_id = $1 and nombre = 'Sofía González'", [ALMHA.id]);
+  /* Un lunes bastante adelante, por dos razones.
+
+     Una: el abono arranca hoy, así que reservar contra él para un día que
+     ya pasó da "el abono arranca el 22/08", que es correcto y no es lo que
+     se quiere probar.
+
+     Dos, y más importante: estas pruebas corren contra la base de verdad,
+     donde hay turnos que alguien cargó de verdad. Elegir un horario
+     cercano hace que la prueba choque contra el trabajo real de alguien y
+     falle por un motivo que no tiene nada que ver con lo que prueba. Ya
+     pasó: el lunes que viene a las nueve estaba ocupado.
+
+     Sigue dentro de la vigencia de 60 días del plan de prueba. */
+  const LUNES = (await una(
+    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+             + interval '28 days' + interval '9 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
+
+  await comoUsuario(PLATAFORMA, async () => {
+    /* El plan va al catálogo como cualquier otro item. */
+    const plan = await una(
+      `insert into items (empresa_id, tipo, nombre, precio, controla_stock, campos_extra)
+       values ($1, 'plan', 'Pack 3 clases', 30000, false,
+               '{"clases":3,"vigenciaDias":60,"topeSemanal":2}'::jsonb)
+       returning id`, [ALMHA.id]);
+    decir(!!plan.id, "un plan es un item del catálogo");
+
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Compradora') returning id`, [ALMHA.id]);
+
+    /* Cobrar un abono es cobrar: sin caja abierta la base lo rechaza,
+       igual que cualquier venta (regla 4). */
+    const ses = await una(
+      `insert into sesiones_caja (empresa_id, monto_inicial) values ($1, 0) returning id`, [ALMHA.id]);
+
+    const abono = await una("select vender_abono($1::jsonb) id", [JSON.stringify({
+      empresa_id: ALMHA.id, cliente_id: cli.id, item_id: plan.id,
+      sesion_id: ses.id,
+      pagos: [{ medio: "efectivo", monto: 30000 }],
+    })]);
+    decir(!!abono.id, "vender el abono crea el crédito");
+
+    /* La venta pasó por el camino de siempre: hay operación, línea y pago. */
+    const venta = await una(
+      `select o.total::float t, count(l.id)::int lineas,
+              (select count(*)::int from pagos where operacion_id = o.id) pagos,
+              (select count(*)::int from movimientos_caja where operacion_id = o.id) caja
+         from abonos a
+         join operaciones o on o.id = a.operacion_id
+         left join operacion_lineas l on l.operacion_id = o.id
+        where a.id = $1 group by o.id, o.total`, [abono.id]);
+    decir(venta && venta.t === 30000 && venta.lineas === 1 && venta.pagos === 1 && venta.caja === 1,
+      `la venta entra por el camino de siempre (línea, pago y caja)`);
+
+    const v0 = await una("select clases, usadas, restantes, estado from abonos_vista where id = $1", [abono.id]);
+    decir(Number(v0.restantes) === 3 && v0.estado === "activo", `arranca con ${v0.restantes} de ${v0.clases}`);
+
+    const conAbono = (dias, extra = {}) => JSON.stringify({
+      empresa_id: ALMHA.id, cliente_id: cli.id, abono_id: abono.id,
+      personal_id: SOFIA.id, nombre: "Compradora",
+      desde: new Date(new Date(LUNES).getTime() + dias * 86400000).toISOString(),
+      duracion_min: 60, ...extra,
+    });
+
+    const t1 = await una("select agendar_turno($1::jsonb) id", [conAbono(0)]);
+    const v1 = await una("select restantes from abonos_vista where id = $1", [abono.id]);
+    decir(Number(v1.restantes) === 2, `reservar descuenta una (${v1.restantes} restantes)`);
+
+    /* El tope es de dos por semana: la tercera del lunes al domingo no entra. */
+    await c.query("select agendar_turno($1::jsonb)", [conAbono(2)]);
+    await c.query("savepoint tope");
+    try {
+      await c.query("select agendar_turno($1::jsonb)", [conAbono(4)]);
+      await c.query("rollback to savepoint tope");
+      decir(false, "no deja pasar el tope semanal");
+    } catch (e) {
+      await c.query("rollback to savepoint tope");
+      decir(e.code === "P0059", `no deja pasar el tope semanal${e.code === "P0059" ? "" : ` (dio ${e.code})`}`);
+    }
+
+    /* Cancelar devuelve la clase. */
+    await c.query("update reservas set estado = 'cancelada' where id = $1", [t1.id]);
+    const v2 = await una("select restantes from abonos_vista where id = $1", [abono.id]);
+    decir(Number(v2.restantes) === 2, `cancelar devuelve la clase (${v2.restantes} restantes)`);
+
+    /* Faltar la gasta o no, según el comercio. */
+    await c.query("update reservas set estado = 'ausente' where id = $1", [t1.id]);
+    const conPolitica = await una("select restantes from abonos_vista where id = $1", [abono.id]);
+    decir(Number(conPolitica.restantes) === 1, "por defecto, faltar gasta la clase");
+
+    await c.query(
+      `update empresas set config = jsonb_set(config, '{turnos}', '{"ausenciaConsume": false}'::jsonb) where id = $1`,
+      [ALMHA.id]);
+    const sinCastigo = await una("select restantes from abonos_vista where id = $1", [abono.id]);
+    decir(Number(sinCastigo.restantes) === 2, "con la política del comercio en no, la devuelve");
+
+    /* Un abono es de quien lo compró. */
+    const otro = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Otro') returning id`, [ALMHA.id]);
+    await c.query("savepoint aj");
+    try {
+      await c.query("select agendar_turno($1::jsonb)", [JSON.stringify({
+        empresa_id: ALMHA.id, cliente_id: otro.id, abono_id: abono.id,
+        nombre: "Otro", desde: new Date(new Date(LUNES).getTime() + 6 * 86400000).toISOString(), duracion_min: 60,
+      })]);
+      await c.query("rollback to savepoint aj");
+      decir(false, "no deja usar el abono de otra persona");
+    } catch (e) {
+      await c.query("rollback to savepoint aj");
+      decir(e.code === "P0055", "no deja usar el abono de otra persona");
+    }
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from abonos where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve los abonos de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

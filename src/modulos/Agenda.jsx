@@ -12,10 +12,11 @@
    última palabra la tiene el servidor: dos personas agendando al mismo
    tiempo desde dos dispositivos solo se resuelven ahí.
 
-   Las clases grupales y la lista de espera ya funcionan: una clase es
-   una reserva con cupo y las inscripciones cuelgan de ella. La
-   recurrencia y los abonos todavía no tienen base, así que lo que los
-   necesita está apagado. Nada finge andar.
+   Las clases grupales, la lista de espera y los abonos ya funcionan.
+   Una clase es una reserva con cupo y las inscripciones cuelgan de ella;
+   el crédito de un abono se descuenta al reservar y no al asistir, que es
+   lo que hace que el tope semanal se pueda hacer cumplir. La recurrencia
+   todavía no tiene base y por eso está apagada. Nada finge andar.
    ============================================================ */
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -30,6 +31,7 @@ import {
   marcarEspera, bloquear, MOTIVOS_BLOQUEO,
 } from "../datos/agenda.js";
 import { cargarEquipo, cargarServicios } from "../datos/equipo.js";
+import { cargarAbonos } from "../datos/abonos.js";
 import { cargarRecursos } from "../datos/comandas.js";
 import { money } from "../utils/helpers.js";
 import { Card, Boton, Modal, Vacio, Tabs, Sello, Cargando, ErrorEstado, Apagado } from "../ui/Base.jsx";
@@ -75,11 +77,24 @@ const paraInput = (d) => {
    El formulario de un turno
    ------------------------------------------------------------ */
 
-function FormTurno({ abierto, inicial, equipo, servicios, salas, clientes, onGuardar, onCerrar }) {
+function FormTurno({ abierto, inicial, equipo, servicios, salas, clientes, empresaId, onGuardar, onCerrar }) {
   const [d, setD] = useState({});
   const [buscando, setBuscando] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  const [abonos, setAbonos] = useState([]);
+
+  /* Los abonos del cliente elegido. Se piden al elegirlo y no antes: si se
+     trajeran todos los del comercio, un negocio con mil clientes cargaría
+     mil abonos para mostrar dos. */
+  useEffect(() => {
+    if (!abierto || !d.clienteId) { setAbonos([]); return; }
+    let vigente = true;
+    cargarAbonos(empresaId, { clienteId: d.clienteId, soloActivos: true })
+      .then((xs) => { if (vigente) setAbonos(xs); })
+      .catch(() => { if (vigente) setAbonos([]); });
+    return () => { vigente = false; };
+  }, [abierto, d.clienteId, empresaId]);
 
   useEffect(() => {
     if (!abierto) return;
@@ -256,6 +271,23 @@ function FormTurno({ abierto, inicial, equipo, servicios, salas, clientes, onGua
                   : `${persona.nombre} no trabaja ese día.`;
               })()}
             </p>
+          )}
+
+          {/* El crédito se descuenta al reservar, no al venir: es lo que
+              hace que el tope semanal se pueda hacer cumplir. Solo aparece
+              si la persona tiene algo con qué pagar. */}
+          {d.tipo !== "clase" && abonos.length > 0 && (
+            <Campo label="Descontar de un abono">
+              <select value={d.abonoId || ""} onChange={(e) => set("abonoId", e.target.value || null)} className={inputCls}>
+                <option value="">No, se paga aparte</option>
+                {abonos.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre} — {a.clases === null ? "libre" : `${a.restantes} ${a.restantes === 1 ? "clase" : "clases"}`}
+                    {a.vence ? ` · vence ${a.vence.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}` : ""}
+                  </option>
+                ))}
+              </select>
+            </Campo>
           )}
 
           <Campo label="Observaciones">
@@ -442,6 +474,7 @@ export function Agenda({ empresaId, sucursalId, permisos, clientes, toast, ir })
           personalId: d.personalId || null,
           recursoId: d.recursoId || null,
           itemId: d.itemId || null,
+          abonoId: d.abonoId || null,
           nombre: d.nombre || (clientes.find((c) => c.id === d.clienteId) || {}).razonSocial || "Sin nombre",
           telefono: d.telefono || null,
           desde, duracion: Number(d.duracion), notas: d.notas, estado: d.estado,
@@ -724,7 +757,8 @@ export function Agenda({ empresaId, sucursalId, permisos, clientes, toast, ir })
       </Drawer>
 
       <FormTurno abierto={!!alta} inicial={alta} equipo={equipo} servicios={servicios}
-        salas={salas} clientes={clientes} onGuardar={guardar} onCerrar={() => setAlta(null)} />
+        salas={salas} clientes={clientes} empresaId={empresaId}
+        onGuardar={guardar} onCerrar={() => setAlta(null)} />
 
       <FormBloqueo abierto={!!bloqueo} inicial={bloqueo} equipo={equipo}
         onCerrar={() => setBloqueo(null)}
