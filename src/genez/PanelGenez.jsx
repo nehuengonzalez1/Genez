@@ -24,7 +24,7 @@ import {
   abrirCaja as abrirCajaEnBase, cerrarCaja as cerrarCajaEnBase,
 } from "../datos/caja.js";
 import { calcular, insights } from "../utils/diagnostico.js";
-import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apagado } from "../ui/Base.jsx";
+import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apagado, Tabs } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
@@ -32,6 +32,7 @@ import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
 import { Clientes } from "../modulos/Clientes.jsx";
+import { Equipo } from "../modulos/Equipo.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
@@ -62,6 +63,7 @@ const MODULOS = [
   { k: "compras", n: "Compras", d: "Remitos, costos y proveedores" },
   { k: "pedidos", n: "Pedidos", d: "Preparación con pistola" },
   { k: "clientes", n: "Clientes", d: "Facturación A, B y C" },
+  { k: "equipo", n: "Equipo", d: "Quién trabaja, qué hace y cuándo" },
   { k: "reportes", n: "Informes", d: "Ventas, márgenes y rubros" },
   { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
 ];
@@ -79,12 +81,12 @@ const ROLES = [
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
-    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "reportes", "asistente"],
+    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "reportes", "asistente"],
     permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
   },
   {
     k: "cajero", n: "Cajero", d: "Cobra, sin ver costos ni ganancias",
-    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes"],
+    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes", "equipo"],
     permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false },
   },
   {
@@ -1368,14 +1370,27 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
 
      El título de la pantalla sale de acá también. Antes eran dos listas
      separadas que había que acordarse de actualizar juntas. */
+  /* Una sección con nombre es un solo renglón del menú, tenga uno o cinco
+     módulos adentro: "Clientes y equipo" es una fila, no un rótulo con
+     "Clientes" y "Equipo" colgando. Los de adentro se eligen con pestañas
+     arriba del contenido, que es a donde va la arquitectura de diez
+     secciones.
+
+     Las secciones sin nombre —comercio, gastronomía— siguen desplegando
+     sus módulos como una lista plana, igual que siempre. */
   const items = useMemo(() => grupos.flatMap((g) => (
-    g.modulos.length === 1 && g.nombre
+    g.nombre && g.modulos.length
       ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i }]
       : g.modulos
   )), [grupos]);
-  const actual = items.find((m) => m.k === tab);
-  const titulo = actual ? actual.n : "";
-  const bajada = actual ? actual.d : "";
+
+  const seccion = grupos.find((g) => g.modulos.some((m) => m.k === tab)) || null;
+  const moduloActual = seccion ? seccion.modulos.find((m) => m.k === tab) : null;
+  /* El título es el de la sección y la bajada la del módulo: así el
+     encabezado y las pestañas dicen cosas distintas y no se repiten. */
+  const titulo = seccion && seccion.nombre ? seccion.nombre : moduloActual ? moduloActual.n : "";
+  const bajada = moduloActual ? moduloActual.d : "";
+  const pestanas = seccion && seccion.nombre && seccion.modulos.length > 1 ? seccion.modulos : null;
   const alertasAltas = ins.filter((i) => i.sev === "alta").length;
 
   useEffect(() => {
@@ -1586,24 +1601,24 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
                 );
               }
 
-              /* Con un solo módulo, la sección es el renglón. */
-              const sola = g.modulos.length === 1 && g.nombre;
-              const visibles = sola
-                ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i }]
+              /* La sección con nombre es el renglón, tenga los módulos que
+                 tenga; los de adentro se eligen con las pestañas de
+                 arriba. Queda activa mientras se esté en cualquiera de
+                 ellos. */
+              const visibles = g.nombre
+                ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
                 : g.modulos;
 
               return (
-                <div key={g.clave} className={g.nombre && !sola ? "pt-3" : ""}>
-                  {g.nombre && !sola && (
-                    <div className="px-2.5 pb-1 text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">{g.nombre}</div>
-                  )}
+                <div key={g.clave}>
                   <div className="space-y-0.5">
                     {visibles.map((n) => {
                       const Icono = iconoDe(n.i);
+                      const aca = (n.claves || [n.k]).includes(tab);
                       return (
                         <button key={n.k} onClick={() => ir(n.k)}
-                          className={`${fila} ${tab === n.k ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
-                          <Icono size={16} className={tab === n.k ? "text-acento-vivo" : "text-texto-tenue"} /> {n.n}
+                          className={`${fila} ${aca ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>
+                          <Icono size={16} className={aca ? "text-acento-vivo" : "text-texto-tenue"} /> {n.n}
                           {n.k === "compras" && k.criticos.filter((x) => x.cobertura < 4).length > 0 && (
                             <span className="ml-auto text-[10px] font-bold bg-acento text-sobre-acento rounded-full px-1.5">{k.criticos.filter((x) => x.cobertura < 4).length}</span>
                           )}
@@ -1670,6 +1685,16 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
             </div>
           </header>
 
+          {/* Los módulos de una sección se eligen acá y no en la barra
+              lateral: es lo que permite que el menú sean diez renglones y
+              no quince. Aparecen solo cuando la sección tiene más de uno,
+              porque una pestaña sola no es una elección. */}
+          {pestanas && (
+            <div className="-mt-2 mb-5">
+              <Tabs value={tab} onChange={ir} items={pestanas.map((m) => ({ k: m.k, n: m.n }))} />
+            </div>
+          )}
+
           {tab === "inicio" && (
             <Inicio tablero={rubro ? rubro.inicio : "comercio"}
               k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy}
@@ -1684,6 +1709,7 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
           {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
           {tab === "clientes" && <Clientes clientes={clientes} guardarCliente={guardarClienteEn} tickets={tickets} ajustes={ajustes} />}
+          {tab === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
           {tab === "productos" && (cargandoProductos
             ? <Vacio>Cargando catálogo…</Vacio>
             : <Productos key={foco || "todos"} productos={productos}

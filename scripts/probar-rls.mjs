@@ -504,6 +504,34 @@ await comoUsuario(MOZO, async () => {
   decir(v.n > 0 && v.n < TOTAL_ITEMS, `un comercio, en cambio, nunca ve el catálogo de otro (${v.n} de ${TOTAL_ITEMS})`);
 });
 
+/* ------------------------------------------------------------
+   10 · Las vistas no pueden ser una puerta de atrás
+
+   Una vista sin `security_invoker` corre con los permisos de quien la
+   creó y saltea RLS por completo. Es un error silencioso: la vista
+   funciona, devuelve datos, y recién se nota cuando alguien ve lo que no
+   tenía que ver. `equipo_vista` nació así y expuso los sueldos de todos
+   los comercios hasta que se corrigió.
+
+   Se comprueban todas de una: la próxima que se agregue mal, cae acá.
+   ------------------------------------------------------------ */
+console.log("\nVistas");
+
+const VISTAS = (await c.query(
+  `select c.relname, coalesce(array_to_string(c.reloptions, ','), '') as opciones
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'v' order by 1`)).rows;
+
+for (const v of VISTAS) {
+  decir(v.opciones.includes("security_invoker=true"), `${v.relname} respeta RLS`);
+}
+
+const CON_EQUIPO = (await una("select count(*)::int n from personal")).n;
+await comoUsuario(MOZO, async () => {
+  const v = await una("select count(*)::int n from equipo_vista");
+  decir(v.n === 0, `un comercio no ve el equipo ni los sueldos de otro (${v.n} de ${CON_EQUIPO})`);
+});
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
