@@ -8,8 +8,19 @@ import { ArrowRight, Truck, Wallet, Barcode } from "lucide-react";
 import { HOY, fdatel } from "../datos/generador.js";
 import { money, moneyk, pct, nf } from "../utils/helpers.js";
 import { Card, Kpi, Boton, SEV } from "../ui/Base.jsx";
+import { InicioServicios } from "./InicioServicios.jsx";
 
-export function Inicio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar }) {
+/* Qué tablero se dibuja lo decide el rubro, en la base. Acá solo está la
+   traducción de nombre a componente: un tablero es código, no configuración,
+   y pretender lo contrario termina en un armador de dashboards que nadie
+   pidió. Un nombre desconocido cae en el de comercio, que es el que había. */
+export function Inicio(props) {
+  return props.tablero === "servicios"
+    ? <InicioServicios {...props} />
+    : <InicioComercio {...props} />;
+}
+
+function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar }) {
   const serie = k.diario.slice(-30).map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
   const ganHoy = ventasHoy * k.margen30;
   return (
@@ -116,3 +127,4 @@ export function Inicio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar }) 
     </div>
   );
 }
+

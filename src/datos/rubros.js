@@ -17,7 +17,7 @@ export async function cargarRubro(clave) {
 
   const { data, error } = await supabase
     .from("rubros")
-    .select("clave, nombre, menu, voces, modulos")
+    .select("clave, nombre, menu, voces, modulos, entrada, accion, inicio")
     .eq("clave", clave)
     .eq("activo", true)
     .maybeSingle();
@@ -31,6 +31,9 @@ export async function cargarRubro(clave) {
     grupos: Array.isArray(data.menu) ? data.menu : [],
     voces: data.voces || {},
     modulos: data.modulos || [],
+    entrada: data.entrada || "panel",
+    accion: data.accion || null,
+    inicio: data.inicio || "comercio",
   };
 }
 

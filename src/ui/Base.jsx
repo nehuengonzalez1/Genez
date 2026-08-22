@@ -17,11 +17,24 @@ export function Card({ children, className = "" }) {
   return <div className={`bg-superficie border border-borde rounded-2xl ${className}`}>{children}</div>;
 }
 
-export function Kpi({ label, valor, delta, sub, tono = "neutro" }) {
+/* `icono` y `chispa` son opcionales y no cambian nada si no se pasan: sin
+   ellos esta tarjeta se dibuja igual que siempre, que es lo que necesitan
+   Caja, Stock, Compras y Reportes, que la usan desde antes.
+
+   `chispa` entra como nodo y no como serie de números a propósito: así
+   esta tarjeta no depende del gráfico, y el gráfico no depende de ella. */
+export function Kpi({ label, valor, delta, sub, tono = "neutro", icono: Ico, chispa }) {
   const col = tono === "bien" ? "text-bien" : tono === "mal" ? "text-mal" : "text-texto";
   return (
     <Card className="p-4">
-      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">{label}</div>
+      <div className="flex items-center gap-2">
+        {Ico && (
+          <span className="w-8 h-8 shrink-0 rounded-xl bg-superficie-2 flex items-center justify-center">
+            <Ico size={15} className="text-acento" />
+          </span>
+        )}
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold min-w-0 truncate">{label}</div>
+      </div>
       <div className={`f-d text-3xl mt-1 tabular-nums ${col}`}>{valor}</div>
       <div className="flex items-center gap-2 mt-1">
         {delta !== undefined && delta !== null && (
@@ -30,7 +43,8 @@ export function Kpi({ label, valor, delta, sub, tono = "neutro" }) {
             {pct(Math.abs(delta))}
           </span>
         )}
-        {sub && <span className="text-xs text-texto-tenue">{sub}</span>}
+        {sub && <span className="text-xs text-texto-tenue truncate">{sub}</span>}
+        {chispa && <span className="ml-auto shrink-0">{chispa}</span>}
       </div>
     </Card>
   );

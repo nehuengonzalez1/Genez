@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
 import { cargarSesion, cargarComercios, salir, alRecuperarClave } from "./datos/sesion.js";
+import { cargarRubro } from "./datos/rubros.js";
 
 /* La sesión sobrevive al refresco: Supabase la guarda en el navegador.
    Mientras se resuelve no se puede mostrar ni el login ni el sistema,
@@ -26,6 +27,8 @@ export default function App() {
   const [tema, setTema] = useState("oscuro");
   const [imagenFondo, setImagenFondo] = useState(null);   // fondo propio del login
   const [iniciando, setIniciando] = useState(true);
+  /* undefined = todavía no se sabe. Distinto de null, que es "no tiene". */
+  const [rubro, setRubro] = useState(undefined);
   const [errorInicio, setErrorInicio] = useState("");
   const [recuperando, setRecuperando] = useState(false);
 
@@ -60,6 +63,30 @@ export default function App() {
       .catch((e) => console.error("No se pudieron cargar los comercios:", e));
     return () => { vigente = false; };
   }, [sesion && sesion.tipo, sesion && sesion.nombre]);
+
+  /* El comercio que se está mirando: el propio, o el que abrió la
+     plataforma. En el panel de plataforma no hay ninguno. */
+  const comercio = sesion ? sesion.viendo || sesion.comercio : null;
+
+  /* El rubro decide la forma del sistema: el menú, por dónde entra y qué
+     tablero muestra el inicio. Se resuelve acá, antes de montar Sistema, y
+     no adentro: si llegara tarde, una estética abriría un instante en la
+     pantalla de cobro y recién después se corregiría sola, que es peor que
+     esperar. */
+  useEffect(() => {
+    if (!comercio) { setRubro(null); return; }
+    let vigente = true;
+    setRubro(undefined);
+    cargarRubro(comercio.rubro)
+      .then((r) => { if (vigente) setRubro(r); })
+      .catch((e) => {
+        /* Sin rubro el sistema igual se usa: Sistema tiene su menú de
+           respaldo. No vale la pena frenar a nadie por esto. */
+        console.error("No se pudo cargar el rubro:", e);
+        if (vigente) setRubro(null);
+      });
+    return () => { vigente = false; };
+  }, [comercio && comercio.id]);
 
   const cerrarSesion = useCallback(async () => {
     await salir();
@@ -115,8 +142,9 @@ export default function App() {
     );
   }
 
-  // El comercio que se está mirando: el propio, o el que abrió la plataforma.
-  const comercio = sesion.viendo || sesion.comercio;
+  // Sin saber el rubro no se puede dibujar: se decidiría dos veces.
+  if (rubro === undefined) return envolver(<Cargando />);
+
   const sesionSistema = sesion.viendo
     ? { tipo: "comercio", comercio, rol: "dueno", nombre: sesion.nombre, usuario: sesion.usuario, comoAdmin: true }
     : sesion;
@@ -124,6 +152,7 @@ export default function App() {
   return envolver(
     <Sistema
       key={comercio.id}
+      rubro={rubro}
       tema={tema} setTema={setTema}
       sesion={sesionSistema}
       setComercios={setComercios}
