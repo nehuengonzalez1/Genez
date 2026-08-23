@@ -117,6 +117,7 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 | `registrar_pago(...)` | Un pago sobre una cuenta abierta. Dividir es esto, varias veces. |
 | `mover_pedido(...)` | Cambia el estado: valida el flujo del canal, mueve la cocina y deja historial. |
 | `estadisticas_pedidos(...)` | Pedidos, ventas, tiempos y evolución de un período. |
+| `informe_ocupacion(...)` | Cuánto de lo que se podía vender se vendió, por profesional y por sala. Ver abajo. |
 | `sembrar_canales(uuid)` | Los canales con los que arranca un comercio. |
 | `enviar_a_cocina(uuid)` | Despacha solo lo que falta despachar. |
 | `aplicar_descuento(...)` | Por porcentaje o por importe. |
@@ -205,6 +206,42 @@ Los cuatro huecos que tenía el sistema quedaron cerrados: estado propio
 del pedido (0021), historial de transiciones (0021), tiempo real (0022) y
 canales como filas (0020).
 
+## El informe de un negocio de servicios
+
+`src/modulos/Informes.jsx` es el informe del rubro servicios.
+`Reportes.jsx` sigue siendo el del minimercado y el bar y **no se toca**:
+son dos módulos distintos porque no comparten una sola métrica. Uno mira
+margen por producto; el otro, horas. Misma decisión que Finanzas: una
+clave nueva en el menú del rubro antes que un `if` adentro de una
+pantalla compartida.
+
+Tres cosas que conviene no romper:
+
+**Un abono no es un turno.** Un pack es plata que entró hoy por horas que
+se van a dar en ocho semanas. Mezclarlos hace que un mes de muchas
+renovaciones parezca un mes de mucha actividad, y el siguiente un
+derrumbe. Por eso el corte entre abonos y turnos está arriba del gráfico
+y no escondido.
+
+**Hay dos ocupaciones y las dos son ciertas.** Una sala de mat para ocho
+con tres personas adentro está usada el 100% del tiempo y al 37% de su
+capacidad. La primera dice si hay lugar para abrir otra clase; la
+segunda, si esa clase conviene que exista. `informe_ocupacion` devuelve
+las dos y la pantalla las muestra separadas.
+
+**Una clase ocupa una vez.** Seis inscripciones a la misma clase de
+reformer no son seis horas de sala: son una. Es el mismo criterio con el
+que `liquidar` cuenta las horas del equipo, y tiene que seguir siendo el
+mismo: si dejan de coincidir, la ocupación de una profesora y lo que se
+le paga cuentan cosas distintas del mismo día de trabajo.
+
+Las horas que ofrece una **sala** salen de cuándo abre el local —de la
+primera a la última hora en que hay alguien trabajando ese día—, porque
+nadie carga el horario de una sala: se carga el de la gente. Si algún día
+se cargan horarios propios de un espacio, mandan esos.
+
+**Este módulo usa la fecha real**, no el `HOY` congelado del prototipo.
+
 ## Lo que ya funciona y no hay que rehacer
 
 Comandas de salón y mostrador, centro de pedidos con estados reales y
@@ -219,6 +256,18 @@ venta, bitácora automática.
 `supabase/seed/pedidos.sql` siembra un mediodía de pedidos en el Bar
 Rivadavia para poder mirar el tablero lleno. Queda marcado y se borra con
 `delete from operaciones where campos_extra->>'demo' = 'pedidos'`.
+
+`supabase/seed/almha_historia.sql` le da a Almha cuatro meses enteros de
+operación —clientes, turnos, clases, abonos, ventas, caja y
+liquidaciones— armados sobre el catálogo que ya tiene cargado. Se niega a
+correr si el comercio no está marcado `demo` en su configuración, que es
+la regla del proyecto puesta donde sirve y no en un comentario. El azar
+va sembrado con `setseed`, así que dos corridas dan lo mismo y una
+captura de pantalla sigue valiendo.
+
+Arranca el 1 de un mes y no "hace 120 días": con la ventana corrida, el
+primer mes queda cortado por la mitad y el informe mensual muestra una
+caída que nunca pasó.
 
 `supabase/seed/salon.sql` dibuja el local del Bar Rivadavia —paredes,
 barra, cocina, terraza y dieciocho mesas— para que el mapa se vea como un
