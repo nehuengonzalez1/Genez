@@ -43,6 +43,13 @@ authenticated`, así las políticas se aplican igual que desde el navegador.
 Las demás corren como administrador y **saltean RLS**: sirven para la
 lógica, no para los permisos. Esa diferencia ya dejó pasar un bug.
 
+Cada script deja la base como estaba, y **la bitácora la limpia por fecha**:
+guarda la hora de arranque —la del reloj de la base, no el de Node— y borra
+solo lo que escribió esa corrida. Antes borraba por acción, o entera, y eso
+se llevaba puesto el registro de los tres comercios. Daba igual mientras
+nadie la leyera; desde que la auditoría tiene pantalla, es destruir un dato
+real cada vez que alguien corre las pruebas.
+
 ## El modelo de datos
 
 ### Multiempresa
@@ -117,6 +124,10 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 | `registrar_pago(...)` | Un pago sobre una cuenta abierta. Dividir es esto, varias veces. |
 | `mover_pedido(...)` | Cambia el estado: valida el flujo del canal, mueve la cocina y deja historial. |
 | `estadisticas_pedidos(...)` | Pedidos, ventas, tiempos y evolución de un período. |
+| `informe_ocupacion(...)` | Cuánto de lo que se podía vender se vendió, por profesional y por sala. Ver abajo. |
+| `crm_segmentos(uuid)` | A quién conviene escribirle y por qué. Ver abajo. |
+| `comunicaciones_pendientes(...)` | Los turnos que vienen y todavía no tienen su aviso. |
+| `permisos_de(uuid)` / `permiso(text)` | Qué puede hacer alguien. Lo que consultan las políticas. Ver abajo. |
 | `sembrar_canales(uuid)` | Los canales con los que arranca un comercio. |
 | `enviar_a_cocina(uuid)` | Despacha solo lo que falta despachar. |
 | `aplicar_descuento(...)` | Por porcentaje o por importe. |
@@ -205,6 +216,147 @@ Los cuatro huecos que tenía el sistema quedaron cerrados: estado propio
 del pedido (0021), historial de transiciones (0021), tiempo real (0022) y
 canales como filas (0020).
 
+## El informe de un negocio de servicios
+
+`src/modulos/Informes.jsx` es el informe del rubro servicios.
+`Reportes.jsx` sigue siendo el del minimercado y el bar y **no se toca**:
+son dos módulos distintos porque no comparten una sola métrica. Uno mira
+margen por producto; el otro, horas. Misma decisión que Finanzas: una
+clave nueva en el menú del rubro antes que un `if` adentro de una
+pantalla compartida.
+
+Tres cosas que conviene no romper:
+
+**Un abono no es un turno.** Un pack es plata que entró hoy por horas que
+se van a dar en ocho semanas. Mezclarlos hace que un mes de muchas
+renovaciones parezca un mes de mucha actividad, y el siguiente un
+derrumbe. Por eso el corte entre abonos y turnos está arriba del gráfico
+y no escondido.
+
+**Hay dos ocupaciones y las dos son ciertas.** Una sala de mat para ocho
+con tres personas adentro está usada el 100% del tiempo y al 37% de su
+capacidad. La primera dice si hay lugar para abrir otra clase; la
+segunda, si esa clase conviene que exista. `informe_ocupacion` devuelve
+las dos y la pantalla las muestra separadas.
+
+**Una clase ocupa una vez.** Seis inscripciones a la misma clase de
+reformer no son seis horas de sala: son una. Es el mismo criterio con el
+que `liquidar` cuenta las horas del equipo, y tiene que seguir siendo el
+mismo: si dejan de coincidir, la ocupación de una profesora y lo que se
+le paga cuentan cosas distintas del mismo día de trabajo.
+
+Las horas que ofrece una **sala** salen de cuándo abre el local —de la
+primera a la última hora en que hay alguien trabajando ese día—, porque
+nadie carga el horario de una sala: se carga el de la gente. Si algún día
+se cargan horarios propios de un espacio, mandan esos.
+
+**Este módulo usa la fecha real**, no el `HOY` congelado del prototipo.
+
+## El CRM
+
+`crm_segmentos` devuelve cinco listas de gente a la que conviene
+escribirle, y cada una existe porque tiene una acción distinta detrás: el
+que dejó de venir, el que vino una sola vez, el que se queda sin abono,
+el que se le venció y no renovó, y el que reserva y no aparece.
+
+**Los segmentos se derivan, no se guardan.** Misma regla que el stock y
+que el estado de una mesa. Una columna `es_cliente_dormido` se corrompe
+el día que la persona vuelve, y el criterio cambia —hoy son 45 días,
+mañana el comercio decide otra cosa— con lo que habría que recalcular el
+pasado entero.
+
+**`contactos` es lo que hace que la lista se vacíe.** Sin ella el lunes
+aparecen los mismos veinte nombres que el viernes. Escribirle a alguien
+lo saca del segmento por tres semanas, y **solo de ese segmento**: que se
+le haya avisado que su abono vence no significa que no haya que decirle,
+dos meses después, que hace rato no viene.
+
+**Nada se manda solo.** Se abre WhatsApp con el mensaje ya escrito y la
+persona aprieta enviar. El texto es editable antes y lo que se guarda es
+lo que se mandó, no lo que decía la plantilla. Las plantillas guardadas y
+el envío en tanda son de Comunicaciones.
+
+**"No molestar" va en `clientes.campos_extra`**, que es exactamente para
+esto, y se filtra una sola vez arriba de todos los segmentos para que no
+haya forma de agregar uno que se lo saltee.
+
+`telWhatsapp` en `src/utils/helpers.js` arma el número: `wa.me` necesita
+código de país y el `9` de celular, y los teléfonos se cargan como los
+dicta la gente. Sin eso el link abre un chat con nadie, que es lo que
+venía pasando en la agenda y en la ficha.
+
+## Comunicaciones
+
+CRM contesta a quién conviene escribirle esta semana; esto contesta a
+quién hay que avisarle algo ahora. Son dos módulos porque son dos
+trabajos: recepción manda los recordatorios de mañana cada tarde, y el
+dueño mira lo de CRM una vez por semana. Meterlos en la misma pantalla
+sepulta la tarea diaria debajo de la semanal.
+
+**Una sola tabla de mensajes**, `contactos`, para los dos. Dos registros
+de mensajes enviados es la forma más rápida de no saber nunca si a
+alguien ya se le escribió.
+
+**Se avisa por turno, no por persona.** Por eso `contactos` tiene
+`reserva_id`. Sin él, saber si a alguien ya se le recordó su turno del
+martes sería mirar si se le escribió "hace poco", y con dos turnos en la
+misma semana eso falla siempre. Una clase manda un mensaje por anotado; la
+clase en sí no se avisa, no tiene a quién.
+
+**Un recordatorio no es marketing.** `no contactar` frena todo lo de CRM y
+no frena esto: quien pidió que no le manden promociones no pidió que no le
+avisen que mañana tiene turno a las nueve.
+
+**Las plantillas guardan lo que se cambió, no todo.** Los textos de
+fábrica están en `src/datos/comunicaciones.js`; la tabla `plantillas`
+guarda solo los que el comercio reescribió. Un comercio nuevo funciona el
+primer día sin semilla, "volver al original" es borrar una fila, y si
+mañana ese texto mejora, el que nunca lo tocó se lleva la mejora.
+
+**Un hueco que no existe se deja escrito.** `{profe}` en vez de
+`{profesional}` aparece tal cual en la vista previa y se corrige solo;
+borrarlo en silencio manda un mensaje mocho sin ninguna pista de por qué.
+
+## Los permisos
+
+Los roles salían de una constante de JavaScript. Ahora salen de la base,
+y no por prolijidad: **las políticas de RLS los tienen que poder leer**.
+Un permiso que solo existe en el navegador no protege nada.
+
+`roles_base` son los cuatro de fábrica y es dato de plataforma, como
+`rubros`. `roles` guarda **solo lo que cada comercio cambió** y se fusiona
+encima. Volver al original es borrar la fila, así una corrección futura de
+un valor de fábrica llega sola al que nunca lo tocó.
+
+**Ninguna política vuelve a nombrar un rol.** `bitacora_leer` y
+`empresas_configurar` decían `rol in ('dueno', 'encargado')` y ahora
+preguntan por `permiso('verBitacora')` y `permiso('configurar')`. Los
+valores de fábrica dan la misma respuesta para la misma gente, así que
+nada cambió hasta que alguien edite; lo cubre `probar-rls.mjs`.
+
+`permisos_de(perfil)` toma el perfil por parámetro en vez de mirar solo
+`auth.uid()`. Es lo que permite probarla —una función que solo se puede
+ejecutar "siendo" cada rol no se prueba, se cruza los dedos— y lo que la
+pantalla necesita para dibujar la grilla entera. Es `security definer`
+porque lee `perfiles` y `roles`, y por eso se limita a sí mismo o a
+perfiles que el que pregunta ya puede ver.
+
+**Dos de los ocho permisos los verifica la base y seis son de pantalla.**
+Está dicho así en la interfaz, con un candado al lado de los dos pesados:
+quien configura tiene que saber si está apagando un botón o cerrando una
+puerta.
+
+**No se puede uno dejar afuera.** Un disparador impide sacarle
+`configurar` al rol propio. Está en la base y no en la pantalla porque una
+validación de pantalla la saltea cualquier otro camino.
+
+**Y cambiar un permiso queda en la bitácora**, con qué había antes y qué
+quedó. Un módulo de permisos sin rastro sería el único que no se puede
+auditar.
+
+`bitacora` existía desde 0007 y nunca había tenido pantalla: se escribía
+y no la leía nadie. La pestaña de Auditoría es esa lectura.
+
 ## Lo que ya funciona y no hay que rehacer
 
 Comandas de salón y mostrador, centro de pedidos con estados reales y
@@ -219,6 +371,18 @@ venta, bitácora automática.
 `supabase/seed/pedidos.sql` siembra un mediodía de pedidos en el Bar
 Rivadavia para poder mirar el tablero lleno. Queda marcado y se borra con
 `delete from operaciones where campos_extra->>'demo' = 'pedidos'`.
+
+`supabase/seed/almha_historia.sql` le da a Almha cuatro meses enteros de
+operación —clientes, turnos, clases, abonos, ventas, caja y
+liquidaciones— armados sobre el catálogo que ya tiene cargado. Se niega a
+correr si el comercio no está marcado `demo` en su configuración, que es
+la regla del proyecto puesta donde sirve y no en un comentario. El azar
+va sembrado con `setseed`, así que dos corridas dan lo mismo y una
+captura de pantalla sigue valiendo.
+
+Arranca el 1 de un mes y no "hace 120 días": con la ventana corrida, el
+primer mes queda cortado por la mitad y el informe mensual muestra una
+caída que nunca pasó.
 
 `supabase/seed/salon.sql` dibuja el local del Bar Rivadavia —paredes,
 barra, cocina, terraza y dieciocho mesas— para que el mapa se vea como un

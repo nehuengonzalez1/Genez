@@ -22,7 +22,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Plus, ChevronLeft, ChevronRight, Search, Check, X, CalendarDays,
-  Clock, User, MapPin, Trash2, RotateCcw,
+  Clock, User, MapPin, Trash2, RotateCcw, AlertTriangle,
 } from "lucide-react";
 import {
   cargarTurnos, agendarTurno, moverTurno, cambiarEstado, guardarNotas,
@@ -30,10 +30,12 @@ import {
   crearClase, inscribir, cargarInscriptos, cargarEspera, anotarEnEspera,
   marcarEspera, bloquear, MOTIVOS_BLOQUEO,
 } from "../datos/agenda.js";
-import { cargarEquipo, cargarServicios } from "../datos/equipo.js";
+import { cargarServicios } from "../datos/servicios.js";
+import { cargarEquipo } from "../datos/equipo.js";
 import { cargarAbonos } from "../datos/abonos.js";
+import { alertasDe } from "../datos/clientes.js";
 import { cargarRecursos } from "../datos/comandas.js";
-import { money } from "../utils/helpers.js";
+import { money, linkWhatsapp } from "../utils/helpers.js";
 import { Card, Boton, Modal, Vacio, Tabs, Sello, Cargando, ErrorEstado, Apagado } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Drawer } from "../ui/Drawer.jsx";
@@ -83,16 +85,24 @@ function FormTurno({ abierto, inicial, equipo, servicios, salas, clientes, empre
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const [abonos, setAbonos] = useState([]);
+  const [alertas, setAlertas] = useState([]);
 
-  /* Los abonos del cliente elegido. Se piden al elegirlo y no antes: si se
-     trajeran todos los del comercio, un negocio con mil clientes cargaría
-     mil abonos para mostrar dos. */
+  /* Los abonos y las alertas del cliente elegido. Se piden al elegirlo y
+     no antes: si se trajeran todos los del comercio, un negocio con mil
+     clientes cargaría mil abonos para mostrar dos.
+
+     Las alertas son lo que no se puede descubrir tarde —una alergia, una
+     contraindicación— y por eso aparecen acá y no solo en la ficha: acá
+     es donde se decide con quién y para qué se lo agenda. */
   useEffect(() => {
-    if (!abierto || !d.clienteId) { setAbonos([]); return; }
+    if (!abierto || !d.clienteId) { setAbonos([]); setAlertas([]); return; }
     let vigente = true;
-    cargarAbonos(empresaId, { clienteId: d.clienteId, soloActivos: true })
-      .then((xs) => { if (vigente) setAbonos(xs); })
-      .catch(() => { if (vigente) setAbonos([]); });
+    Promise.all([
+      cargarAbonos(empresaId, { clienteId: d.clienteId, soloActivos: true }),
+      alertasDe(empresaId, d.clienteId),
+    ])
+      .then(([xs, al]) => { if (vigente) { setAbonos(xs); setAlertas(al); } })
+      .catch(() => { if (vigente) { setAbonos([]); setAlertas([]); } });
     return () => { vigente = false; };
   }, [abierto, d.clienteId, empresaId]);
 
@@ -271,6 +281,16 @@ function FormTurno({ abierto, inicial, equipo, servicios, salas, clientes, empre
                   : `${persona.nombre} no trabaja ese día.`;
               })()}
             </p>
+          )}
+
+          {/* Lo que no se puede descubrir tarde, antes de confirmar. */}
+          {alertas.length > 0 && (
+            <div className="rounded-xl border border-mal bg-mal-suave p-3 flex gap-2.5">
+              <AlertTriangle size={16} className="text-mal shrink-0 mt-0.5" />
+              <ul className="min-w-0 flex-1 space-y-0.5">
+                {alertas.map((a) => <li key={a.id} className="text-sm text-texto">{a.texto}</li>)}
+              </ul>
+            </div>
           )}
 
           {/* El crédito se descuenta al reservar, no al venir: es lo que
@@ -735,8 +755,8 @@ export function Agenda({ empresaId, sucursalId, permisos, clientes, toast, ir })
               </div>
             )}
 
-            {abierto.telefono && (
-              <a href={`https://wa.me/${abierto.telefono.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
+            {linkWhatsapp(abierto.telefono) && (
+              <a href={linkWhatsapp(abierto.telefono)} target="_blank" rel="noreferrer"
                 className="block text-sm text-acento hover:underline">Escribirle por WhatsApp</a>
             )}
 

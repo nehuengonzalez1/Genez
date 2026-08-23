@@ -17,10 +17,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, Check, Search, Clock, Trash2, UserCog } from "lucide-react";
 import {
-  cargarEquipo, cargarServicios, crearPersona, guardarPersona,
+  cargarEquipo, crearPersona, guardarPersona,
   desactivarPersona, guardarHorarios, guardarServicios,
   DIAS, MODALIDADES, TIPOS,
 } from "../datos/equipo.js";
+/* El catálogo de prestaciones vive en su propio módulo desde que existe la
+   pantalla de Servicios: es el mismo dato leído desde los dos lados. */
+import { cargarServicios } from "../datos/servicios.js";
 import { money, nf } from "../utils/helpers.js";
 import { Card, Boton, Modal, Vacio, Tabs } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";

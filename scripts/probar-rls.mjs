@@ -554,9 +554,15 @@ if (!ALMHA) {
     "select id from recursos where empresa_id = $1 order by orden limit 1", [ALMHA.id]);
   const SERVICIO = await una(
     "select id, duracion_min from items where empresa_id = $1 and tipo = 'servicio' limit 1", [ALMHA.id]);
-  /* Un lunes a las 9 hora de Buenos Aires, que es cuando Sofía trabaja. */
+  /* Un lunes a las 9 hora de Buenos Aires, que es cuando Sofía trabaja,
+     pero dentro de más de medio año. Cuando esto se escribió, Almha no
+     tenía un solo turno cargado y el lunes de esta semana estaba libre;
+     al sembrarle historia y agenda, la sala pasó a estar ocupada y la
+     prueba empezó a fallar por un choque de verdad. Una prueba de
+     permisos no se puede caer porque el negocio de ejemplo tenga trabajo:
+     se corre en una semana donde no hay nada. */
   const CUANDO = (await una(
-    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+    `select (date_trunc('week', (now() at time zone 'America/Argentina/Buenos_Aires') + interval '30 weeks')
              + interval '9 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
 
   const turno = (extra = {}) => JSON.stringify({
@@ -665,8 +671,9 @@ if (ALMHA) {
   const GRUPAL = await una(
     `select id from items where empresa_id = $1 and tipo = 'servicio'
        and campos_extra ->> 'modalidad' = 'grupal' limit 1`, [ALMHA.id]);
+  /* Misma semana lejana que arriba, por la misma razón. */
   const CUANDO = (await una(
-    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+    `select (date_trunc('week', (now() at time zone 'America/Argentina/Buenos_Aires') + interval '30 weeks')
              + interval '10 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
 
   await comoUsuario(PLATAFORMA, async () => {
@@ -977,6 +984,417 @@ if (ALMHA) {
   await comoUsuario(MOZO, async () => {
     const v = await una("select count(*)::int n from liquidaciones where empresa_id = $1", [ALMHA.id]);
     decir(v.n === 0, "un comercio no ve las liquidaciones de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   15 · La ficha del cliente
+
+   Lo que se prueba son las cuentas: que "vino tantas veces y faltó
+   tantas" salga de los turnos y no de un contador, y que la asistencia no
+   se hunda por los turnos que todavía no pasaron.
+   ------------------------------------------------------------ */
+console.log("\nFicha del cliente");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social, tel) values ($1, 'Ficha de prueba', '11 5555 5555') returning id`,
+      [ALMHA.id]);
+
+    const vacia = await una(
+      "select turnos, asistio, ausencias, asistencia, gastado::float g, alertas from clientes_vista where id = $1", [cli.id]);
+    decir(Number(vacia.turnos) === 0 && vacia.asistencia === null,
+      "un cliente sin turnos no tiene asistencia que mostrar");
+
+    /* Tres turnos pasados: dos vino y uno faltó. Y uno futuro, que no
+       tiene que contar en la asistencia. */
+    const cuando = (dias) => new Date(Date.now() + dias * 86400000).toISOString();
+    for (const [d, e] of [[-30, "cumplida"], [-20, "cumplida"], [-10, "ausente"], [10, "confirmada"]]) {
+      await c.query(
+        `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado)
+         values ($1, $2, 'Ficha de prueba', $3, 60, $4)`,
+        [ALMHA.id, cli.id, cuando(d), e]);
+    }
+
+    const v = await una(
+      "select turnos, asistio, ausencias, asistencia::float a, ultima, proxima from clientes_vista where id = $1", [cli.id]);
+    decir(Number(v.turnos) === 4, `cuenta todos los turnos (${v.turnos})`);
+    decir(Number(v.asistio) === 2 && Number(v.ausencias) === 1, "separa los que vino de los que faltó");
+    decir(Math.abs(v.a - 2 / 3) < 0.01,
+      `la asistencia no cuenta los turnos futuros (${Math.round(v.a * 100)}%)`);
+    decir(!!v.ultima && !!v.proxima, "sabe cuándo vino la última vez y cuándo vuelve");
+
+    /* Una alerta es lo que hay que ver antes de atenderla. */
+    await c.query(
+      `insert into cliente_notas (empresa_id, cliente_id, texto, destacada)
+       values ($1, $2, 'Alérgica al glicólico', true)`, [ALMHA.id, cli.id]);
+    await c.query(
+      `insert into cliente_notas (empresa_id, cliente_id, texto) values ($1, $2, 'Prefiere a Carla')`,
+      [ALMHA.id, cli.id]);
+
+    const n = await una("select notas, alertas from clientes_vista where id = $1", [cli.id]);
+    decir(Number(n.notas) === 2 && Number(n.alertas) === 1,
+      "distingue una nota común de una que hay que ver antes");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from cliente_notas where empresa_id = $1", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve las notas de los clientes de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   Ocupación
+
+   El número propio de un negocio de turnos: cuánto de lo que se podía
+   vender se vendió. Se prueba sobre una profesional inventada dentro de
+   una transacción que se descarta, y en una ventana de fechas donde no
+   hay nada cargado: así lo que devuelve la función es solo lo que puso
+   esta prueba y no se mezcla con la historia de ejemplo de Almha.
+   ------------------------------------------------------------ */
+console.log("\nOcupación");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    /* Bien lejos de la agenda sembrada, que llega hasta dos semanas. */
+    const { dia } = await una("select (current_date + 200)::date as dia");
+    const leer = async () => await una(
+      `select ofrecidos::float o, ocupados::float u, lugares::float l, tomados::float t
+         from informe_ocupacion($1, $2, $2) where nombre = 'Profe de prueba'`,
+      [ALMHA.id, dia]);
+
+    const per = await una(
+      `insert into personal (empresa_id, nombre, tipo, especialidad, modalidad, valor)
+       values ($1, 'Profe de prueba', 'profesional', 'Pilates', 'hora', 1000) returning id`,
+      [ALMHA.id]);
+
+    await c.query(
+      `insert into horarios (empresa_id, personal_id, dia, desde, hasta)
+       values ($1, $2, extract(dow from $3::date)::smallint, '09:00', '13:00')`,
+      [ALMHA.id, per.id, dia]);
+
+    const a = await leer();
+    decir(a.o === 240, `las horas ofrecidas salen del horario cargado (${a.o / 60} hs)`);
+    decir(a.u === 0, "sin nada agendado no hay nada ocupado");
+
+    /* Una clase de seis con tres anotados. La clase ocupa la sala una
+       hora, no tres: si se contaran las inscripciones, la ocupación de
+       una profesora y las horas que se le liquidan contarían cosas
+       distintas del mismo día de trabajo. */
+    const clase = await una(
+      `insert into reservas (empresa_id, personal_id, nombre, personas, desde, duracion_min, estado, cupo)
+       values ($1, $2, 'Clase de prueba', 0, $3::date + time '10:00', 60, 'confirmada', 6) returning id`,
+      [ALMHA.id, per.id, dia]);
+
+    for (let i = 0; i < 3; i++) {
+      await c.query(
+        `insert into reservas (empresa_id, personal_id, clase_id, nombre, personas, desde, duracion_min, estado)
+         values ($1, $2, $3, 'Anotada', 1, $4::date + time '10:00', 60, 'confirmada')`,
+        [ALMHA.id, per.id, clase.id, dia]);
+    }
+
+    const b = await leer();
+    decir(b.u === 60, `una clase ocupa una vez y no una por alumno (${b.u} min)`);
+    decir(b.l === 6 && b.t === 3, "los lugares de la clase se cuentan aparte de las horas (3 de 6)");
+
+    /* Un turno cancelado dejó el lugar libre: no ocupa. */
+    await c.query(
+      `insert into reservas (empresa_id, personal_id, nombre, personas, desde, duracion_min, estado)
+       values ($1, $2, 'Se canceló', 1, $3::date + time '12:00', 60, 'cancelada')`,
+      [ALMHA.id, per.id, dia]);
+
+    const d = await leer();
+    decir(d.u === 60, "lo cancelado no ocupa");
+
+    /* Media jornada de ausencia tiene que restar media jornada, no el
+       día entero: por eso la resta es una intersección de intervalos. */
+    await c.query(
+      `insert into excepciones (empresa_id, personal_id, desde, hasta, motivo)
+       values ($1, $2, $3::date + time '09:00', $3::date + time '11:00', 'ausencia')`,
+      [ALMHA.id, per.id, dia]);
+
+    const e = await leer();
+    decir(e.o === 120, `una ausencia resta solo las horas que pisa (${e.o / 60} hs)`);
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from informe_ocupacion($1, current_date - 30, current_date)", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve la ocupación de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   CRM
+
+   Lo que se prueba no es que la lista salga: es que se vacíe. Un segmento
+   que devuelve siempre a la misma gente es una pantalla que se deja de
+   abrir a la semana.
+   ------------------------------------------------------------ */
+console.log("\nCRM");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    const cuando = (dias) => new Date(Date.now() + dias * 86400000).toISOString();
+    const enSegmento = async (k, cli) => (await una(
+      "select count(*)::int n from crm_segmentos($1) where segmento = $2 and cliente_id = $3",
+      [ALMHA.id, k, cli])).n;
+
+    /* Alguien que vino cinco veces y hace tres meses que no aparece. */
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social, tel) values ($1, 'Se fue', '11 4444 4444') returning id`,
+      [ALMHA.id]);
+    for (const d of [-140, -130, -120, -110, -100]) {
+      await c.query(
+        `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado)
+         values ($1, $2, 'Se fue', $3, 60, 'cumplida')`, [ALMHA.id, cli.id, cuando(d)]);
+    }
+
+    decir(await enSegmento("se_van", cli.id) === 1, "el que dejó de venir aparece en la lista");
+
+    /* Un turno futuro lo saca: ya volvió, no hay nada que recuperar. */
+    const proximo = await una(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, 'Se fue', $3, 60, 'confirmada') returning id`,
+      [ALMHA.id, cli.id, cuando(5)]);
+    decir(await enSegmento("se_van", cli.id) === 0, "con un turno agendado deja de aparecer");
+    await c.query("delete from reservas where id = $1", [proximo.id]);
+
+    /* Escribirle lo saca por tres semanas: es lo que hace que la lista se
+       vacíe a medida que se trabaja. */
+    await c.query(
+      `insert into contactos (empresa_id, cliente_id, motivo, texto)
+       values ($1, $2, 'se_van', 'Hola!')`, [ALMHA.id, cli.id]);
+    decir(await enSegmento("se_van", cli.id) === 0, "después de escribirle sale de la lista");
+
+    /* Pero solo por ese motivo: que se le haya avisado de un abono no
+       significa que no haya que decirle que hace rato no viene. */
+    await c.query("update contactos set fecha = now() - interval '30 days' where cliente_id = $1", [cli.id]);
+    decir(await enSegmento("se_van", cli.id) === 1, "al mes vuelve a aparecer");
+
+    await c.query(
+      `insert into contactos (empresa_id, cliente_id, motivo) values ($1, $2, 'abono_vencido')`,
+      [ALMHA.id, cli.id]);
+    decir(await enSegmento("se_van", cli.id) === 1,
+      "un mensaje por otro motivo no lo silencia");
+
+    /* No molestar gana sobre todo lo demás. */
+    await c.query(
+      `update clientes set campos_extra = '{"noContactar": true}'::jsonb where id = $1`, [cli.id]);
+    decir(await enSegmento("se_van", cli.id) === 0, "quien pidió no ser molestado no aparece en ningún segmento");
+
+    /* Dos abonos vencidos son un mensaje, no dos. */
+    const dos = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Dos abonos') returning id`, [ALMHA.id]);
+    for (const d of [-25, -10]) {
+      await c.query(
+        `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+         values ($1, $2, 'Pack 8 clases', 8, current_date - 60, current_date + $3::int)`,
+        [ALMHA.id, dos.id, d]);
+    }
+    decir(await enSegmento("abono_vencido", dos.id) === 1,
+      "dos abonos vencidos del mismo cliente son una sola fila");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from crm_segmentos($1)", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve a los clientes de otro en el CRM");
+    const k = await una("select count(*)::int n from contactos where empresa_id = $1", [ALMHA.id]);
+    decir(k.n === 0, "un comercio no ve los contactos de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   Comunicaciones
+
+   Lo que importa acá es la unidad: se avisa por turno y no por persona.
+   Confundir las dos cosas hace que alguien con dos turnos en la semana
+   reciba un solo recordatorio, y falte al otro.
+   ------------------------------------------------------------ */
+console.log("\nComunicaciones");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    const cuando = (horas) => new Date(Date.now() + horas * 3600000).toISOString();
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social, tel) values ($1, 'Por avisar', '11 3333 3333') returning id`,
+      [ALMHA.id]);
+
+    const nuevo = async (horas, estado) => (await una(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, 'Por avisar', $3, 60, $4) returning id`,
+      [ALMHA.id, cli.id, cuando(horas), estado])).id;
+
+    const mios = async (horas) => (await una(
+      "select count(*)::int n from comunicaciones_pendientes($1, $2) where cliente_id = $3",
+      [ALMHA.id, horas, cli.id])).n;
+
+    const martes = await nuevo(20, "confirmada");
+    const jueves = await nuevo(60, "pendiente");
+
+    decir(await mios(24) === 1, "en la ventana de 24 horas entra solo el turno de mañana");
+    decir(await mios(72) === 2, "con la ventana más ancha entran los dos");
+
+    /* Un turno pasado no se recuerda, y uno cancelado tampoco. */
+    await nuevo(-5, "confirmada");
+    const cancelado = await nuevo(10, "confirmada");
+    await c.query("update reservas set estado = 'cancelada' where id = $1", [cancelado]);
+    decir(await mios(72) === 2, "ni lo que ya pasó ni lo cancelado se avisa");
+
+    /* Avisado el del martes, sigue apareciendo el del jueves: la unidad
+       es el turno y no el cliente. */
+    await c.query(
+      `insert into contactos (empresa_id, cliente_id, reserva_id, motivo, texto)
+       values ($1, $2, $3, 'recordatorio', 'Hola!')`, [ALMHA.id, cli.id, martes]);
+
+    decir(await mios(72) === 1, "el turno avisado sale de la lista");
+    const queda = await una(
+      "select reserva_id from comunicaciones_pendientes($1, 72) where cliente_id = $2",
+      [ALMHA.id, cli.id]);
+    decir(queda.reserva_id === jueves, "el otro turno del mismo cliente sigue esperando su aviso");
+
+    /* "No contactar" frena el marketing, no un recordatorio de turno. */
+    await c.query(
+      `update clientes set campos_extra = '{"noContactar": true}'::jsonb where id = $1`, [cli.id]);
+    decir(await mios(72) === 1, "no contactar no frena el recordatorio de un turno");
+
+    /* Una clase manda un mensaje por anotado, no uno solo. */
+    const clase = (await una(
+      `insert into reservas (empresa_id, nombre, personas, desde, duracion_min, estado, cupo)
+       values ($1, 'Clase de aviso', 0, $2, 60, 'confirmada', 4) returning id`,
+      [ALMHA.id, cuando(30)])).id;
+    for (let i = 1; i <= 2; i++) {
+      await c.query(
+        `insert into reservas (empresa_id, clase_id, cliente_id, nombre, personas, desde, duracion_min, estado)
+         values ($1, $2, $3, 'Anotada', 1, $4, 60, 'confirmada')`,
+        [ALMHA.id, clase, cli.id, cuando(30)]);
+    }
+    const deLaClase = await una(
+      "select count(*)::int n from comunicaciones_pendientes($1, 72) where reserva_id in (select id from reservas where clase_id = $2)",
+      [ALMHA.id, clase]);
+    decir(deLaClase.n === 2, "una clase avisa a cada anotado, no una sola vez");
+    const contenedor = await una(
+      "select count(*)::int n from comunicaciones_pendientes($1, 72) where reserva_id = $2",
+      [ALMHA.id, clase]);
+    decir(contenedor.n === 0, "la clase en sí no se avisa: no tiene a quién");
+
+    /* Una plantilla propia pisa la de fábrica y se puede volver atrás. */
+    await c.query(
+      `insert into plantillas (empresa_id, clave, texto) values ($1, 'recordatorio', 'Texto propio')`,
+      [ALMHA.id]);
+    const p = await una(
+      "select texto from plantillas where empresa_id = $1 and clave = 'recordatorio'", [ALMHA.id]);
+    decir(p.texto === "Texto propio", "el comercio puede reescribir una plantilla");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from comunicaciones_pendientes($1, 72)", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve los turnos por avisar de otro");
+    const p = await una("select count(*)::int n from plantillas where empresa_id = $1", [ALMHA.id]);
+    decir(p.n === 0, "un comercio no ve las plantillas de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   Permisos configurables
+
+   Lo primero que hay que probar no es lo nuevo: es que lo viejo siga
+   dando lo mismo. Dos políticas dejaron de nombrar roles a mano y
+   pasaron a preguntar por un permiso, y si los valores de fábrica no
+   reprodujeran exactamente lo de antes, tres comercios en producción
+   cambiarían de comportamiento sin que nadie lo pidiera.
+   ------------------------------------------------------------ */
+console.log("\nPermisos configurables");
+
+{
+  /* La matriz de fábrica es la que estaba escrita en el código: dueño y
+     encargado leen la bitácora y configuran; cajero y repositor no. */
+  const base = await una(`
+    select
+      bool_and((permisos ->> 'verBitacora')::boolean) filter (where clave in ('dueno','encargado')) as mandan_ven,
+      bool_or((permisos ->> 'verBitacora')::boolean)  filter (where clave in ('cajero','repositor')) as otros_ven,
+      bool_and((permisos ->> 'configurar')::boolean)  filter (where clave in ('dueno','encargado')) as mandan_config,
+      bool_or((permisos ->> 'configurar')::boolean)   filter (where clave in ('cajero','repositor')) as otros_config
+    from roles_base`);
+  decir(base.mandan_ven === true && base.otros_ven === false,
+    "los valores de fábrica dan la misma respuesta que el viejo rol in ('dueno','encargado')");
+  decir(base.mandan_config === true && base.otros_config === false,
+    "y lo mismo para configurar el comercio");
+
+  await comoUsuario(MOZO, async () => {
+    const yo = await una("select public.permiso('verBitacora') v, public.permiso('configurar') c");
+    decir(yo.v === true && yo.c === true, "un dueño sigue viendo la bitácora y configurando");
+
+    const antes = await una("select count(*)::int n from bitacora where empresa_id = $1", [barId]);
+    decir(antes.n >= 0, `lee la bitácora de su comercio (${antes.n} registros)`);
+
+    /* Ahora se le apaga a su propio rol el permiso de ver la bitácora.
+       Es lo que el módulo permite hacer, y la política tiene que
+       enterarse sin que nadie toque una línea de SQL. */
+    await c.query(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'dueno', '{"verBitacora": false}'::jsonb)`,
+      [barId]);
+
+    const despues = await una("select count(*)::int n from bitacora where empresa_id = $1", [barId]);
+    decir(despues.n === 0, "apagando el permiso, la bitácora deja de verse");
+    decir((await una("select public.permiso('verBitacora') v")).v === false,
+      "y el permiso da falso, no solo la lista vacía");
+
+    /* Volver al original es borrar la fila, no copiar el texto de
+       fábrica: así una corrección futura llega sola. */
+    await c.query("delete from roles where empresa_id = $1 and clave = 'dueno'", [barId]);
+    const vuelta = await una("select count(*)::int n from bitacora where empresa_id = $1", [barId]);
+    /* Vuelve a verse, y con dos registros más: el cambio y la vuelta
+       atrás. Que el propio módulo de permisos deje rastro de las dos
+       cosas es la mitad de para qué existe. */
+    decir(vuelta.n === antes.n + 2,
+      `borrando el cambio vuelve a verse, con los dos actos anotados (${antes.n} → ${vuelta.n})`);
+
+    /* El accidente que este módulo habilita, y que la base impide. */
+    /* Con savepoint: el rechazo aborta la transacción, y sin volver a un
+       punto guardado todo lo que sigue falla con "transaction is
+       aborted" y la prueba miente diciendo que hay diez errores. */
+    let rechazado = false;
+    await c.query("savepoint intento");
+    try {
+      await c.query(
+        `insert into roles (empresa_id, clave, permisos) values ($1, 'dueno', '{"configurar": false}'::jsonb)`,
+        [barId]);
+      await c.query("release savepoint intento");
+    } catch (e) {
+      rechazado = e.code === "P0070";
+      await c.query("rollback to savepoint intento");
+    }
+    decir(rechazado, "no se puede uno sacar el permiso de configurar a sí mismo");
+
+    /* A otro rol sí: es el punto del módulo. */
+    await c.query(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'cajero', '{"descuentos": true}'::jsonb)`,
+      [barId]);
+    const cajero = await una(
+      `select ((select permisos from roles_base where clave = 'cajero')
+               || (select permisos from roles where empresa_id = $1 and clave = 'cajero')) ->> 'descuentos' as d`,
+      [barId]);
+    decir(cajero.d === "true", "a otro rol sí se le puede cambiar una bandera");
+
+    /* Y queda escrito quién lo hizo. Un módulo de permisos sin rastro es
+       el único que no se puede auditar. */
+    /* Se busca el acto concreto y no "el último": adentro de una
+       transacción `now()` es el mismo para todas las filas, así que
+       ordenar por fecha entre tres registros hermanos devuelve
+       cualquiera de los tres. */
+    const anotado = await una(
+      `select count(*)::int n, max(detalle -> 'despues' ->> 'descuentos') as valor
+         from bitacora
+        where empresa_id = $1 and accion = 'permisos.cambiar' and detalle ->> 'rol' = 'cajero'`,
+      [barId]);
+    decir(anotado.n === 1 && anotado.valor === "true",
+      "el cambio de permisos queda en la bitácora, con qué se cambió");
+  });
+
+  await comoUsuario(CAJERO, async () => {
+    const v = await una("select count(*)::int n from roles where empresa_id = $1", [barId]);
+    decir(v.n === 0, "un comercio no ve los roles de otro");
   });
 }
 

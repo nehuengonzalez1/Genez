@@ -22,6 +22,15 @@ const env = Object.fromEntries(
 
 const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL });
 await c.connect();
+/* Desde cuándo corre esta prueba, según el reloj de la base y no el de
+   Node. Lo usa la limpieza del final para borrar de la bitácora solo lo
+   que escribió esta corrida.
+
+   Antes se borraba por acción —o directamente entera— y eso se llevaba
+   puesto el registro de los tres comercios. Daba igual mientras nadie la
+   leyera; desde que la auditoría tiene pantalla, es destruir un dato
+   real cada vez que alguien corre las pruebas. */
+const arranque = (await c.query("select now() as t")).rows[0].t;
 
 const una = async (sql, args = []) => (await c.query(sql, args)).rows[0];
 const hechos = [];
@@ -215,8 +224,9 @@ for (const id of hechos) {
   await c.query("delete from operaciones where id = $1", [id]);
 }
 await c.query("delete from sesiones_caja where id = $1", [sesion.id]);
-await c.query("delete from bitacora where accion = 'pedido.estado'");
+await c.query("delete from bitacora where fecha >= $1", [arranque]);
 
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien. Base como estaba.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
+

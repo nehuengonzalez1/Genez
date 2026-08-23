@@ -110,17 +110,26 @@ luz. Fuera de eso, refrescar pierde lo que esté en memoria.
 
 ## Permisos
 
-`permisosDe(sesion)` cruza dos cosas: los módulos que el **comercio contrató**
-(`comercio.modulos`) y los que el **rol** habilita (`ROLES`). Un módulo no contratado
-no lo ve ni el dueño. `MODULOS_BASE` (cobro, caja, ajustes) no se puede desactivar.
-Los flags finos (`verCostos`, `descuentos`, `anular`, `cerrarCaja`, `cambiarPrecios`)
-viajan como `permisos` hasta los componentes.
+`permisosDe(sesion, roles)` cruza dos cosas: los módulos que el **comercio
+contrató** (`comercio.modulos`) y los que el **rol** habilita. Un módulo no
+contratado no lo ve ni el dueño. `MODULOS_BASE` (cobro, caja, ajustes) no se puede
+desactivar. Las banderas finas (`verCostos`, `descuentos`, `anular`, `cerrarCaja`,
+`cambiarPrecios`, `ajustes`, `verBitacora`, `configurar`) viajan como `permisos`
+hasta los componentes.
 
-Al agregar un módulo nuevo hay que tocar `MODULOS`, `NAV`, `TITULOS`, el `ROLES`
-correspondiente y el switch de `tab` en `Sistema`.
+**Los roles ya no están en el código.** Salen de `roles_base` (los cuatro de
+fábrica, dato de plataforma) más `roles` (lo que cada comercio cambió). La
+constante `ROLES` de `PanelGenez.jsx` sigue existiendo pero solo como respaldo,
+por si la consulta no llegó. Se editan desde el módulo Permisos.
+
+Al agregar un módulo nuevo hay que tocar `MODULOS`, el `menu` del rubro en la
+base, el arreglo `modulos` del rol en `roles_base` si corresponde, y el switch de
+`tab` en `Sistema`. `NAV` y `TITULOS` ya no existen: el menú es dato.
 
 Esto es la pantalla, no la seguridad: **lo que protege los datos es RLS**. Un permiso
-de UI que no tenga su política atrás no protege nada.
+de UI que no tenga su política atrás no protege nada. De las ocho banderas, dos
+—`verBitacora` y `configurar`— las verifica la base con `permiso()`; las otras seis
+apagan botones. Ver `ARQUITECTURA.md`.
 
 ## Lector de códigos de barras
 

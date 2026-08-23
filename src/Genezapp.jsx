@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
 import { cargarSesion, cargarComercios, salir, alRecuperarClave } from "./datos/sesion.js";
 import { cargarRubro } from "./datos/rubros.js";
+import { cargarRoles } from "./datos/permisos.js";
 
 /* La sesión sobrevive al refresco: Supabase la guarda en el navegador.
    Mientras se resuelve no se puede mostrar ni el login ni el sistema,
@@ -29,6 +30,7 @@ export default function App() {
   const [iniciando, setIniciando] = useState(true);
   /* undefined = todavía no se sabe. Distinto de null, que es "no tiene". */
   const [rubro, setRubro] = useState(undefined);
+  const [roles, setRoles] = useState(null);
   const [errorInicio, setErrorInicio] = useState("");
   const [recuperando, setRecuperando] = useState(false);
 
@@ -84,6 +86,23 @@ export default function App() {
            respaldo. No vale la pena frenar a nadie por esto. */
         console.error("No se pudo cargar el rubro:", e);
         if (vigente) setRubro(null);
+      });
+    return () => { vigente = false; };
+  }, [comercio && comercio.id]);
+
+  /* Los roles del comercio, por lo mismo que el rubro: deciden qué menú
+     ve la persona. La diferencia es que acá sí se puede seguir sin ellos
+     —`permisosDe` cae en los roles de fábrica, que son los mismos— así
+     que no se frena el arranque esperándolos. Un parpadeo de menú es
+     peor remedio que enfermedad. */
+  useEffect(() => {
+    if (!comercio) { setRoles(null); return; }
+    let vigente = true;
+    cargarRoles(comercio.id)
+      .then((rs) => { if (vigente) setRoles(rs); })
+      .catch((e) => {
+        console.error("No se pudieron cargar los roles:", e);
+        if (vigente) setRoles(null);
       });
     return () => { vigente = false; };
   }, [comercio && comercio.id]);
@@ -153,6 +172,7 @@ export default function App() {
     <Sistema
       key={comercio.id}
       rubro={rubro}
+      roles={roles}
       tema={tema} setTema={setTema}
       sesion={sesionSistema}
       setComercios={setComercios}

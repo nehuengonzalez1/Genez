@@ -122,31 +122,6 @@ export async function cargarEquipo(empresaId) {
   }));
 }
 
-/* El catálogo de prestaciones, para elegir qué da cada uno. Vive acá y no
-   en `items.js` porque `cargarProductos` trae solo `tipo = 'producto'`: un
-   servicio no es un producto y no comparte ni pantalla ni columnas útiles. */
-export async function cargarServicios(empresaId) {
-  if (!empresaId) throw new Error("cargarServicios necesita saber de qué comercio.");
-
-  const { data, error } = await supabase
-    .from("items")
-    .select("id, nombre, categoria, duracion_min, precio")
-    .eq("empresa_id", empresaId)
-    .eq("tipo", "servicio")
-    .eq("activo", true)
-    .order("categoria")
-    .order("nombre");
-  if (error) throw error;
-
-  return (data || []).map((i) => ({
-    id: i.id,
-    nombre: i.nombre,
-    categoria: i.categoria || "Sin categoría",
-    duracion: i.duracion_min || 0,
-    precio: n(i.precio),
-  }));
-}
-
 export async function crearPersona(empresaId, datos) {
   const fila = { ...aFila(datos), empresa_id: empresaId };
   if (!fila.nombre) throw new Error("La persona necesita un nombre.");
