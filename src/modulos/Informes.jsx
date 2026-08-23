@@ -1,375 +1,566 @@
 /* ============================================================
-   20. INFORMES · para un negocio que vende horas
+   20. REPORTES · cómo va el negocio y dónde habría que actuar
    ============================================================
 
-   El informe que había —y que sigue vivo para el minimercado y el bar—
-   responde "qué se vende y qué margen deja". Un negocio de turnos no
-   tiene margen por unidad: tiene horas, y las horas que no se vendieron
-   no se recuperan. Por eso el orden de esta pantalla es otro.
+   Un reporte no existe para mostrar datos: existe para ayudar a decidir.
+   Por eso el orden de la pantalla no es "primero los gráficos lindos"
+   sino el de las preguntas que se hace alguien que abre esto un lunes a
+   la mañana. Cada bloque contesta una y solo una; el que no contestaba
+   ninguna no está.
 
-   ARRIBA VA LA PLATA, DESPUÉS LA CAPACIDAD
-   ----------------------------------------
-   Cuánto entró es lo que todos vienen a mirar. Pero lo que hace que ese
-   número cambie el mes que viene es la ocupación, así que va segunda y no
-   escondida abajo.
+   UN SOLO CONTEXTO PARA TODA LA PANTALLA
+   --------------------------------------
+   El rango de fechas, la comparación y los filtros valen para todo lo que
+   se ve. Ninguna tarjeta consulta por su cuenta ni elige su propio
+   período: `cargarInforme` arma todo de una y acá solo se dibuja. Dos
+   tarjetas mostrando ventanas distintas del mismo negocio es la forma más
+   rápida de que nadie vuelva a confiar en el informe.
 
-   Y se muestran las horas además del porcentaje. "Sala Mat 2: 0%" no dice
-   nada; "0 de 305 horas" dice que hay una sala que no se está usando.
+   LO QUE NO SE PUEDE FILTRAR SE ACLARA, NO SE DISIMULA
+   ----------------------------------------------------
+   Un alquiler no es de pilates ni de estética: los egresos no tienen
+   área. Así que con un filtro puesto, el resultado neto y la curva de
+   egresos siguen siendo del negocio entero y la pantalla lo dice. La
+   alternativa —mostrar un número que parece filtrado y no lo está— es
+   peor que no mostrarlo.
 
-   LOS COLORES SALEN DE LAS VARIABLES
-   ----------------------------------
-   Los gráficos también. `rgb(var(--acento))` funciona como cualquier
-   color en un atributo SVG, así que un gráfico no queda con el naranja
-   escrito a mano y encima cambia solo entre el tema claro y el oscuro.
+   LO QUE TODAVÍA NO SE PUEDE CALCULAR, NO SE INVENTA
+   --------------------------------------------------
+   No hay costo cargado en las prestaciones y los egresos no se imputan a
+   un área, así que "rentabilidad por área" es hoy "ingresos por área", y
+   está dicho al pie de la tarjeta. Un margen inventado en un informe
+   financiero no es un detalle estético: es alguien tomando una decisión
+   con un número falso.
    ============================================================ */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
-import { CalendarClock, Wallet, Users, UserCheck } from "lucide-react";
-import { cargarInforme, PERIODOS } from "../datos/informes.js";
+import {
+  Wallet, TrendingUp, CalendarClock, PieChart as IconoTorta, Users, Receipt,
+  Calendar, GitCompareArrows, Download, X, Sparkles, ArrowRight, RefreshCw,
+} from "lucide-react";
+import {
+  cargarInforme, rangoDe, comparacionDe, PERIODOS, COMPARACIONES,
+} from "../datos/informes.js";
 import { money, moneyk, pct, nf } from "../utils/helpers.js";
-import { Kpi, Card, Vacio, Cargando, ErrorEstado, TablaSimple, Sello } from "../ui/Base.jsx";
+import {
+  Card, Boton, Tabs, Kpi, Vacio, Cargando, ErrorEstado, TablaSimple, Apagado,
+} from "../ui/Base.jsx";
+import { Anillo, Referencia, BarraDato } from "../ui/Graficos.jsx";
+import { inputCls } from "../ui/Campos.jsx";
 
 const ROTULO = "text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold";
 
-function Rotulo({ children, ayuda }) {
+const fecha = (d) => d.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" });
+const paraInput = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const deInput = (s) => { const [a, m, d] = s.split("-").map(Number); return new Date(a, m - 1, d); };
+
+const GRANOS = [{ k: "dia", n: "Diario" }, { k: "semana", n: "Semanal" }, { k: "mes", n: "Mensual" }];
+
+const PESTANAS = [
+  { k: "resumen", n: "Resumen general" },
+  { k: "turnos", n: "Turnos" },
+  { k: "finanzas", n: "Finanzas" },
+  { k: "servicios", n: "Servicios" },
+  { k: "profesionales", n: "Profesionales" },
+  { k: "salas", n: "Salas" },
+  { k: "clientes", n: "Clientes" },
+];
+
+/* Rótulo de sección con su pregunta al lado. La pregunta no es adorno: es
+   la única forma de que quien mira sepa para qué está ese bloque, y de
+   que el que lo mantenga sepa cuándo sacarlo. */
+function Titulo({ children, pregunta, extra }) {
   return (
-    <div className="mb-3">
-      <div className={ROTULO}>{children}</div>
-      {ayuda && <p className="text-xs text-texto-suave mt-1">{ayuda}</p>}
+    <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+      <div className="min-w-0">
+        <div className={ROTULO}>{children}</div>
+        {pregunta && <p className="text-xs text-texto-suave mt-1">{pregunta}</p>}
+      </div>
+      {extra}
     </div>
   );
 }
 
-/* Una fila con barra. Se repite en cuatro bloques y en todos significa lo
-   mismo: esto es cuánto, comparado con el más grande de la lista. */
-function Barra({ nombre, sub, valor, proporcion, tono = "acento" }) {
-  const color = tono === "bien" ? "bg-bien" : tono === "mal" ? "bg-mal" : "bg-acento";
+function Pastilla({ activo, onClick, children }) {
   return (
-    <li>
-      <div className="flex justify-between text-sm gap-3">
-        <span className="truncate text-texto">{nombre}</span>
-        <span className="f-m shrink-0 text-texto-suave">{valor}</span>
-      </div>
-      <div className="h-1.5 bg-superficie-2 rounded-full mt-1.5 overflow-hidden">
-        <div className={`h-full rounded-full ${color}`}
-          style={{ width: `${Math.max(2, Math.round((proporcion || 0) * 100))}%` }} />
-      </div>
-      {sub && <div className="text-[11px] text-texto-tenue mt-1">{sub}</div>}
-    </li>
+    <button onClick={onClick}
+      className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+        activo
+          ? "bg-superficie-3 text-texto border-superficie-3"
+          : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>
+      {children}
+    </button>
   );
 }
 
-const fechaCorta = (d) => d.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
-
-export function Informes({ empresaId }) {
-  const [dias, setDias] = useState(30);
-  const [d, setD] = useState(null);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState("");
-  const [intento, setIntento] = useState(0);
-
-  useEffect(() => {
-    let vigente = true;
-    setCargando(true);
-    setError("");
-    cargarInforme(empresaId, dias)
-      .then((r) => { if (vigente) setD(r); })
-      .catch((e) => { if (vigente) setError(e.message || "No pudimos armar el informe."); })
-      .finally(() => { if (vigente) setCargando(false); });
-    return () => { vigente = false; };
-  }, [empresaId, dias, intento]);
-
-  const serie = useMemo(() => {
-    if (!d) return [];
-    const fin = new Date(d.hasta);
-    return d.ingresos.serie.map((v, i) => {
-      const f = new Date(fin.getTime() - (d.ingresos.serie.length - 1 - i) * 86400000);
-      return { label: fechaCorta(f), ingresos: v };
-    });
-  }, [d]);
-
-  if (error) return <ErrorEstado onReintentar={() => setIntento((x) => x + 1)}>{error}</ErrorEstado>;
-  if (cargando && !d) return <Cargando>Armando el informe…</Cargando>;
-  if (!d) return null;
-
-  const { ingresos, ocupacion, asistencia, clientes } = d;
-  const sinNada = ingresos.total === 0 && asistencia.total === 0;
-
-  const maxArea = Math.max(1, ...ingresos.porArea.map((a) => a.total));
-  const maxServicio = Math.max(1, ...ingresos.porServicio.map((s) => s.total));
-  const maxSala = Math.max(1, ...ocupacion.salas.map((s) => s.horasOcupadas));
-
+function Selector({ label, valor, onChange, opciones, todos = "Todas" }) {
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-1.5">
-        {PERIODOS.map((p) => (
-          <button key={p.k} onClick={() => setDias(p.k)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-              dias === p.k
-                ? "bg-superficie-3 text-texto border-superficie-3"
-                : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>
-            {p.n}
-          </button>
-        ))}
-        {cargando && <span className="text-xs text-texto-tenue ml-2">actualizando…</span>}
-      </div>
+    <div className="min-w-0 flex-1">
+      <label className={ROTULO}>{label}</label>
+      <select value={valor || ""} onChange={(e) => onChange(e.target.value || null)}
+        className={`${inputCls} mt-1.5`}>
+        <option value="">{todos}</option>
+        {opciones.map((o) => <option key={o.k} value={o.k}>{o.n}</option>)}
+      </select>
+    </div>
+  );
+}
 
-      {sinNada ? (
-        <Card className="p-6">
-          <Vacio>
-            Todavía no hay turnos dictados ni ventas en este período. Cuando
-            empiecen a cargarse, el informe se arma solo.
-          </Vacio>
-        </Card>
-      ) : (
-        <>
-          {/* ---------------------------------------------------------
-              1 · La plata
-              --------------------------------------------------------- */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Kpi label={`Ingresos ${dias} días`} valor={money(ingresos.total)}
-              delta={ingresos.delta} icono={Wallet}
-              sub={`${money(ingresos.promedioDiario)} por día`} />
-            <Kpi label="Ticket promedio" valor={money(ingresos.ticket)}
-              sub={`${nf.format(ingresos.operaciones)} ventas`} />
-            <Kpi label="Ocupación del equipo"
-              valor={ocupacion.profesionales.length ? pct(promedio(ocupacion.profesionales), 0) : "—"}
-              icono={CalendarClock}
-              sub="de las horas que tienen cargadas" />
-            <Kpi label="Asistencia"
-              valor={asistencia.pct === null ? "—" : pct(asistencia.pct, 0)}
-              tono={asistencia.pct !== null && asistencia.pct < 0.8 ? "mal" : "bien"}
-              icono={UserCheck}
-              sub={`${nf.format(asistencia.cumplidas)} de ${nf.format(asistencia.cumplidas + asistencia.ausentes)}`} />
-          </div>
+const TONO_INSIGHT = {
+  bien: "text-bien border-bien bg-bien-suave",
+  mal: "text-mal border-mal bg-mal-suave",
+  ojo: "text-ojo border-ojo bg-ojo-suave",
+  info: "text-info border-info bg-info-suave",
+  tenue: "text-texto-tenue border-borde bg-superficie-2",
+};
 
-          <Card className="p-5">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <Rotulo ayuda="Turnos cobrados y abonos vendidos, por día.">Ingresos</Rotulo>
-              {/* Un abono es plata que entró hoy por horas que se van a dar
-                  en las próximas ocho semanas. Sin este corte, un mes de
-                  muchas renovaciones parece un mes de mucha actividad. */}
-              <div className="flex items-center gap-5 text-right">
-                <div>
-                  <div className={ROTULO}>Turnos</div>
-                  <div className="f-m text-sm mt-0.5">{money(ingresos.sueltos)}</div>
-                </div>
-                <div>
-                  <div className={ROTULO}>Abonos y packs</div>
-                  <div className="f-m text-sm mt-0.5">{money(ingresos.abonos)}</div>
-                </div>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={230}>
-              <AreaChart data={serie} margin={{ top: 4, right: 8, left: -14, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gIngresos" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="rgb(var(--acento))" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="rgb(var(--acento))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="2 4" stroke="rgb(var(--borde))" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "rgb(var(--texto-tenue))" }}
-                  interval={Math.max(0, Math.floor(dias / 8))} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "rgb(var(--texto-tenue))" }}
-                  tickFormatter={moneyk} axisLine={false} tickLine={false} width={60} />
-                <Tooltip formatter={(v) => [money(v), "Ingresos"]}
-                  contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid rgb(var(--borde))", background: "rgb(var(--superficie))" }} />
-                <Area type="monotone" dataKey="ingresos" stroke="rgb(var(--acento))" strokeWidth={2} fill="url(#gIngresos)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-
-          <div className="grid lg:grid-cols-2 gap-4">
-            <Card className="p-5">
-              <Rotulo ayuda="De qué parte del negocio viene cada peso.">Por área</Rotulo>
-              {!ingresos.porArea.length ? <Vacio>Nada facturado en el período.</Vacio> : (
-                <ul className="space-y-3">
-                  {ingresos.porArea.map((a) => (
-                    <Barra key={a.nombre} nombre={a.nombre} valor={money(a.total)}
-                      proporcion={a.total / maxArea}
-                      sub={pct(a.total / (ingresos.total || 1), 0) + " del total"} />
-                  ))}
-                </ul>
-              )}
-            </Card>
-
-            <Card className="p-5">
-              <Rotulo ayuda="Lo que más entra, contando cuántas veces se vendió.">Prestaciones y planes</Rotulo>
-              {!ingresos.porServicio.length ? <Vacio>Nada facturado en el período.</Vacio> : (
-                <ul className="space-y-3">
-                  {ingresos.porServicio.map((s) => (
-                    <Barra key={s.nombre} nombre={s.nombre} valor={money(s.total)}
-                      proporcion={s.total / maxServicio}
-                      sub={`${nf.format(s.cantidad)} ${s.plan ? "vendidos" : "turnos"}`} />
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
-
-          {/* ---------------------------------------------------------
-              2 · La capacidad
-              --------------------------------------------------------- */}
-          <div className="grid lg:grid-cols-2 gap-4">
-            <Card className="p-5">
-              <Rotulo ayuda="Horas agendadas sobre las horas que cada uno tiene cargadas en su horario.">
-                Ocupación del equipo
-              </Rotulo>
-              {!ocupacion.profesionales.length ? (
-                <Vacio>Nadie tiene horarios cargados todavía.</Vacio>
-              ) : (
-                <ul className="space-y-3">
-                  {ocupacion.profesionales.map((p) => (
-                    <Barra key={p.id} nombre={p.nombre}
-                      valor={p.pct === null ? "sin horario" : pct(p.pct, 0)}
-                      proporcion={p.pct || 0}
-                      tono={p.pct !== null && p.pct < 0.4 ? "mal" : "acento"}
-                      sub={`${p.horasOcupadas.toFixed(1)} de ${p.horasOfrecidas.toFixed(0)} hs · ${p.detalle}`} />
-                  ))}
-                </ul>
-              )}
-            </Card>
-
-            <Card className="p-5">
-              <Rotulo ayuda="Sobre las horas que abre el local. Una sala vacía no cuesta un sueldo, pero sí un alquiler.">
-                Uso de los espacios
-              </Rotulo>
-              {!ocupacion.salas.length ? <Vacio>No hay espacios cargados.</Vacio> : (
-                <ul className="space-y-3">
-                  {ocupacion.salas.map((s) => (
-                    <Barra key={s.id} nombre={s.nombre}
-                      valor={`${s.horasOcupadas.toFixed(1)} hs`}
-                      proporcion={s.horasOcupadas / maxSala}
-                      tono={s.horasOcupadas === 0 ? "mal" : "acento"}
-                      sub={s.horasOcupadas === 0
-                        ? "sin usar en todo el período"
-                        : `${pct(s.pct || 0, 0)} de las ${s.horasOfrecidas.toFixed(0)} hs que abre el local`} />
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
-
-          {ocupacion.clases.lugares > 0 && (
-            <Card className="p-5">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <Rotulo ayuda="Una sala llena de tiempo puede estar medio vacía de gente: son dos cosas distintas y las dos deciden si conviene abrir otra clase.">
-                  Lugares de clase
-                </Rotulo>
-                <div className="text-right">
-                  <div className="f-d text-3xl tabular-nums">{pct(ocupacion.clases.pct || 0, 0)}</div>
-                  <div className="text-xs text-texto-tenue">
-                    {nf.format(ocupacion.clases.tomados)} de {nf.format(ocupacion.clases.lugares)} lugares
-                  </div>
-                </div>
-              </div>
-              <ul className="space-y-3 mt-1">
-                {ocupacion.profesionales.filter((p) => p.lugares > 0).map((p) => (
-                  <Barra key={p.id} nombre={p.nombre}
-                    valor={pct(p.pctCupo || 0, 0)}
-                    proporcion={p.pctCupo || 0}
-                    tono={p.pctCupo !== null && p.pctCupo < 0.5 ? "mal" : "bien"}
-                    sub={`${nf.format(p.tomados)} de ${nf.format(p.lugares)} lugares ofrecidos`} />
-                ))}
-              </ul>
-            </Card>
-          )}
-
-          {/* ---------------------------------------------------------
-              3 · La asistencia
-              --------------------------------------------------------- */}
-          <Card className="p-5">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <Rotulo ayuda="Solo sobre turnos que ya pasaron. Contar los de la semana que viene como faltas hunde el número sin motivo.">
-                Asistencia
-              </Rotulo>
-              <div className="flex flex-wrap items-center gap-2">
-                {asistencia.porEstado.map((e) => (
-                  <Sello key={e.k} tono={e.tono}>{e.n} {nf.format(e.v)}</Sello>
-                ))}
-              </div>
-            </div>
-
-            {!asistencia.porServicio.length ? (
-              <Vacio>Todavía no hay suficientes turnos cumplidos para sacar conclusiones por prestación.</Vacio>
-            ) : (
-              <>
-                <p className="text-xs text-texto-suave mb-3">
-                  Dónde más se falta. Es por acá por donde se va la agenda de una semana.
-                </p>
-                <TablaSimple
-                  cols={["Prestación", "Turnos", "Vinieron", "Faltaron", "Asistencia"]}
-                  filas={asistencia.porServicio.map((s) => [
-                    <div key="a">
-                      <div className="font-medium">{s.nombre}</div>
-                      <div className="text-[11px] text-texto-tenue">{s.area}</div>
-                    </div>,
-                    <span className="f-m text-texto-tenue">{nf.format(s.total)}</span>,
-                    <span className="f-m">{nf.format(s.vino)}</span>,
-                    <span className="f-m">{nf.format(s.falto)}</span>,
-                    <span className={`f-m font-semibold ${s.pct < 0.8 ? "text-mal" : "text-bien"}`}>
-                      {pct(s.pct, 0)}
-                    </span>,
-                  ])}
-                  vacio="Sin datos."
-                />
-              </>
-            )}
-          </Card>
-
-          {/* ---------------------------------------------------------
-              4 · La gente
-              --------------------------------------------------------- */}
-          <div className="grid lg:grid-cols-3 gap-3">
-            <Kpi label="Clientes nuevos" valor={nf.format(clientes.nuevos)}
-              delta={clientes.deltaNuevos} icono={Users}
-              sub={`en ${dias} días`} />
-            <Kpi label="Vinieron al menos una vez" valor={nf.format(clientes.activos)} />
-            <Kpi label="Volvieron" valor={nf.format(clientes.recurrentes)}
-              sub={clientes.activos ? `${pct(clientes.recurrentes / clientes.activos, 0)} de los que vinieron` : null} />
-          </div>
-
-          <Card className="p-5">
-            <Rotulo ayuda="Vinieron alguna vez y hace más de 45 días que no aparecen. No están perdidos: están sin llamar.">
-              Hace rato que no vienen
-            </Rotulo>
-            {!clientes.dormidos.length ? (
-              <Vacio>Nadie se quedó sin volver. Poco común y buena señal.</Vacio>
-            ) : (
-              <>
-                <TablaSimple
-                  cols={["Cliente", "Veces que vino", "Última vez", "Hace"]}
-                  filas={clientes.dormidos.map((c) => [
-                    <span key="a" className="font-medium">{c.nombre || "Sin nombre"}</span>,
-                    <span className="f-m">{nf.format(c.veces)}</span>,
-                    <span className="f-m text-texto-suave">{fechaCorta(c.ultima)}</span>,
-                    <span className="f-m">{nf.format(c.dias)} días</span>,
-                  ])}
-                  vacio="Sin datos."
-                />
-                {clientes.dormidosTotal > clientes.dormidos.length && (
-                  <p className="text-xs text-texto-tenue mt-3">
-                    Y {nf.format(clientes.dormidosTotal - clientes.dormidos.length)} más.
-                  </p>
-                )}
-              </>
-            )}
-          </Card>
-        </>
+function Tarjeta({ tono, texto, accion, onAccion }) {
+  return (
+    <div className="border border-borde rounded-lg p-4 flex flex-col gap-2 min-w-0">
+      <span className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${TONO_INSIGHT[tono] || TONO_INSIGHT.tenue}`}>
+        <Sparkles size={13} />
+      </span>
+      <p className="text-sm text-texto leading-relaxed">{texto}</p>
+      {accion && (
+        <button onClick={onAccion}
+          className="text-xs font-semibold text-acento hover:underline flex items-center gap-1 mt-auto self-start">
+          {accion} <ArrowRight size={12} />
+        </button>
       )}
     </div>
   );
 }
 
-/* El promedio se pondera por horas ofrecidas y no por persona: alguien
-   que trabaja cuatro horas por semana no puede mover el número del equipo
-   igual que alguien de tiempo completo. */
-function promedio(profesionales) {
-  const ofrecidas = profesionales.reduce((s, p) => s + p.horasOfrecidas, 0);
-  if (!ofrecidas) return 0;
-  return profesionales.reduce((s, p) => s + p.horasOcupadas, 0) / ofrecidas;
+export function Informes({ empresaId, ir }) {
+  const [pestana, setPestana] = useState("resumen");
+
+  const [preset, setPreset] = useState("30d");
+  const [rango, setRango] = useState(() => rangoDe("30d"));
+  const [modoComparar, setModoComparar] = useState("anterior");
+  const [comparaLibre, setComparaLibre] = useState(null);
+  const [filtros, setFiltros] = useState({});
+  const [grano, setGrano] = useState(null);
+
+  const [abierto, setAbierto] = useState(null);   // 'periodo' | 'comparar'
+  const [d, setD] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+  const [intento, setIntento] = useState(0);
+
+  const comparar = useMemo(
+    () => comparacionDe(modoComparar, rango.desde, rango.hasta, comparaLibre),
+    [modoComparar, rango, comparaLibre]);
+
+  useEffect(() => {
+    let vigente = true;
+    setCargando(true);
+    setError("");
+    cargarInforme(empresaId, { ...rango, comparar, filtros, grano })
+      .then((r) => { if (vigente) setD(r); })
+      .catch((e) => { if (vigente) setError(e.message || "No pudimos armar el informe."); })
+      .finally(() => { if (vigente) setCargando(false); });
+    return () => { vigente = false; };
+  }, [empresaId, rango, comparar, filtros, grano, intento]);
+
+  const elegirPreset = useCallback((k) => {
+    setPreset(k);
+    if (k !== "libre") { setRango(rangoDe(k)); setGrano(null); setAbierto(null); }
+  }, []);
+
+  const setFiltro = (k, v) => setFiltros((f) => {
+    const nuevo = { ...f };
+    if (v) nuevo[k] = v; else delete nuevo[k];
+    return nuevo;
+  });
+
+  const hayFiltro = Object.keys(filtros).length > 0;
+
+  if (error) return <ErrorEstado onReintentar={() => setIntento((x) => x + 1)}>{error}</ErrorEstado>;
+  if (cargando && !d) return <Cargando>Armando el informe…</Cargando>;
+  if (!d) return null;
+
+  const { kpis, ingresos, finanzas, ocupacion, asistencia, equipo, clientes } = d;
+  const sinNada = ingresos.total === 0 && asistencia.total === 0;
+
+  const irA = (x) => { if (x.tab && ir) ir(x.tab); };
+
+  return (
+    <div className="space-y-5">
+      {/* ============ ENCABEZADO ============ */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <h2 className="f-d text-2xl">Reportes</h2>
+          <p className="text-sm text-texto-suave mt-0.5">
+            Analizá el rendimiento de tu negocio y descubrí dónde actuar.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Boton variant="ghost" onClick={() => setAbierto(abierto === "periodo" ? null : "periodo")}>
+            <Calendar size={15} /> {fecha(d.desde)} — {fecha(d.hasta)}
+          </Boton>
+          <Boton variant="ghost" onClick={() => setAbierto(abierto === "comparar" ? null : "comparar")}>
+            <GitCompareArrows size={15} />
+            {(COMPARACIONES.find((x) => x.k === modoComparar) || {}).n}
+          </Boton>
+          {/* No hay exportación en el sistema todavía. Un botón que no
+              exporta nada es peor que uno apagado que dice por qué. */}
+          <Apagado motivo="Exportar" className="px-4 py-2.5 rounded-md text-sm font-semibold">
+            <Download size={15} /> Exportar
+          </Apagado>
+        </div>
+      </div>
+
+      {/* ============ PERÍODO ============ */}
+      {abierto === "periodo" && (
+        <Card className="p-5">
+          <Titulo pregunta="Todo lo que se ve abajo usa este rango."
+            extra={<button onClick={() => setAbierto(null)} className="text-texto-tenue hover:text-texto"><X size={16} /></button>}>
+            Período
+          </Titulo>
+          <div className="flex flex-wrap gap-1.5">
+            {PERIODOS.map((p) => (
+              <Pastilla key={p.k} activo={preset === p.k} onClick={() => elegirPreset(p.k)}>{p.n}</Pastilla>
+            ))}
+          </div>
+          {preset === "libre" && (
+            <div className="flex flex-wrap items-end gap-3 mt-4">
+              <div>
+                <label className={ROTULO}>Desde</label>
+                <input type="date" value={paraInput(d.desde)}
+                  onChange={(e) => { setRango((r) => ({ ...r, desde: deInput(e.target.value) })); setGrano(null); }}
+                  className={`${inputCls} mt-1.5`} />
+              </div>
+              <div>
+                <label className={ROTULO}>Hasta</label>
+                <input type="date" value={paraInput(d.hasta)}
+                  onChange={(e) => { setRango((r) => ({ ...r, hasta: deInput(e.target.value) })); setGrano(null); }}
+                  className={`${inputCls} mt-1.5`} />
+              </div>
+              <p className="text-xs text-texto-tenue pb-2">Cualquier rango, no solo meses enteros.</p>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ============ COMPARACIÓN ============ */}
+      {abierto === "comparar" && (
+        <Card className="p-5">
+          <Titulo pregunta="Contra qué se calculan las variaciones de los indicadores."
+            extra={<button onClick={() => setAbierto(null)} className="text-texto-tenue hover:text-texto"><X size={16} /></button>}>
+            Comparar con
+          </Titulo>
+          <div className="flex flex-wrap gap-1.5">
+            {COMPARACIONES.map((c) => (
+              <Pastilla key={c.k} activo={modoComparar === c.k} onClick={() => setModoComparar(c.k)}>{c.n}</Pastilla>
+            ))}
+          </div>
+          {modoComparar === "libre" && (
+            <div className="flex flex-wrap items-end gap-3 mt-4">
+              <div>
+                <label className={ROTULO}>Desde</label>
+                <input type="date" value={comparaLibre ? paraInput(comparaLibre.desde) : ""}
+                  onChange={(e) => setComparaLibre((c) => ({ desde: deInput(e.target.value), hasta: (c && c.hasta) || deInput(e.target.value) }))}
+                  className={`${inputCls} mt-1.5`} />
+              </div>
+              <div>
+                <label className={ROTULO}>Hasta</label>
+                <input type="date" value={comparaLibre ? paraInput(comparaLibre.hasta) : ""}
+                  onChange={(e) => setComparaLibre((c) => ({ desde: (c && c.desde) || deInput(e.target.value), hasta: deInput(e.target.value) }))}
+                  className={`${inputCls} mt-1.5`} />
+              </div>
+            </div>
+          )}
+          {d.comparar && (
+            <p className="text-xs text-texto-tenue mt-3">
+              Comparando contra {fecha(d.comparar.desde)} — {fecha(d.comparar.hasta)}.
+            </p>
+          )}
+        </Card>
+      )}
+
+      {/* ============ FILTROS ============ */}
+      <Card className="p-5">
+        <div className="flex flex-wrap items-end gap-4">
+          {/* Un filtro que no discrimina nada confunde más que ayuda. */}
+          <div className="min-w-0 flex-1">
+            <label className={ROTULO}>Sucursal</label>
+            <Apagado motivo="Una sola sucursal" className={`${inputCls} mt-1.5 !justify-start`}>Todas</Apagado>
+          </div>
+          <Selector label="Área" valor={filtros.area} opciones={d.opciones.areas}
+            onChange={(v) => setFiltro("area", v)} />
+          <Selector label="Profesional" valor={filtros.personal} opciones={d.opciones.profesionales}
+            onChange={(v) => setFiltro("personal", v)} todos="Todos" />
+          <Selector label="Prestación" valor={filtros.item} opciones={d.opciones.servicios}
+            onChange={(v) => setFiltro("item", v)} todos="Todas" />
+          <Selector label="Sala o recurso" valor={filtros.recurso} opciones={d.opciones.salas}
+            onChange={(v) => setFiltro("recurso", v)} />
+          {hayFiltro && (
+            <button onClick={() => setFiltros({})}
+              className="text-xs font-semibold text-acento hover:underline flex items-center gap-1 pb-2.5 shrink-0">
+              <X size={13} /> Limpiar filtros
+            </button>
+          )}
+        </div>
+        {hayFiltro && (
+          <p className="text-xs text-ojo mt-3">
+            Con un filtro puesto, el resultado neto y los egresos siguen siendo del
+            negocio entero: un alquiler no pertenece a un área ni a una persona.
+          </p>
+        )}
+      </Card>
+
+      <Tabs value={pestana} onChange={setPestana} items={PESTANAS} />
+
+      {pestana !== "resumen" ? (
+        <Card className="p-6">
+          <Apagado motivo={(PESTANAS.find((p) => p.k === pestana) || {}).n}>
+            Esta pestaña todavía no existe. Lo que se puede calcular hoy con datos
+            reales está en el resumen; el resto llega cuando haya de dónde sacarlo.
+          </Apagado>
+        </Card>
+      ) : sinNada ? (
+        <Card className="p-6">
+          <Vacio>
+            No hay movimiento en este período. Probá con un rango más amplio o
+            sacando los filtros.
+          </Vacio>
+        </Card>
+      ) : (
+        <>
+          {/* ============ 1 · ¿CÓMO ESTÁ EL NEGOCIO? ============ */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <Kpi label="Ingresos totales" valor={money(ingresos.total)} delta={kpis.ingresos.delta}
+              icono={Wallet} sub={d.comparar ? "vs período anterior" : null} />
+            <Kpi label="Resultado neto" valor={money(finanzas.resultado)} delta={kpis.resultado.delta}
+              icono={TrendingUp} tono={finanzas.resultado >= 0 ? "bien" : "mal"}
+              sub={finanzas.margen !== null ? `${pct(finanzas.margen, 0)} de margen` : null} />
+            <Kpi label="Turnos totales" valor={nf.format(asistencia.total)} delta={kpis.turnos.delta}
+              icono={CalendarClock} />
+            <Kpi label="Ocupación promedio" valor={ocupacion.promedio ? pct(ocupacion.promedio, 0) : "—"}
+              icono={IconoTorta} sub="del horario del equipo" />
+            <Kpi label="Clientes activos" valor={nf.format(clientes.activos)} delta={kpis.clientes.delta}
+              icono={Users} sub="vinieron al menos una vez" />
+            <Kpi label="Ticket promedio" valor={money(ingresos.ticket)} delta={kpis.ticket.delta}
+              icono={Receipt} sub={`${nf.format(ingresos.operaciones)} ventas`} />
+          </div>
+
+          {/* ============ 2 · ¿QUÉ ESTÁ PASANDO? ============ */}
+          {d.insights.length > 0 && (
+            <Card className="p-5">
+              <Titulo pregunta="Lo que dicen los números de arriba, dicho en palabras. Sale de este mismo informe.">
+                Insights de Genez
+              </Titulo>
+              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {d.insights.map((x) => (
+                  <Tarjeta key={x.k} tono={x.tono} texto={x.texto} accion={x.accion} onAccion={() => irA(x)} />
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* ============ 3 · ¿CÓMO CAMBIÓ? · ¿DE DÓNDE VIENE? ============ */}
+          <div className="grid xl:grid-cols-3 gap-4">
+            <Card className="p-5 xl:col-span-2">
+              <Titulo pregunta="Lo que entró, lo que salió y lo que quedó."
+                extra={
+                  <div className="flex gap-1.5">
+                    {GRANOS.map((g) => (
+                      <Pastilla key={g.k} activo={(grano || d.grano) === g.k} onClick={() => setGrano(g.k)}>{g.n}</Pastilla>
+                    ))}
+                  </div>
+                }>
+                Evolución
+              </Titulo>
+              {!d.evolucion.length ? <Vacio>Sin movimientos de caja en este período.</Vacio> : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={d.evolucion} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="rgb(var(--borde))" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "rgb(var(--texto-tenue))" }}
+                      axisLine={false} tickLine={false}
+                      interval={Math.max(0, Math.floor(d.evolucion.length / 10))} />
+                    <YAxis tick={{ fontSize: 10, fill: "rgb(var(--texto-tenue))" }}
+                      tickFormatter={moneyk} axisLine={false} tickLine={false} width={58} />
+                    <Tooltip formatter={(v, k) => [money(v), k[0].toUpperCase() + k.slice(1)]}
+                      contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid rgb(var(--borde))", background: "rgb(var(--superficie))" }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} iconType="plainline" />
+                    <Line type="monotone" dataKey="ingresos" name="Ingresos" stroke="rgb(var(--bien))" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="egresos" name="Egresos" stroke="rgb(var(--mal))" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="resultado" name="Resultado" stroke="rgb(var(--acento))" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </Card>
+
+            <Card className="p-5">
+              <Titulo pregunta="Un abono es plata de hoy por horas de las próximas semanas.">
+                Ingresos por fuente
+              </Titulo>
+              <Anillo datos={ingresos.fuentes} centro={moneyk(ingresos.total)} sub="en el período" />
+              <div className="mt-3">
+                <Referencia datos={ingresos.fuentes}
+                  formato={(x) => `${money(x.v)} · ${pct(x.v / (ingresos.total || 1), 0)}`} />
+              </div>
+            </Card>
+          </div>
+
+          {/* ============ 4 · ¿QUÉ VENDO? · ¿USO LA CAPACIDAD? ============ */}
+          <div className="grid xl:grid-cols-2 gap-4">
+            <Card className="p-5">
+              <Titulo pregunta="Ordenado por lo que factura, no por lo que se vende más veces.">
+                Prestaciones y planes
+              </Titulo>
+              {!ingresos.porServicio.length ? <Vacio>Nada facturado en el período.</Vacio> : (
+                <div className="space-y-3">
+                  {ingresos.porServicio.slice(0, 5).map((s, i) => (
+                    <div key={s.nombre} className="flex gap-3">
+                      <span className="f-m text-xs text-texto-tenue w-4 shrink-0 pt-0.5">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <BarraDato nombre={s.nombre} valor={s.total} total={ingresos.total} formato={money} />
+                        <div className="text-[11px] text-texto-tenue mt-1">
+                          {nf.format(s.cantidad)} {s.plan ? "vendidos" : "turnos"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-5">
+              <Titulo pregunta="Horas usadas sobre las horas que el espacio está disponible.">
+                Ocupación por sala
+              </Titulo>
+              {!ocupacion.salas.length ? <Vacio>No hay espacios cargados.</Vacio> : (
+                <div className="space-y-3">
+                  {ocupacion.salas.map((s) => (
+                    <div key={s.id}>
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="truncate text-texto">{s.nombre}</span>
+                        <span className="f-m text-xs shrink-0">
+                          {s.pct === null ? "—" : pct(s.pct, 0)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-superficie-2 overflow-hidden mt-1.5">
+                        <div className={`h-full rounded-full ${s.horasOcupadas === 0 ? "bg-mal" : "bg-acento"}`}
+                          style={{ width: `${Math.max(2, Math.round((s.pct || 0) * 100))}%` }} />
+                      </div>
+                      <div className="text-[11px] text-texto-tenue mt-1">
+                        {s.horasOcupadas.toFixed(1)} de {s.horasOfrecidas.toFixed(0)} hs
+                        {s.lugares > 0 && ` · ${nf.format(s.tomados)} de ${nf.format(s.lugares)} lugares`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* ============ 5 · ¿VIENEN? · ¿DÓNDE GANO? ============ */}
+          <div className="grid xl:grid-cols-2 gap-4">
+            <Card className="p-5">
+              <Titulo pregunta="Sobre turnos que ya pasaron: los de la semana que viene no faltaron todavía.">
+                Asistencia
+              </Titulo>
+              {!asistencia.porEstado.length ? <Vacio>Sin turnos en este período.</Vacio> : (
+                <div className="grid sm:grid-cols-2 gap-4 items-center">
+                  <Anillo datos={asistencia.porEstado}
+                    centro={asistencia.pct === null ? "—" : pct(asistencia.pct, 0)} sub="asistencia" />
+                  <Referencia datos={asistencia.porEstado} formato={(x) => nf.format(x.v)} />
+                </div>
+              )}
+              {asistencia.porServicio.length > 0 && (
+                <p className="text-xs text-texto-suave mt-4">
+                  Donde más se falta: <span className="text-texto">{asistencia.porServicio[0].nombre}</span>,
+                  {" "}{pct(asistencia.porServicio[0].pct, 0)} de asistencia.
+                </p>
+              )}
+            </Card>
+
+            <Card className="p-5">
+              <Titulo pregunta="De qué parte del negocio viene cada peso.">
+                Ingresos por área
+              </Titulo>
+              {!ingresos.porArea.length ? <Vacio>Nada facturado en el período.</Vacio> : (
+                <div className="space-y-3">
+                  {ingresos.porArea.map((a) => (
+                    <BarraDato key={a.nombre} nombre={a.nombre} valor={a.total}
+                      total={ingresos.total} formato={money} />
+                  ))}
+                </div>
+              )}
+              {/* Esto la maqueta lo pedía como "rentabilidad". No se puede
+                  todavía y decirlo es parte del trabajo. */}
+              <p className="text-xs text-texto-tenue mt-4 leading-relaxed">
+                Sin costos: las prestaciones no tienen costo cargado y los egresos
+                —alquiler, sueldos, insumos— no se imputan a un área. Cuando existan
+                esos dos datos, acá van también el resultado y el margen.
+              </p>
+            </Card>
+          </div>
+
+          {/* ============ 6 · ¿CÓMO TRABAJA EL EQUIPO? ============ */}
+          <Card className="overflow-hidden">
+            <div className="px-5 pt-5">
+              <Titulo pregunta="Cuánto atendió cada uno, cuánto de su horario usó y cuánto facturó.">
+                Rendimiento del equipo
+              </Titulo>
+            </div>
+            <TablaSimple
+              cols={["Profesional", "Atendidos", "Asistencia", "Ocupación", "Ingresos"]}
+              filas={equipo.map((p) => [
+                <div key="a">
+                  <div className="font-medium">{p.nombre}</div>
+                  <div className="text-[11px] text-texto-tenue">
+                    {p.especialidad}
+                    {p.clases > 0 && ` · ${nf.format(p.clases)} clases`}
+                  </div>
+                </div>,
+                <span className="f-m">{nf.format(p.turnos)}</span>,
+                <span className={`f-m ${p.asistencia !== null && p.asistencia < 0.8 ? "text-mal" : ""}`}>
+                  {p.asistencia === null ? "—" : pct(p.asistencia, 0)}
+                </span>,
+                <span className="f-m">{p.ocupacion === null ? "—" : pct(p.ocupacion, 0)}</span>,
+                <span className="f-m font-semibold">{money(p.ingresos)}</span>,
+              ])}
+              vacio="No hay profesionales con actividad en este período."
+            />
+            <p className="text-xs text-texto-tenue px-5 pb-5 pt-3 leading-relaxed">
+              El ingreso junta dos caminos: lo que se cobró derecho al turno y la
+              parte del abono que consumió cada clase —un pack de ocho clases pone
+              un octavo en cada una—. Lo no consumido todavía no es de nadie.
+            </p>
+          </Card>
+
+          {/* ============ 7 · ¿DÓNDE TENGO QUE ACTUAR? ============ */}
+          {d.oportunidades.length > 0 && (
+            <Card className="p-5">
+              <Titulo pregunta="Esto no mira el período elegido: es cómo está el negocio hoy. Sale de los mismos segmentos que usa CRM.">
+                Atención y oportunidades
+              </Titulo>
+              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {d.oportunidades.map((x) => (
+                  <Tarjeta key={x.k} tono={x.tono} texto={x.texto} accion={x.accion} onAccion={() => irA(x)} />
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* ============ PIE ============ */}
+          <div className="flex items-center justify-between gap-4 flex-wrap text-xs text-texto-tenue px-1">
+            <span className="flex items-center gap-2">
+              <RefreshCw size={12} className={cargando ? "animate-spin" : ""} />
+              Calculado el {d.generado.toLocaleDateString("es-AR")} a las{" "}
+              {d.generado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
+            </span>
+            {/* No hay caché ni proceso diferido: cada carga consulta la base.
+                Decir "tiempo real" cuando no lo es sería peor que no decir nada. */}
+            <span>Se lee de la base en el momento. Al cambiar un filtro se recalcula todo.</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
