@@ -41,6 +41,7 @@ import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Informes } from "../modulos/Informes.jsx";
 import { Crm } from "../modulos/Crm.jsx";
+import { Comunicaciones } from "../modulos/Comunicaciones.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
@@ -80,6 +81,7 @@ const MODULOS = [
      comparten ni una métrica. Misma decisión que Finanzas en 0038. */
   { k: "informes", n: "Informes", d: "Ingresos, ocupación, asistencia y clientes" },
   { k: "crm", n: "Seguimiento", d: "A quién conviene escribirle, y por qué" },
+  { k: "comunicaciones", n: "Avisos", d: "Recordatorios de turno, plantillas e historial" },
   { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
 ];
 
@@ -96,7 +98,7 @@ const ROLES = [
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
-    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios", "reportes", "informes", "crm", "asistente"],
+    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios", "reportes", "informes", "crm", "comunicaciones", "asistente"],
     permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
   },
   {
@@ -1753,6 +1755,10 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
           )}
           {tab === "informes" && <Informes empresaId={empresaId} />}
           {tab === "crm" && <Crm empresaId={empresaId} rubro={rubro} toast={toast} />}
+          {tab === "comunicaciones" && (
+            <Comunicaciones empresaId={empresaId} rubro={rubro}
+              ajustes={ajustes} setAjustes={setAjustes} toast={toast} />
+          )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
           {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
         </main>

@@ -1204,6 +1204,97 @@ if (ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   Comunicaciones
+
+   Lo que importa acá es la unidad: se avisa por turno y no por persona.
+   Confundir las dos cosas hace que alguien con dos turnos en la semana
+   reciba un solo recordatorio, y falte al otro.
+   ------------------------------------------------------------ */
+console.log("\nComunicaciones");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    const cuando = (horas) => new Date(Date.now() + horas * 3600000).toISOString();
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social, tel) values ($1, 'Por avisar', '11 3333 3333') returning id`,
+      [ALMHA.id]);
+
+    const nuevo = async (horas, estado) => (await una(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, 'Por avisar', $3, 60, $4) returning id`,
+      [ALMHA.id, cli.id, cuando(horas), estado])).id;
+
+    const mios = async (horas) => (await una(
+      "select count(*)::int n from comunicaciones_pendientes($1, $2) where cliente_id = $3",
+      [ALMHA.id, horas, cli.id])).n;
+
+    const martes = await nuevo(20, "confirmada");
+    const jueves = await nuevo(60, "pendiente");
+
+    decir(await mios(24) === 1, "en la ventana de 24 horas entra solo el turno de mañana");
+    decir(await mios(72) === 2, "con la ventana más ancha entran los dos");
+
+    /* Un turno pasado no se recuerda, y uno cancelado tampoco. */
+    await nuevo(-5, "confirmada");
+    const cancelado = await nuevo(10, "confirmada");
+    await c.query("update reservas set estado = 'cancelada' where id = $1", [cancelado]);
+    decir(await mios(72) === 2, "ni lo que ya pasó ni lo cancelado se avisa");
+
+    /* Avisado el del martes, sigue apareciendo el del jueves: la unidad
+       es el turno y no el cliente. */
+    await c.query(
+      `insert into contactos (empresa_id, cliente_id, reserva_id, motivo, texto)
+       values ($1, $2, $3, 'recordatorio', 'Hola!')`, [ALMHA.id, cli.id, martes]);
+
+    decir(await mios(72) === 1, "el turno avisado sale de la lista");
+    const queda = await una(
+      "select reserva_id from comunicaciones_pendientes($1, 72) where cliente_id = $2",
+      [ALMHA.id, cli.id]);
+    decir(queda.reserva_id === jueves, "el otro turno del mismo cliente sigue esperando su aviso");
+
+    /* "No contactar" frena el marketing, no un recordatorio de turno. */
+    await c.query(
+      `update clientes set campos_extra = '{"noContactar": true}'::jsonb where id = $1`, [cli.id]);
+    decir(await mios(72) === 1, "no contactar no frena el recordatorio de un turno");
+
+    /* Una clase manda un mensaje por anotado, no uno solo. */
+    const clase = (await una(
+      `insert into reservas (empresa_id, nombre, personas, desde, duracion_min, estado, cupo)
+       values ($1, 'Clase de aviso', 0, $2, 60, 'confirmada', 4) returning id`,
+      [ALMHA.id, cuando(30)])).id;
+    for (let i = 1; i <= 2; i++) {
+      await c.query(
+        `insert into reservas (empresa_id, clase_id, cliente_id, nombre, personas, desde, duracion_min, estado)
+         values ($1, $2, $3, 'Anotada', 1, $4, 60, 'confirmada')`,
+        [ALMHA.id, clase, cli.id, cuando(30)]);
+    }
+    const deLaClase = await una(
+      "select count(*)::int n from comunicaciones_pendientes($1, 72) where reserva_id in (select id from reservas where clase_id = $2)",
+      [ALMHA.id, clase]);
+    decir(deLaClase.n === 2, "una clase avisa a cada anotado, no una sola vez");
+    const contenedor = await una(
+      "select count(*)::int n from comunicaciones_pendientes($1, 72) where reserva_id = $2",
+      [ALMHA.id, clase]);
+    decir(contenedor.n === 0, "la clase en sí no se avisa: no tiene a quién");
+
+    /* Una plantilla propia pisa la de fábrica y se puede volver atrás. */
+    await c.query(
+      `insert into plantillas (empresa_id, clave, texto) values ($1, 'recordatorio', 'Texto propio')`,
+      [ALMHA.id]);
+    const p = await una(
+      "select texto from plantillas where empresa_id = $1 and clave = 'recordatorio'", [ALMHA.id]);
+    decir(p.texto === "Texto propio", "el comercio puede reescribir una plantilla");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from comunicaciones_pendientes($1, 72)", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve los turnos por avisar de otro");
+    const p = await una("select count(*)::int n from plantillas where empresa_id = $1", [ALMHA.id]);
+    decir(p.n === 0, "un comercio no ve las plantillas de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

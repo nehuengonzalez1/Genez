@@ -119,6 +119,7 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 | `estadisticas_pedidos(...)` | Pedidos, ventas, tiempos y evolución de un período. |
 | `informe_ocupacion(...)` | Cuánto de lo que se podía vender se vendió, por profesional y por sala. Ver abajo. |
 | `crm_segmentos(uuid)` | A quién conviene escribirle y por qué. Ver abajo. |
+| `comunicaciones_pendientes(...)` | Los turnos que vienen y todavía no tienen su aviso. |
 | `sembrar_canales(uuid)` | Los canales con los que arranca un comercio. |
 | `enviar_a_cocina(uuid)` | Despacha solo lo que falta despachar. |
 | `aplicar_descuento(...)` | Por porcentaje o por importe. |
@@ -275,6 +276,38 @@ haya forma de agregar uno que se lo saltee.
 código de país y el `9` de celular, y los teléfonos se cargan como los
 dicta la gente. Sin eso el link abre un chat con nadie, que es lo que
 venía pasando en la agenda y en la ficha.
+
+## Comunicaciones
+
+CRM contesta a quién conviene escribirle esta semana; esto contesta a
+quién hay que avisarle algo ahora. Son dos módulos porque son dos
+trabajos: recepción manda los recordatorios de mañana cada tarde, y el
+dueño mira lo de CRM una vez por semana. Meterlos en la misma pantalla
+sepulta la tarea diaria debajo de la semanal.
+
+**Una sola tabla de mensajes**, `contactos`, para los dos. Dos registros
+de mensajes enviados es la forma más rápida de no saber nunca si a
+alguien ya se le escribió.
+
+**Se avisa por turno, no por persona.** Por eso `contactos` tiene
+`reserva_id`. Sin él, saber si a alguien ya se le recordó su turno del
+martes sería mirar si se le escribió "hace poco", y con dos turnos en la
+misma semana eso falla siempre. Una clase manda un mensaje por anotado; la
+clase en sí no se avisa, no tiene a quién.
+
+**Un recordatorio no es marketing.** `no contactar` frena todo lo de CRM y
+no frena esto: quien pidió que no le manden promociones no pidió que no le
+avisen que mañana tiene turno a las nueve.
+
+**Las plantillas guardan lo que se cambió, no todo.** Los textos de
+fábrica están en `src/datos/comunicaciones.js`; la tabla `plantillas`
+guarda solo los que el comercio reescribió. Un comercio nuevo funciona el
+primer día sin semilla, "volver al original" es borrar una fila, y si
+mañana ese texto mejora, el que nunca lo tocó se lleva la mejora.
+
+**Un hueco que no existe se deja escrito.** `{profe}` en vez de
+`{profesional}` aparece tal cual en la vista previa y se corrige solo;
+borrarlo en silencio manda un mensaje mocho sin ninguna pista de por qué.
 
 ## Lo que ya funciona y no hay que rehacer
 
