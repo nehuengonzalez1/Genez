@@ -120,6 +120,7 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 | `informe_ocupacion(...)` | Cuánto de lo que se podía vender se vendió, por profesional y por sala. Ver abajo. |
 | `crm_segmentos(uuid)` | A quién conviene escribirle y por qué. Ver abajo. |
 | `comunicaciones_pendientes(...)` | Los turnos que vienen y todavía no tienen su aviso. |
+| `permisos_de(uuid)` / `permiso(text)` | Qué puede hacer alguien. Lo que consultan las políticas. Ver abajo. |
 | `sembrar_canales(uuid)` | Los canales con los que arranca un comercio. |
 | `enviar_a_cocina(uuid)` | Despacha solo lo que falta despachar. |
 | `aplicar_descuento(...)` | Por porcentaje o por importe. |
@@ -308,6 +309,46 @@ mañana ese texto mejora, el que nunca lo tocó se lleva la mejora.
 **Un hueco que no existe se deja escrito.** `{profe}` en vez de
 `{profesional}` aparece tal cual en la vista previa y se corrige solo;
 borrarlo en silencio manda un mensaje mocho sin ninguna pista de por qué.
+
+## Los permisos
+
+Los roles salían de una constante de JavaScript. Ahora salen de la base,
+y no por prolijidad: **las políticas de RLS los tienen que poder leer**.
+Un permiso que solo existe en el navegador no protege nada.
+
+`roles_base` son los cuatro de fábrica y es dato de plataforma, como
+`rubros`. `roles` guarda **solo lo que cada comercio cambió** y se fusiona
+encima. Volver al original es borrar la fila, así una corrección futura de
+un valor de fábrica llega sola al que nunca lo tocó.
+
+**Ninguna política vuelve a nombrar un rol.** `bitacora_leer` y
+`empresas_configurar` decían `rol in ('dueno', 'encargado')` y ahora
+preguntan por `permiso('verBitacora')` y `permiso('configurar')`. Los
+valores de fábrica dan la misma respuesta para la misma gente, así que
+nada cambió hasta que alguien edite; lo cubre `probar-rls.mjs`.
+
+`permisos_de(perfil)` toma el perfil por parámetro en vez de mirar solo
+`auth.uid()`. Es lo que permite probarla —una función que solo se puede
+ejecutar "siendo" cada rol no se prueba, se cruza los dedos— y lo que la
+pantalla necesita para dibujar la grilla entera. Es `security definer`
+porque lee `perfiles` y `roles`, y por eso se limita a sí mismo o a
+perfiles que el que pregunta ya puede ver.
+
+**Dos de los ocho permisos los verifica la base y seis son de pantalla.**
+Está dicho así en la interfaz, con un candado al lado de los dos pesados:
+quien configura tiene que saber si está apagando un botón o cerrando una
+puerta.
+
+**No se puede uno dejar afuera.** Un disparador impide sacarle
+`configurar` al rol propio. Está en la base y no en la pantalla porque una
+validación de pantalla la saltea cualquier otro camino.
+
+**Y cambiar un permiso queda en la bitácora**, con qué había antes y qué
+quedó. Un módulo de permisos sin rastro sería el único que no se puede
+auditar.
+
+`bitacora` existía desde 0007 y nunca había tenido pantalla: se escribía
+y no la leía nadie. La pestaña de Auditoría es esa lectura.
 
 ## Lo que ya funciona y no hay que rehacer
 

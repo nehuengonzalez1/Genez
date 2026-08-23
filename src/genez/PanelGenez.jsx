@@ -42,6 +42,7 @@ import { Reportes } from "../modulos/Reportes.jsx";
 import { Informes } from "../modulos/Informes.jsx";
 import { Crm } from "../modulos/Crm.jsx";
 import { Comunicaciones } from "../modulos/Comunicaciones.jsx";
+import { Permisos } from "../modulos/Permisos.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
@@ -82,6 +83,7 @@ const MODULOS = [
   { k: "informes", n: "Informes", d: "Ingresos, ocupación, asistencia y clientes" },
   { k: "crm", n: "Seguimiento", d: "A quién conviene escribirle, y por qué" },
   { k: "comunicaciones", n: "Avisos", d: "Recordatorios de turno, plantillas e historial" },
+  { k: "permisos", n: "Permisos", d: "Qué puede hacer cada rol, y quién cambió qué" },
   { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
 ];
 
@@ -117,21 +119,38 @@ const rolPorK = (k) => ROLES.find((r) => r.k === k) || ROLES[ROLES.length - 1];
 
 /* Lo que puede hacer una sesión: cruce entre lo que el comercio contrató y lo
    que el rol habilita. Un módulo no contratado no lo ve ni el dueño. */
-function permisosDe(sesion) {
+/* `roles` viene de la base y ROLES de acá arriba es el respaldo: si la
+   consulta no llegó todavía —o falló— el sistema abre con los roles de
+   fábrica en vez de dejar a alguien sin menú. Los dos valores de fábrica
+   son los mismos, así que el respaldo no cambia lo que se ve.
+
+   Las dos formas conviven a propósito y por poco tiempo: la de la base
+   dice `todos: true` con `modulos` en null, y la vieja decía la cadena
+   "todos". Se normalizan acá, en un solo lugar. */
+function permisosDe(sesion, roles = null) {
   if (!sesion) return { modulos: [], permisos: {}, esPlataforma: false };
+
+  const buscar = (k) => (roles || []).find((r) => r.k === k) || rolPorK(k);
+  const alcanzaTodo = (rol) => (rol.todos !== undefined ? rol.todos : rol.modulos === "todos");
+
   if (sesion.tipo === "plataforma") {
-    return { modulos: MODULOS.map((m) => m.k), permisos: rolPorK("dueno").permisos, esPlataforma: true };
+    return { modulos: MODULOS.map((m) => m.k), permisos: buscar("dueno").permisos, esPlataforma: true };
   }
-  const rol = rolPorK(sesion.rol);
+
+  const rol = buscar(sesion.rol);
   const contratados = sesion.comercio.modulos || [];
-  const delRol = rol.modulos === "todos" ? contratados : rol.modulos;
+  const delRol = alcanzaTodo(rol) ? contratados : (rol.modulos || []);
   return {
     modulos: contratados.filter((k) => delRol.includes(k)),
-    permisos: rol.permisos,
+    permisos: rol.permisos || {},
     esPlataforma: false,
   };
 }
 
+/* Muestra el alcance de fábrica del rol y no el que el comercio pueda
+   haber editado: esto vive en el panel de plataforma, que administra
+   muchos comercios a la vez y no tiene uno solo del que leer. Lo que el
+   comercio cambió se ve en su propia pantalla de Permisos. */
 function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar }) {
   const [d, setD] = useState({});
   useEffect(() => { if (abierto) setD({ rol: "cajero", ...(inicial || {}) }); }, [abierto, inicial]);
@@ -843,8 +862,8 @@ function aDatosDeBase(d) {
   };
 }
 
-function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
-  const { modulos, permisos, esPlataforma } = permisosDe(sesion);
+function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema }) {
+  const { modulos, permisos, esPlataforma } = permisosDe(sesion, roles);
 
   /* La configuración del comercio se lee directo de la sesión. `ajustes`
      todavía arranca con valores fijos del minimercado, así que para lo que
@@ -1758,6 +1777,12 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
           {tab === "comunicaciones" && (
             <Comunicaciones empresaId={empresaId} rubro={rubro}
               ajustes={ajustes} setAjustes={setAjustes} toast={toast} />
+          )}
+          {tab === "permisos" && (
+            <Permisos empresaId={empresaId}
+              modulosComercio={(sesion.comercio && sesion.comercio.modulos) || []}
+              catalogoModulos={MODULOS.filter((m) => !m.base)}
+              miRol={sesion.rol} esPlataforma={esPlataforma} toast={toast} />
           )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
           {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}

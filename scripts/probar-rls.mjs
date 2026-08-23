@@ -1295,6 +1295,109 @@ if (ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   Permisos configurables
+
+   Lo primero que hay que probar no es lo nuevo: es que lo viejo siga
+   dando lo mismo. Dos políticas dejaron de nombrar roles a mano y
+   pasaron a preguntar por un permiso, y si los valores de fábrica no
+   reprodujeran exactamente lo de antes, tres comercios en producción
+   cambiarían de comportamiento sin que nadie lo pidiera.
+   ------------------------------------------------------------ */
+console.log("\nPermisos configurables");
+
+{
+  /* La matriz de fábrica es la que estaba escrita en el código: dueño y
+     encargado leen la bitácora y configuran; cajero y repositor no. */
+  const base = await una(`
+    select
+      bool_and((permisos ->> 'verBitacora')::boolean) filter (where clave in ('dueno','encargado')) as mandan_ven,
+      bool_or((permisos ->> 'verBitacora')::boolean)  filter (where clave in ('cajero','repositor')) as otros_ven,
+      bool_and((permisos ->> 'configurar')::boolean)  filter (where clave in ('dueno','encargado')) as mandan_config,
+      bool_or((permisos ->> 'configurar')::boolean)   filter (where clave in ('cajero','repositor')) as otros_config
+    from roles_base`);
+  decir(base.mandan_ven === true && base.otros_ven === false,
+    "los valores de fábrica dan la misma respuesta que el viejo rol in ('dueno','encargado')");
+  decir(base.mandan_config === true && base.otros_config === false,
+    "y lo mismo para configurar el comercio");
+
+  await comoUsuario(MOZO, async () => {
+    const yo = await una("select public.permiso('verBitacora') v, public.permiso('configurar') c");
+    decir(yo.v === true && yo.c === true, "un dueño sigue viendo la bitácora y configurando");
+
+    const antes = await una("select count(*)::int n from bitacora where empresa_id = $1", [barId]);
+    decir(antes.n >= 0, `lee la bitácora de su comercio (${antes.n} registros)`);
+
+    /* Ahora se le apaga a su propio rol el permiso de ver la bitácora.
+       Es lo que el módulo permite hacer, y la política tiene que
+       enterarse sin que nadie toque una línea de SQL. */
+    await c.query(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'dueno', '{"verBitacora": false}'::jsonb)`,
+      [barId]);
+
+    const despues = await una("select count(*)::int n from bitacora where empresa_id = $1", [barId]);
+    decir(despues.n === 0, "apagando el permiso, la bitácora deja de verse");
+    decir((await una("select public.permiso('verBitacora') v")).v === false,
+      "y el permiso da falso, no solo la lista vacía");
+
+    /* Volver al original es borrar la fila, no copiar el texto de
+       fábrica: así una corrección futura llega sola. */
+    await c.query("delete from roles where empresa_id = $1 and clave = 'dueno'", [barId]);
+    const vuelta = await una("select count(*)::int n from bitacora where empresa_id = $1", [barId]);
+    /* Vuelve a verse, y con dos registros más: el cambio y la vuelta
+       atrás. Que el propio módulo de permisos deje rastro de las dos
+       cosas es la mitad de para qué existe. */
+    decir(vuelta.n === antes.n + 2,
+      `borrando el cambio vuelve a verse, con los dos actos anotados (${antes.n} → ${vuelta.n})`);
+
+    /* El accidente que este módulo habilita, y que la base impide. */
+    /* Con savepoint: el rechazo aborta la transacción, y sin volver a un
+       punto guardado todo lo que sigue falla con "transaction is
+       aborted" y la prueba miente diciendo que hay diez errores. */
+    let rechazado = false;
+    await c.query("savepoint intento");
+    try {
+      await c.query(
+        `insert into roles (empresa_id, clave, permisos) values ($1, 'dueno', '{"configurar": false}'::jsonb)`,
+        [barId]);
+      await c.query("release savepoint intento");
+    } catch (e) {
+      rechazado = e.code === "P0070";
+      await c.query("rollback to savepoint intento");
+    }
+    decir(rechazado, "no se puede uno sacar el permiso de configurar a sí mismo");
+
+    /* A otro rol sí: es el punto del módulo. */
+    await c.query(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'cajero', '{"descuentos": true}'::jsonb)`,
+      [barId]);
+    const cajero = await una(
+      `select ((select permisos from roles_base where clave = 'cajero')
+               || (select permisos from roles where empresa_id = $1 and clave = 'cajero')) ->> 'descuentos' as d`,
+      [barId]);
+    decir(cajero.d === "true", "a otro rol sí se le puede cambiar una bandera");
+
+    /* Y queda escrito quién lo hizo. Un módulo de permisos sin rastro es
+       el único que no se puede auditar. */
+    /* Se busca el acto concreto y no "el último": adentro de una
+       transacción `now()` es el mismo para todas las filas, así que
+       ordenar por fecha entre tres registros hermanos devuelve
+       cualquiera de los tres. */
+    const anotado = await una(
+      `select count(*)::int n, max(detalle -> 'despues' ->> 'descuentos') as valor
+         from bitacora
+        where empresa_id = $1 and accion = 'permisos.cambiar' and detalle ->> 'rol' = 'cajero'`,
+      [barId]);
+    decir(anotado.n === 1 && anotado.valor === "true",
+      "el cambio de permisos queda en la bitácora, con qué se cambió");
+  });
+
+  await comoUsuario(CAJERO, async () => {
+    const v = await una("select count(*)::int n from roles where empresa_id = $1", [barId]);
+    decir(v.n === 0, "un comercio no ve los roles de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
