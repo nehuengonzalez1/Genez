@@ -1365,10 +1365,35 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      si va como el botón grande de arriba —cobrar en un minimercado, tomar
      la comanda en un bar— o como un renglón más del menú, que es lo que
      corresponde donde vender existe pero es la excepción. */
-  const accion = (rubro && rubro.accion) || (vender
-    ? { k: "cobro", n: vender === "comandas" ? "Comanda" : "Cobrar",
-        i: vender === "comandas" ? "planilla" : "barcode", destacada: true }
-    : null);
+  /* Ojo con el `||`: `accion` en null es una respuesta, no una falta de
+     respuesta. El rubro servicios la tiene en null a propósito —un
+     negocio de turnos no abre con un lector de códigos— y con `||` eso
+     se leía igual que "el rubro no dijo nada", caía en el respaldo y a
+     una estética le aparecía el botón de cobrar del minimercado. Encima
+     no se podía desactivar: `cobro` es módulo base.
+
+     El respaldo es para cuando NO hay rubro. Si el rubro cargó, manda él,
+     incluso cuando lo que dice es que acá no hay acción destacada. */
+  const accion = rubro
+    ? rubro.accion
+    : (vender
+      ? { k: "cobro", n: vender === "comandas" ? "Comanda" : "Cobrar",
+          i: vender === "comandas" ? "planilla" : "barcode", destacada: true }
+      : null);
+  /* El renglón de abajo del nombre. Sin rubro cargado se usa el de
+     siempre, que es el del minimercado: es el respaldo, no la regla.
+
+     Se lee derecho de `voces` y no con `voz()`: esa función devuelve la
+     clave cuando no encuentra la palabra —para que una pantalla nueva
+     muestre algo en vez de nada— y acá eso pondría la palabra "resumen"
+     debajo del nombre del comercio. Cuando no está, no va nada. */
+  const plantillaResumen = rubro
+    ? ((rubro.voces && rubro.voces.resumen) || "")
+    : "1 caja · {n} art.";
+  const resumenComercio = plantillaResumen
+    ? plantillaResumen.replace("{n}", nf.format(productos.length))
+    : "";
+
   const rotuloVender = accion ? accion.n : "Cobrar";
   const IconoAccion = iconoDe(accion ? accion.i : "barcode");
 
@@ -1600,7 +1625,11 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             <div className="w-8 h-8 rounded-xl bg-acento flex items-center justify-center text-sobre-acento"><Store size={17} /></div>
             <div className="min-w-0">
               <div className="f-d text-sm truncate">{ajustes.negocio}</div>
-              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">1 caja · {nf.format(productos.length)} art.</div>
+              {/* Lo dice el rubro. Un rubro que no lo define no muestra
+                  nada: un número equivocado es peor que ninguno. */}
+              {resumenComercio && (
+                <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">{resumenComercio}</div>
+              )}
             </div>
           </div>
           {accion && accion.destacada && (
