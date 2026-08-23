@@ -118,6 +118,7 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 | `mover_pedido(...)` | Cambia el estado: valida el flujo del canal, mueve la cocina y deja historial. |
 | `estadisticas_pedidos(...)` | Pedidos, ventas, tiempos y evolución de un período. |
 | `informe_ocupacion(...)` | Cuánto de lo que se podía vender se vendió, por profesional y por sala. Ver abajo. |
+| `crm_segmentos(uuid)` | A quién conviene escribirle y por qué. Ver abajo. |
 | `sembrar_canales(uuid)` | Los canales con los que arranca un comercio. |
 | `enviar_a_cocina(uuid)` | Despacha solo lo que falta despachar. |
 | `aplicar_descuento(...)` | Por porcentaje o por importe. |
@@ -241,6 +242,39 @@ nadie carga el horario de una sala: se carga el de la gente. Si algún día
 se cargan horarios propios de un espacio, mandan esos.
 
 **Este módulo usa la fecha real**, no el `HOY` congelado del prototipo.
+
+## El CRM
+
+`crm_segmentos` devuelve cinco listas de gente a la que conviene
+escribirle, y cada una existe porque tiene una acción distinta detrás: el
+que dejó de venir, el que vino una sola vez, el que se queda sin abono,
+el que se le venció y no renovó, y el que reserva y no aparece.
+
+**Los segmentos se derivan, no se guardan.** Misma regla que el stock y
+que el estado de una mesa. Una columna `es_cliente_dormido` se corrompe
+el día que la persona vuelve, y el criterio cambia —hoy son 45 días,
+mañana el comercio decide otra cosa— con lo que habría que recalcular el
+pasado entero.
+
+**`contactos` es lo que hace que la lista se vacíe.** Sin ella el lunes
+aparecen los mismos veinte nombres que el viernes. Escribirle a alguien
+lo saca del segmento por tres semanas, y **solo de ese segmento**: que se
+le haya avisado que su abono vence no significa que no haya que decirle,
+dos meses después, que hace rato no viene.
+
+**Nada se manda solo.** Se abre WhatsApp con el mensaje ya escrito y la
+persona aprieta enviar. El texto es editable antes y lo que se guarda es
+lo que se mandó, no lo que decía la plantilla. Las plantillas guardadas y
+el envío en tanda son de Comunicaciones.
+
+**"No molestar" va en `clientes.campos_extra`**, que es exactamente para
+esto, y se filtra una sola vez arriba de todos los segmentos para que no
+haya forma de agregar uno que se lo saltee.
+
+`telWhatsapp` en `src/utils/helpers.js` arma el número: `wa.me` necesita
+código de país y el `9` de celular, y los teléfonos se cargan como los
+dicta la gente. Sin eso el link abre un chat con nadie, que es lo que
+venía pasando en la agenda y en la ficha.
 
 ## Lo que ya funciona y no hay que rehacer
 

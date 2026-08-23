@@ -35,7 +35,7 @@ import { cargarEquipo } from "../datos/equipo.js";
 import { cargarAbonos } from "../datos/abonos.js";
 import { alertasDe } from "../datos/clientes.js";
 import { cargarRecursos } from "../datos/comandas.js";
-import { money } from "../utils/helpers.js";
+import { money, linkWhatsapp } from "../utils/helpers.js";
 import { Card, Boton, Modal, Vacio, Tabs, Sello, Cargando, ErrorEstado, Apagado } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Drawer } from "../ui/Drawer.jsx";
@@ -755,8 +755,8 @@ export function Agenda({ empresaId, sucursalId, permisos, clientes, toast, ir })
               </div>
             )}
 
-            {abierto.telefono && (
-              <a href={`https://wa.me/${abierto.telefono.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
+            {linkWhatsapp(abierto.telefono) && (
+              <a href={linkWhatsapp(abierto.telefono)} target="_blank" rel="noreferrer"
                 className="block text-sm text-acento hover:underline">Escribirle por WhatsApp</a>
             )}
 

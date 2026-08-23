@@ -23,7 +23,7 @@ import {
 import { cargarFicha, anotarEnFicha, borrarNota } from "../datos/clientes.js";
 import { estadoDe } from "../datos/agenda.js";
 import { estadoAbono } from "../datos/abonos.js";
-import { money, nf, pct } from "../utils/helpers.js";
+import { money, nf, pct, linkWhatsapp } from "../utils/helpers.js";
 import { Card, Kpi, Boton, Vacio, Tabs, Sello, Cargando, ErrorEstado } from "../ui/Base.jsx";
 import { inputCls } from "../ui/Campos.jsx";
 
@@ -112,8 +112,8 @@ export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permiso
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
-            {c.tel && (
-              <a href={`https://wa.me/${c.tel.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
+            {linkWhatsapp(c.tel) && (
+              <a href={linkWhatsapp(c.tel)} target="_blank" rel="noreferrer"
                 className="text-xs font-semibold px-3 py-2 rounded-lg border border-borde text-texto-suave hover:bg-superficie-2">
                 WhatsApp
               </a>

@@ -242,3 +242,39 @@ export function conRecargo(base, medio) {
   const r = Math.round(base * (medio.tasa / 100));
   return { total: base + r, recargo: r };
 }
+
+/* ------------------------------------------------------------
+   El número para WhatsApp
+
+   `wa.me` necesita el número completo con código de país y sin nada más.
+   Los teléfonos se cargan como los dicta la gente —"11 5555 5555",
+   "15 5555 5555"— y así, tal cual, el link abre un chat con nadie.
+
+   Se asume Argentina porque es el país del sistema entero: los precios
+   son pesos, la condición fiscal es de ARCA y la factura lleva CUIT. El
+   día que haya un comercio de otro lado, el código de país sale de la
+   configuración del comercio y esta función lo recibe.
+
+   El `9` va después del 54 y antes del área: es lo que le dice a WhatsApp
+   que es un celular, y sin él tampoco abre.
+   ------------------------------------------------------------ */
+export function telWhatsapp(tel) {
+  const d = String(tel || "").replace(/\D/g, "");
+  if (!d) return null;
+
+  /* Ya viene con país: se respeta, incluso si es de otro lado. */
+  if (d.startsWith("54")) return d.startsWith("549") ? d : "549" + d.slice(2);
+  if (d.length > 11 && !d.startsWith("0")) return d;
+
+  /* El 0 de larga distancia y el 15 de celular son de la telefonía de
+     acá y sobran en un número internacional. */
+  let n = d.replace(/^0/, "");
+  n = n.replace(/^(\d{2,4})15(\d{6,8})$/, "$1$2");
+  return n.length >= 10 ? "549" + n : null;
+}
+
+export const linkWhatsapp = (tel, texto) => {
+  const n = telWhatsapp(tel);
+  if (!n) return null;
+  return `https://wa.me/${n}${texto ? "?text=" + encodeURIComponent(texto) : ""}`;
+};

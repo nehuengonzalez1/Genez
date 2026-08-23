@@ -554,9 +554,15 @@ if (!ALMHA) {
     "select id from recursos where empresa_id = $1 order by orden limit 1", [ALMHA.id]);
   const SERVICIO = await una(
     "select id, duracion_min from items where empresa_id = $1 and tipo = 'servicio' limit 1", [ALMHA.id]);
-  /* Un lunes a las 9 hora de Buenos Aires, que es cuando Sofía trabaja. */
+  /* Un lunes a las 9 hora de Buenos Aires, que es cuando Sofía trabaja,
+     pero dentro de más de medio año. Cuando esto se escribió, Almha no
+     tenía un solo turno cargado y el lunes de esta semana estaba libre;
+     al sembrarle historia y agenda, la sala pasó a estar ocupada y la
+     prueba empezó a fallar por un choque de verdad. Una prueba de
+     permisos no se puede caer porque el negocio de ejemplo tenga trabajo:
+     se corre en una semana donde no hay nada. */
   const CUANDO = (await una(
-    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+    `select (date_trunc('week', (now() at time zone 'America/Argentina/Buenos_Aires') + interval '30 weeks')
              + interval '9 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
 
   const turno = (extra = {}) => JSON.stringify({
@@ -665,8 +671,9 @@ if (ALMHA) {
   const GRUPAL = await una(
     `select id from items where empresa_id = $1 and tipo = 'servicio'
        and campos_extra ->> 'modalidad' = 'grupal' limit 1`, [ALMHA.id]);
+  /* Misma semana lejana que arriba, por la misma razón. */
   const CUANDO = (await una(
-    `select (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires')
+    `select (date_trunc('week', (now() at time zone 'America/Argentina/Buenos_Aires') + interval '30 weeks')
              + interval '10 hours') at time zone 'America/Argentina/Buenos_Aires' as t`)).t;
 
   await comoUsuario(PLATAFORMA, async () => {
@@ -1114,6 +1121,86 @@ if (ALMHA) {
   await comoUsuario(MOZO, async () => {
     const v = await una("select count(*)::int n from informe_ocupacion($1, current_date - 30, current_date)", [ALMHA.id]);
     decir(v.n === 0, "un comercio no ve la ocupación de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   CRM
+
+   Lo que se prueba no es que la lista salga: es que se vacíe. Un segmento
+   que devuelve siempre a la misma gente es una pantalla que se deja de
+   abrir a la semana.
+   ------------------------------------------------------------ */
+console.log("\nCRM");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    const cuando = (dias) => new Date(Date.now() + dias * 86400000).toISOString();
+    const enSegmento = async (k, cli) => (await una(
+      "select count(*)::int n from crm_segmentos($1) where segmento = $2 and cliente_id = $3",
+      [ALMHA.id, k, cli])).n;
+
+    /* Alguien que vino cinco veces y hace tres meses que no aparece. */
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social, tel) values ($1, 'Se fue', '11 4444 4444') returning id`,
+      [ALMHA.id]);
+    for (const d of [-140, -130, -120, -110, -100]) {
+      await c.query(
+        `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado)
+         values ($1, $2, 'Se fue', $3, 60, 'cumplida')`, [ALMHA.id, cli.id, cuando(d)]);
+    }
+
+    decir(await enSegmento("se_van", cli.id) === 1, "el que dejó de venir aparece en la lista");
+
+    /* Un turno futuro lo saca: ya volvió, no hay nada que recuperar. */
+    const proximo = await una(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, 'Se fue', $3, 60, 'confirmada') returning id`,
+      [ALMHA.id, cli.id, cuando(5)]);
+    decir(await enSegmento("se_van", cli.id) === 0, "con un turno agendado deja de aparecer");
+    await c.query("delete from reservas where id = $1", [proximo.id]);
+
+    /* Escribirle lo saca por tres semanas: es lo que hace que la lista se
+       vacíe a medida que se trabaja. */
+    await c.query(
+      `insert into contactos (empresa_id, cliente_id, motivo, texto)
+       values ($1, $2, 'se_van', 'Hola!')`, [ALMHA.id, cli.id]);
+    decir(await enSegmento("se_van", cli.id) === 0, "después de escribirle sale de la lista");
+
+    /* Pero solo por ese motivo: que se le haya avisado de un abono no
+       significa que no haya que decirle que hace rato no viene. */
+    await c.query("update contactos set fecha = now() - interval '30 days' where cliente_id = $1", [cli.id]);
+    decir(await enSegmento("se_van", cli.id) === 1, "al mes vuelve a aparecer");
+
+    await c.query(
+      `insert into contactos (empresa_id, cliente_id, motivo) values ($1, $2, 'abono_vencido')`,
+      [ALMHA.id, cli.id]);
+    decir(await enSegmento("se_van", cli.id) === 1,
+      "un mensaje por otro motivo no lo silencia");
+
+    /* No molestar gana sobre todo lo demás. */
+    await c.query(
+      `update clientes set campos_extra = '{"noContactar": true}'::jsonb where id = $1`, [cli.id]);
+    decir(await enSegmento("se_van", cli.id) === 0, "quien pidió no ser molestado no aparece en ningún segmento");
+
+    /* Dos abonos vencidos son un mensaje, no dos. */
+    const dos = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Dos abonos') returning id`, [ALMHA.id]);
+    for (const d of [-25, -10]) {
+      await c.query(
+        `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+         values ($1, $2, 'Pack 8 clases', 8, current_date - 60, current_date + $3::int)`,
+        [ALMHA.id, dos.id, d]);
+    }
+    decir(await enSegmento("abono_vencido", dos.id) === 1,
+      "dos abonos vencidos del mismo cliente son una sola fila");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from crm_segmentos($1)", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve a los clientes de otro en el CRM");
+    const k = await una("select count(*)::int n from contactos where empresa_id = $1", [ALMHA.id]);
+    decir(k.n === 0, "un comercio no ve los contactos de otro");
   });
 }
 

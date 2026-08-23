@@ -136,6 +136,7 @@ declare
   v_estado   text;
   v_medio    text;
   v_cobrada  boolean;
+  v_falla    boolean;
   v_hora     int;
   v_cuando   timestamptz;
   v_efectivo numeric;
@@ -269,7 +270,20 @@ raise notice 'Almha: 4 planes.';
    camilla. Una clienta de masajes que aparece anotada en reformer todas
    las semanas hace que la ocupación mienta.
    ------------------------------------------------------------ */
-create temp table semilla_clientes (id uuid, perfil text, alta date) on commit drop;
+/* `baja` y `falla` existen para que el negocio de ejemplo tenga las
+   situaciones que el sistema después tiene que resolver. Un comercio
+   donde todos vienen siempre y nadie falta no es un comercio: es una
+   planilla. Y con esos datos, CRM no tiene a quién mostrar.
+
+   `baja` es la fecha desde la cual la persona dejó de venir —sin avisar,
+   que es como pasa—. `falla` es el que reserva y no aparece. */
+create temp table semilla_clientes (
+  id     uuid,
+  perfil text,
+  alta   date,
+  baja   date,
+  falla  boolean default false
+) on commit drop;
 
 for v_off in 1..array_length(v_nombres, 1) loop
   /* Las altas se reparten en los cuatro meses, con más al principio: un
@@ -296,6 +310,7 @@ for v_off in 1..array_length(v_nombres, 1) loop
                       when random() < 0.62 then 'estetica'
                       else 'masajes' end, v_dia);
 
+
   /* Una nota cada tanto: la ficha con todas las fichas vacías no deja ver
      si el cuaderno se lee bien. */
   if random() < 0.35 then
@@ -304,6 +319,37 @@ for v_off in 1..array_length(v_nombres, 1) loop
             false, v_user, v_dia + time '10:05');
   end if;
 end loop;
+
+/* ------------------------------------------------------------
+   Los que se van, los que faltan y los que vinieron una sola vez
+
+   Un negocio real los tiene y un CRM existe por ellos. Sin esto los
+   segmentos de "hace rato que no viene" y "falta seguido" salen vacíos, y
+   una pantalla que solo se puede ver vacía no se puede dar por terminada.
+
+   Se eligen entre los que ya tienen unos meses encima: alguien que se dio
+   de alta la semana pasada no puede "haber dejado de venir".
+   ------------------------------------------------------------ */
+
+/* Seis que dejaron de venir de a poco, entre hace cuatro meses y hace
+   siete semanas. Sin avisar, que es como pasa. */
+update semilla_clientes set baja = v_hoy - (50 + floor(random() * 70)::int)
+ where id in (select id from semilla_clientes
+               where alta < v_hoy - 100 and perfil <> 'estetica'
+               order by random() limit 6);
+
+/* Cinco que reservan y no aparecen. */
+update semilla_clientes set falla = true
+ where id in (select id from semilla_clientes
+               where alta < v_hoy - 60 order by random() limit 5);
+
+/* Cuatro que vinieron una sola vez. La baja el mismo día del alta los
+   deja afuera del sorteo diario; el turno único se los carga después del
+   bucle, para que sea exactamente uno. */
+update semilla_clientes set baja = alta
+ where id in (select id from semilla_clientes
+               where alta between v_hoy - 110 and v_hoy - 20
+               order by random() limit 4);
 
 /* Las dos contraindicaciones destacadas: son las que la ficha saca a la
    superficie y las que aparecen al agendar un turno. */
@@ -434,8 +480,9 @@ for v_off in (v_inicio - v_hoy)..14 loop
                    * (0.7 + random() * 0.6))::int));
 
     for c in
-      select sc.id from semilla_clientes sc
+      select sc.id, sc.falla from semilla_clientes sc
        where sc.perfil = 'pilates' and sc.alta <= v_dia
+         and (sc.baja is null or sc.baja > v_dia)
        order by random() limit v_cuantos
     loop
       /* ¿Tiene crédito que cubra este día? Se pregunta por la ventana del
@@ -476,8 +523,10 @@ for v_off in (v_inicio - v_hoy)..14 loop
         returning id into v_abono;
       end if;
 
+      /* El que falla se anota igual y no viene, que es justamente lo que
+         lo hace un problema: ocupó el lugar. */
       if v_off < 0 then
-        v_estado := case when random() < 0.84 then 'cumplida'
+        v_estado := case when random() < (case when c.falla then 0.5 else 0.84 end) then 'cumplida'
                          when random() < 0.55 then 'ausente'
                          else 'cancelada' end;
       else
@@ -512,8 +561,9 @@ for v_off in (v_inicio - v_hoy)..14 loop
   for v_hora in 1..v_cuantos loop
     select * into s from semilla_agenda where not clase order by random() limit 1;
 
-    select sc.id into v_cli from semilla_clientes sc
+    select sc.id, sc.falla into v_cli, v_falla from semilla_clientes sc
      where sc.perfil = s.perfil and sc.alta <= v_dia
+       and (sc.baja is null or sc.baja > v_dia)
      order by random() limit 1;
     continue when v_cli is null;
 
@@ -521,7 +571,7 @@ for v_off in (v_inicio - v_hoy)..14 loop
                                   (array[0, 30])[1 + floor(random() * 2)::int], 0);
 
     if v_off < 0 then
-      v_estado := case when random() < 0.86 then 'cumplida'
+      v_estado := case when random() < (case when v_falla then 0.5 else 0.86 end) then 'cumplida'
                        when random() < 0.5  then 'ausente'
                        else 'cancelada' end;
     else
@@ -560,6 +610,34 @@ for v_off in (v_inicio - v_hoy)..14 loop
      where sesion_id = v_ses and tipo = 'ingreso' and medio = 'efectivo';
     update sesiones_caja set monto_declarado = 30000 + v_efectivo where id = v_ses;
   end if;
+end loop;
+
+/* Los que probaron una vez y no volvieron. Van fuera del bucle porque
+   tienen que ser exactamente uno: adentro del sorteo diario terminaban
+   con dos o con ninguno según el día. Es el segmento más barato de
+   recuperar y el que hoy no ve nadie. */
+for c in select sc.id, sc.alta, sc.perfil from semilla_clientes sc where sc.baja = sc.alta loop
+  select * into s from semilla_agenda where not clase and perfil = c.perfil order by random() limit 1;
+  continue when s is null;
+
+  v_cuando := (c.alta + 3) + time '17:00';
+  v_num := v_num + 1;
+
+  insert into reservas (
+    empresa_id, sucursal_id, recurso_id, personal_id, item_id,
+    cliente_id, nombre, personas, desde, duracion_min, estado,
+    usuario_id, campos_extra, creada_en
+  )
+  select v_emp, v_suc, s.recurso_id, s.personal_id, s.item_id,
+         c.id, cl.razon_social, 1, v_cuando, s.duracion, 'cumplida',
+         v_user, '{"demo": true}'::jsonb, c.alta + time '11:00'
+    from clientes cl where cl.id = c.id;
+
+  perform pg_temp.venta_demo(
+    v_emp, v_suc, v_user, c.id, s.item_id, s.nombre, s.precio,
+    v_cuando + interval '50 minutes',
+    (select id from sesiones_caja where empresa_id = v_emp and abierta_en::date = c.alta + 3 limit 1),
+    'efectivo', v_pv || '-' || lpad(v_num::text, 8, '0'), true);
 end loop;
 
 raise notice 'Almha: agenda y ventas de 120 días.';
