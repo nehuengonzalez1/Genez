@@ -39,6 +39,7 @@ import { Finanzas } from "../modulos/Finanzas.jsx";
 import { Servicios } from "../modulos/Servicios.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
+import { Informes } from "../modulos/Informes.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
@@ -73,6 +74,10 @@ const MODULOS = [
   { k: "finanzas", n: "Finanzas", d: "Caja, ingresos, egresos y sueldos" },
   { k: "servicios", n: "Servicios y recursos", d: "Qué se ofrece y dónde se hace" },
   { k: "reportes", n: "Informes", d: "Ventas, márgenes y rubros" },
+  /* Dos informes y no uno con un `if` adentro: el del comercio mira
+     margen por producto y el del negocio de turnos mira ocupación, que no
+     comparten ni una métrica. Misma decisión que Finanzas en 0038. */
+  { k: "informes", n: "Informes", d: "Ingresos, ocupación, asistencia y clientes" },
   { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
 ];
 
@@ -89,7 +94,7 @@ const ROLES = [
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
-    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios", "reportes", "asistente"],
+    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios", "reportes", "informes", "asistente"],
     permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
   },
   {
@@ -1744,6 +1749,7 @@ function Sistema({ sesion, rubro, onSalir, setComercios, tema, setTema }) {
             <Reportes productos={productos} k={k} ir={ir}
               empresaId={empresaId} conPedidos={modulos.includes("comandas")} />
           )}
+          {tab === "informes" && <Informes empresaId={empresaId} />}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
           {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
         </main>

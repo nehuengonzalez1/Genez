@@ -1037,6 +1037,86 @@ if (ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   Ocupación
+
+   El número propio de un negocio de turnos: cuánto de lo que se podía
+   vender se vendió. Se prueba sobre una profesional inventada dentro de
+   una transacción que se descarta, y en una ventana de fechas donde no
+   hay nada cargado: así lo que devuelve la función es solo lo que puso
+   esta prueba y no se mezcla con la historia de ejemplo de Almha.
+   ------------------------------------------------------------ */
+console.log("\nOcupación");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    /* Bien lejos de la agenda sembrada, que llega hasta dos semanas. */
+    const { dia } = await una("select (current_date + 200)::date as dia");
+    const leer = async () => await una(
+      `select ofrecidos::float o, ocupados::float u, lugares::float l, tomados::float t
+         from informe_ocupacion($1, $2, $2) where nombre = 'Profe de prueba'`,
+      [ALMHA.id, dia]);
+
+    const per = await una(
+      `insert into personal (empresa_id, nombre, tipo, especialidad, modalidad, valor)
+       values ($1, 'Profe de prueba', 'profesional', 'Pilates', 'hora', 1000) returning id`,
+      [ALMHA.id]);
+
+    await c.query(
+      `insert into horarios (empresa_id, personal_id, dia, desde, hasta)
+       values ($1, $2, extract(dow from $3::date)::smallint, '09:00', '13:00')`,
+      [ALMHA.id, per.id, dia]);
+
+    const a = await leer();
+    decir(a.o === 240, `las horas ofrecidas salen del horario cargado (${a.o / 60} hs)`);
+    decir(a.u === 0, "sin nada agendado no hay nada ocupado");
+
+    /* Una clase de seis con tres anotados. La clase ocupa la sala una
+       hora, no tres: si se contaran las inscripciones, la ocupación de
+       una profesora y las horas que se le liquidan contarían cosas
+       distintas del mismo día de trabajo. */
+    const clase = await una(
+      `insert into reservas (empresa_id, personal_id, nombre, personas, desde, duracion_min, estado, cupo)
+       values ($1, $2, 'Clase de prueba', 0, $3::date + time '10:00', 60, 'confirmada', 6) returning id`,
+      [ALMHA.id, per.id, dia]);
+
+    for (let i = 0; i < 3; i++) {
+      await c.query(
+        `insert into reservas (empresa_id, personal_id, clase_id, nombre, personas, desde, duracion_min, estado)
+         values ($1, $2, $3, 'Anotada', 1, $4::date + time '10:00', 60, 'confirmada')`,
+        [ALMHA.id, per.id, clase.id, dia]);
+    }
+
+    const b = await leer();
+    decir(b.u === 60, `una clase ocupa una vez y no una por alumno (${b.u} min)`);
+    decir(b.l === 6 && b.t === 3, "los lugares de la clase se cuentan aparte de las horas (3 de 6)");
+
+    /* Un turno cancelado dejó el lugar libre: no ocupa. */
+    await c.query(
+      `insert into reservas (empresa_id, personal_id, nombre, personas, desde, duracion_min, estado)
+       values ($1, $2, 'Se canceló', 1, $3::date + time '12:00', 60, 'cancelada')`,
+      [ALMHA.id, per.id, dia]);
+
+    const d = await leer();
+    decir(d.u === 60, "lo cancelado no ocupa");
+
+    /* Media jornada de ausencia tiene que restar media jornada, no el
+       día entero: por eso la resta es una intersección de intervalos. */
+    await c.query(
+      `insert into excepciones (empresa_id, personal_id, desde, hasta, motivo)
+       values ($1, $2, $3::date + time '09:00', $3::date + time '11:00', 'ausencia')`,
+      [ALMHA.id, per.id, dia]);
+
+    const e = await leer();
+    decir(e.o === 120, `una ausencia resta solo las horas que pisa (${e.o / 60} hs)`);
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from informe_ocupacion($1, current_date - 30, current_date)", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve la ocupación de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
