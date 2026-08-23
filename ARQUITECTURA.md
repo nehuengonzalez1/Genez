@@ -43,6 +43,13 @@ authenticated`, así las políticas se aplican igual que desde el navegador.
 Las demás corren como administrador y **saltean RLS**: sirven para la
 lógica, no para los permisos. Esa diferencia ya dejó pasar un bug.
 
+Cada script deja la base como estaba, y **la bitácora la limpia por fecha**:
+guarda la hora de arranque —la del reloj de la base, no el de Node— y borra
+solo lo que escribió esa corrida. Antes borraba por acción, o entera, y eso
+se llevaba puesto el registro de los tres comercios. Daba igual mientras
+nadie la leyera; desde que la auditoría tiene pantalla, es destruir un dato
+real cada vez que alguien corre las pruebas.
+
 ## El modelo de datos
 
 ### Multiempresa
