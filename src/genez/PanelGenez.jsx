@@ -1801,7 +1801,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             <Reportes productos={productos} k={k} ir={ir}
               empresaId={empresaId} conPedidos={modulos.includes("comandas")} />
           )}
-          {tab === "informes" && <Informes empresaId={empresaId} />}
+          {tab === "informes" && <Informes empresaId={empresaId} ir={ir} />}
           {tab === "crm" && <Crm empresaId={empresaId} rubro={rubro} toast={toast} />}
           {tab === "comunicaciones" && (
             <Comunicaciones empresaId={empresaId} rubro={rubro}

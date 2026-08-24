@@ -128,6 +128,7 @@ declare
   v_ses    uuid;
   v_cli    uuid;
   v_clase  uuid;
+  v_turno  uuid;
   v_abono  uuid;
   v_op     uuid;
 
@@ -586,7 +587,8 @@ for v_off in (v_inicio - v_hoy)..14 loop
     select v_emp, v_suc, s.recurso_id, s.personal_id, s.item_id,
            v_cli, cl.razon_social, 1, v_cuando, s.duracion, v_estado,
            v_user, '{"demo": true}'::jsonb, v_dia - 4 + time '11:00'
-      from clientes cl where cl.id = v_cli;
+      from clientes cl where cl.id = v_cli
+    returning id into v_turno;
 
     /* Un turno cumplido se cobra. Uno de cada ocho queda sin cobrar: es la
        cuenta corriente que después hay que ir a buscar, y si la semilla no
@@ -595,9 +597,21 @@ for v_off in (v_inicio - v_hoy)..14 loop
       v_num := v_num + 1;
       v_cobrada := random() >= 0.12;
       v_medio := (array['efectivo','efectivo','debito','credito','mp','transferencia'])[1 + floor(random() * 6)::int];
-      perform pg_temp.venta_demo(v_emp, v_suc, v_user, v_cli, s.item_id, s.nombre, s.precio,
+      v_op := pg_temp.venta_demo(v_emp, v_suc, v_user, v_cli, s.item_id, s.nombre, s.precio,
                                  v_cuando + interval '50 minutes', v_ses, v_medio,
                                  v_pv || '-' || lpad(v_num::text, 8, '0'), v_cobrada);
+
+      /* El turno queda apuntando a la venta que lo cobró. `reservas`
+         tiene la columna desde 0024 y hasta ahora nadie la escribía,
+         porque cobrar un turno todavía no existe como pantalla: el único
+         cobro del sistema es el del mostrador.
+
+         Sin este vínculo no hay forma de saber qué plata entró por qué
+         turno, y por lo tanto tampoco cuánto factura cada profesional.
+         Es el mismo dato que va a necesitar la modalidad de pago por
+         comisión. Cuando exista la pantalla de cobro, lo único que tiene
+         que hacer es escribir esto. */
+      update reservas set operacion_id = v_op where id = v_turno;
     end if;
   end loop;
 

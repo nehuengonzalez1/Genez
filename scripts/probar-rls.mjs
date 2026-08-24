@@ -1398,6 +1398,95 @@ console.log("\nPermisos configurables");
   });
 }
 
+/* ------------------------------------------------------------
+   El informe del equipo
+
+   Lo que se prueba es el reparto del abono, que es la única cuenta del
+   informe que no se puede verificar mirando: si un pack de ocho clases
+   se dividiera mal, el número seguiría pareciendo razonable.
+   ------------------------------------------------------------ */
+console.log("\nInforme del equipo");
+
+if (ALMHA) {
+  await comoUsuario(PLATAFORMA, async () => {
+    const dia = (n) => new Date(Date.now() + n * 86400000).toISOString();
+
+    const per = await una(
+      `insert into personal (empresa_id, nombre, tipo, especialidad, modalidad, valor)
+       values ($1, 'Profe del informe', 'profesional', 'Pilates', 'hora', 1000) returning id`,
+      [ALMHA.id]);
+    const otro = await una(
+      `insert into personal (empresa_id, nombre, tipo, modalidad, valor)
+       values ($1, 'Otro profe', 'profesional', 'hora', 1000) returning id`, [ALMHA.id]);
+    const cli = await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Del informe') returning id`, [ALMHA.id]);
+
+    /* Un pack de $8.000 por dos clases. Se usan las dos: $4.000 cada una. */
+    const op = await una(
+      `insert into operaciones (id, empresa_id, tipo, estado, total, subtotal, fecha)
+       values (gen_random_uuid(), $1, 'venta', 'confirmada', 8000, 8000, now()) returning id`,
+      [ALMHA.id]);
+    const ab = await una(
+      `insert into abonos (empresa_id, cliente_id, operacion_id, nombre, clases, desde)
+       values ($1, $2, $3, 'Pack de prueba', 2, current_date - 1) returning id`,
+      [ALMHA.id, cli.id, op.id]);
+
+    const clase = (await una(
+      `insert into reservas (empresa_id, personal_id, nombre, personas, desde, duracion_min, estado, cupo)
+       values ($1, $2, 'Clase del informe', 0, $3, 60, 'cumplida', 6) returning id`,
+      [ALMHA.id, per.id, dia(-1)])).id;
+
+    for (let i = 0; i < 2; i++) {
+      await c.query(
+        `insert into reservas (empresa_id, personal_id, clase_id, cliente_id, abono_id, nombre, personas, desde, duracion_min, estado)
+         values ($1, $2, $3, $4, $5, 'Del informe', 1, $6, 60, 'cumplida')`,
+        [ALMHA.id, per.id, clase, cli.id, ab.id, dia(-1)]);
+    }
+
+    const leer = async (filtros) => await una(
+      `select turnos, cumplidos, clases, directo::float d, por_abono::float a
+         from informe_equipo($1, current_date - 2, current_date, $2::jsonb)
+        where personal_id = $3`,
+      [ALMHA.id, JSON.stringify(filtros || {}), per.id]);
+
+    const r = await leer();
+    decir(Number(r.a) === 8000, `el abono se reparte entre las clases que se usaron (${r.a})`);
+    decir(Number(r.d) === 0, "sin cobro directo, no inventa ingreso");
+    decir(Number(r.turnos) === 2 && Number(r.clases) === 1,
+      "cuenta dos personas atendidas en una sola clase dictada");
+
+    /* Un turno suelto cobrado sí suma derecho. */
+    const op2 = await una(
+      `insert into operaciones (id, empresa_id, tipo, estado, total, subtotal, fecha)
+       values (gen_random_uuid(), $1, 'venta', 'confirmada', 5000, 5000, now()) returning id`,
+      [ALMHA.id]);
+    await c.query(
+      `insert into reservas (empresa_id, personal_id, cliente_id, operacion_id, nombre, personas, desde, duracion_min, estado)
+       values ($1, $2, $3, $4, 'Del informe', 1, $5, 60, 'cumplida')`,
+      [ALMHA.id, per.id, cli.id, op2.id, dia(-1)]);
+
+    const r2 = await leer();
+    decir(Number(r2.d) === 5000, "el turno cobrado suma su venta al profesional que lo dio");
+
+    /* Y filtrando por otra persona, este no aparece. */
+    const filtrado = await una(
+      `select count(*)::int n from informe_equipo($1, current_date - 2, current_date, $2::jsonb)`,
+      [ALMHA.id, JSON.stringify({ personal: otro.id })]);
+    decir(filtrado.n === 1, "el filtro por profesional deja solo a esa persona");
+
+    const ocu = await una(
+      `select count(*)::int n from informe_ocupacion($1, current_date - 2, current_date, $2::jsonb)
+        where ambito = 'profesional'`,
+      [ALMHA.id, JSON.stringify({ personal: per.id })]);
+    decir(ocu.n === 1, "la ocupación acepta el mismo filtro");
+  });
+
+  await comoUsuario(MOZO, async () => {
+    const v = await una("select count(*)::int n from informe_equipo($1, current_date - 30, current_date)", [ALMHA.id]);
+    decir(v.n === 0, "un comercio no ve el equipo de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
