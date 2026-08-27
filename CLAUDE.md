@@ -120,8 +120,14 @@ luz. Fuera de eso, refrescar pierde lo que esté en memoria.
 contrató** (`comercio.modulos`) y los que el **rol** habilita. Un módulo no
 contratado no lo ve ni el dueño. `MODULOS_BASE` (cobro, caja, ajustes) no se puede
 desactivar. Las banderas finas (`verCostos`, `descuentos`, `anular`, `cerrarCaja`,
-`cambiarPrecios`, `ajustes`, `verBitacora`, `configurar`) viajan como `permisos`
-hasta los componentes.
+`cambiarPrecios`, `ajustes`, `verBitacora`, `configurar`, `darAccesos`) viajan
+como `permisos` hasta los componentes.
+
+Dos reglas de la base que no se pueden romper al tocar permisos: **nadie se
+cambia sus propios permisos** y **nadie otorga una bandera que no tiene**. La
+segunda es de 0049 y es la que hace que apagarle algo a un rol signifique
+algo: sin ella, cualquiera con `configurar` se lo volvía a prender editando su
+propio rol.
 
 **Los roles ya no están en el código.** Salen de `roles_base` (los cuatro de
 fábrica, dato de plataforma) más `roles` (lo que cada comercio cambió). La

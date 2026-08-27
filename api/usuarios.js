@@ -107,24 +107,59 @@ export default async function handler(req, res) {
 
   if (eYo || !yo) return error(res, 403, "No se encontró tu perfil.");
 
-  /* El dueño de plataforma no tiene empresa propia: no puede dar de alta
-     "en su comercio" porque no tiene uno. Entra como el comercio y da el
-     alta desde ahí, que además deja el rastro donde corresponde. */
-  if (!yo.empresa_id) {
-    return error(
-      res,
-      400,
-      "Estás con la sesión de plataforma. Entrá al comercio con \"entrar como\" para dar de alta a alguien."
-    );
-  }
+  /* ------------------------------------------------------------
+     De qué comercio, y si puede
 
-  const { data: puede, error: ePuede } = await suyo.rpc("permiso", { p_clave: "configurar" });
-  if (ePuede) return error(res, 500, "No se pudo verificar el permiso.");
-  if (puede !== true) {
-    return error(res, 403, "No tenés permiso para administrar los accesos de este comercio.");
-  }
+     Dos caminos que no se mezclan.
 
-  const empresaId = yo.empresa_id;
+     El de un comercio: el `empresa_id` sale de su propio perfil y nunca
+     del cuerpo del pedido. Si viniera del cliente, cualquiera con una
+     sesión válida daría de alta un dueño adentro del comercio de otro.
+
+     El de la plataforma: no tiene comercio propio, así que este es el
+     único caso donde el `empresaId` llega por parámetro. Existe porque
+     si no, un comercio sin ningún usuario no puede conseguir el primero:
+     para dar de alta hay que estar adentro, y adentro no hay nadie. Ese
+     arranque lo hacía una semilla por SQL.
+
+     Y ojo: "entrar como" no sirve para esto. Cambia lo que se dibuja en
+     pantalla y no el token, así que el perfil sigue teniendo
+     `empresa_id` en null. El mensaje de error decía lo contrario y
+     mandaba a un callejón sin salida.
+     ------------------------------------------------------------ */
+
+  let empresaId;
+
+  if (yo.es_plataforma) {
+    if (!cuerpo.empresaId) {
+      return error(res, 400, "Falta decir en qué comercio.");
+    }
+    /* Que exista lo contesta la base, no el cliente. La plataforma las ve
+       todas por RLS, así que preguntar con su propia identidad alcanza. */
+    const { data: emp } = await suyo
+      .from("empresas").select("id").eq("id", cuerpo.empresaId).single();
+    if (!emp) return error(res, 404, "Ese comercio no existe.");
+    empresaId = emp.id;
+  } else {
+    if (!yo.empresa_id) {
+      return error(res, 403, "Tu perfil no pertenece a ningún comercio.");
+    }
+    empresaId = yo.empresa_id;
+
+    /* Cambió en 0049: el permiso ya no es `configurar`. Dar un acceso es
+       habilitar a una persona a entrar, y eso es más pesado que cambiar
+       la ficha del negocio; de fábrica lo tenían dueño y encargado por
+       igual y ahora arranca solo en el dueño.
+
+       Se pregunta con la identidad del que llama para que la respuesta
+       salga de las mismas tres capas que usa el resto y no de una copia
+       de la regla escrita acá. */
+    const { data: puede, error: ePuede } = await suyo.rpc("permiso", { p_clave: "darAccesos" });
+    if (ePuede) return error(res, 500, "No se pudo verificar el permiso.");
+    if (puede !== true) {
+      return error(res, 403, "No tenés permiso para dar de alta accesos en este comercio.");
+    }
+  }
 
   /* ------------------------------------------------------------
      Cambiar la clave de alguien que ya existe

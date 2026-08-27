@@ -411,6 +411,40 @@ no existía: `/api/mp/pagos` daba 404 y por eso Ajustes tiene el botón de
 simular un cobro. Para el asistente y Mercado Pago alcanzaba; para dar de
 alta un usuario no, porque es la funcionalidad y no un extra.
 
+**Dar accesos es su propio permiso** (0049). 0048 lo había colgado de
+`configurar` siguiendo el criterio de 0045 §4, y era el criterio mal
+aplicado: cambiar la ficha del negocio y habilitar a una persona a entrar
+no son lo mismo. `darAccesos` arranca verdadero solo en el dueño; un
+comercio que quiera dárselo a su encargado lo prende.
+
+**Y nadie otorga lo que no tiene**, que es lo que hace que eso signifique
+algo. El encargado conserva `configurar`, o sea que edita roles, y podía
+editar **el suyo**: `no_dejarse_afuera` solo miraba que nadie se sacara
+`configurar` y nunca miró lo que alguien se agrega. Verificado contra la
+base antes de escribir la migración: un encargado de fábrica pasaba de
+`ajustes: false` a `true` con un insert. Con eso vivo, apagarle
+`darAccesos` era decorativo. La regla vale para las dos capas editables
+—`roles` y `perfiles.permisos`— porque si valiera para una, la otra es el
+camino de al lado. Revocar no se mira: sacar no escala.
+
+Lo que 0049 **no** cierra, dicho para que no sorprenda: el encargado puede
+editar el rol del dueño y sacarle `darAccesos`. No se agranda, pero
+molesta. Se deja así: el dueño lo vuelve a prender, o le saca `configurar`
+al encargado, que es la decisión que corresponde tomar en pantalla.
+
+**El arranque de un comercio** lo hace la plataforma. Para dar un acceso
+hay que estar adentro, y un comercio recién creado no tiene a nadie
+adentro: ese primer acceso se sembraba por SQL. Es el único caso donde
+`api/usuarios.js` acepta un `empresaId` por parámetro, y solo si quien
+llama es plataforma. Desde adentro de un comercio nunca: si viniera del
+cliente, cualquiera daría de alta un dueño en el comercio de otro.
+
+El panel de plataforma tenía un alta heredada del prototipo que guardaba
+en el estado de React con un id inventado y no tocaba la base. Ahora hace
+el alta de verdad, y la lista quedó de solo lectura: editar el rol o dar
+de baja se hace en el Permisos del comercio, que es donde se ve contra qué
+se está cambiando.
+
 ## Lo que ya funciona y no hay que rehacer
 
 Comandas de salón y mostrador, centro de pedidos con estados reales y

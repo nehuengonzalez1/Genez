@@ -28,7 +28,10 @@ function aComercio(fila) {
     usuarios: (fila.perfiles || []).map((p) => ({
       id: p.id,
       nombre: p.nombre,
-      usuario: p.nombre,
+      /* Antes esto era el nombre otra vez, y el panel lo mostraba dos
+         veces: "Axel Gonzalez / Axel Gonzalez". El correo es con lo que la
+         persona entra, que es el dato que hace falta al lado del rol. */
+      usuario: p.email || "sin correo",
       rol: p.rol,
       activo: p.activo,
     })),
@@ -37,7 +40,7 @@ function aComercio(fila) {
 
 const SELECT_EMPRESA = `
   id, nombre, rubro, plan, modulos, config, activa, creada_en,
-  perfiles ( id, nombre, rol, activo )
+  perfiles ( id, nombre, rol, activo, email )
 `;
 
 /* Arma la sesión a partir del usuario autenticado. Devuelve null si no

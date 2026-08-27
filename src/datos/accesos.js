@@ -116,14 +116,20 @@ async function llamarApi(cuerpo) {
 }
 
 /* `forma` es 'invitar' o 'crear'. La clave solo viaja en el segundo caso
-   y no se guarda en ningún lado de este lado: se manda y se olvida. */
-export async function crearAcceso({ forma, email, nombre, rol, clave }) {
+   y no se guarda en ningún lado de este lado: se manda y se olvida.
+
+   `empresaId` va únicamente cuando llama la plataforma, que no tiene
+   comercio propio del cual sacarlo. Desde adentro de un comercio se
+   manda sin él a propósito: el servidor lo saca del token, y si lo
+   aceptara del cliente cualquiera daría de alta en el comercio de otro. */
+export async function crearAcceso({ forma, email, nombre, rol, clave, empresaId }) {
   return llamarApi({
     accion: forma,
     email,
     nombre,
     rol,
     clave,
+    empresaId,
     /* Adónde vuelve el link de la invitación. Se manda desde acá porque
        el servidor no sabe en qué dominio está corriendo el navegador. */
     redirigirA: `${window.location.origin}/`,
@@ -198,8 +204,9 @@ function traducir(error) {
   const codigos = {
     P0071: "Solo la plataforma puede hacer eso.",
     P0072: "Un acceso no se muda de comercio. Se da de baja acá y de alta allá.",
-    P0073: "No podés cambiarte a vos mismo el rol, los permisos ni darte de baja. Que lo haga otra persona con permiso para configurar.",
-    P0074: "No tenés permiso para administrar los accesos.",
+    P0073: "No podés cambiarte a vos mismo el rol, los permisos ni darte de baja. Que lo haga otra persona con permiso para dar accesos.",
+    P0074: "No tenés permiso para dar accesos.",
+    P0075: "No podés darle a otro un permiso que vos no tenés.",
   };
   if (error && codigos[error.code]) return new Error(codigos[error.code]);
 
