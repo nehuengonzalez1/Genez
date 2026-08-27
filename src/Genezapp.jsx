@@ -156,6 +156,7 @@ export default function App() {
     return envolver(
       <ClaveNueva
         forzado
+        invitado={sesion.invitado}
         imagenFondo={imagenFondo}
         onListo={async () => {
           /* Se relee la sesión en vez de apagar la bandera a mano: la

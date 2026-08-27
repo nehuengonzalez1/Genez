@@ -697,7 +697,7 @@ function FondoHexagonal({ imagen }) {
    clave provisional que el dueño dictó. Cambia el texto y no la pantalla
    porque lo que hay que hacer es lo mismo; lo que cambia es por qué se
    llegó, y eso es una línea, no una pantalla nueva. */
-function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false }) {
+function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitado = false }) {
   const [clave, setClave] = useState("");
   const [repetir, setRepetir] = useState("");
   const [ver, setVer] = useState(false);
@@ -738,9 +738,15 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false }) {
             {forzado ? "Elegí tu contraseña" : "Elegí una contraseña nueva"}
           </h1>
           <p className="text-texto-tenue mt-2 text-sm">
-            {forzado
-              ? "La que te dieron la sabe otra persona. Poné una tuya para seguir. Mínimo 8 caracteres."
-              : "Con esta vas a entrar de ahora en más. Mínimo 8 caracteres."}
+            {/* Tres entradas distintas y no la misma frase para las tres.
+                Al invitado nadie le dio una clave: viene de un link y se la
+                está poniendo por primera vez, así que decirle que "la sabe
+                otra persona" lo dejaría buscando quién. */}
+            {!forzado
+              ? "Con esta vas a entrar de ahora en más. Mínimo 8 caracteres."
+              : invitado
+                ? "Entraste por el link de la invitación. Elegí con qué vas a entrar de ahora en más. Mínimo 8 caracteres."
+                : "La que te dieron la sabe otra persona. Poné una tuya para seguir. Mínimo 8 caracteres."}
           </p>
 
           <div className="mt-8 space-y-5">

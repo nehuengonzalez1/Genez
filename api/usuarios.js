@@ -282,7 +282,17 @@ export default async function handler(req, res) {
     rol,
     es_plataforma: false,
     activo: true,
-    debe_cambiar_clave: accion === "crear",
+    /* Los dos caminos, no solo el de la clave dictada.
+
+       El link de invitación abre sesión sin que la persona haya elegido
+       nunca una contraseña, y la app solo intercepta PASSWORD_RECOVERY:
+       un invitado entraba derecho al sistema y, cuando esa sesión vencía,
+       no podía volver. Marcarlo acá lo manda a la misma pantalla, que es
+       adonde tenía que ir desde el principio.
+
+       No es "cambiar" la clave en el caso del invitado sino ponérsela por
+       primera vez; la pantalla lo dice distinto según de dónde venga. */
+    debe_cambiar_clave: true,
     invitado_en: invitado,
     creado_por: sesion.user.id,
   });

@@ -52,7 +52,7 @@ export async function cargarSesion() {
 
   const { data: perfil, error } = await supabase
     .from("perfiles")
-    .select("id, nombre, rol, es_plataforma, activo, empresa_id, debe_cambiar_clave")
+    .select("id, nombre, rol, es_plataforma, activo, empresa_id, debe_cambiar_clave, invitado_en")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -74,6 +74,10 @@ export async function cargarSesion() {
      tampoco pasa por el login. */
   const debeCambiarClave = !!perfil.debe_cambiar_clave;
 
+  /* De dónde viene condiciona qué se le dice: al invitado nadie le dio
+     una clave, se la está poniendo por primera vez. */
+  const invitado = !!perfil.invitado_en;
+
   const { data: empresa, error: e2 } = await supabase
     .from("empresas")
     .select(SELECT_EMPRESA)
@@ -91,6 +95,7 @@ export async function cargarSesion() {
     nombre: perfil.nombre,
     usuario: user.email,
     debeCambiarClave,
+    invitado,
   };
 }
 
