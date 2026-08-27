@@ -136,8 +136,16 @@ export async function crearAcceso({ forma, email, nombre, rol, clave, empresaId 
   });
 }
 
-export async function ponerClaveProvisional(perfilId, clave) {
-  return llamarApi({ accion: "clave", perfilId, clave });
+/* `empresaId` va siempre, aunque desde adentro de un comercio el servidor
+   lo ignore y use el del token. Lo necesita la sesión de plataforma, que
+   no pertenece a ningún comercio: entrando "como" un comercio la pantalla
+   es la misma pero el token sigue siendo el de plataforma, y sin esto el
+   servidor contesta "falta decir en qué comercio".
+
+   Mandarlo no abre nada: el servidor solo lo mira si quien llama es
+   plataforma, y para un comercio usa el suyo pase lo que pase. */
+export async function ponerClaveProvisional(empresaId, perfilId, clave) {
+  return llamarApi({ accion: "clave", empresaId, perfilId, clave });
 }
 
 /* ------------------------------------------------------------

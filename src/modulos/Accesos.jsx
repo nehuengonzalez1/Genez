@@ -56,7 +56,7 @@ function Interruptor({ activo, onChange, disabled }) {
    El alta
    ------------------------------------------------------------ */
 
-function Alta({ open, onClose, roles, onHecho, toast }) {
+function Alta({ open, onClose, empresaId, roles, onHecho, toast }) {
   const [forma, setForma] = useState("invitar");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
@@ -75,7 +75,7 @@ function Alta({ open, onClose, roles, onHecho, toast }) {
   async function confirmar() {
     setYendo(true);
     try {
-      const r = await crearAcceso({ forma, email, nombre, rol, clave });
+      const r = await crearAcceso({ forma, email, nombre, rol, clave, empresaId });
       toast(r.invitado
         ? `Le mandamos la invitación a ${email}.`
         : `${nombre} ya puede entrar con esa clave.`);
@@ -284,7 +284,7 @@ export function Accesos({ empresaId, roles, toast }) {
 
   async function reponerClave() {
     try {
-      await ponerClaveProvisional(claveDe.id, claveNueva);
+      await ponerClaveProvisional(empresaId, claveDe.id, claveNueva);
       toast(`${claveDe.nombre} entra con esa clave y la tiene que cambiar.`);
       setClaveDe(null); setClaveNueva("");
       await releer();
@@ -376,7 +376,7 @@ export function Accesos({ empresaId, roles, toast }) {
         );
       })}
 
-      <Alta open={abriendo} onClose={() => setAbriendo(false)} roles={roles}
+      <Alta open={abriendo} onClose={() => setAbriendo(false)} empresaId={empresaId} roles={roles}
         onHecho={releer} toast={toast} />
 
       <Modal open={!!claveDe} onClose={() => { setClaveDe(null); setClaveNueva(""); }}>
