@@ -593,7 +593,11 @@ function FondoHexagonal({ imagen }) {
 /* A esta pantalla se llega abriendo el link del correo. Supabase deja una
    sesión temporal que solo sirve para esto: no se muestra el sistema
    hasta que la contraseña quedó cambiada. */
-function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
+/* Sirve a dos entradas distintas: el link de recuperación, y el alta con
+   clave provisional que el dueño dictó. Cambia el texto y no la pantalla
+   porque lo que hay que hacer es lo mismo; lo que cambia es por qué se
+   llegó, y eso es una línea, no una pantalla nueva. */
+function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false }) {
   const [clave, setClave] = useState("");
   const [repetir, setRepetir] = useState("");
   const [ver, setVer] = useState(false);
@@ -630,8 +634,14 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
           <div className="w-12 h-12 rounded-2xl bg-acento flex items-center justify-center">
             <KeyRound size={22} className="text-texto" />
           </div>
-          <h1 className="f-d text-2xl mt-5">Elegí una contraseña nueva</h1>
-          <p className="text-texto-tenue mt-2 text-sm">Con esta vas a entrar de ahora en más. Mínimo 8 caracteres.</p>
+          <h1 className="f-d text-2xl mt-5">
+            {forzado ? "Elegí tu contraseña" : "Elegí una contraseña nueva"}
+          </h1>
+          <p className="text-texto-tenue mt-2 text-sm">
+            {forzado
+              ? "La que te dieron la sabe otra persona. Poné una tuya para seguir. Mínimo 8 caracteres."
+              : "Con esta vas a entrar de ahora en más. Mínimo 8 caracteres."}
+          </p>
 
           <div className="mt-8 space-y-5">
             <label className="block">
@@ -671,7 +681,9 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
 
             <button type="button" onClick={onCancelar}
               className="w-full text-center text-sm text-texto-tenue hover:text-acento-vivo transition-colors">
-              Volver
+              {/* En el alta forzada no hay adónde volver: la única salida
+                  sin poner la clave es irse. */}
+              {forzado ? "Salir" : "Volver"}
             </button>
           </div>
         </div>

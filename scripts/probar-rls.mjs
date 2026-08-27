@@ -1487,6 +1487,167 @@ if (ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   Los accesos
+
+   Esto es lo que antes se "validaba en la aplicación", que es como decir
+   que no se validaba: la política de `perfiles` era un `for all` con
+   `puede_ver`, así que cualquier miembro del comercio podía correr un
+   update sobre su propia fila y ponerse `rol = 'dueno'`. Nunca se notó
+   porque cada comercio tenía un usuario.
+
+   La primera prueba de acá es exactamente ese ataque. Si algún día
+   alguien vuelve a poner un `for all` sobre `perfiles`, esta prueba se
+   pone en rojo y no hay que darse cuenta leyendo.
+
+   Los usuarios de prueba se crean y se tiran adentro de una sola
+   transacción: no queda nada, ni en `auth.users` ni en `perfiles`.
+   ------------------------------------------------------------ */
+console.log("\nAccesos");
+
+{
+  const claims = (id) =>
+    c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: id, role: "authenticated" })]);
+
+  /* Un rechazo aborta la transacción: sin savepoint, todo lo que sigue
+     falla con "transaction is aborted" y la prueba miente. Es la misma
+     precaución que en Permisos configurables. */
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, filas: r.rowCount };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code, filas: 0 };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    /* Como administrador: dos personas en el bar, una que manda y otra
+       que no. `auth.uid()` es null acá, que es el caso de las semillas y
+       el que el disparador deja pasar. */
+    const nuevo = async (email, nombre, rol) => {
+      const u = await una(
+        "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id", [email]);
+      await c.query(
+        "insert into perfiles (id, empresa_id, nombre, rol, email) values ($1, $2, $3, $4, $5)",
+        [u.id, barId, nombre, rol, email]);
+      return u.id;
+    };
+
+    const idCajero = await nuevo("cajero.prueba@genez.test", "Cajero de prueba", "cajero");
+    const idDueno  = await nuevo("dueno.prueba@genez.test",  "Dueño de prueba",  "dueno");
+
+    await c.query("set local role authenticated");
+
+    /* ---- El ataque de antes ---- */
+    await claims(idCajero);
+
+    const ascenso = await intentar(
+      "update perfiles set rol = 'dueno' where id = $1", [idCajero]);
+    decir(ascenso.codigo === "P0073",
+      "un cajero no puede ascenderse a dueño (era el agujero de 0002)");
+
+    const plataforma = await intentar(
+      "update perfiles set es_plataforma = true where id = $1", [idCajero]);
+    decir(plataforma.codigo === "P0071",
+      "ni marcarse como plataforma, que le abriría todos los comercios");
+
+    const excepcion = await intentar(
+      `update perfiles set permisos = '{"configurar": true}'::jsonb where id = $1`, [idCajero]);
+    decir(excepcion.codigo === "P0073",
+      "ni darse una excepción a sí mismo por la puerta de al lado");
+
+    /* Sobre otro no hay error: la política simplemente no encuentra la
+       fila. Es la trampa que este archivo explica arriba de todo. */
+    const aOtro = await intentar(
+      "update perfiles set rol = 'cajero' where id = $1", [idDueno]);
+    decir(aOtro.codigo === null && aOtro.filas === 0,
+      "no puede tocarle el rol a otro: la política no le encuentra la fila");
+
+    const alta = await intentar(
+      `insert into perfiles (id, empresa_id, nombre, rol)
+       values (gen_random_uuid(), $1, 'Colado', 'dueno')`, [barId]);
+    decir(alta.codigo === "42501", "ni dar de alta a nadie");
+
+    /* Lo que sí puede: su propio nombre. Sin esto, alguien sin
+       `configurar` no puede corregirse una falta de ortografía. */
+    const nombre = await intentar(
+      "update perfiles set nombre = 'Cajero corregido' where id = $1", [idCajero]);
+    decir(nombre.codigo === null && nombre.filas === 1,
+      "pero sí corregirse el propio nombre");
+
+    /* ---- Lo que puede el que administra ---- */
+    await claims(idDueno);
+
+    const propio = await intentar(
+      "update perfiles set rol = 'cajero' where id = $1", [idDueno]);
+    decir(propio.codigo === "P0073",
+      "el dueño tampoco se cambia el rol a sí mismo: se quedaría afuera");
+
+    const propiaBaja = await intentar(
+      "update perfiles set activo = false where id = $1", [idDueno]);
+    decir(propiaBaja.codigo === "P0073", "ni se da de baja solo");
+
+    const ajeno = await intentar(
+      "update perfiles set rol = 'encargado' where id = $1", [idCajero]);
+    decir(ajeno.codigo === null && ajeno.filas === 1,
+      "a otro sí le cambia el rol, que es el punto del módulo");
+
+    /* ---- La tercera capa ---- */
+    await c.query("update perfiles set rol = 'cajero' where id = $1", [idCajero]);
+
+    const deFabrica = await una(
+      "select (permisos ->> 'cerrarCaja')::boolean b from roles_base where clave = 'cajero'");
+    decir(deFabrica.b === false, "de fábrica un cajero no cierra la caja");
+
+    await c.query(
+      `update perfiles set permisos = '{"cerrarCaja": true}'::jsonb where id = $1`, [idCajero]);
+    const conExcepcion = await una(
+      "select (public.permisos_de($1) ->> 'cerrarCaja')::boolean b", [idCajero]);
+    decir(conExcepcion.b === true,
+      "una excepción por persona le gana al rol, sin inventar un rol nuevo");
+
+    /* Y la excepción es la diferencia, no la foto: lo que no se tocó
+       sigue saliendo del rol. Es lo que hace que una corrección futura
+       del rol llegue igual a quien tiene una excepción sobre otra cosa. */
+    const loDemas = await una(
+      "select (public.permisos_de($1) ->> 'verCostos')::boolean b", [idCajero]);
+    const rolDice = await una(
+      "select (permisos ->> 'verCostos')::boolean b from roles_base where clave = 'cajero'");
+    decir(loDemas.b === rolDice.b,
+      "y lo que no se tocó lo sigue diciendo el rol");
+
+    /* ---- La baja ---- */
+    await c.query("update perfiles set activo = false where id = $1", [idCajero]);
+    await claims(idCajero);
+    const bajaCierra = await una("select public.permiso('cerrarCaja') b");
+    decir(bajaCierra.b === false,
+      "dado de baja no le queda ningún permiso, ni el de su excepción");
+
+    /* ---- El rastro ---- */
+    await c.query("reset role");
+    const anotado = await una(
+      `select count(*)::int n from bitacora
+        where empresa_id = $1 and accion in ('acceso.crear','acceso.permisos','acceso.baja')`,
+      [barId]);
+    decir(anotado.n >= 3, `las altas, los cambios y la baja quedan en la bitácora (${anotado.n})`);
+  } finally {
+    await c.query("rollback");   // no queda ni el usuario ni el perfil
+  }
+
+  /* El aislamiento de la vista. Va aparte porque los usuarios de arriba
+     ya no existen: acá se mira con los reales. */
+  await comoUsuario(CAJERO, async () => {
+    const v = await una("select count(*)::int n from accesos where empresa_id = $1", [barId]);
+    decir(v.n === 0, "un comercio no ve los accesos de otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

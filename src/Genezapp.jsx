@@ -147,6 +147,35 @@ export default function App() {
     );
   }
 
+  /* Entró con la clave provisional que le dictó el dueño, así que esa
+     clave la sabe otra persona. No se le muestra nada del sistema hasta
+     que ponga una suya. Va después del login y antes de todo lo demás:
+     cualquier pantalla que se dibuje acá es una pantalla que vio alguien
+     con una credencial compartida. */
+  if (sesion.debeCambiarClave) {
+    return envolver(
+      <ClaveNueva
+        forzado
+        imagenFondo={imagenFondo}
+        onListo={async () => {
+          /* Se relee la sesión en vez de apagar la bandera a mano: la
+             marca la apaga la base, y leerla de nuevo es lo que confirma
+             que quedó apagada de verdad. */
+          setIniciando(true);
+          try {
+            setSesion(await cargarSesion());
+          } catch (e) {
+            await cerrarSesion();
+            setErrorInicio(e.message || "No pudimos abrir tu sesión.");
+          } finally {
+            setIniciando(false);
+          }
+        }}
+        onCancelar={cerrarSesion}
+      />
+    );
+  }
+
   if (sesion.tipo === "plataforma" && !sesion.viendo) {
     return envolver(
       <PanelGenez

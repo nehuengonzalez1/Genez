@@ -49,7 +49,7 @@ export async function cargarSesion() {
 
   const { data: perfil, error } = await supabase
     .from("perfiles")
-    .select("id, nombre, rol, es_plataforma, activo, empresa_id")
+    .select("id, nombre, rol, es_plataforma, activo, empresa_id, debe_cambiar_clave")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -64,6 +64,12 @@ export async function cargarSesion() {
   if (perfil.es_plataforma) {
     return { tipo: "plataforma", nombre: perfil.nombre, usuario: user.email };
   }
+
+  /* Alta con clave provisional: el dueño se la dictó, así que la sabe otra
+     persona. Hasta que la cambie no se le muestra el sistema. Va acá y no
+     en la pantalla de login porque el que entra por un link de invitación
+     tampoco pasa por el login. */
+  const debeCambiarClave = !!perfil.debe_cambiar_clave;
 
   const { data: empresa, error: e2 } = await supabase
     .from("empresas")
@@ -81,6 +87,7 @@ export async function cargarSesion() {
     rol: perfil.rol,
     nombre: perfil.nombre,
     usuario: user.email,
+    debeCambiarClave,
   };
 }
 
@@ -146,6 +153,16 @@ export async function cambiarClave(nueva) {
       throw new Error("El link venció o ya se usó. Pedí uno nuevo.");
     }
     throw new Error(error.message);
+  }
+
+  /* Se apaga la marca de clave provisional: desde acá la clave la sabe
+     una sola persona. Vale para los dos caminos —el link de recuperación
+     y el alta con clave dictada— porque en los dos la eligió quien entra.
+     El fallo no se propaga: la clave ya cambió, y dejar entrar a alguien
+     que puso su clave es mejor que trabarlo por un update. */
+  const { data } = await supabase.auth.getUser();
+  if (data && data.user) {
+    await supabase.from("perfiles").update({ debe_cambiar_clave: false }).eq("id", data.user.id);
   }
 }
 

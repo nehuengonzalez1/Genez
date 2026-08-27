@@ -357,6 +357,60 @@ auditar.
 `bitacora` existía desde 0007 y nunca había tenido pantalla: se escribía
 y no la leía nadie. La pestaña de Auditoría es esa lectura.
 
+## Los accesos
+
+Migración 0048. Es la otra mitad de Permisos: ahí se define qué puede un
+rol, acá quién entra y con cuál. Hasta 0048 los usuarios se creaban a mano
+con SQL, y por eso cada comercio tenía uno solo.
+
+**Lo primero que hizo 0048 fue tapar un agujero, no agregar una función.**
+La política de `perfiles` era `for all using (puede_ver(empresa_id))`, y
+`puede_ver` da verdadero para cualquier miembro del comercio: un cajero
+podía correr un update sobre su propia fila y ponerse `rol = 'dueno'`. El
+comentario de 0002 lo decía —"alta y baja de accesos las hace la plataforma
+o el dueño, y eso se valida en la aplicación"—, que es exactamente lo que
+la regla 1 prohíbe. No se notaba porque no había un segundo usuario. La
+primera prueba de la sección "Accesos" de `probar-rls.mjs` es ese ataque.
+
+**Tres capas de permisos, no dos:** `roles_base` (fábrica) → `roles` (lo
+que el comercio cambió) → `perfiles.permisos` (la excepción de una
+persona). La tercera se guarda como diferencia, igual que la segunda y por
+la misma razón: el día que se corrija un valor de fábrica, quien tenga una
+excepción sobre otra bandera se lleva igual la corrección. Existe porque el
+caso obliga a inventar roles: al cajero de la tarde se le da cerrar caja y
+a los otros tres no.
+
+**La política no alcanza sola.** Decide sobre la fila; hay tres cosas que
+son sobre el cambio y van en `cuidar_el_acceso()`: nadie se toca a sí mismo
+el rol, los permisos ni el alta —el accidente de 0045 §6 por la otra
+puerta—; nadie se marca `es_plataforma` desde adentro de un comercio, que
+es lo más grave porque `puede_ver` le abriría todos los comercios y la fila
+sigue siendo de su empresa; y `empresa_id` no se muda.
+
+**`permiso()` ahora también pide `activo`.** Una persona dada de baja no
+tiene permisos, sin importar su rol ni sus excepciones. Se resuelve en la
+función por la que pasan todas las políticas y no en cada una.
+
+**Crear el usuario en Auth es lo único que pasa por el servidor.**
+`api/usuarios.js`, porque necesita la `service_role` y esa no puede estar
+en el navegador. La función no le cree nada al cliente: el `empresa_id`
+sale de quién mandó el token y `es_plataforma` es false y punto. El permiso
+lo pregunta con la identidad del que llama —abre un segundo cliente con su
+token y ejecuta `permiso('configurar')`— para que la respuesta salga de las
+mismas tres capas y no de una copia de la regla escrita en JavaScript.
+
+Dos caminos de alta, y ninguno es el correcto: **invitación** por correo
+(la persona se pone su clave, nadie más la conoce; necesita SMTP propio,
+el de fábrica de Supabase manda dos o tres por hora) y **clave
+provisional** (el dueño se la dicta, sirve para un cajero sin correo).
+La segunda marca `debe_cambiar_clave` y `Genezapp` no muestra nada del
+sistema hasta que la cambie.
+
+En desarrollo `api/` lo sirve un middleware de `vite.config.js`, que antes
+no existía: `/api/mp/pagos` daba 404 y por eso Ajustes tiene el botón de
+simular un cobro. Para el asistente y Mercado Pago alcanzaba; para dar de
+alta un usuario no, porque es la funcionalidad y no un extra.
+
 ## Lo que ya funciona y no hay que rehacer
 
 Comandas de salón y mostrador, centro de pedidos con estados reales y
@@ -364,7 +418,8 @@ tiempo real, cocina agrupada por pedido, despacho incremental, descuento
 por porcentaje o importe, comensales, pre cuenta, plano de mesas
 configurable, juntar y separar mesas, cobro con caja obligatoria, venta
 sin internet con cola y reintento, numeración correlativa por punto de
-venta, bitácora automática.
+venta, bitácora automática, alta de accesos por el propio comercio con
+excepciones por persona.
 
 ## Datos para desarrollar
 

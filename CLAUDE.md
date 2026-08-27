@@ -51,10 +51,16 @@ diferencia importa.
 
 Para probar a mano hay que loguearse con un usuario real de Supabase Auth. Los
 perfiles los crean `supabase/migrations/0003_semilla.sql` y
-`supabase/seed/gastronomia_usuario.sql`, pero los usuarios en sí se crean a mano en
-Authentication → Users (con "Auto Confirm User"): `nehuengonzalez1@gmail.com` es el
-dueño de plataforma, `axel@super25.com` el de Super 25, `mozo@rivadavia.com` el del
-bar. Las contraseñas no están en el repositorio.
+`supabase/seed/gastronomia_usuario.sql`, pero esos usuarios **de arranque** se
+crean a mano en Authentication → Users (con "Auto Confirm User"):
+`nehuengonzalez1@gmail.com` es el dueño de plataforma, `axel@super25.com` el de
+Super 25, `mozo@rivadavia.com` el del bar. Las contraseñas no están en el
+repositorio.
+
+Los de después ya no: desde la migración 0048, cada comercio da de alta a su
+gente desde Permisos → Personas. Eso necesita `SUPABASE_SERVICE_ROLE_KEY` en el
+entorno del servidor —nunca en el navegador— y sin ella el sistema funciona
+igual: lo único que no anda es crear accesos.
 
 Las variables de entorno están explicadas en `.env.example`. Solo las dos `VITE_*`
 viajan al navegador; el resto es de servidor y de scripts.
@@ -121,6 +127,13 @@ hasta los componentes.
 fábrica, dato de plataforma) más `roles` (lo que cada comercio cambió). La
 constante `ROLES` de `PanelGenez.jsx` sigue existiendo pero solo como respaldo,
 por si la consulta no llegó. Se editan desde el módulo Permisos.
+
+**Y hay una tercera capa: `perfiles.permisos`**, la excepción de una persona
+sobre su rol. Las tres se fusionan en `permisos_de()`, de lo general a lo
+puntual, y las tres guardan la diferencia y no la foto. El comercio da de
+alta a su gente desde Permisos → Personas; crear el usuario en Auth es lo
+único que pasa por el servidor (`api/usuarios.js`, necesita la
+`service_role`). Ver la sección "Los accesos" de `ARQUITECTURA.md`.
 
 Al agregar un módulo nuevo hay que tocar `MODULOS`, el `menu` del rubro en la
 base, el arreglo `modulos` del rol en `roles_base` si corresponde, y el switch de
