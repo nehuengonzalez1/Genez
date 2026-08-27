@@ -5,7 +5,8 @@
 import React, { useState, useMemo } from "react";
 import { Send, Loader2, Sparkles, ArrowRight } from "lucide-react";
 import { fdatel, HOY } from "../datos/generador.js";
-import { API_BASE, API_MODELO, pct, money, nf } from "../utils/helpers.js";
+import { pct, money, nf } from "../utils/helpers.js";
+import { preguntarAlModelo } from "../datos/modelo.js";
 import { SEV, Card, Boton } from "../ui/Base.jsx";
 
 export function Asistente({ k, ins, ir, negocio }) {
@@ -42,21 +43,18 @@ export function Asistente({ k, ins, ir, negocio }) {
     setMsgs((m) => [...m, { rol: "user", texto: t }]);
     setQ(""); setCargando(true);
     try {
-      const r = await fetch(`${API_BASE}/v1/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: API_MODELO,
-          max_tokens: 1000,
-          system: "Sos el asistente de gestión de un minimercado argentino. Respondés en español rioplatense, en tono claro y directo, sin tecnicismos ni jerga contable. Usás SOLO los datos del negocio que te paso en JSON: no inventes números. Estructurá siempre así: qué pasó, por qué, y qué hacer concretamente. Máximo 180 palabras. Montos en pesos con formato $12.345.",
-          messages: [{ role: "user", content: `Datos del negocio:\n${JSON.stringify(snapshot)}\n\nPregunta del dueño: ${t}` }],
-        }),
+      const txt = await preguntarAlModelo({
+        system: "Sos el asistente de gestión de un minimercado argentino. Respondés en español rioplatense, en tono claro y directo, sin tecnicismos ni jerga contable. Usás SOLO los datos del negocio que te paso en JSON: no inventes números. Estructurá siempre así: qué pasó, por qué, y qué hacer concretamente. Máximo 180 palabras. Montos en pesos con formato $12.345.",
+        mensajes: [{ role: "user", content: `Datos del negocio:\n${JSON.stringify(snapshot)}\n\nPregunta del dueño: ${t}` }],
       });
-      const data = await r.json();
-      const txt = (data.content || []).map((c) => c.text || "").join("\n").trim();
       setMsgs((m) => [...m, { rol: "ia", texto: txt || "No pude generar la respuesta." }]);
     } catch (e) {
-      setMsgs((m) => [...m, { rol: "ia", texto: "No pude conectarme al modelo. Revisá la API key en el archivo .env (o usá la app en Claude). Los diagnósticos de arriba se calculan sobre tus datos y funcionan sin conexión." }]);
+      /* El mensaje del servidor cuando lo hay: "falta la API key" y "se
+         venció la sesión" se arreglan distinto, y antes las dos decían lo
+         mismo. El cierre no cambia: los diagnósticos siguen andando sin
+         modelo, y eso es lo que hay que dejar dicho. */
+      setMsgs((m) => [...m, { rol: "ia", texto:
+        `${e.message || "No pude conectarme al modelo."} Los diagnósticos de arriba se calculan sobre tus datos y funcionan sin conexión.` }]);
     }
     setCargando(false);
   };

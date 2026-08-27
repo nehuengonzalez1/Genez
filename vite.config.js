@@ -28,12 +28,23 @@ function servirApi() {
           const ruta = (req.url || "").split("?")[0];
           if (!ruta.startsWith("/api/")) return next();
 
-          /* El asistente lo atiende el proxy de abajo, que además le
-             agrega la credencial. */
-          if (ruta.startsWith("/api/anthropic")) return next();
+          /* Los que empiezan con guión bajo son módulos, no endpoints. Es la
+             misma regla que aplica Vercel. */
+          if (ruta.split("/").pop().startsWith("_")) return next();
 
-          const archivo = resolve(process.cwd(), "." + ruta + ".js");
-          if (!existsSync(archivo)) return next();
+          /* Vercel resuelve /api/anthropic/v1/messages con el rewrite de
+             vercel.json. Acá se hace lo mismo a mano: si la ruta exacta no
+             existe, se va acortando hasta encontrar el archivo que la
+             atiende. Sin esto, el asistente andaría distinto en desarrollo
+             que en produccion, que es justo lo que este middleware vino a
+             terminar. */
+          let base = ruta;
+          while (base.length > 5 && !existsSync(resolve(process.cwd(), "." + base + ".js"))) {
+            base = base.slice(0, base.lastIndexOf("/"));
+          }
+
+          const archivo = resolve(process.cwd(), "." + base + ".js");
+          if (base.length <= 5 || !existsSync(archivo)) return next();
 
           try {
             const crudo = await new Promise((ok, mal) => {
@@ -54,7 +65,7 @@ function servirApi() {
               return res;
             };
 
-            const modulo = await server.ssrLoadModule("." + ruta + ".js");
+            const modulo = await server.ssrLoadModule("." + base + ".js");
             await modulo.default(req, res);
           } catch (e) {
             server.config.logger.error(`api${ruta}: ${e.message}`);
@@ -70,9 +81,15 @@ function servirApi() {
   };
 }
 
-// El navegador no puede llamar a la API de Anthropic directamente (CORS y,
-// sobre todo, porque la API key no debe viajar al front). El servidor de
-// desarrollo hace de intermediario y agrega la credencial del lado del server.
+/* Acá había un proxy que mandaba /api/anthropic derecho a api.anthropic.com
+   agregándole la credencial. Existía porque en desarrollo no había forma de
+   correr las funciones de api/, y se lo llevó puesto el middleware de arriba,
+   que sí las corre.
+
+   No es solo simplificar. Ese proxy se salteaba api/anthropic.js entero, o
+   sea que la validación de sesión que la función hace existía únicamente en
+   producción: se probaba desplegando. Ahora los dos entornos entran por el
+   mismo archivo y lo que se prueba local es lo que va a correr publicado. */
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
@@ -83,6 +100,7 @@ export default defineConfig(({ mode }) => {
     "SUPABASE_SERVICE_ROLE_KEY",
     "VITE_SUPABASE_URL",
     "VITE_SUPABASE_ANON_KEY",
+    "ANTHROPIC_API_KEY",
     "MP_ACCESS_TOKEN",
   ]) {
     if (env[clave] && !process.env[clave]) process.env[clave] = env[clave];
@@ -93,21 +111,6 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       open: true,
-      proxy: {
-        "/api/anthropic": {
-          target: "https://api.anthropic.com",
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/api\/anthropic/, ""),
-          configure: (proxy) => {
-            proxy.on("proxyReq", (proxyReq) => {
-              if (env.ANTHROPIC_API_KEY) {
-                proxyReq.setHeader("x-api-key", env.ANTHROPIC_API_KEY);
-                proxyReq.setHeader("anthropic-version", "2023-06-01");
-              }
-            });
-          },
-        },
-      },
     },
   };
 });

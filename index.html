@@ -7,7 +7,10 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Genez · Sistema de gestión</title>
     <script>
-      // Se usa el proxy del servidor de desarrollo para el asistente.
+      // Una ruta del propio sitio, no la API de Anthropic: la atiende
+      // api/anthropic.js, que es donde vive la credencial. En desarrollo la
+      // sirve el middleware de vite.config.js y en producción el rewrite de
+      // vercel.json, pero es el mismo archivo en los dos.
       window.__API_BASE__ = "/api/anthropic";
       window.__API_MODELO__ = "claude-sonnet-5";
     </script>

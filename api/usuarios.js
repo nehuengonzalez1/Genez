@@ -36,6 +36,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { origenValido } from "./_comun.js";
 
 const ACCIONES = ["invitar", "crear", "clave"];
 const CLAVE_MINIMA = 8;
@@ -48,10 +49,10 @@ export default async function handler(req, res) {
     return error(res, 405, "Solo se aceptan peticiones POST.");
   }
 
-  // Solo desde el propio sitio, igual que el proxy del asistente.
-  const origen = req.headers.origin;
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  if (origen && host && !origen.endsWith(host)) {
+  /* Segunda línea y no la única: acá lo que protege es el token de abajo,
+     con su permiso. El chequeo de origen frena a un navegador ajeno y a un
+     script no lo frena nadie, porque `Origin` lo pone el navegador. */
+  if (!origenValido(req)) {
     return error(res, 403, "Origen no autorizado.");
   }
 

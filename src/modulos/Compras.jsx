@@ -10,13 +10,14 @@ import {
 } from "lucide-react";
 import { uid, HOY, addDays, fdatel } from "../datos/generador.js";
 import {
-  money, moneyk, nf, pct, hora, API_BASE, API_MODELO, esCantidad, aNumero,
+  money, moneyk, nf, pct, hora, esCantidad, aNumero,
   precioAplicado, mediosDe, productoNuevo, faltantesProveedor
 } from "../utils/helpers.js";
 import {
   useScanHandler, beep, Comandera, Kpi, Card, Modal, Boton, Vacio, Tabs,
   imprimirComandera, comandaPicking, TablaSimple
 } from "../ui/Base.jsx";
+import { preguntarAlModelo } from "../datos/modelo.js";
 import { EscanerCamara, TicketModal, FormProveedor } from "./Vender.jsx";
 import { palabras, emparejar } from "./Stock.jsx";
 
@@ -88,20 +89,15 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
         r.onerror = () => rej(new Error("No se pudo leer el archivo"));
         r.readAsDataURL(file);
       });
-      const r = await fetch(`${API_BASE}/v1/messages`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: API_MODELO, max_tokens: 2000,
-          system: "Leés remitos y facturas de compra de comercios argentinos y devolvés únicamente JSON válido, sin markdown ni explicaciones. Nunca inventás renglones: si algo no se lee, ponés null.",
-          messages: [{ role: "user", content: [
-            { type: "image", source: { type: "base64", media_type: file.type, data: b64 } },
-            { type: "text", text: 'Devolvé exactamente este formato: {"proveedor": string|null, "cuit": string|null, "comprobante": string|null, "items": [{"descripcion": string, "codigo": string|null, "cantidad": number, "costoUnitario": number|null}]}. costoUnitario es el precio unitario de compra tal como figura. Si el remito no trae precios, dejá costoUnitario en null.' },
-          ] }],
-        }),
+      const crudo = await preguntarAlModelo({
+        maxTokens: 2000,
+        system: "Leés remitos y facturas de compra de comercios argentinos y devolvés únicamente JSON válido, sin markdown ni explicaciones. Nunca inventás renglones: si algo no se lee, ponés null.",
+        mensajes: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: file.type, data: b64 } },
+          { type: "text", text: 'Devolvé exactamente este formato: {"proveedor": string|null, "cuit": string|null, "comprobante": string|null, "items": [{"descripcion": string, "codigo": string|null, "cantidad": number, "costoUnitario": number|null}]}. costoUnitario es el precio unitario de compra tal como figura. Si el remito no trae precios, dejá costoUnitario en null.' },
+        ] }],
       });
-      const data = await r.json();
-      if (data.error) throw new Error(data.error.message || "Error de la API");
-      const txt = (data.content || []).map((c) => c.text || "").join("").trim().replace(/```json|```/g, "").trim();
+      const txt = crudo.replace(/```json|```/g, "").trim();
       const leido = JSON.parse(txt);
       const items = Array.isArray(leido.items) ? leido.items : [];
       if (!items.length) throw new Error("No se reconoció ningún renglón en la foto.");
