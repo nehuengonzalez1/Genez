@@ -11,7 +11,8 @@ import {
   Heart, MessageSquare
 } from "lucide-react";
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
-import { entrar as autenticar, pedirRecuperacion, cambiarClave } from "../datos/sesion.js";
+import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios } from "../datos/sesion.js";
+import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
@@ -147,33 +148,83 @@ function permisosDe(sesion, roles = null) {
   };
 }
 
-/* Muestra el alcance de fábrica del rol y no el que el comercio pueda
-   haber editado: esto vive en el panel de plataforma, que administra
-   muchos comercios a la vez y no tiene uno solo del que leer. Lo que el
-   comercio cambió se ve en su propia pantalla de Permisos. */
-function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar }) {
+/* El alta de la plataforma. Existe por un hueco concreto: para dar un
+   acceso hay que estar adentro del comercio, y un comercio recién creado
+   no tiene a nadie adentro. Ese primer acceso se sembraba por SQL.
+
+   Lo que había acá antes era del prototipo: guardaba en el estado de
+   React con un id inventado y no tocaba la base. El usuario de plataforma
+   creía que había dado un alta y no existía; se perdía al refrescar.
+
+   Muestra el alcance de fábrica del rol y no el que el comercio pueda
+   haber editado: esto administra muchos comercios a la vez y no tiene uno
+   solo del que leer. Lo que el comercio cambió se ve en su Permisos. */
+function FormAcceso({ abierto, comercio, onCerrar, onHecho }) {
   const [d, setD] = useState({});
-  useEffect(() => { if (abierto) setD({ rol: "cajero", ...(inicial || {}) }); }, [abierto, inicial]);
+  const [forma, setForma] = useState("invitar");
+  const [yendo, setYendo] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (abierto) { setD({ rol: "dueno" }); setForma("invitar"); setYendo(false); setError(""); }
+  }, [abierto]);
+
   if (!abierto) return null;
+
   const rol = rolPorK(d.rol);
-  const alcance = rol.modulos === "todos" ? modulosComercio : modulosComercio.filter((k) => rol.modulos.includes(k));
+  const modulosComercio = comercio ? comercio.modulos : [];
+  const alcance = rol.modulos === "todos"
+    ? modulosComercio
+    : modulosComercio.filter((k) => rol.modulos.includes(k));
+
+  /* El primero de un comercio va como dueño y no como cajero: si no,
+     nadie puede dar el segundo y el comercio queda igual de trabado. */
+  const esElPrimero = !comercio || comercio.usuarios.length === 0;
+
+  const listo = (d.nombre || "").trim() && (d.email || "").includes("@") &&
+    (forma === "invitar" || (d.clave || "").length >= 8);
+
+  async function guardar() {
+    setYendo(true);
+    setError("");
+    try {
+      await crearAcceso({
+        forma,
+        email: d.email,
+        nombre: d.nombre,
+        rol: d.rol,
+        clave: d.clave,
+        empresaId: comercio.id,
+      });
+      await onHecho();
+      onCerrar();
+    } catch (e) {
+      setError(e.message || "No se pudo dar el alta.");
+      setYendo(false);
+    }
+  }
 
   return (
     <Modal open onClose={onCerrar} ancho="max-w-lg">
       <div className="p-5">
-        <h3 className="f-d text-lg">{d.id ? "Editar acceso" : "Nuevo acceso"}</h3>
+        <h3 className="f-d text-lg">Nuevo acceso</h3>
+        <p className="text-sm text-texto-suave mt-1">
+          {esElPrimero
+            ? `${comercio.nombre} todavía no tiene a nadie. Este primer acceso lo das vos; los que siguen los da el comercio desde Permisos.`
+            : `Se suma a los ${comercio.usuarios.length} que ya tiene ${comercio.nombre}.`}
+        </p>
+
         <div className="space-y-3 mt-4">
           <Campo label="Nombre de la persona">
-            <input value={d.nombre || ""} onChange={(e) => setD({ ...d, nombre: e.target.value })} autoFocus className={inputCls} />
+            <input value={d.nombre || ""} onChange={(e) => setD({ ...d, nombre: e.target.value })}
+              autoFocus className={inputCls} />
           </Campo>
-          <div className="grid grid-cols-2 gap-3">
-            <Campo label="Usuario">
-              <input value={d.usuario || ""} onChange={(e) => setD({ ...d, usuario: e.target.value.replace(/\s/g, "").toLowerCase() })} className={`${inputCls} f-m`} />
-            </Campo>
-            <Campo label="Contraseña">
-              <input value={d.clave || ""} onChange={(e) => setD({ ...d, clave: e.target.value })} className={`${inputCls} f-m`} />
-            </Campo>
-          </div>
+          <Campo label="Correo">
+            <input type="email" value={d.email || ""}
+              onChange={(e) => setD({ ...d, email: e.target.value.trim().toLowerCase() })}
+              className={`${inputCls} f-m`} placeholder="con el que va a entrar" />
+          </Campo>
+
           <div>
             <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Rol</span>
             <div className="grid sm:grid-cols-2 gap-2 mt-1.5">
@@ -185,7 +236,35 @@ function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar })
                 </button>
               ))}
             </div>
+            {esElPrimero && d.rol !== "dueno" && (
+              <div className="text-[11px] text-ojo mt-1.5">
+                Es el primero del comercio: con un rol que no sea dueño no va a poder dar
+                de alta a nadie más, y vas a tener que volver acá.
+              </div>
+            )}
           </div>
+
+          <div>
+            <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">
+              Cómo entra la primera vez
+            </span>
+            <div className="mt-1.5 space-y-2">
+              {FORMAS.map((f) => (
+                <button key={f.k} type="button" onClick={() => setForma(f.k)}
+                  className={`w-full text-left px-3 py-2 rounded-xl border ${forma === f.k ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
+                  <div className="text-sm font-semibold">{f.n}</div>
+                  <div className="text-[11px] text-texto-suave">{f.d}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {forma === "crear" && (
+            <Campo label="Clave provisional">
+              <input value={d.clave || ""} onChange={(e) => setD({ ...d, clave: e.target.value })}
+                className={`${inputCls} f-m`} placeholder="al menos 8 caracteres" />
+            </Campo>
+          )}
         </div>
 
         <div className="mt-4 rounded-xl border border-borde bg-superficie-2 p-3">
@@ -204,9 +283,15 @@ function FormUsuario({ abierto, inicial, modulosComercio, onGuardar, onCerrar })
           </div>
         </div>
 
+        {error && (
+          <div className="mt-3 text-sm text-mal border border-mal rounded-xl px-3 py-2 bg-mal-suave">{error}</div>
+        )}
+
         <div className="flex justify-end gap-2 mt-4">
-          <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
-          <Boton onClick={() => onGuardar(d)} disabled={!d.nombre || !d.usuario || !d.clave}><Check size={15} /> Guardar</Boton>
+          <Boton variant="quiet" onClick={onCerrar} disabled={yendo}>Cancelar</Boton>
+          <Boton onClick={guardar} disabled={!listo || yendo}>
+            <Check size={15} /> {yendo ? "Dando el alta…" : "Dar el alta"}
+          </Boton>
         </div>
       </div>
     </Modal>
@@ -222,6 +307,14 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
   const c = comercios.find((x) => x.id === abierto) || null;
 
   const actualizar = (id, cambios) => setComercios((cs) => cs.map((x) => (x.id === id ? { ...x, ...cambios } : x)));
+
+  /* Después de un alta se vuelve a preguntar a la base. La lista de
+     usuarios de cada comercio sale del embed de `perfiles`, así que
+     releer es lo único que la trae al día: el alta la hizo el servidor y
+     acá no se sabe qué id le tocó. */
+  const releerComercios = useCallback(async () => {
+    setComercios(await cargarComercios());
+  }, [setComercios]);
 
   const alternarModulo = (k) => {
     if (MODULOS_BASE.includes(k)) return;             // el piso mínimo no se saca
@@ -381,34 +474,41 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                 </button>
               </div>
               <ul className="bg-superficie-3 border border-borde-fuerte rounded-2xl divide-y divide-stone-800 overflow-hidden">
+                {/* Solo lectura a propósito. Editar el rol o dar de baja se
+                    hace desde el Permisos del comercio, que es donde se ve
+                    contra qué se está cambiando: los roles que el comercio
+                    editó y las excepciones de cada persona. Duplicarlo acá
+                    era mostrar los valores de fábrica y mentir. */}
                 {c.usuarios.map((u) => (
                   <li key={u.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold">{u.nombre}</div>
+                      <div className="text-sm font-semibold">
+                        {u.nombre}
+                        {!u.activo && <span className="ml-2 text-[10px] uppercase tracking-wider text-texto-tenue">sin acceso</span>}
+                      </div>
                       <div className="f-m text-[11px] text-texto-suave">{u.usuario} · {rolPorK(u.rol).n}</div>
                     </div>
-                    <button onClick={() => setAltaUsuario(u)} className="text-xs text-texto-tenue hover:text-texto">Editar</button>
-                    <button onClick={() => actualizar(c.id, { usuarios: c.usuarios.filter((x) => x.id !== u.id) })}
-                      className="text-xs text-texto-suave hover:text-red-400">Quitar</button>
                   </li>
                 ))}
                 {c.usuarios.length === 0 && <li className="px-4 py-6 text-center text-sm text-texto-suave">Sin accesos: nadie puede entrar todavía.</li>}
               </ul>
               <p className="text-[11px] text-texto-suave mt-2">
-                El dueño del comercio puede crear los suyos desde adentro del sistema.
+                {c.usuarios.length === 0
+                  ? "Dale el primer acceso vos: para dar de alta hay que estar adentro del comercio, y todavía no hay nadie."
+                  : "Los que siguen los da el comercio desde Permisos → Personas, junto con los roles y las excepciones."}
               </p>
             </section>
           </>
         )}
       </main>
 
-      <FormUsuario abierto={!!altaUsuario} inicial={altaUsuario} modulosComercio={c ? c.modulos : []}
+      {/* Al terminar se releen los comercios de la base en vez de meter la
+          fila nueva en el estado: el alta la hizo el servidor y lo que
+          vuelve es lo que quedó de verdad. Lo de antes escribía en memoria
+          una fila que no existía. */}
+      <FormAcceso abierto={!!altaUsuario} comercio={c}
         onCerrar={() => setAltaUsuario(null)}
-        onGuardar={(d) => {
-          if (d.id) actualizar(c.id, { usuarios: c.usuarios.map((u) => (u.id === d.id ? { ...u, ...d } : u)) });
-          else actualizar(c.id, { usuarios: [...c.usuarios, { ...d, id: "u" + uid() }] });
-          setAltaUsuario(null);
-        }} />
+        onHecho={releerComercios} />
 
       <Modal open={altaComercio} onClose={() => setAltaComercio(false)} ancho="max-w-md">
         <div className="p-5">
@@ -593,7 +693,11 @@ function FondoHexagonal({ imagen }) {
 /* A esta pantalla se llega abriendo el link del correo. Supabase deja una
    sesión temporal que solo sirve para esto: no se muestra el sistema
    hasta que la contraseña quedó cambiada. */
-function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
+/* Sirve a dos entradas distintas: el link de recuperación, y el alta con
+   clave provisional que el dueño dictó. Cambia el texto y no la pantalla
+   porque lo que hay que hacer es lo mismo; lo que cambia es por qué se
+   llegó, y eso es una línea, no una pantalla nueva. */
+function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitado = false }) {
   const [clave, setClave] = useState("");
   const [repetir, setRepetir] = useState("");
   const [ver, setVer] = useState(false);
@@ -630,8 +734,20 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
           <div className="w-12 h-12 rounded-2xl bg-acento flex items-center justify-center">
             <KeyRound size={22} className="text-texto" />
           </div>
-          <h1 className="f-d text-2xl mt-5">Elegí una contraseña nueva</h1>
-          <p className="text-texto-tenue mt-2 text-sm">Con esta vas a entrar de ahora en más. Mínimo 8 caracteres.</p>
+          <h1 className="f-d text-2xl mt-5">
+            {forzado ? "Elegí tu contraseña" : "Elegí una contraseña nueva"}
+          </h1>
+          <p className="text-texto-tenue mt-2 text-sm">
+            {/* Tres entradas distintas y no la misma frase para las tres.
+                Al invitado nadie le dio una clave: viene de un link y se la
+                está poniendo por primera vez, así que decirle que "la sabe
+                otra persona" lo dejaría buscando quién. */}
+            {!forzado
+              ? "Con esta vas a entrar de ahora en más. Mínimo 8 caracteres."
+              : invitado
+                ? "Entraste por el link de la invitación. Elegí con qué vas a entrar de ahora en más. Mínimo 8 caracteres."
+                : "La que te dieron la sabe otra persona. Poné una tuya para seguir. Mínimo 8 caracteres."}
+          </p>
 
           <div className="mt-8 space-y-5">
             <label className="block">
@@ -671,7 +787,9 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo }) {
 
             <button type="button" onClick={onCancelar}
               className="w-full text-center text-sm text-texto-tenue hover:text-acento-vivo transition-colors">
-              Volver
+              {/* En el alta forzada no hay adónde volver: la única salida
+                  sin poner la clave es irse. */}
+              {forzado ? "Salir" : "Volver"}
             </button>
           </div>
         </div>

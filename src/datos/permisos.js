@@ -40,7 +40,16 @@ export const BANDERAS = [
   {
     k: "configurar",
     n: "Configurar el comercio",
-    d: "Cambiar la ficha del negocio y estos mismos permisos. Es el más pesado de todos.",
+    d: "Cambiar la ficha del negocio y estos mismos permisos.",
+    pesado: true,
+  },
+  /* Separado de `configurar` en 0049. No es lo mismo cambiar la ficha del
+     negocio que habilitar a una persona a entrar, y de fábrica lo tenían
+     los dos roles de arriba por igual. Ahora arranca solo en el dueño. */
+  {
+    k: "darAccesos",
+    n: "Dar de alta accesos",
+    d: "Crear usuarios, cambiarles el rol y darlos de baja. Es el más pesado de todos.",
     pesado: true,
   },
 ];
@@ -53,6 +62,11 @@ export const banderaPorK = (k) => BANDERAS.find((b) => b.k === k) || { k, n: k, 
 const ACCIONES = {
   "permisos.cambiar": "Cambió los permisos de un rol",
   "permisos.restaurar": "Volvió un rol a los valores de fábrica",
+  "acceso.crear": "Dio de alta un acceso",
+  "acceso.permisos": "Cambió el rol o los permisos de una persona",
+  "acceso.baja": "Le quitó el acceso a una persona",
+  "acceso.alta": "Le devolvió el acceso a una persona",
+  "acceso.borrar": "Borró un acceso",
   "venta.anular": "Anuló una venta",
   "linea.anular": "Anuló una línea",
   "linea.cantidad": "Cambió una cantidad",
@@ -72,6 +86,7 @@ export const nombreAccion = (k) => ACCIONES[k] || k;
    qué ver ese filtro. */
 export const FAMILIAS = [
   { k: "permisos", n: "Permisos" },
+  { k: "acceso", n: "Accesos" },
   { k: "caja", n: "Caja" },
   { k: "venta", n: "Ventas" },
   { k: "linea", n: "Líneas" },
@@ -163,6 +178,12 @@ export async function restaurarRol(empresaId, clave) {
 function traducir(error) {
   if (error && error.code === "P0070") {
     return new Error("No podés sacarle a tu propio rol el permiso de configurar: te quedarías afuera.");
+  }
+  /* De 0049. El mensaje de la base ya nombra la bandera, así que se
+     aprovecha en vez de escribir uno genérico: saber cuál es lo que
+     resuelve la duda de quien está mirando la pantalla. */
+  if (error && error.code === "P0075") {
+    return new Error(error.message || "No podés dar un permiso que vos no tenés.");
   }
   return new Error((error && error.message) || "No se pudo guardar.");
 }

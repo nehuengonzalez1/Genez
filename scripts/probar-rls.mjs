@@ -1487,6 +1487,319 @@ if (ALMHA) {
   });
 }
 
+/* ------------------------------------------------------------
+   Los accesos
+
+   Esto es lo que antes se "validaba en la aplicación", que es como decir
+   que no se validaba: la política de `perfiles` era un `for all` con
+   `puede_ver`, así que cualquier miembro del comercio podía correr un
+   update sobre su propia fila y ponerse `rol = 'dueno'`. Nunca se notó
+   porque cada comercio tenía un usuario.
+
+   La primera prueba de acá es exactamente ese ataque. Si algún día
+   alguien vuelve a poner un `for all` sobre `perfiles`, esta prueba se
+   pone en rojo y no hay que darse cuenta leyendo.
+
+   Los usuarios de prueba se crean y se tiran adentro de una sola
+   transacción: no queda nada, ni en `auth.users` ni en `perfiles`.
+   ------------------------------------------------------------ */
+console.log("\nAccesos");
+
+{
+  const claims = (id) =>
+    c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: id, role: "authenticated" })]);
+
+  /* Un rechazo aborta la transacción: sin savepoint, todo lo que sigue
+     falla con "transaction is aborted" y la prueba miente. Es la misma
+     precaución que en Permisos configurables. */
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, filas: r.rowCount };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code, filas: 0 };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    /* Como administrador: dos personas en el bar, una que manda y otra
+       que no. `auth.uid()` es null acá, que es el caso de las semillas y
+       el que el disparador deja pasar. */
+    const nuevo = async (email, nombre, rol) => {
+      const u = await una(
+        "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id", [email]);
+      await c.query(
+        "insert into perfiles (id, empresa_id, nombre, rol, email) values ($1, $2, $3, $4, $5)",
+        [u.id, barId, nombre, rol, email]);
+      return u.id;
+    };
+
+    const idCajero = await nuevo("cajero.prueba@genez.test", "Cajero de prueba", "cajero");
+    const idDueno  = await nuevo("dueno.prueba@genez.test",  "Dueño de prueba",  "dueno");
+
+    await c.query("set local role authenticated");
+
+    /* ---- El ataque de antes ---- */
+    await claims(idCajero);
+
+    const ascenso = await intentar(
+      "update perfiles set rol = 'dueno' where id = $1", [idCajero]);
+    decir(ascenso.codigo === "P0073",
+      "un cajero no puede ascenderse a dueño (era el agujero de 0002)");
+
+    const plataforma = await intentar(
+      "update perfiles set es_plataforma = true where id = $1", [idCajero]);
+    decir(plataforma.codigo === "P0071",
+      "ni marcarse como plataforma, que le abriría todos los comercios");
+
+    const excepcion = await intentar(
+      `update perfiles set permisos = '{"configurar": true}'::jsonb where id = $1`, [idCajero]);
+    decir(excepcion.codigo === "P0073",
+      "ni darse una excepción a sí mismo por la puerta de al lado");
+
+    /* Sobre otro no hay error: la política simplemente no encuentra la
+       fila. Es la trampa que este archivo explica arriba de todo. */
+    const aOtro = await intentar(
+      "update perfiles set rol = 'cajero' where id = $1", [idDueno]);
+    decir(aOtro.codigo === null && aOtro.filas === 0,
+      "no puede tocarle el rol a otro: la política no le encuentra la fila");
+
+    const alta = await intentar(
+      `insert into perfiles (id, empresa_id, nombre, rol)
+       values (gen_random_uuid(), $1, 'Colado', 'dueno')`, [barId]);
+    decir(alta.codigo === "42501", "ni dar de alta a nadie");
+
+    /* Lo que sí puede: su propio nombre. Sin esto, alguien sin
+       `configurar` no puede corregirse una falta de ortografía. */
+    const nombre = await intentar(
+      "update perfiles set nombre = 'Cajero corregido' where id = $1", [idCajero]);
+    decir(nombre.codigo === null && nombre.filas === 1,
+      "pero sí corregirse el propio nombre");
+
+    /* ---- Lo que puede el que administra ---- */
+    await claims(idDueno);
+
+    const propio = await intentar(
+      "update perfiles set rol = 'cajero' where id = $1", [idDueno]);
+    decir(propio.codigo === "P0073",
+      "el dueño tampoco se cambia el rol a sí mismo: se quedaría afuera");
+
+    const propiaBaja = await intentar(
+      "update perfiles set activo = false where id = $1", [idDueno]);
+    decir(propiaBaja.codigo === "P0073", "ni se da de baja solo");
+
+    const ajeno = await intentar(
+      "update perfiles set rol = 'encargado' where id = $1", [idCajero]);
+    decir(ajeno.codigo === null && ajeno.filas === 1,
+      "a otro sí le cambia el rol, que es el punto del módulo");
+
+    /* ---- La tercera capa ---- */
+    await c.query("update perfiles set rol = 'cajero' where id = $1", [idCajero]);
+
+    const deFabrica = await una(
+      "select (permisos ->> 'cerrarCaja')::boolean b from roles_base where clave = 'cajero'");
+    decir(deFabrica.b === false, "de fábrica un cajero no cierra la caja");
+
+    await c.query(
+      `update perfiles set permisos = '{"cerrarCaja": true}'::jsonb where id = $1`, [idCajero]);
+    const conExcepcion = await una(
+      "select (public.permisos_de($1) ->> 'cerrarCaja')::boolean b", [idCajero]);
+    decir(conExcepcion.b === true,
+      "una excepción por persona le gana al rol, sin inventar un rol nuevo");
+
+    /* Y la excepción es la diferencia, no la foto: lo que no se tocó
+       sigue saliendo del rol. Es lo que hace que una corrección futura
+       del rol llegue igual a quien tiene una excepción sobre otra cosa. */
+    const loDemas = await una(
+      "select (public.permisos_de($1) ->> 'verCostos')::boolean b", [idCajero]);
+    const rolDice = await una(
+      "select (permisos ->> 'verCostos')::boolean b from roles_base where clave = 'cajero'");
+    decir(loDemas.b === rolDice.b,
+      "y lo que no se tocó lo sigue diciendo el rol");
+
+    /* ---- La baja ---- */
+    await c.query("update perfiles set activo = false where id = $1", [idCajero]);
+    await claims(idCajero);
+    const bajaCierra = await una("select public.permiso('cerrarCaja') b");
+    decir(bajaCierra.b === false,
+      "dado de baja no le queda ningún permiso, ni el de su excepción");
+
+    /* ---- El rastro ---- */
+    await c.query("reset role");
+    const anotado = await una(
+      `select count(*)::int n from bitacora
+        where empresa_id = $1 and accion in ('acceso.crear','acceso.permisos','acceso.baja')`,
+      [barId]);
+    decir(anotado.n >= 3, `las altas, los cambios y la baja quedan en la bitácora (${anotado.n})`);
+  } finally {
+    await c.query("rollback");   // no queda ni el usuario ni el perfil
+  }
+
+  /* El aislamiento de la vista. Va aparte porque los usuarios de arriba
+     ya no existen: acá se mira con los reales. */
+  await comoUsuario(CAJERO, async () => {
+    const v = await una("select count(*)::int n from accesos where empresa_id = $1", [barId]);
+    decir(v.n === 0, "un comercio no ve los accesos de otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   Nadie otorga lo que no tiene
+
+   La regla que hacía falta para que `darAccesos` signifique algo. El
+   encargado tiene `configurar`, o sea que edita roles, y podía editar el
+   suyo: `no_dejarse_afuera` solo miraba que nadie se sacara `configurar`
+   y nunca miró lo que alguien se agrega.
+
+   Con eso vivo, apagarle una bandera al encargado era decorativo: se la
+   prendía solo. Estas pruebas son ese ataque por las dos capas editables,
+   porque si valiera solo para una la otra es el camino de al lado.
+   ------------------------------------------------------------ */
+console.log("\nEscalar permisos");
+
+{
+  const claims = (id) =>
+    c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: id, role: "authenticated" })]);
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, filas: r.rowCount };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code, filas: 0 };
+    }
+  };
+
+  /* De fábrica, y es lo que hace falta que siga siendo cierto para que la
+     separación de 0049 tenga sentido. */
+  const base = await una(`
+    select
+      (select (permisos ->> 'darAccesos')::boolean from roles_base where clave = 'dueno')     as dueno,
+      (select (permisos ->> 'darAccesos')::boolean from roles_base where clave = 'encargado') as encargado,
+      (select (permisos ->> 'configurar')::boolean from roles_base where clave = 'encargado') as enc_config`);
+  decir(base.dueno === true && base.encargado === false,
+    "de fábrica solo el dueño da accesos");
+  decir(base.enc_config === true,
+    "y el encargado conserva configurar, que es lo que hacía porosa la separación");
+
+  await c.query("begin");
+  try {
+    const nuevo = async (email, nombre, rol) => {
+      const u = await una(
+        "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id", [email]);
+      await c.query(
+        "insert into perfiles (id, empresa_id, nombre, rol, email) values ($1, $2, $3, $4, $5)",
+        [u.id, barId, nombre, rol, email]);
+      return u.id;
+    };
+
+    const idEnc = await nuevo("enc.prueba@genez.test", "Encargado de prueba", "encargado");
+    const idCaj = await nuevo("caj.prueba@genez.test", "Cajero de prueba", "cajero");
+
+    await c.query("set local role authenticated");
+    await claims(idEnc);
+
+    decir((await una("select public.permiso('darAccesos') p")).p === false,
+      "un encargado no puede dar accesos");
+    decir((await una("select public.permiso('configurar') p")).p === true,
+      "pero sí configurar, así que puede editar roles");
+
+    /* El ataque: editarse el propio rol para prenderse la bandera. */
+    const propio = await intentar(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'encargado', '{"darAccesos": true}'::jsonb)`,
+      [barId]);
+    decir(propio.codigo === "P0075",
+      "no puede prendérsela editando su propio rol");
+
+    /* Y por la otra puerta: prendérsela a otro, que después se la
+       devuelve. Da igual a quién: lo que no se puede es repartir lo que
+       uno no tiene. */
+    const aOtro = await intentar(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'cajero', '{"darAccesos": true}'::jsonb)`,
+      [barId]);
+    decir(aOtro.codigo === "P0075",
+      "ni prendérsela a otro rol para que se la devuelva");
+
+    /* La capa de al lado: la excepción de una persona. Acá al encargado lo
+       frena la política antes de llegar al disparador, porque escribir en
+       `perfiles` ahora pide `darAccesos`. No da error: da cero filas, que
+       es la trampa que este archivo explica arriba de todo. */
+    const excepcion = await intentar(
+      `update perfiles set permisos = '{"darAccesos": true}'::jsonb where id = $1`, [idCaj]);
+    decir(excepcion.codigo === null && excepcion.filas === 0,
+      "ni por la excepción de una persona: sin darAccesos no toca perfiles");
+
+    /* Lo que sí puede: repartir lo que tiene. Si esto se rompiera, la
+       regla sería demasiado estricta y el módulo quedaría inservible. */
+    const suyo = await intentar(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'cajero', '{"verCostos": true}'::jsonb)`,
+      [barId]);
+    decir(suyo.codigo === null,
+      "sí puede dar una bandera que él tiene (verCostos)");
+
+    /* Y revocar nunca se toca: sacar no escala. */
+    const sacar = await intentar(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'repositor', '{"anular": false}'::jsonb)`,
+      [barId]);
+    decir(sacar.codigo === null, "y revocar no lo frena nadie: sacar no escala");
+
+    /* El dueño reparte todo, que es el punto de tener un dueño. */
+    const idDue = await (async () => {
+      await c.query("reset role");
+      const id = await nuevo("due.prueba@genez.test", "Dueño de prueba", "dueno");
+      await c.query("set local role authenticated");
+      return id;
+    })();
+    await claims(idDue);
+
+    decir((await una("select public.permiso('darAccesos') p")).p === true,
+      "el dueño sí da accesos");
+    const reparte = await intentar(
+      `insert into roles (empresa_id, clave, permisos) values ($1, 'encargado', '{"darAccesos": true}'::jsonb)`,
+      [barId]);
+    decir(reparte.codigo === null,
+      "y puede dárselo al encargado si quiere: lo que cambia es de qué lado arranca");
+
+    /* Falta el caso que de verdad ejercita la regla sobre `perfiles`:
+       alguien que SÍ pasa la política —tiene darAccesos— y aun así no
+       puede repartir una bandera que no tiene. Se arma con un dueño al
+       que una excepción le sacó `ajustes`: puede escribir en perfiles y
+       no puede dar eso. Sin este caso, la regla en la capa de las
+       excepciones queda sin probar y solo se estaría viendo la política. */
+    await c.query("reset role");
+    const idMocho = await nuevo("mocho.prueba@genez.test", "Dueño sin ajustes", "dueno");
+    await c.query(
+      `update perfiles set permisos = '{"ajustes": false}'::jsonb where id = $1`, [idMocho]);
+    await c.query("set local role authenticated");
+    await claims(idMocho);
+
+    decir((await una("select public.permiso('darAccesos') p")).p === true
+       && (await una("select public.permiso('ajustes') p")).p === false,
+      "un dueño con una excepción encima puede dar accesos y no tiene ajustes");
+
+    const reparteLoQueNoTiene = await intentar(
+      `update perfiles set permisos = '{"ajustes": true}'::jsonb where id = $1`, [idCaj]);
+    decir(reparteLoQueNoTiene.codigo === "P0075",
+      "y aun pasando la política, no puede regalar por excepción lo que no tiene");
+
+    const reparteLoQueSi = await intentar(
+      `update perfiles set permisos = '{"cerrarCaja": true}'::jsonb where id = $1`, [idCaj]);
+    decir(reparteLoQueSi.codigo === null && reparteLoQueSi.filas === 1,
+      "pero sí lo que tiene");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

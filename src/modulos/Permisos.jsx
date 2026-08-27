@@ -37,6 +37,7 @@ import {
   BANDERAS, FAMILIAS, nombreAccion,
 } from "../datos/permisos.js";
 import { nf } from "../utils/helpers.js";
+import { Accesos } from "./Accesos.jsx";
 import {
   Card, Boton, Tabs, Vacio, Cargando, ErrorEstado, Sello, TablaSimple,
 } from "../ui/Base.jsx";
@@ -136,8 +137,17 @@ export function Permisos({ empresaId, modulosComercio, catalogoModulos, miRol, e
     <div className="space-y-5">
       <Tabs value={pestana} onChange={setPestana} items={[
         { k: "roles", n: "Roles", badge: cambiados || undefined },
+        { k: "accesos", n: "Personas" },
         { k: "auditoria", n: "Auditoría", badge: bitacora.length },
       ]} />
+
+      {/* Los roles se cargan una vez arriba y bajan por props: la pantalla
+          de personas necesita saber qué dice cada rol para poder mostrar de
+          qué se aparta una excepción, y volver a pedirlos sería pedir dos
+          veces lo mismo en la misma pantalla. */}
+      {pestana === "accesos" && (
+        <Accesos empresaId={empresaId} roles={roles} toast={toast} />
+      )}
 
       {pestana === "roles" && (
         <div className="space-y-4">

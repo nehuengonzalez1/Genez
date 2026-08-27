@@ -28,7 +28,10 @@ function aComercio(fila) {
     usuarios: (fila.perfiles || []).map((p) => ({
       id: p.id,
       nombre: p.nombre,
-      usuario: p.nombre,
+      /* Antes esto era el nombre otra vez, y el panel lo mostraba dos
+         veces: "Axel Gonzalez / Axel Gonzalez". El correo es con lo que la
+         persona entra, que es el dato que hace falta al lado del rol. */
+      usuario: p.email || "sin correo",
       rol: p.rol,
       activo: p.activo,
     })),
@@ -37,7 +40,7 @@ function aComercio(fila) {
 
 const SELECT_EMPRESA = `
   id, nombre, rubro, plan, modulos, config, activa, creada_en,
-  perfiles ( id, nombre, rol, activo )
+  perfiles ( id, nombre, rol, activo, email )
 `;
 
 /* Arma la sesión a partir del usuario autenticado. Devuelve null si no
@@ -49,7 +52,7 @@ export async function cargarSesion() {
 
   const { data: perfil, error } = await supabase
     .from("perfiles")
-    .select("id, nombre, rol, es_plataforma, activo, empresa_id")
+    .select("id, nombre, rol, es_plataforma, activo, empresa_id, debe_cambiar_clave, invitado_en")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -64,6 +67,16 @@ export async function cargarSesion() {
   if (perfil.es_plataforma) {
     return { tipo: "plataforma", nombre: perfil.nombre, usuario: user.email };
   }
+
+  /* Alta con clave provisional: el dueño se la dictó, así que la sabe otra
+     persona. Hasta que la cambie no se le muestra el sistema. Va acá y no
+     en la pantalla de login porque el que entra por un link de invitación
+     tampoco pasa por el login. */
+  const debeCambiarClave = !!perfil.debe_cambiar_clave;
+
+  /* De dónde viene condiciona qué se le dice: al invitado nadie le dio
+     una clave, se la está poniendo por primera vez. */
+  const invitado = !!perfil.invitado_en;
 
   const { data: empresa, error: e2 } = await supabase
     .from("empresas")
@@ -81,6 +94,8 @@ export async function cargarSesion() {
     rol: perfil.rol,
     nombre: perfil.nombre,
     usuario: user.email,
+    debeCambiarClave,
+    invitado,
   };
 }
 
@@ -146,6 +161,16 @@ export async function cambiarClave(nueva) {
       throw new Error("El link venció o ya se usó. Pedí uno nuevo.");
     }
     throw new Error(error.message);
+  }
+
+  /* Se apaga la marca de clave provisional: desde acá la clave la sabe
+     una sola persona. Vale para los dos caminos —el link de recuperación
+     y el alta con clave dictada— porque en los dos la eligió quien entra.
+     El fallo no se propaga: la clave ya cambió, y dejar entrar a alguien
+     que puso su clave es mejor que trabarlo por un update. */
+  const { data } = await supabase.auth.getUser();
+  if (data && data.user) {
+    await supabase.from("perfiles").update({ debe_cambiar_clave: false }).eq("id", data.user.id);
   }
 }
 
