@@ -42,7 +42,9 @@ import {
   proximos, historial, cancelados,
 } from "../datos/cliente.js";
 import { ChevronLeft, Eye, EyeOff } from "lucide-react";
-import { Navegacion, Cargando, Error as ErrorEstado, Boton, ROTULO } from "./ui.jsx";
+import {
+  Navegacion, Cargando, Error as ErrorEstado, SinConexion, useHayConexion, Boton, ROTULO,
+} from "./ui.jsx";
 import { Inicio, Turnos, Plan, Cuenta } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
@@ -472,6 +474,11 @@ export default function App() {
   const [recuperando, setRecuperando] = useState(vinoDeRecuperacion);
   useEffect(() => alRecuperarClave(() => setRecuperando(true)), []);
 
+  /* Lo sabe el navegador y se actualiza solo. Sirve para decir "sin
+     conexión" en vez de "no pudimos cargar esto", que son dos problemas
+     distintos y solo uno lo puede resolver quien está mirando. */
+  const hayConexion = useHayConexion();
+
   /* La marca primero y sin sesión: es lo que hace que la bienvenida sea
      de Almha y no de nadie. */
   useEffect(() => {
@@ -537,6 +544,20 @@ export default function App() {
     }
   }
 
+  /* Vuelve a preguntar quién entró. Es lo que reintenta la pantalla sin
+     conexión: el problema de ahí es que `cargarClienta` no llegó, así que
+     reintentar es llamarla de nuevo y no recargar la página. */
+  const reintentarSesion = useCallback(async () => {
+    setError(""); setCargando(true);
+    try {
+      setClienta(await cargarClienta());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
   async function cerrar() {
     await salir();
     setClienta(null); setTurnos([]); setAbonos([]); setEsperas([]); setModulos([]); setDonde("inicio");
@@ -569,7 +590,23 @@ export default function App() {
   }
 
   if (cargando) return <Splash marca={marca} />;
+
   if (!clienta) {
+    /* Sin sesión hay dos motivos y no uno, y hasta acá se trataban igual.
+
+       Si la sesión no está porque nadie entró, va la bienvenida. Pero si
+       no está porque la consulta falló —y sin señal falla siempre— lo que
+       se mostraba era el login: alguien que abre la app en el subte, ya
+       logueado, veía que le pedían la contraseña de nuevo. Es el peor
+       momento para dar a entender que la sesión se perdió.
+
+       Apareció probando la pantalla sin conexión, que es justo para esto. */
+    if (error) {
+      return !hayConexion
+        ? <SinConexion onReintentar={reintentarSesion} />
+        : <ErrorEstado onReintentar={reintentarSesion}>{error}</ErrorEstado>;
+    }
+
     return entrando
       ? <Ingresar marca={marca} onEntro={setClienta} onVolver={() => setEntrando(false)} />
       : <Bienvenida marca={marca} onIngresar={() => setEntrando(true)} />;
@@ -614,9 +651,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {error
-        ? <ErrorEstado onReintentar={() => { setError(""); releer(); }}>{error}</ErrorEstado>
-        : dibujar()}
+      {/* Sin señal gana sobre el error: si el wifi se cortó, "no pudimos
+          cargar esto" manda a sospechar de la app por algo que la app no
+          hizo. Solo se muestra si además algo falló —estar sin conexión
+          con todo ya cargado en pantalla no es un problema todavía—. */}
+      {error && !hayConexion
+        ? <SinConexion onReintentar={() => { setError(""); releer(); }}
+            onInicio={() => { setError(""); setDonde("inicio"); releer(); }} />
+        : error
+          ? <ErrorEstado onReintentar={() => { setError(""); releer(); }}>{error}</ErrorEstado>
+          : dibujar()}
       <Navegacion modulos={modulos} actual={donde} onIr={setDonde} />
 
       <DetalleTurno turno={turnoAbierto}

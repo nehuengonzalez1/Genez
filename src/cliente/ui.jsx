@@ -17,7 +17,7 @@
 
 import React from "react";
 import {
-  Home, CalendarDays, CreditCard, User, ShoppingBag, Star, Receipt,
+  Home, CalendarDays, CreditCard, User, ShoppingBag, Star, Receipt, WifiOff,
 } from "lucide-react";
 
 export const ROTULO =
@@ -177,6 +177,63 @@ export function Vacio({ icono, titulo, children, accion }) {
       <h3 className="text-base">{titulo}</h3>
       {children && <p className="text-sm text-texto-suave mt-1.5 leading-relaxed">{children}</p>}
       {accion && <div className="mt-6 max-w-[240px] mx-auto">{accion}</div>}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   Sin conexión
+
+   Aparte del error común, y no es cosmético: son dos problemas distintos
+   y la persona puede hacer algo con uno y nada con el otro. "No pudimos
+   cargar esto" cuando lo que pasa es que se cortó el wifi manda a
+   sospechar de la app; decirle que revise la conexión le da la acción.
+
+   Se enciende con `navigator.onLine`, que el navegador ya sabe, y se
+   apaga sola cuando vuelve: escuchar `online` evita que alguien quede
+   mirando esta pantalla con internet andando, esperando a tocar un botón
+   que no hacía falta.
+   ------------------------------------------------------------ */
+
+export function useHayConexion() {
+  const [hay, setHay] = React.useState(
+    typeof navigator === "undefined" || navigator.onLine !== false
+  );
+
+  React.useEffect(() => {
+    const prender = () => setHay(true);
+    const apagar = () => setHay(false);
+    window.addEventListener("online", prender);
+    window.addEventListener("offline", apagar);
+    return () => {
+      window.removeEventListener("online", prender);
+      window.removeEventListener("offline", apagar);
+    };
+  }, []);
+
+  return hay;
+}
+
+export function SinConexion({ onReintentar, onInicio }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-center px-8">
+      <div className="w-14 h-14 rounded-full bg-superficie-2 flex items-center justify-center">
+        <WifiOff size={24} className="text-texto-tenue" />
+      </div>
+      <h1 className="f-d text-xl mt-6">Sin conexión</h1>
+      <p className="text-sm text-texto-suave mt-2 leading-relaxed max-w-[280px]">
+        Parece que no tenés internet. Verificá tu conexión e intentá de nuevo.
+      </p>
+
+      <div className="mt-8 w-full max-w-[280px]">
+        <Boton onClick={onReintentar}>Reintentar</Boton>
+      </div>
+      {onInicio && (
+        <button type="button" onClick={onInicio}
+          className="text-[13px] text-texto-tenue hover:text-acento mt-5 transition-colors">
+          Volver al inicio
+        </button>
+      )}
     </div>
   );
 }
