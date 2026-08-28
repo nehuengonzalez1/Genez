@@ -360,7 +360,23 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
   return (
     <div className="max-w-lg mx-auto px-5 pb-28">
       <header className="pt-6 pb-4 flex items-center gap-2">
-        <button onClick={atras} className="-ml-2 p-2 text-texto-suave hover:text-texto">
+        {/* 44px, que es el mínimo que `ui.jsx` se fija a sí mismo para lo
+            que se toca con el pulgar. Eran 38 —un ícono de 22 con 8 de
+            padding— y es el único botón para volver de un recorrido de
+            tres pasos: errarle es empezar de nuevo.
+
+            En píxeles y no `w-11`, que es lo que uno escribiría. `w-11`
+            son 2.75rem y acá el rem no vale 16: `index.css` lo baja a
+            13.5 para achicar el sistema de gestión de una sola vez.
+            Escrito así daba 37px, o sea que "arreglarlo" lo dejaba
+            practicamente igual. Un mínimo para un dedo es una medida
+            física y no puede depender de la escala del sistema.
+
+            El -ml-[11px] es la mitad de lo que el área agrega alrededor
+            del ícono: así el chevron sigue alineado con el borde del
+            contenido y no se nota que el botón creció. */}
+        <button onClick={atras} aria-label="Volver"
+          className="-ml-[11px] w-[44px] h-[44px] flex items-center justify-center text-texto-suave hover:text-texto">
           <ChevronLeft size={22} />
         </button>
         <h1 className="f-d text-xl">{titulo || "Listo"}</h1>

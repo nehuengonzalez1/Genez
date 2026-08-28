@@ -45,7 +45,16 @@ function Turno({ t, mostrarComercio, onAbrir }) {
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           <Estado estado={t.estado} />
-          {t.esClase && <span className="text-[10px] text-texto-tenue uppercase tracking-wider">Clase</span>}
+          {/* El mismo borde y el mismo padding que el sello, con el borde
+              invisible. Sin eso los dos textos están alineados a la
+              derecha y aun así no coinciden: el sello mete el suyo 7px
+              para adentro —1 de borde y 6 de padding— y "Clase" queda
+              pegado al filo. Se leía como un descuido en cada tarjeta. */}
+          {t.esClase && (
+            <span className="text-[10px] text-texto-tenue uppercase tracking-wider px-1.5 border border-transparent">
+              Clase
+            </span>
+          )}
         </div>
       </div>
     </Tarjeta>
@@ -188,11 +197,18 @@ export function Turnos({
 
   return (
     <Pantalla titulo="Tus turnos">
+      {/* La pestaña activa se separa por su borde y su color, no por
+          flotar: la sombra fija va contra la regla 4 de DISENO.md, que
+          deja las sombras solo para el mouse encima.
+
+          Las dos llevan borde y a la inactiva se le pone transparente. Si
+          lo llevara una sola, cambiar de pestaña movería 2px todo lo de
+          abajo. */}
       <div className="flex gap-1 bg-superficie-2 rounded-lg p-1 mb-5">
         {[["proximos", "Próximos"], ["historial", "Historial"]].map(([k, n]) => (
           <button key={k} onClick={() => setPestana(k)}
-            className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
-              pestana === k ? "bg-superficie text-texto shadow-sm" : "text-texto-suave"
+            className={`flex-1 rounded-md py-2 text-sm font-semibold border transition-colors ${
+              pestana === k ? "bg-superficie border-borde text-texto" : "border-transparent text-texto-suave"
             }`}>
             {n}
           </button>
