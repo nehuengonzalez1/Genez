@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
+import { aplicarTema } from "./tema.js";
+import { marcaGuardada, slugDelDominio } from "../datos/cliente.js";
 import "../index.css";
 
 /* ------------------------------------------------------------
@@ -31,16 +33,23 @@ import "../index.css";
    ------------------------------------------------------------ */
 document.documentElement.style.fontSize = "16px";
 
-/* El tema cálido, no el oscuro de fábrica del sistema de gestión.
+/* El tema, antes de que React monte y antes de pintar nada.
 
-   Las dos aplicaciones se usan en lugares distintos: la gestión en una
-   cocina de noche o una caja con la persiana baja, donde el oscuro
-   descansa la vista; esta en el teléfono de alguien en el colectivo a las
-   tres de la tarde, donde no. Ver la explicación larga en `index.css`.
+   Ese día llegó: hasta acá este archivo forzaba el cálido y el comentario
+   decía "el día que un comercio pueda elegir tema, va a salir de
+   `marca.tema` y este archivo solo cambia de qué variable lo lee". Es
+   exactamente lo que pasó, más el teléfono como tercera opción y como
+   valor de fábrica.
 
-   Va acá y no adentro del motor porque es del envase: el día que un
-   comercio pueda elegir tema, va a salir de `marca.tema` y este archivo
-   solo cambia de qué variable lo lee. */
+   Se aplica con la marca que quedó guardada de la vez anterior, así el
+   comercio que eligió claro u oscuro lo tiene desde el primer cuadro. La
+   primera apertura no la tiene y ahí manda el teléfono, que es la
+   respuesta correcta mientras no haya otra.
+
+   Sigue acá y no adentro del motor porque el tema es del envase. Ver
+   `tema.js`, que explica por qué seguir al sistema es mejor que forzar el
+   claro. */
+aplicarTema(marcaGuardada(slugDelDominio()));
 /* El service worker se registra despues de cargar, no durante: durante
    compite por la conexion con lo que la persona vino a ver.
 
@@ -57,7 +66,10 @@ if ("serviceWorker" in navigator) {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <div className="tema-calido min-h-screen bg-fondo text-texto">
+    {/* Sin la clase del tema: ahora vive en el <html>, así el fondo de la
+        página entera acompaña y no queda una franja del otro color al
+        estirar de más. */}
+    <div className="min-h-screen bg-fondo text-texto">
       <App />
     </div>
   </React.StrictMode>

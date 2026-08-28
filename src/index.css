@@ -201,6 +201,64 @@
 }
 
 /* ============================================================
+   EL TEMA CÁLIDO DE NOCHE
+   ============================================================
+
+   El mismo tema con el teléfono en modo oscuro. Y es un tema propio y no
+   el de fábrica de arriba, que es lo que uno haría por reflejo.
+
+   El oscuro del sistema de gestión es neutro y frío —grises puros sobre
+   negro— porque está pensado para una cocina y una caja: ahí lo que se
+   quiere es que la pantalla desaparezca y queden los números.
+
+   Esta app es la cara de un comercio. Su claro no es blanco sino crema, y
+   por la misma razón su oscuro no puede ser negro: un marrón muy oscuro
+   sigue siendo el mismo lugar con la luz baja, y el negro puro es otro
+   lugar. Poner acá el oscuro de la gestión sería que la app de Almha, de
+   noche, se vea como un sistema de facturación.
+
+   Los estados suben de saturación respecto del claro, que es lo que hay
+   que hacer sobre fondo oscuro: un verde 21-128-61 sobre casi negro no se
+   lee. Y el acento vuelve al naranja vivo, que sobre crema encandilaba y
+   sobre esto no.
+
+   `--telon` no se pisa acá ni en el claro: es el único color que vale lo
+   mismo en los tres estados. Ver su comentario arriba.
+   ============================================================ */
+
+.tema-noche {
+  --fondo:        26 23 21;
+  --superficie:   36 32 29;
+  --superficie-2: 48 43 39;
+  --superficie-3: 64 57 52;
+
+  --texto:        247 243 237;
+  --texto-suave:  183 175 165;
+  --texto-tenue:  135 126 117;
+
+  --borde:        56 50 45;
+  --borde-fuerte: 82 74 66;
+
+  --acento:        249 115 22;
+  --acento-vivo:   251 146 60;
+  --acento-suave:  61 33 14;
+  --sobre-acento:  26 23 21;
+
+  --bien:       74 222 128;
+  --bien-suave: 18 48 28;
+  --ojo:        251 191 36;
+  --ojo-suave:  56 40 12;
+  --mal:        248 113 113;
+  --mal-suave:  62 26 26;
+  --info:       56 189 248;
+  --info-suave: 12 42 58;
+  --reserva:       167 139 250;
+  --reserva-suave: 48 30 70;
+
+  color-scheme: dark;
+}
+
+/* ============================================================
    LA ESCALA
    ============================================================
 

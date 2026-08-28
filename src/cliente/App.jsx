@@ -49,6 +49,7 @@ import {
 import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Avisos, Cuenta, MisDatos } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
+import { aplicarTema, alCambiarElTema } from "./tema.js";
 
 /* ------------------------------------------------------------
    LA ENTRADA · pantallas 1, 2 y 3 de la maqueta
@@ -663,6 +664,18 @@ export default function App() {
      conexión" en vez de "no pudimos cargar esto", que son dos problemas
      distintos y solo uno lo puede resolver quien está mirando. */
   const hayConexion = useHayConexion();
+
+  /* El tema, cuando ya se sabe de quién es la app.
+
+     `main.jsx` lo aplicó con la marca guardada; acá se vuelve a aplicar
+     con la que llegó, que es la que manda si el comercio cambió su
+     elección. Y se escucha el cambio del sistema para el caso de siempre:
+     el teléfono que pasa a oscuro al atardecer con la app abierta. */
+  useEffect(() => {
+    if (marca === undefined) return;
+    aplicarTema(marca);
+    return alCambiarElTema(marca, () => aplicarTema(marca));
+  }, [marca && marca.tema, marca && marca.slug]);
 
   /* La marca primero y sin sesión: es lo que hace que la bienvenida sea
      de Almha y no de nadie. */

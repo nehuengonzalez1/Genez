@@ -103,7 +103,8 @@ export async function cargarMarca(slug) {
     slug: m.slug,
     nombre: m.nombre,
     rubro: m.rubro,
-    tema: m.tema || "calido",
+    /* auto = lo que diga el telefono, que es el de fabrica. Ver tema.js. */
+    tema: m.tema || "auto",
     lema: m.lema || "",
     bajada: m.bajada || "",
     logo: m.logo || null,
