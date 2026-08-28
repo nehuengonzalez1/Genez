@@ -291,7 +291,8 @@ export default function App() {
     ),
     plan: () => <Plan abonos={abonos} varios={varios} />,
     cuenta: () => (
-      <Cuenta marca={marca} email={clienta.email} comercios={clienta.comercios} onSalir={cerrar} />
+      <Cuenta marca={marca} comercio={comercio} email={clienta.email}
+        comercios={clienta.comercios} onSalir={cerrar} />
     ),
   };
 

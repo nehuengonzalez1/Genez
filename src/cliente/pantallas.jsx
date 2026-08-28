@@ -215,9 +215,21 @@ export function Turnos({
         ))}
       </div>
 
+      {/* De línea y no lleno, que es lo que era.
+
+          El naranja lleno pesaba más que los turnos, que son lo que la
+          persona vino a ver: un bloque saturado a todo el ancho arriba de
+          la lista se lee primero, siempre. La regla 6 de DISENO.md dice
+          que el acento es para lo que se toca, y acá todo lo de abajo
+          también se toca.
+
+          Con esto el lleno queda con un solo significado en toda la app:
+          confirmar algo —reservar, cancelar— o ser lo único que se puede
+          hacer, como en la pantalla vacía de acá abajo. Ahí sí tiene que
+          gritar; con seis turnos en pantalla, no. */}
       {puedeReservar && pestana === "proximos" && lista.length > 0 && (
         <div className="mb-5">
-          <Boton onClick={onReservar}>Reservar otro turno</Boton>
+          <Boton variante="linea" onClick={onReservar}>Reservar otro turno</Boton>
         </div>
       )}
 
@@ -408,15 +420,45 @@ function Instalar({ marca }) {
   );
 }
 
-export function Cuenta({ marca, email, comercios, onSalir }) {
+/* El mes y el año, sin el día: "desde el 14 de abril de 2026" es una
+   precisión que no le sirve a nadie y se lee peor. */
+const mesYAno = (d) =>
+  d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+
+export function Cuenta({ marca, comercio, email, comercios, onSalir }) {
   return (
     <Pantalla titulo="Mi cuenta">
+      {/* Acá había un correo y nada más: una tarjeta con rótulo para un
+          solo dato, y dos tercios de pantalla en blanco abajo.
+
+          El nombre y desde cuándo ya venían en `mis_comercios` y no los
+          mostraba nadie. No es llenar la pantalla: es que "Mi cuenta"
+          diga quién sos y no cómo te logueás.
+
+          El nombre sale de la ficha del comercio y no de la cuenta,
+          porque es el que el comercio usa: la misma persona puede estar
+          anotada distinto en dos lados. */}
       <Tarjeta className="mb-6">
         <div className={ROTULO}>Tus datos</div>
-        <div className="mt-3 flex items-center gap-2.5 text-[15px]">
-          <Mail size={15} className="text-texto-tenue shrink-0" />
-          <span className="truncate">{email}</span>
+
+        {comercio && comercio.miNombre && (
+          <div className="text-lg mt-3">{comercio.miNombre}</div>
+        )}
+
+        {/* Se parte y no se corta. Con `truncate` el correo entraba justo
+            —253px en 253— así que en un teléfono un poco más angosto le
+            faltaba el final, y es el único lugar de la app donde se
+            muestra. Un dato cortado es peor que un renglón de más. */}
+        <div className="mt-2 flex items-start gap-2.5 text-[15px]">
+          <Mail size={15} className="text-texto-tenue shrink-0 mt-1" />
+          <span className="break-all">{email}</span>
         </div>
+
+        {comercio && comercio.desde && (
+          <div className="text-sm text-texto-suave mt-3">
+            Con {marca.nombre} desde {mesYAno(comercio.desde)}
+          </div>
+        )}
       </Tarjeta>
 
       {/* Solo si hay más de uno. Con un comercio, decir "dónde sos
