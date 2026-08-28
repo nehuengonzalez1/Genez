@@ -1896,6 +1896,32 @@ console.log("\nLa identidad del cliente");
     decir(!columnas.includes("notas"),
       "el turno NO trae `notas`: eso lo escribe recepción para adentro");
 
+    /* Las clases usadas se cuentan por `abono_id`, no por el rango de
+       fechas del abono. Contar los turnos que caen entre `desde` y `vence`
+       cuenta también los que se pagaron sueltos o con otro abono
+       solapado: con datos reales, a una clienta de Almha le daba
+       "Pack 4 clases: 24 de 4". */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const abono = (await una(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack de prueba', 4, current_date - 10, current_date + 20) returning id`,
+      [almha, ficha])).id;
+    /* Dos con el abono y una suelta, las tres adentro de la ventana. */
+    for (const [dias, conAbono] of [[-3, true], [-2, true], [-1, false]]) {
+      await c.query(
+        `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado, abono_id)
+         values ($1, $2, 'Clienta de prueba', now() + ($3 || ' days')::interval, 60, 'confirmada', $4)`,
+        [almha, ficha, dias, conAbono ? abono : null]);
+    }
+    await c.query("set local role authenticated");
+    await claims(uCli);
+
+    const abo = await c.query("select * from public.mis_abonos()");
+    const pack = abo.rows.find((x) => x.nombre === "Pack de prueba");
+    decir(pack && Number(pack.usadas) === 2,
+      `las clases usadas se cuentan por abono, no por fecha (${pack && pack.usadas} de 3 turnos en la ventana)`);
+
     const cat = await c.query("select * from public.catalogo_de($1)", [almha]);
     decir(cat.rowCount > 0, `ve el catálogo de servicios de Almha (${cat.rowCount})`);
     decir(!Object.keys(cat.rows[0] || {}).includes("costo"),

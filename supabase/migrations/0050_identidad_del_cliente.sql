@@ -363,11 +363,16 @@ as $$
     e.nombre,
     a.nombre,
     a.clases,
+    /* Por `abono_id` y no por rango de fechas. `reservas.abono_id` existe
+       desde 0035 y dice a qué abono se le descontó cada clase; contar los
+       turnos que caen entre `desde` y `vence` cuenta también los que se
+       pagaron sueltos o con otro abono solapado.
+
+       Se vio con datos reales antes de dejarlo: a Victoria le daba
+       "Pack 4 clases: 24 de 4". */
     (select count(*) from reservas r
-      where r.cliente_id = a.cliente_id
-        and r.estado <> 'cancelada'
-        and r.desde >= a.desde
-        and (a.vence is null or r.desde::date <= a.vence)),
+      where r.abono_id = a.id
+        and r.estado <> 'cancelada'),
     a.desde,
     a.vence,
     (not a.anulado and (a.vence is null or a.vence >= current_date))
@@ -375,7 +380,10 @@ as $$
   join empresas e on e.id = a.empresa_id
  where a.cliente_id in (select public.mis_fichas())
    and a.anulado = false
- order by a.desde desc
+ /* El vigente primero: es el único que la persona viene a mirar. Los
+    vencidos quedan abajo como historia. */
+ order by (not a.anulado and (a.vence is null or a.vence >= current_date)) desc,
+          a.desde desc
 $$;
 
 
