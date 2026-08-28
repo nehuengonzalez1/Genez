@@ -51,6 +51,43 @@ export function slugDelDominio() {
   return null;
 }
 
+/* La marca, guardada en el teléfono
+
+   Para que la pantalla de carga diga Almha y no un vacío. El nombre lo
+   trae `marca_de`, que es una ida a la base: hasta que vuelve no hay
+   marca, y la primera pantalla de una app que se abre todos los días no
+   puede ser genérica.
+
+   Se guarda por comercio, porque una misma persona puede tener dos
+   instaladas. Y no es un caché de datos: es el envase —el nombre y los
+   colores, que ya son públicos—, lo mismo que el service worker guarda
+   del HTML y nunca de los turnos.
+
+   Todo entre `try`: en una ventana privada, o con el almacenamiento
+   bloqueado, `localStorage` no lee ni escribe y tira. Sin esto la app
+   entera no arranca por una comodidad. */
+const LLAVE_MARCA = "genez.marca.";
+
+export function marcaGuardada(slug) {
+  if (!slug || typeof window === "undefined") return null;
+  try {
+    const crudo = window.localStorage.getItem(LLAVE_MARCA + slug);
+    return crudo ? JSON.parse(crudo) : null;
+  } catch {
+    return null;
+  }
+}
+
+function guardarMarca(marca) {
+  if (!marca || !marca.slug) return;
+  try {
+    window.localStorage.setItem(LLAVE_MARCA + marca.slug, JSON.stringify(marca));
+  } catch {
+    /* Sin lugar para guardarla, la app anda igual: lo único que se pierde
+       es que la pantalla de carga tenga nombre. */
+  }
+}
+
 /* La marca del comercio. Es la única consulta del sistema que se puede
    hacer sin sesión, y devuelve solo lo que ya es público: cómo se llama
    y cómo se ve. Ver la migración 0052. */
@@ -62,7 +99,7 @@ export async function cargarMarca(slug) {
   if (!data || !data.length) return null;
 
   const m = data[0];
-  return {
+  const marca = {
     slug: m.slug,
     nombre: m.nombre,
     rubro: m.rubro,
@@ -72,6 +109,11 @@ export async function cargarMarca(slug) {
     logo: m.logo || null,
     portada: m.portada || null,
   };
+
+  /* Se guarda la que vino, no la que estaba: si el comercio cambia su
+     nombre o sube su logo, la próxima carga ya lo muestra. */
+  guardarMarca(marca);
+  return marca;
 }
 
 /* Qué muestra la app de este comercio. Sale de cruzar el catálogo de
@@ -233,6 +275,18 @@ export async function cargarTurnos({ desde = null } = {}) {
     empresa: t.empresa,
     servicio: t.servicio || "Turno",
     profesional: t.profesional || "",
+    /* Dónde es, y las dos fotos. La sala ya era un dato desde la agenda y
+       no la mostraba nadie; las fotos son el lugar hecho para cuando el
+       comercio suba las suyas. Ver la migración 0057. */
+    recurso: t.recurso || "",
+    imagen: t.imagen || null,
+    foto: t.foto || null,
+    /* Lo que hay que saber antes de ir. Sale del servicio y, si el
+       servicio no dice nada, del comercio. Los tres pueden ser nulos: sin
+       nada cargado el detalle queda como estaba. Ver la migración 0058. */
+    llegarMin: t.llegar_min ?? null,
+    llegarNota: t.llegar_nota || "",
+    llevar: t.llevar || "",
     desde: new Date(t.desde),
     duracionMin: t.duracion_min,
     estado: t.estado,
@@ -272,9 +326,42 @@ export function proximos(turnos) {
     .sort((a, b) => a.desde - b.desde);
 }
 
-export function pasados(turnos) {
+/* Tres listas y no dos, como la maqueta.
+
+   `pasados` metía en la misma bolsa lo que ya pasó y lo que se canceló, y
+   no son lo mismo: el historial es a lo que fuiste. Un turno cancelado
+   ahí adentro hace que la lista de lo que hiciste incluya lo que no
+   hiciste, y encima empuja hacia abajo los que sí. */
+/* ------------------------------------------------------------
+   Lo que pagué
+
+   Un renglón por pago y no por operación: una cuenta pagada mitad en
+   efectivo y mitad con tarjeta son dos pagos, y juntarlos perdería con
+   qué se pagó cada parte. Ver la migración 0059.
+   ------------------------------------------------------------ */
+
+export async function cargarPagos({ desde = null } = {}) {
+  const { data, error } = await supabase.rpc("mis_pagos", { p_desde: desde });
+  if (error) throw new Error("No pudimos cargar tus pagos.");
+
+  return (data || []).map((p) => ({
+    id: p.id,
+    empresa: p.empresa,
+    fecha: new Date(p.fecha),
+    /* Postgres devuelve `numeric` como texto para no perder precisión. */
+    monto: Number(p.monto),
+    medio: p.medio || "",
+    concepto: p.concepto || "Compra",
+  }));
+}
+
+export function historial(turnos) {
   const ahora = new Date();
-  return turnos.filter((t) => t.desde < ahora || t.estado === "cancelada");
+  return turnos.filter((t) => t.desde < ahora && t.estado !== "cancelada");
+}
+
+export function cancelados(turnos) {
+  return turnos.filter((t) => t.estado === "cancelada");
 }
 
 /* ------------------------------------------------------------
@@ -430,8 +517,13 @@ export async function cargarAbonos() {
     id: a.id,
     empresa: a.empresa,
     nombre: a.nombre,
+    /* Tres clases de abono y no dos: un pack tiene `clases`, un plan
+       tiene `topeSemanal`, y el que no tiene ninguno de los dos es libre
+       de verdad. Los dos pueden convivir. Ver la migración 0060. */
     clases: a.clases,
     usadas: Number(a.usadas || 0),
+    topeSemanal: a.tope_semanal ?? null,
+    usadasSemana: a.usadas_semana == null ? null : Number(a.usadas_semana),
     desde: a.desde ? new Date(a.desde + "T00:00:00") : null,
     vence: a.vence ? new Date(a.vence + "T00:00:00") : null,
     vigente: !!a.vigente,

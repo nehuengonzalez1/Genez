@@ -22,7 +22,7 @@
    ============================================================ */
 
 import React, { useState } from "react";
-import { X, Clock, User, AlertTriangle, Check } from "lucide-react";
+import { X, Clock, User, MapPin, Backpack, AlertTriangle, Check } from "lucide-react";
 import { cancelarTurno } from "../datos/cliente.js";
 import { Boton, Estado, ROTULO, cuando, hora } from "./ui.jsx";
 
@@ -107,10 +107,54 @@ export function DetalleTurno({ turno, onCerrar, onCancelado }) {
                   <User size={15} className="shrink-0" /> {turno.profesional}
                 </div>
               )}
+              {turno.recurso && (
+                <div className="flex items-center gap-2.5 text-[15px] text-texto-suave">
+                  <MapPin size={15} className="shrink-0" /> {turno.recurso}
+                </div>
+              )}
               <div className="pt-1">
                 <Estado estado={turno.estado} />
               </div>
             </div>
+
+            {/* Lo que hay que saber antes de ir.
+
+                Solo para los turnos que todavía no pasaron: a quien mira
+                un turno de la semana pasada decirle que llegue diez
+                minutos antes no le sirve de nada.
+
+                Cada bloque aparece solo si el comercio lo cargó. Sin nada
+                cargado no queda un hueco ni un texto de fábrica: queda el
+                detalle como estaba. */}
+            {turno.desde > new Date() && (turno.llegarMin || turno.llevar) && (
+              <div className="mt-6 border-t border-borde pt-5 space-y-4">
+                {turno.llegarMin > 0 && (
+                  <div className="flex gap-3">
+                    <Clock size={16} className="shrink-0 mt-0.5 text-texto-tenue" />
+                    <div className="min-w-0">
+                      <div className="text-[15px]">Llegar {turno.llegarMin} min antes</div>
+                      {turno.llegarNota && (
+                        <div className="text-sm text-texto-suave mt-0.5 leading-relaxed">
+                          {turno.llegarNota}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {turno.llevar && (
+                  <div className="flex gap-3">
+                    <Backpack size={16} className="shrink-0 mt-0.5 text-texto-tenue" />
+                    <div className="min-w-0">
+                      <div className="text-[15px]">Qué llevar</div>
+                      <div className="text-sm text-texto-suave mt-0.5 leading-relaxed">
+                        {turno.llevar}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {error && (
               <div className="mt-5 text-sm text-mal border border-mal bg-mal-suave rounded-lg px-4 py-3 leading-relaxed">

@@ -17,7 +17,7 @@
 
 import React from "react";
 import {
-  Home, CalendarDays, CreditCard, User, ShoppingBag, Star, Receipt,
+  Home, CalendarDays, CreditCard, User, ShoppingBag, Star, Receipt, WifiOff, ChevronLeft,
 } from "lucide-react";
 
 export const ROTULO =
@@ -82,12 +82,27 @@ export function Navegacion({ modulos, actual, onIr }) {
 
 /* El alto de la barra de abajo más su margen: sin esto, el último
    elemento de cualquier lista queda tapado y nadie lo ve. */
-export function Pantalla({ titulo, children }) {
+export function Pantalla({ titulo, onVolver, children }) {
   return (
     <div className="max-w-lg mx-auto px-5 pb-28">
       {titulo && (
         <header className="pt-6 pb-4">
-          <h1 className="f-d text-2xl">{titulo}</h1>
+          {/* Con flecha, el título se corre al lado y baja de tamaño: una
+              pantalla a la que se entra desde otra no es una sección de la
+              barra de abajo, y no tiene por qué pesar lo mismo. Los 44px
+              son el mínimo de lo que se toca con el pulgar, en píxeles
+              porque es una medida física. */}
+          {onVolver ? (
+            <div className="flex items-center gap-2 -ml-[11px]">
+              <button type="button" onClick={onVolver} aria-label="Volver"
+                className="w-[44px] h-[44px] flex items-center justify-center text-texto-suave hover:text-texto transition-colors shrink-0">
+                <ChevronLeft size={22} />
+              </button>
+              <h1 className="f-d text-xl">{titulo}</h1>
+            </div>
+          ) : (
+            <h1 className="f-d text-2xl">{titulo}</h1>
+          )}
         </header>
       )}
       {children}
@@ -95,24 +110,32 @@ export function Pantalla({ titulo, children }) {
   );
 }
 
-export function Tarjeta({ children, className = "", onClick }) {
+/* `aire` en false deja la tarjeta sin padding, para las que llevan una
+   foto de borde a borde: la imagen tiene que llegar al filo y el texto de
+   abajo pone el suyo. */
+export function Tarjeta({ children, className = "", onClick, aire = true }) {
   const Como = onClick ? "button" : "div";
   return (
     <Como onClick={onClick}
-      className={`w-full text-left bg-superficie border border-borde rounded-xl p-5 ${
+      className={`w-full text-left bg-superficie border border-borde rounded-xl overflow-hidden ${
+        aire ? "p-5" : ""} ${
         onClick ? "hover:shadow-sm transition-shadow" : ""} ${className}`}>
       {children}
     </Como>
   );
 }
 
+/* Sin título es una sección igual: agrupa y separa. Antes dibujaba el
+   rótulo vacío y quedaba un renglón de aire que no decía nada. */
 export function Seccion({ titulo, accion, children }) {
   return (
     <section className="mt-7 first:mt-0">
-      <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className={ROTULO}>{titulo}</h2>
-        {accion}
-      </div>
+      {(titulo || accion) && (
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          {titulo ? <h2 className={ROTULO}>{titulo}</h2> : <span />}
+          {accion}
+        </div>
+      )}
       {children}
     </section>
   );
@@ -169,6 +192,63 @@ export function Vacio({ icono, titulo, children, accion }) {
       <h3 className="text-base">{titulo}</h3>
       {children && <p className="text-sm text-texto-suave mt-1.5 leading-relaxed">{children}</p>}
       {accion && <div className="mt-6 max-w-[240px] mx-auto">{accion}</div>}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   Sin conexión
+
+   Aparte del error común, y no es cosmético: son dos problemas distintos
+   y la persona puede hacer algo con uno y nada con el otro. "No pudimos
+   cargar esto" cuando lo que pasa es que se cortó el wifi manda a
+   sospechar de la app; decirle que revise la conexión le da la acción.
+
+   Se enciende con `navigator.onLine`, que el navegador ya sabe, y se
+   apaga sola cuando vuelve: escuchar `online` evita que alguien quede
+   mirando esta pantalla con internet andando, esperando a tocar un botón
+   que no hacía falta.
+   ------------------------------------------------------------ */
+
+export function useHayConexion() {
+  const [hay, setHay] = React.useState(
+    typeof navigator === "undefined" || navigator.onLine !== false
+  );
+
+  React.useEffect(() => {
+    const prender = () => setHay(true);
+    const apagar = () => setHay(false);
+    window.addEventListener("online", prender);
+    window.addEventListener("offline", apagar);
+    return () => {
+      window.removeEventListener("online", prender);
+      window.removeEventListener("offline", apagar);
+    };
+  }, []);
+
+  return hay;
+}
+
+export function SinConexion({ onReintentar, onInicio }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-center px-8">
+      <div className="w-14 h-14 rounded-full bg-superficie-2 flex items-center justify-center">
+        <WifiOff size={24} className="text-texto-tenue" />
+      </div>
+      <h1 className="f-d text-xl mt-6">Sin conexión</h1>
+      <p className="text-sm text-texto-suave mt-2 leading-relaxed max-w-[280px]">
+        Parece que no tenés internet. Verificá tu conexión e intentá de nuevo.
+      </p>
+
+      <div className="mt-8 w-full max-w-[280px]">
+        <Boton onClick={onReintentar}>Reintentar</Boton>
+      </div>
+      {onInicio && (
+        <button type="button" onClick={onInicio}
+          className="text-[13px] text-texto-tenue hover:text-acento mt-5 transition-colors">
+          Volver al inicio
+        </button>
+      )}
     </div>
   );
 }

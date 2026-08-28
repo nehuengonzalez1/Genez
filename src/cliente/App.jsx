@@ -36,33 +36,157 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   slugDelDominio, cargarMarca, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
-  cargarEsperas, salirDeEspera,
+  cargarEsperas, salirDeEspera, cargarPagos,
   pedirClaveNueva, guardarClaveNueva, alRecuperarClave, vinoDeRecuperacion,
-  proximos, pasados,
+  marcaGuardada,
+  proximos, historial, cancelados,
 } from "../datos/cliente.js";
-import { Navegacion, Cargando, Error as ErrorEstado, Boton, ROTULO } from "./ui.jsx";
-import { Inicio, Turnos, Plan, Cuenta } from "./pantallas.jsx";
+import { ChevronLeft, Eye, EyeOff } from "lucide-react";
+import {
+  Navegacion, Cargando, Error as ErrorEstado, SinConexion, useHayConexion, Boton, ROTULO,
+} from "./ui.jsx";
+import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Cuenta } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 
 /* ------------------------------------------------------------
-   Bienvenida y login
+   LA ENTRADA · pantallas 1, 2 y 3 de la maqueta
 
-   Una sola pantalla y no dos. La maqueta las separa, y con razón cuando
-   hay que elegir entre entrar y registrarse; mientras el alta la haga el
-   comercio, "Crear cuenta" no existe y una pantalla intermedia es un
-   toque de más para llegar al mismo lado.
+   La carga, la bienvenida y el login. Eran una sola: la bienvenida
+   llevaba el formulario adentro, con el argumento de que una pantalla
+   intermedia es un toque de más para llegar al mismo lado.
+
+   Con la maqueta a la vista ese argumento se cae. La bienvenida no es un
+   paso hacia el login: es la única pantalla donde el comercio se
+   presenta —su foto, su lema, su nombre— y meterle dos campos y un
+   teclado encima la convierte en un formulario con una foto arriba.
+
+   El toque de más existe y es una sola vez: después de entrar, la sesión
+   dura.
    ------------------------------------------------------------ */
 
-/* El mismo campo en la bienvenida y en la clave nueva. Son dos pantallas
-   del mismo recorrido y una lleva a la otra: si cada una define lo suyo,
-   se despeinan la primera vez que alguien toca una sola. */
+/* El mismo campo en todas las pantallas del recorrido. Si cada una
+   define lo suyo, se despeinan la primera vez que alguien toca una. */
 const CAMPO =
   "w-full bg-superficie border border-borde rounded-lg px-3.5 py-3 text-base mt-1.5 outline-none text-texto placeholder:text-texto-tenue focus:border-acento transition-colors";
 
-function Bienvenida({ marca, onEntro }) {
+/* El nombre del comercio, con su logo si lo subió. Se repite en las tres
+   pantallas de la entrada, así que vive en un solo lugar. */
+function Marca({ marca, sobreTelon = false }) {
+  return (
+    <div>
+      {marca.logo
+        ? <img src={marca.logo} alt={marca.nombre} className="h-11 object-contain" />
+        : <h1 className="f-d text-3xl text-acento">{marca.nombre}</h1>}
+      <p className={`text-[11px] uppercase tracking-[0.18em] mt-2 ${
+        sobreTelon ? "text-sobre-telon" : "text-texto-tenue"}`}>
+        by GENEZ
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   1 · La carga
+
+   Sobre el telón oscuro y no sobre el crema de la app: es el momento en
+   que aparece la marca y todavía no hay aplicación.
+
+   LLEVA EL NOMBRE PORQUE SE GUARDÓ LA VEZ ANTERIOR
+   El nombre lo trae `marca_de`, que es una ida a la base: mientras carga,
+   no hay nombre. Con `marcaGuardada` la segunda apertura y todas las que
+   siguen —que son las que importan en una app instalada— ya arrancan
+   diciendo Almha. La primera muestra solo el punto girando, que es lo
+   honesto: todavía no sabemos de quién es.
+   ------------------------------------------------------------ */
+
+function Splash({ marca }) {
+  return (
+    <div className="min-h-screen bg-telon flex flex-col items-center justify-center gap-10 px-8">
+      <div className="text-center">
+        {marca && <Marca marca={marca} sobreTelon />}
+      </div>
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-6 h-6 rounded-full border-2 border-sobre-telon/30 border-t-acento animate-spin" />
+        <p className="text-[13px] text-sobre-telon">Cargando tu experiencia…</p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   2 · La bienvenida
+
+   La foto del local arriba y el lema abajo. Es la pantalla que decide si
+   esto se siente de Almha o de un proveedor de software.
+   ------------------------------------------------------------ */
+
+/* El lema, una frase por renglón y la segunda en el color del acento.
+
+   Sale de partirlo por el punto y no de tres columnas en la base: el
+   comercio escribe "Tu espacio. Tu bienestar. Tu tiempo." y la pantalla
+   lo acomoda. Con dos frases la resaltada es la última, con una no hay
+   ninguna y queda un lema común, que también está bien. */
+function Lema({ texto }) {
+  const frases = texto.split(".").map((f) => f.trim()).filter(Boolean);
+  if (!frases.length) return null;
+
+  return (
+    <p className="f-d text-[26px] leading-[1.25]">
+      {frases.map((f, i) => (
+        <span key={i} className={`block ${
+          frases.length > 1 && i === 1 ? "text-acento" : ""}`}>
+          {f}.
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function Bienvenida({ marca, onIngresar }) {
+  return (
+    <div className="min-h-screen flex flex-col">
+      {/* La portada es del comercio. Sin una cargada no se deja un hueco
+          gris: se sube el contenido y la pantalla sigue estando bien. El
+          lugar está hecho y la foto la carga Almha. */}
+      {marca.portada && (
+        <div className="h-64 bg-superficie-2 overflow-hidden shrink-0">
+          <img src={marca.portada} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col justify-center max-w-lg w-full mx-auto px-6 py-10">
+        <Marca marca={marca} />
+
+        {marca.lema && <div className="mt-8"><Lema texto={marca.lema} /></div>}
+        {marca.bajada && (
+          <p className="text-sm text-texto-suave mt-4 leading-relaxed">{marca.bajada}</p>
+        )}
+
+        <div className="mt-9">
+          <Boton onClick={onIngresar}>Ingresar</Boton>
+        </div>
+
+        {/* Donde la maqueta pone "Crear cuenta". Mientras el alta la haga
+            el comercio, un botón que lleva a un formulario que no existe
+            es peor que decir cómo se consigue la cuenta. Llega cuando
+            llegue el alta. */}
+        <p className="text-[13px] text-texto-suave mt-6 text-center leading-relaxed">
+          ¿Todavía no tenés cuenta? Pedísela a {marca.nombre} y te la damos de alta.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   3 · Iniciar sesión
+   ------------------------------------------------------------ */
+
+function Ingresar({ marca, onEntro, onVolver }) {
   const [email, setEmail] = useState("");
   const [clave, setClave] = useState("");
+  const [ver, setVer] = useState(false);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
   const [yendo, setYendo] = useState(false);
@@ -93,48 +217,58 @@ function Bienvenida({ marca, onEntro }) {
     setAviso(`Si ${email.trim()} tiene cuenta, te va a llegar un correo con el link para cambiarla. Fijate también en el correo no deseado.`);
   }
 
-
-
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* La portada es del comercio. Sin una cargada no se deja un hueco
-          gris: se sube el contenido y la pantalla sigue estando bien. */}
-      {marca.portada && (
-        <div className="h-52 bg-superficie-2 overflow-hidden shrink-0">
-          <img src={marca.portada} alt="" className="w-full h-full object-cover" />
-        </div>
-      )}
+    <div className="min-h-screen flex flex-col max-w-lg w-full mx-auto px-6">
+      <header className="pt-6 pb-2">
+        <button type="button" onClick={onVolver} aria-label="Volver"
+          className="-ml-[11px] w-[44px] h-[44px] flex items-center justify-center text-texto-suave hover:text-texto transition-colors">
+          <ChevronLeft size={22} />
+        </button>
+      </header>
 
-      <div className="flex-1 flex flex-col justify-center max-w-lg w-full mx-auto px-6 py-10">
-        <div>
-          {marca.logo
-            ? <img src={marca.logo} alt={marca.nombre} className="h-11 object-contain" />
-            : <h1 className="f-d text-3xl text-acento">{marca.nombre}</h1>}
-          <p className="text-[11px] uppercase tracking-[0.18em] text-texto-tenue mt-2">
-            by GENEZ
-          </p>
-        </div>
+      <div className="flex-1 flex flex-col justify-center pb-16">
+        {/* Neutro y no "bienvenida", que es lo que dice la maqueta.
 
-        {marca.lema && (
-          <p className="f-d text-2xl mt-8 leading-snug">{marca.lema}</p>
-        )}
-        {marca.bajada && (
-          <p className="text-sm text-texto-suave mt-3 leading-relaxed">{marca.bajada}</p>
-        )}
+            Almha atiende mujeres y ahí suena bien; el motor es el mismo
+            para el bar y para el minimercado, y esta es la pantalla que
+            más gente ve de toda la app. Es una palabra: si preferís la de
+            la maqueta, se cambia acá y en ningún otro lado. */}
+        <h1 className="f-d text-[26px]">¡Hola de nuevo!</h1>
+        <p className="text-sm text-texto-suave mt-1.5">Ingresá para continuar</p>
 
-        <form onSubmit={entrar} className="mt-9 space-y-4">
+        <form onSubmit={entrar} className="mt-8 space-y-4">
           <label className="block">
+            {/* La maqueta dice "Email o teléfono". Entrar con el teléfono
+                pide otra forma de autenticación en Supabase —y que el
+                comercio tenga el número verificado— así que por ahora es
+                el correo y se dice el correo. Prometer las dos y aceptar
+                una sola es peor que ofrecer una. */}
             <span className={ROTULO}>Correo</span>
             <input type="email" value={email} autoComplete="email" inputMode="email"
               onChange={(e) => { setEmail(e.target.value); setError(""); }}
-              className={CAMPO} placeholder="el que le diste al comercio" />
+              className={CAMPO} placeholder="ejemplo@correo.com" />
           </label>
+
           <label className="block">
             <span className={ROTULO}>Contraseña</span>
-            <input type="password" value={clave} autoComplete="current-password"
-              onChange={(e) => { setClave(e.target.value); setError(""); }}
-              className={CAMPO} />
+            <div className="relative">
+              <input type={ver ? "text" : "password"} value={clave} autoComplete="current-password"
+                onChange={(e) => { setClave(e.target.value); setError(""); }}
+                className={`${CAMPO} pr-12`} />
+              <button type="button" onClick={() => setVer((v) => !v)} tabIndex={-1}
+                aria-label={ver ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+                className="absolute right-1 top-1/2 -translate-y-1/2 mt-[3px] w-[44px] h-[44px] flex items-center justify-center text-texto-tenue hover:text-texto-suave transition-colors">
+                {ver ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </label>
+
+          <div className="flex justify-end">
+            <button type="button" onClick={recuperar} disabled={pidiendo}
+              className="text-[13px] text-acento hover:text-acento-vivo transition-colors disabled:opacity-50">
+              {pidiendo ? "Enviando…" : "¿Olvidaste tu contraseña?"}
+            </button>
+          </div>
 
           {error && (
             <div className="text-sm text-mal border border-mal bg-mal-suave rounded-lg px-3.5 py-3">
@@ -154,16 +288,12 @@ function Bienvenida({ marca, onEntro }) {
           </button>
         </form>
 
-        {/* Hasta ahora no había forma de volver: quien olvidaba la clave
-            tenía que pedirle al comercio que le escribiera. Va debajo del
-            botón y no al lado del campo, porque es la salida de un
-            problema y no una opción de igual peso. */}
-        <button type="button" onClick={recuperar} disabled={pidiendo}
-          className="w-full text-center text-[13px] text-texto-tenue hover:text-acento mt-5 transition-colors disabled:opacity-50">
-          {pidiendo ? "Enviando…" : "¿Olvidaste tu contraseña?"}
-        </button>
+        {/* Acá va el "o continuá con" de Google, Apple y Facebook. Son
+            proveedores que hay que habilitar en Supabase y que cambian el
+            alta —alguien entra con Google sin que el comercio lo haya
+            dado de alta— así que van con el resto de esa tanda. */}
 
-        <p className="text-[13px] text-texto-suave mt-7 leading-relaxed">
+        <p className="text-[13px] text-texto-suave mt-8 text-center leading-relaxed">
           ¿Todavía no tenés cuenta? Pedísela a {marca.nombre} y te la damos de alta.
         </p>
       </div>
@@ -311,7 +441,17 @@ function SinFicha({ marca, email, onSalir }) {
 
 export default function App() {
   const [slug] = useState(slugDelDominio);
-  const [marca, setMarca] = useState(undefined);   // undefined = todavía no se sabe
+  /* Arranca con la que quedó guardada del último uso, si la hay: así la
+     pantalla de carga ya dice Almha. `cargarMarca` la refresca abajo.
+
+     `undefined` sigue queriendo decir "todavía no se sabe", que es lo
+     único que distingue "cargando" de "esta dirección no es de nadie". */
+  const [marca, setMarca] = useState(() => marcaGuardada(slugDelDominio()) || undefined);
+
+  /* Cuál de las dos pantallas de entrada se ve. La bienvenida presenta
+     al comercio y el login pide los datos: son dos cosas distintas y la
+     maqueta las separa. Ver el bloque de arriba. */
+  const [entrando, setEntrando] = useState(false);
   const [clienta, setClienta] = useState(null);
   const [modulos, setModulos] = useState([]);
   const [donde, setDonde] = useState("inicio");
@@ -323,6 +463,18 @@ export default function App() {
   const [turnos, setTurnos] = useState([]);
   const [abonos, setAbonos] = useState([]);
   const [esperas, setEsperas] = useState([]);
+
+  /* Los pagos se piden cuando alguien entra a verlos y no al arrancar: es
+     la única lista de la app que no aparece en ninguna pantalla de la
+     barra. Cargarla siempre sería una consulta más en cada apertura para
+     algo que casi nadie abre.
+
+     `null` quiere decir "todavía no se pidieron", que es distinto de "no
+     tiene ninguno" y la pantalla dibuja como cargando.
+
+     Y cuál de las dos subpantallas del plan se está viendo. */
+  const [pagos, setPagos] = useState(null);
+  const [enPlan, setEnPlan] = useState(null);
   const [bajando, setBajando] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -333,6 +485,11 @@ export default function App() {
      escucha nadie. Ver `vinoDeRecuperacion` en `datos/sesion.js`. */
   const [recuperando, setRecuperando] = useState(vinoDeRecuperacion);
   useEffect(() => alRecuperarClave(() => setRecuperando(true)), []);
+
+  /* Lo sabe el navegador y se actualiza solo. Sirve para decir "sin
+     conexión" en vez de "no pudimos cargar esto", que son dos problemas
+     distintos y solo uno lo puede resolver quien está mirando. */
+  const hayConexion = useHayConexion();
 
   /* La marca primero y sin sesión: es lo que hace que la bienvenida sea
      de Almha y no de nadie. */
@@ -399,6 +556,37 @@ export default function App() {
     }
   }
 
+  /* Se piden una sola vez, la primera que alguien entra a la pantalla. Si
+     falla queda en `null` y se vuelve a intentar al entrar de nuevo, que
+     para una lista que no cambia sola es reintento suficiente. */
+  useEffect(() => {
+    if ((enPlan !== "pagos" && enPlan !== "actividad") || pagos !== null) return;
+    let vigente = true;
+    cargarPagos()
+      .then((ps) => { if (vigente) setPagos(ps); })
+      .catch((e) => { if (vigente) setError(e.message); });
+    return () => { vigente = false; };
+  }, [enPlan, pagos]);
+
+  /* Al cambiar de pestaña se sale de la subpantalla: volver a "Mi plan"
+     desde la barra tiene que mostrar el plan y no la última cosa que se
+     miró adentro hace media hora. */
+  useEffect(() => { setEnPlan(null); }, [donde]);
+
+  /* Vuelve a preguntar quién entró. Es lo que reintenta la pantalla sin
+     conexión: el problema de ahí es que `cargarClienta` no llegó, así que
+     reintentar es llamarla de nuevo y no recargar la página. */
+  const reintentarSesion = useCallback(async () => {
+    setError(""); setCargando(true);
+    try {
+      setClienta(await cargarClienta());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
   async function cerrar() {
     await salir();
     setClienta(null); setTurnos([]); setAbonos([]); setEsperas([]); setModulos([]); setDonde("inicio");
@@ -407,7 +595,7 @@ export default function App() {
   /* Mientras no se sepa de qué comercio es, no se dibuja nada: cualquier
      cosa que se muestre antes sería genérica, que es lo único que esta
      app no puede ser. */
-  if (marca === undefined) return <Cargando />;
+  if (marca === undefined) return <Splash marca={null} />;
   if (marca === null) return <SinComercio slug={slug} />;
 
   /* Antes que la sesión y antes que la carga, no después.
@@ -430,8 +618,28 @@ export default function App() {
     );
   }
 
-  if (cargando) return <Cargando />;
-  if (!clienta) return <Bienvenida marca={marca} onEntro={setClienta} />;
+  if (cargando) return <Splash marca={marca} />;
+
+  if (!clienta) {
+    /* Sin sesión hay dos motivos y no uno, y hasta acá se trataban igual.
+
+       Si la sesión no está porque nadie entró, va la bienvenida. Pero si
+       no está porque la consulta falló —y sin señal falla siempre— lo que
+       se mostraba era el login: alguien que abre la app en el subte, ya
+       logueado, veía que le pedían la contraseña de nuevo. Es el peor
+       momento para dar a entender que la sesión se perdió.
+
+       Apareció probando la pantalla sin conexión, que es justo para esto. */
+    if (error) {
+      return !hayConexion
+        ? <SinConexion onReintentar={reintentarSesion} />
+        : <ErrorEstado onReintentar={reintentarSesion}>{error}</ErrorEstado>;
+    }
+
+    return entrando
+      ? <Ingresar marca={marca} onEntro={setClienta} onVolver={() => setEntrando(false)} />
+      : <Bienvenida marca={marca} onIngresar={() => setEntrando(true)} />;
+  }
   if (!comercio) return <SinFicha marca={marca} email={clienta.email} onSalir={cerrar} />;
 
   const hayModulo = (k) => modulos.some((m) => m.k === k);
@@ -444,12 +652,38 @@ export default function App() {
         onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto} />
     ),
     turnos: () => (
-      <Turnos proximos={proximos(turnos)} anteriores={pasados(turnos).slice(0, 20)}
+      <Turnos proximos={proximos(turnos)} anteriores={historial(turnos).slice(0, 20)}
+        cancelados={cancelados(turnos).slice(0, 20)}
         varios={varios} puedeReservar={hayModulo("turnos")}
         onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto}
         esperas={esperas} onBajarse={bajarse} bajando={bajando} />
     ),
-    plan: () => <Plan abonos={abonos} varios={varios} />,
+    /* Sesiones y Pagos cuelgan del plan, como en la maqueta: no son
+       pestañas de la barra sino lugares a los que se entra desde acá y se
+       vuelve. Por eso son un estado de esta pantalla y no un `donde`
+       nuevo —si fueran pestañas, la barra tendría seis— y por eso al
+       cambiar de pestaña se olvidan. */
+    plan: () => {
+      if (enPlan === "sesiones") {
+        return (
+          <Sesiones abonos={abonos} turnos={proximos(turnos)}
+            onVolver={() => setEnPlan(null)} onVerTurnos={() => { setEnPlan(null); setDonde("turnos"); }} />
+        );
+      }
+      if (enPlan === "pagos") {
+        return (
+          <Pagos pagos={pagos} cargando={pagos === null} varios={varios}
+            onVolver={() => setEnPlan(null)} />
+        );
+      }
+      if (enPlan === "actividad") {
+        return (
+          <Actividad turnos={turnos} pagos={pagos || []} cargando={pagos === null}
+            onVolver={() => setEnPlan(null)} />
+        );
+      }
+      return <Plan abonos={abonos} varios={varios} onVer={setEnPlan} />;
+    },
     cuenta: () => (
       <Cuenta marca={marca} comercio={comercio} email={clienta.email}
         comercios={clienta.comercios} onSalir={cerrar} />
@@ -471,9 +705,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {error
-        ? <ErrorEstado onReintentar={() => { setError(""); releer(); }}>{error}</ErrorEstado>
-        : dibujar()}
+      {/* Sin señal gana sobre el error: si el wifi se cortó, "no pudimos
+          cargar esto" manda a sospechar de la app por algo que la app no
+          hizo. Solo se muestra si además algo falló —estar sin conexión
+          con todo ya cargado en pantalla no es un problema todavía—. */}
+      {error && !hayConexion
+        ? <SinConexion onReintentar={() => { setError(""); releer(); }}
+            onInicio={() => { setError(""); setDonde("inicio"); releer(); }} />
+        : error
+          ? <ErrorEstado onReintentar={() => { setError(""); releer(); }}>{error}</ErrorEstado>
+          : dibujar()}
       <Navegacion modulos={modulos} actual={donde} onIr={setDonde} />
 
       <DetalleTurno turno={turnoAbierto}
