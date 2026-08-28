@@ -281,6 +281,12 @@ export async function cargarTurnos({ desde = null } = {}) {
     recurso: t.recurso || "",
     imagen: t.imagen || null,
     foto: t.foto || null,
+    /* Lo que hay que saber antes de ir. Sale del servicio y, si el
+       servicio no dice nada, del comercio. Los tres pueden ser nulos: sin
+       nada cargado el detalle queda como estaba. Ver la migración 0058. */
+    llegarMin: t.llegar_min ?? null,
+    llegarNota: t.llegar_nota || "",
+    llevar: t.llevar || "",
     desde: new Date(t.desde),
     duracionMin: t.duracion_min,
     estado: t.estado,
