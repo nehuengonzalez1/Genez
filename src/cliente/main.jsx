@@ -13,6 +13,20 @@ import "../index.css";
    Va acá y no adentro del motor porque es del envase: el día que un
    comercio pueda elegir tema, va a salir de `marca.tema` y este archivo
    solo cambia de qué variable lo lee. */
+/* El service worker se registra despues de cargar, no durante: durante
+   compite por la conexion con lo que la persona vino a ver.
+
+   Y solo si el navegador lo soporta. Sin el la app funciona igual: lo
+   unico que se pierde es abrir sin conexion, que es una comodidad y no
+   la funcionalidad. */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* Sin registro no pasa nada: no hay nada que avisarle a nadie. */
+    });
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <div className="tema-calido min-h-screen bg-fondo text-texto">

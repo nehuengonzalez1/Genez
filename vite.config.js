@@ -23,7 +23,18 @@ function servirApi() {
   return {
     name: "genez-servir-api",
     configureServer(server) {
-      return () => {
+      /* Se registra ANTES de los middlewares internos de Vite, no
+         después.
+
+         Con `return () => {...}` esto corría al final, y Vite ya había
+         atendido el pedido: a un GET de `/api/manifest` lo trataba como
+         un módulo y devolvía el código fuente transformado en vez de
+         ejecutarlo. No se notó antes porque todo lo de `api/` se probaba
+         con POST, que Vite no toca.
+
+         Es seguro correr primero: lo que no es de `api/`, o no existe
+         como archivo, sale por `next()` sin tocarse. */
+      {
         server.middlewares.use(async (req, res, next) => {
           const ruta = (req.url || "").split("?")[0];
           if (!ruta.startsWith("/api/")) return next();
@@ -62,6 +73,19 @@ function servirApi() {
             res.json = (o) => {
               res.setHeader("content-type", "application/json; charset=utf-8");
               res.end(JSON.stringify(o));
+              return res;
+            };
+            /* `send` no estaba y el ícono lo usa. Vercel lo provee, así
+               que sin esto una función andaba publicada y fallaba en
+               desarrollo, que es exactamente al revés de para qué existe
+               este middleware. No pisa el content-type si ya lo pusieron:
+               un SVG no es texto plano. */
+            res.send = (cuerpo) => {
+              if (!res.getHeader("content-type")) {
+                res.setHeader("content-type",
+                  typeof cuerpo === "string" ? "text/html; charset=utf-8" : "application/octet-stream");
+              }
+              res.end(cuerpo);
               return res;
             };
 

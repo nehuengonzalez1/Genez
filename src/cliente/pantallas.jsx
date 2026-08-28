@@ -332,6 +332,66 @@ export function Plan({ abonos, varios }) {
    CUENTA
    ------------------------------------------------------------ */
 
+/* El aviso de instalar aparece solo si el navegador dice que se puede.
+
+   No se le pide permiso a nadie: se escucha el evento que el navegador
+   dispara cuando la app cumple los requisitos, y recién ahí se ofrece.
+   Un botón "Instalar" que en la mitad de los teléfonos no hace nada es
+   peor que no tenerlo.
+
+   iOS no dispara ese evento: ahí se instala desde Compartir → Agregar a
+   inicio, y no hay forma de ofrecerlo desde la página. Por eso el texto
+   dice cómo, en vez de prometer un botón que Safari no va a mostrar. */
+function Instalar({ marca }) {
+  const [prompt, setPrompt] = React.useState(null);
+  const [listo, setListo] = React.useState(false);
+
+  React.useEffect(() => {
+    const alPoder = (e) => { e.preventDefault(); setPrompt(e); };
+    window.addEventListener("beforeinstallprompt", alPoder);
+    return () => window.removeEventListener("beforeinstallprompt", alPoder);
+  }, []);
+
+  /* Ya instalada: no se ofrece instalar de nuevo. */
+  const yaEsApp = typeof window !== "undefined" &&
+    (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone);
+
+  const esIOS = typeof navigator !== "undefined" &&
+    /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  if (yaEsApp || listo) return null;
+  if (!prompt && !esIOS) return null;
+
+  return (
+    <Seccion titulo={`Tener ${marca.nombre} a mano`}>
+      <Tarjeta>
+        {prompt ? (
+          <>
+            <p className="text-sm text-texto-suave leading-relaxed">
+              Instalala y te queda en la pantalla de inicio, como cualquier
+              aplicación.
+            </p>
+            <div className="mt-4">
+              <Boton onClick={async () => {
+                prompt.prompt();
+                await prompt.userChoice;
+                setPrompt(null); setListo(true);
+              }}>
+                Instalar
+              </Boton>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-texto-suave leading-relaxed">
+            Para tenerla en la pantalla de inicio: tocá Compartir y después
+            "Agregar a inicio".
+          </p>
+        )}
+      </Tarjeta>
+    </Seccion>
+  );
+}
+
 export function Cuenta({ marca, email, comercios, onSalir }) {
   return (
     <Pantalla titulo="Mi cuenta">
@@ -357,6 +417,8 @@ export function Cuenta({ marca, email, comercios, onSalir }) {
           ))}
         </Seccion>
       )}
+
+      <Instalar marca={marca} />
 
       <div className="mt-8">
         <Boton variante="linea" onClick={onSalir}>
