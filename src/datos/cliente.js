@@ -107,6 +107,10 @@ export async function cargarMarca(slug) {
     lema: m.lema || "",
     bajada: m.bajada || "",
     logo: m.logo || null,
+    /* Si el comercio acepta que alguien se dé de alta solo. Sale de la
+       marca porque la bienvenida tiene que saberlo antes del login, y no
+       es un dato sensible: es lo mismo que un cartel en la puerta. */
+    autoregistro: !!m.autoregistro,
     portada: m.portada || null,
   };
 
@@ -148,6 +152,49 @@ export async function entrarComoCliente(email, clave) {
   if (error) throw new Error("Correo o contraseña incorrectos.");
 
   return cargarClienta();
+}
+
+/* Registrarse en el comercio de esta app.
+
+   Dos pasos y no uno, porque son dos cosas distintas: Supabase crea la
+   cuenta y la base crea la ficha. Si el segundo falla, queda una cuenta
+   sin ficha, que es exactamente el estado que `SinFicha` ya sabe
+   mostrar: 'tu cuenta funciona, pero el comercio no te tiene asociada'.
+
+   NO RECLAMA NINGUNA FICHA EXISTENTE. Ver 0065 y §4 del modelo de
+   identidad: reclamar por teléfono es cómo alguien se lleva el
+   historial de otro. */
+export async function registrarme({ slug, nombre, email, clave, tel }) {
+  const { data, error } = await supabase.auth.signUp({
+    email: (email || "").trim(),
+    password: clave,
+  });
+
+  if (error) {
+    if (/already registered|already been registered/i.test(error.message)) {
+      throw new Error("Ese correo ya tiene una cuenta. Entrá con tu contraseña.");
+    }
+    if (/password/i.test(error.message)) {
+      throw new Error("La contraseña necesita al menos 6 caracteres.");
+    }
+    throw new Error(error.message);
+  }
+
+  /* Con la confirmación por correo prendida en Supabase, `signUp` no
+     deja sesión: la cuenta existe y todavía no puede escribir nada. Se
+     dice y no se falla, que es lo que pasa de verdad. */
+  if (!data.session) {
+    return { confirmar: true, email: (email || "").trim() };
+  }
+
+  const { error: eFicha } = await supabase.rpc("registrarme_en", {
+    p_slug: slug,
+    p_nombre: nombre,
+    p_tel: tel || null,
+  });
+  if (eFicha) throw new Error(eFicha.message || "No pudimos crear tu ficha.");
+
+  return { confirmar: false, clienta: await cargarClienta() };
 }
 
 export async function salir() {

@@ -2832,6 +2832,125 @@ try {
   await c.query("rollback");
 }
 
+/* ------------------------------------------------------------
+   Registrarse solo, sin reclamar nada
+
+   El camino (c) de §4 del modelo de identidad. Lo que hay que verificar
+   no es que funcione —eso es un insert— sino las tres cosas que lo
+   separan del camino peligroso:
+
+   que el comercio tenga que abrirlo, que la ficha nueva nazca vacía, y
+   que a quien se registra no se le conteste nunca si esos datos ya eran
+   de alguien.
+   ------------------------------------------------------------ */
+console.log("\nRegistrarse solo");
+
+await c.query("begin");
+try {
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, filas: r.rowCount, valor: r.rows[0] };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code, mensaje: e.message, filas: 0 };
+    }
+  };
+
+  const almhaR = await una("select id from empresas where nombre = 'Almha'");
+  const nuevaU = await una(
+    "insert into auth.users (id, email) values (gen_random_uuid(), 'nueva.registro@genez.test') returning id");
+
+  const comoNueva = async () => {
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: nuevaU.id, role: "authenticated" })]);
+  };
+
+  /* ---- Cerrado ----
+
+     Se apaga acá adentro en vez de dar por hecho que está apagado. La
+     primera versión leía el estado vivo de Almha, y el día que alguien lo
+     prendió —para mirar la pantalla— la prueba se puso en rojo sin que
+     nada estuviera mal. Una prueba que depende de un dato que se cambia
+     desde una pantalla no prueba el código: prueba la configuración. */
+  await c.query("set local role postgres");
+  await c.query(
+    `update empresas set config = coalesce(config, '{}'::jsonb)
+       || jsonb_build_object('cliente',
+            coalesce(config -> 'cliente', '{}'::jsonb)
+            || jsonb_build_object('autoregistro', false))
+      where id = $1`, [almhaR.id]);
+
+  await comoNueva();
+  decir((await una("select autoregistro from marca_de('almha')")).autoregistro === false,
+    "con el registro apagado, la marca lo dice");
+
+  const cerrado = await intentar(
+    "select registrarme_en('almha', $1, $2)", ["Nueva Clienta", "11 7762 4320"]);
+  decir(cerrado.codigo === "P00C2",
+    "y con eso apagado, registrarse es rechazado");
+
+  /* ---- El comercio lo abre ---- */
+
+  await c.query("set local role postgres");
+  /* Con merge y no con `jsonb_set`: si `config.cliente` no existe,
+     jsonb_set no crea el objeto padre y la actualización no hace nada.
+     Almha no lo tenía, y por eso esta prueba fallaba sin decir por qué. */
+  await c.query(
+    `update empresas set config = coalesce(config, '{}'::jsonb)
+       || jsonb_build_object('cliente',
+            coalesce(config -> 'cliente', '{}'::jsonb)
+            || jsonb_build_object('autoregistro', true))
+      where id = $1`, [almhaR.id]);
+
+  await comoNueva();
+  decir((await una("select autoregistro from marca_de('almha')")).autoregistro === true,
+    "prendido, la bienvenida se entera sin sesión: marca_de es pública");
+
+  const alta = await intentar(
+    "select registrarme_en('almha', $1, $2) id", ["Nueva Clienta", "11 7762 4320"]);
+  decir(alta.codigo === null && !!alta.valor.id, "y ahora sí puede registrarse");
+
+  /* ---- Lo que importa: la ficha nace vacía ---- */
+
+  decir((await una("select count(*)::int n from mis_turnos(null)")).n === 0,
+    "la ficha nueva no trae ni un turno: no reclama ninguna existente");
+  decir((await una("select count(*)::int n from mis_abonos()")).n === 0,
+    "ni un abono");
+  decir((await una("select count(*)::int n from mis_pagos(null)")).n === 0,
+    "ni un pago");
+
+  const dosVeces = await intentar("select registrarme_en('almha', $1)", ["Otra vez"]);
+  decir(dosVeces.codigo === "P00C3", "no se registra dos veces en el mismo comercio");
+
+  const sinNombre = await intentar("select registrarme_en('almha', $1)", ["   "]);
+  decir(sinNombre.codigo === "P00C1", "y sin nombre no hay ficha");
+
+  /* ---- El duplicado queda marcado para el comercio, y solo para él ---- */
+
+  await c.query("set local role postgres");
+  const ficha = await una(
+    "select razon_social, campos_extra from clientes where usuario_id = $1", [nuevaU.id]);
+
+  decir(ficha.campos_extra.autoregistro === true,
+    "la ficha queda marcada como hecha desde la app");
+
+  const dup = ficha.campos_extra.posibleDuplicadoDe;
+  const quien = dup && await una("select razon_social from clientes where id = $1", [dup]);
+  decir(!!quien && quien.razon_social === "Victoria Peralta",
+    "y marcada como posible duplicado de la ficha con ese mismo teléfono");
+
+  /* Lo que NO tiene que pasar: que el rechazo o la respuesta le cuenten a
+     quien se registra que ese teléfono ya era de alguien. */
+  decir(alta.codigo === null && Object.keys(alta.valor).length === 1,
+    "a quien se registra no se le contesta nada del duplicado: solo el id de su ficha");
+} finally {
+  await c.query("rollback");
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
