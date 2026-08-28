@@ -1,78 +1,56 @@
 /* ============================================================
-   LA APP DEL CLIENTE
+   EL MOTOR DE LA APP DEL CLIENTE
    ============================================================
 
-   Entrada aparte del sistema de gestión, y no una ruta más adentro, por
-   dos razones concretas:
+   Un solo motor que se comporta como la app de cualquier comercio. No hay
+   una versión de Almha: hay una configuración de Almha.
 
-   El peso. El bundle de gestión son 1,5 MB —punto de venta, salón,
-   reportes, gráficos, lector de códigos de barras— y nada de eso tiene
-   por qué viajar al teléfono de alguien que quiere saber a qué hora tiene
-   turno.
+   Lo que recibe y de dónde:
 
-   Y el alcance. Una PWA necesita su propio manifest, su ícono y su propio
-   service worker. Metida adentro de la aplicación de gestión, "instalar"
-   no significa nada claro.
+     el comercio    del dominio          almha.genez.com.ar
+     la marca       marca_de(slug)       pública, sin sesión
+     quién entró    mis_comercios()      la sesión de Supabase
+     qué muestra    modulos_del_cliente  contrato + decisión del comercio
+     los datos      mis_turnos, mis_abonos
 
-   Mismo repositorio para que los colores, el cliente de Supabase y la
-   sesión sean los mismos y no se desincronicen.
+   Ninguna de esas cinco está escrita acá. Este archivo las junta y
+   dibuja; si mañana Almha apaga "Mi plan" o contrata otro módulo, la app
+   cambia sin que nadie toque este código.
 
-   LA FORMA LA VA A DAR EL RUBRO
-   -----------------------------
-   Hoy esto muestra turnos y abonos, que es lo de una estética. `rubros`
-   ya es dato en la base y ya decide el menú del comercio; cuando esta
-   pantalla crezca, lo que se ve va a salir de ahí y no de un `if`. Se
-   deja anotado antes de que aparezca el primer `if`.
+   POR QUÉ EL COMERCIO SALE DEL DOMINIO Y NO DE LA SESIÓN
+   -----------------------------------------------------
+   Para que la bienvenida muestre la marca antes de que la persona entre.
+   Si saliera del login, hasta ese momento la app no sería de nadie, y la
+   primera pantalla —la que decide si esto se siente de Almha— sería
+   genérica.
+
+   NO HAY RUTAS
+   ------------
+   La navegación es un estado, no una URL. Una app instalada no se navega
+   con la barra de direcciones, y agregar un enrutador para cuatro
+   pantallas es traer una dependencia para resolver algo que no pasa. El
+   día que haga falta compartir un link a un turno, se agrega.
    ============================================================ */
 
 import React, { useState, useEffect, useCallback } from "react";
-import { CalendarDays, LogOut, Clock, MapPin, Ticket } from "lucide-react";
 import {
+  slugDelDominio, cargarMarca, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
   proximos, pasados,
 } from "../datos/cliente.js";
-
-const ROTULO = "text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold";
-
-const dia = (d) =>
-  d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
-const hora = (d) =>
-  d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
-
-/* Un turno de hoy o de mañana se dice con palabras: es lo que la persona
-   está buscando cuando abre esto, y "mañana 9:00" se lee más rápido que
-   "jueves 28 de agosto". */
-function cuando(d) {
-  const hoy = new Date();
-  const manana = new Date(hoy); manana.setDate(hoy.getDate() + 1);
-  const mismoDia = (a, b) => a.toDateString() === b.toDateString();
-
-  if (mismoDia(d, hoy)) return `Hoy ${hora(d)}`;
-  if (mismoDia(d, manana)) return `Mañana ${hora(d)}`;
-  return `${dia(d)}, ${hora(d)}`;
-}
-
-const TONO_ESTADO = {
-  pendiente: "text-texto-suave border-borde bg-superficie-2",
-  confirmada: "text-bien border-bien bg-bien-suave",
-  cancelada: "text-mal border-mal bg-mal-suave",
-  ausente: "text-ojo border-ojo bg-ojo-suave",
-};
-
-function Estado({ estado }) {
-  return (
-    <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${
-      TONO_ESTADO[estado] || TONO_ESTADO.pendiente}`}>
-      {estado}
-    </span>
-  );
-}
+import { Navegacion, Cargando, Error as ErrorEstado, Boton, ROTULO } from "./ui.jsx";
+import { Inicio, Turnos, Plan, Cuenta } from "./pantallas.jsx";
 
 /* ------------------------------------------------------------
-   Entrar
+   Bienvenida y login
+
+   Una sola pantalla y no dos. La maqueta las separa, y con razón cuando
+   hay que elegir entre entrar y registrarse; mientras el alta la haga el
+   comercio, "Crear cuenta" no existe y una pantalla intermedia es un
+   toque de más para llegar al mismo lado.
    ------------------------------------------------------------ */
 
-function Entrar({ onEntro }) {
+function Bienvenida({ marca, onEntro }) {
   const [email, setEmail] = useState("");
   const [clave, setClave] = useState("");
   const [error, setError] = useState("");
@@ -90,25 +68,41 @@ function Entrar({ onEntro }) {
     }
   }
 
-  const campo = "w-full bg-superficie-2 border border-borde rounded-md px-3 py-3 text-base mt-1.5 outline-none text-texto focus:border-acento transition-colors";
+  const campo = "w-full bg-superficie border border-borde rounded-lg px-3.5 py-3 text-base mt-1.5 outline-none text-texto placeholder:text-texto-tenue focus:border-acento transition-colors";
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <form onSubmit={entrar} className="w-full max-w-sm">
-        <div className="w-11 h-11 rounded-lg bg-acento flex items-center justify-center">
-          <CalendarDays size={20} className="text-texto" />
+    <div className="min-h-screen flex flex-col">
+      {/* La portada es del comercio. Sin una cargada no se deja un hueco
+          gris: se sube el contenido y la pantalla sigue estando bien. */}
+      {marca.portada && (
+        <div className="h-52 bg-superficie-2 overflow-hidden shrink-0">
+          <img src={marca.portada} alt="" className="w-full h-full object-cover" />
         </div>
-        <h1 className="f-d text-2xl mt-5">Tus turnos</h1>
-        <p className="text-sm text-texto-suave mt-1.5">
-          Entrá con el correo que le diste al comercio.
-        </p>
+      )}
 
-        <div className="mt-7 space-y-4">
+      <div className="flex-1 flex flex-col justify-center max-w-lg w-full mx-auto px-6 py-10">
+        <div>
+          {marca.logo
+            ? <img src={marca.logo} alt={marca.nombre} className="h-11 object-contain" />
+            : <h1 className="f-d text-3xl text-acento">{marca.nombre}</h1>}
+          <p className="text-[11px] uppercase tracking-[0.18em] text-texto-tenue mt-2">
+            by GENEZ
+          </p>
+        </div>
+
+        {marca.lema && (
+          <p className="f-d text-2xl mt-8 leading-snug">{marca.lema}</p>
+        )}
+        {marca.bajada && (
+          <p className="text-sm text-texto-suave mt-3 leading-relaxed">{marca.bajada}</p>
+        )}
+
+        <form onSubmit={entrar} className="mt-9 space-y-4">
           <label className="block">
             <span className={ROTULO}>Correo</span>
-            <input type="email" value={email} autoFocus autoComplete="email"
+            <input type="email" value={email} autoComplete="email" inputMode="email"
               onChange={(e) => { setEmail(e.target.value); setError(""); }}
-              className={campo} />
+              className={campo} placeholder="el que le diste al comercio" />
           </label>
           <label className="block">
             <span className={ROTULO}>Contraseña</span>
@@ -118,206 +112,169 @@ function Entrar({ onEntro }) {
           </label>
 
           {error && (
-            <div className="text-sm text-mal border border-mal bg-mal-suave rounded-md px-3 py-2.5">
+            <div className="text-sm text-mal border border-mal bg-mal-suave rounded-lg px-3.5 py-3">
               {error}
             </div>
           )}
 
           <button type="submit" disabled={yendo || !email || !clave}
-            className="w-full bg-acento hover:bg-acento-vivo disabled:opacity-50 text-texto font-bold rounded-md px-4 py-3 transition-colors">
-            {yendo ? "Entrando…" : "Entrar"}
+            className="w-full bg-acento hover:bg-acento-vivo disabled:opacity-50 text-sobre-acento font-bold rounded-lg px-4 py-3.5 text-[15px] transition-colors">
+            {yendo ? "Entrando…" : "Ingresar"}
           </button>
-        </div>
-      </form>
+        </form>
+
+        <p className="text-[13px] text-texto-suave mt-7 leading-relaxed">
+          ¿Todavía no tenés cuenta? Pedísela a {marca.nombre} y te la damos de alta.
+        </p>
+      </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------
-   Un turno
+   Cuando algo falta
+
+   Dos casos que no son errores y se tratan distinto. El primero es de
+   configuración —alguien abrió una dirección que no es de ningún
+   comercio— y el segundo es una persona real esperando que la enlacen.
    ------------------------------------------------------------ */
 
-function Turno({ t, mostrarComercio }) {
+function SinComercio({ slug }) {
   return (
-    <li className="border border-borde rounded-lg p-5 hover:shadow-sm transition-shadow">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <div className="text-base">{t.servicio}</div>
-          <div className="text-sm text-texto-suave mt-0.5 flex items-center gap-1.5 flex-wrap">
-            <Clock size={13} /> {cuando(t.desde)} · {t.duracionMin} min
-          </div>
-          {t.profesional && (
-            <div className="text-sm text-texto-suave mt-0.5">Con {t.profesional}</div>
-          )}
-          {mostrarComercio && (
-            <div className="text-[11px] text-texto-tenue mt-1.5 flex items-center gap-1">
-              <MapPin size={11} /> {t.empresa}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {t.esClase && <span className={ROTULO}>Clase</span>}
-          <Estado estado={t.estado} />
-        </div>
+    <div className="min-h-screen flex items-center justify-center p-8 text-center">
+      <div className="max-w-xs">
+        <h1 className="f-d text-xl">Esta dirección no es de ningún comercio</h1>
+        <p className="text-sm text-texto-suave mt-2 leading-relaxed">
+          {slug
+            ? <>No encontramos un comercio en <span className="f-m">{slug}</span>.</>
+            : "Entrá desde la dirección que te pasó el comercio."}
+        </p>
       </div>
-    </li>
+    </div>
+  );
+}
+
+function SinFicha({ marca, email, onSalir }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-8 text-center">
+      <div className="max-w-xs">
+        <h1 className="f-d text-xl">Todavía no hay nada para mostrarte</h1>
+        <p className="text-sm text-texto-suave mt-3 leading-relaxed">
+          Tu cuenta funciona, pero {marca.nombre} no te tiene asociada a esta
+          dirección. Pediles que te enlacen con <span className="f-m">{email}</span>.
+        </p>
+        <button onClick={onSalir} className="text-sm text-texto-tenue hover:text-acento mt-8">
+          Salir
+        </button>
+      </div>
+    </div>
   );
 }
 
 /* ------------------------------------------------------------
-   La pantalla
+   El motor
    ------------------------------------------------------------ */
 
 export default function App() {
+  const [slug] = useState(slugDelDominio);
+  const [marca, setMarca] = useState(undefined);   // undefined = todavía no se sabe
   const [clienta, setClienta] = useState(null);
+  const [modulos, setModulos] = useState([]);
+  const [donde, setDonde] = useState("inicio");
   const [turnos, setTurnos] = useState([]);
   const [abonos, setAbonos] = useState([]);
-  const [iniciando, setIniciando] = useState(true);
+  const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
-  const releer = useCallback(async () => {
-    const [t, a] = await Promise.all([cargarTurnos(), cargarAbonos()]);
-    setTurnos(t);
-    setAbonos(a);
-  }, []);
+  /* La marca primero y sin sesión: es lo que hace que la bienvenida sea
+     de Almha y no de nadie. */
+  useEffect(() => {
+    let vigente = true;
+    cargarMarca(slug)
+      .then((m) => { if (vigente) setMarca(m); })
+      .catch(() => { if (vigente) setMarca(null); });
+    return () => { vigente = false; };
+  }, [slug]);
 
   useEffect(() => {
     let vigente = true;
     cargarClienta()
       .then((c) => { if (vigente) setClienta(c); })
       .catch((e) => { if (vigente) setError(e.message); })
-      .finally(() => { if (vigente) setIniciando(false); });
+      .finally(() => { if (vigente) setCargando(false); });
     return () => { vigente = false; };
   }, []);
 
+  /* El comercio de ESTA app entre los de la persona. Con el dominio
+     resuelto, entrar a `almha.genez.com.ar` con una cuenta que además es
+     clienta de otro lado muestra Almha y nada más: la app es de un
+     comercio, aunque la cuenta sea de varios. */
+  const comercio = clienta && marca
+    ? clienta.comercios.find((c) => c.slug === marca.slug) || null
+    : null;
+
+  const releer = useCallback(async () => {
+    if (!comercio) return;
+    const [ms, t, a] = await Promise.all([
+      cargarModulos(comercio.empresaId),
+      cargarTurnos(),
+      cargarAbonos(),
+    ]);
+    setModulos(ms);
+    setTurnos(t);
+    setAbonos(a);
+    /* Si la pantalla en la que está dejó de existir —el comercio apagó el
+       módulo mientras la tenía abierta— se vuelve al inicio en vez de
+       quedar en una pantalla que ya no está en la barra. */
+    if (!ms.some((m) => m.k === donde)) setDonde("inicio");
+  }, [comercio, donde]);
+
   useEffect(() => {
-    if (!clienta || clienta.sinFichas) return;
+    if (!comercio) return;
     let vigente = true;
     releer().catch((e) => { if (vigente) setError(e.message); });
     return () => { vigente = false; };
-  }, [clienta, releer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comercio && comercio.empresaId]);
 
   async function cerrar() {
     await salir();
-    setClienta(null); setTurnos([]); setAbonos([]);
+    setClienta(null); setTurnos([]); setAbonos([]); setModulos([]); setDonde("inicio");
   }
 
-  if (iniciando) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-7 h-7 rounded-full border-2 border-borde-fuerte border-t-acento animate-spin" />
-      </div>
-    );
-  }
+  /* Mientras no se sepa de qué comercio es, no se dibuja nada: cualquier
+     cosa que se muestre antes sería genérica, que es lo único que esta
+     app no puede ser. */
+  if (marca === undefined || cargando) return <Cargando />;
+  if (marca === null) return <SinComercio slug={slug} />;
+  if (!clienta) return <Bienvenida marca={marca} onEntro={setClienta} />;
+  if (!comercio) return <SinFicha marca={marca} email={clienta.email} onSalir={cerrar} />;
 
-  if (!clienta) return <Entrar onEntro={setClienta} />;
-
-  /* Se registró y ningún comercio la reconoce todavía. No es un error: es
-     el estado normal de alguien que llegó antes de que la invitaran. */
-  if (clienta.sinFichas) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="max-w-sm text-center">
-          <h1 className="f-d text-xl">Todavía no hay nada para mostrarte</h1>
-          <p className="text-sm text-texto-suave mt-2 leading-relaxed">
-            Tu cuenta anda, pero ningún comercio te tiene asociada a esta dirección.
-            Avisale a donde te atendés y pediles que te enlacen con {clienta.email}.
-          </p>
-          <button onClick={cerrar} className="text-sm text-texto-tenue hover:text-acento-vivo mt-6">
-            Salir
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const proximosTurnos = proximos(turnos);
-  const anteriores = pasados(turnos).slice(0, 10);
-  /* Con un solo comercio, decir de cuál es cada turno es ruido. */
+  const hayModulo = (k) => modulos.some((m) => m.k === k);
   const varios = clienta.comercios.length > 1;
+
+  const pantallas = {
+    inicio: () => (
+      <Inicio marca={marca} nombre={comercio.miNombre} hayModulo={hayModulo}
+        turnos={proximos(turnos)} abonos={abonos} onIr={setDonde} />
+    ),
+    turnos: () => (
+      <Turnos proximos={proximos(turnos)} anteriores={pasados(turnos).slice(0, 20)} varios={varios} />
+    ),
+    plan: () => <Plan abonos={abonos} varios={varios} />,
+    cuenta: () => (
+      <Cuenta marca={marca} email={clienta.email} comercios={clienta.comercios} onSalir={cerrar} />
+    ),
+  };
+
+  const dibujar = pantallas[donde] || pantallas.inicio;
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-borde">
-        <div className="max-w-2xl mx-auto px-6 py-5 flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="f-d text-lg">Tus turnos</h1>
-            <p className="text-[11px] text-texto-tenue truncate">{clienta.email}</p>
-          </div>
-          <button onClick={cerrar} title="Salir"
-            className="text-texto-tenue hover:text-texto transition-colors">
-            <LogOut size={18} />
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-6 py-6 space-y-8">
-        {error && (
-          <div className="text-sm text-mal border border-mal bg-mal-suave rounded-md px-3 py-2.5">
-            {error}
-          </div>
-        )}
-
-        <section>
-          <div className={ROTULO}>Lo que viene</div>
-          {proximosTurnos.length === 0 ? (
-            <p className="text-sm text-texto-suave mt-3">
-              No tenés turnos agendados.
-            </p>
-          ) : (
-            <ul className="mt-3 space-y-3">
-              {proximosTurnos.map((t) => (
-                <Turno key={t.id} t={t} mostrarComercio={varios} />
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {abonos.length > 0 && (
-          <section>
-            <div className={ROTULO}>Tus abonos</div>
-            <ul className="mt-3 space-y-3">
-              {abonos.map((a) => (
-                <li key={a.id} className="border border-borde rounded-lg p-5">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="text-base flex items-center gap-2">
-                        <Ticket size={14} className="text-texto-tenue" /> {a.nombre}
-                      </div>
-                      {varios && (
-                        <div className="text-[11px] text-texto-tenue mt-1">{a.empresa}</div>
-                      )}
-                      {a.vence && (
-                        <div className="text-sm text-texto-suave mt-0.5">
-                          {a.vigente ? "Vence" : "Venció"} el{" "}
-                          {a.vence.toLocaleDateString("es-AR", { day: "numeric", month: "long" })}
-                        </div>
-                      )}
-                    </div>
-                    {a.clases != null && (
-                      <div className="text-right">
-                        <div className="f-m text-2xl">{Math.max(0, a.clases - a.usadas)}</div>
-                        <div className="text-[11px] text-texto-tenue">de {a.clases} sin usar</div>
-                      </div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {anteriores.length > 0 && (
-          <section>
-            <div className={ROTULO}>Antes</div>
-            <ul className="mt-3 space-y-3 opacity-60">
-              {anteriores.map((t) => (
-                <Turno key={t.id} t={t} mostrarComercio={varios} />
-              ))}
-            </ul>
-          </section>
-        )}
-      </main>
+      {error
+        ? <ErrorEstado onReintentar={() => { setError(""); releer(); }}>{error}</ErrorEstado>
+        : dibujar()}
+      <Navegacion modulos={modulos} actual={donde} onIr={setDonde} />
     </div>
   );
 }

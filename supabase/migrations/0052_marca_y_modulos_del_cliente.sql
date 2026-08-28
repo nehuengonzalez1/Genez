@@ -188,6 +188,50 @@ grant execute on function public.marca_de(text) to anon, authenticated;
 
 
 /* ------------------------------------------------------------
+   2 bis · `mis_comercios` necesita el slug y el nombre de la persona
+
+   El slug porque con el comercio saliendo del dominio, la app tiene que
+   encontrar cuál de las fichas de esta persona es la de ESTA app. La
+   primera versión del motor las comparaba por nombre de comercio, que
+   funciona hasta que existan "Almha" y "Almha Centro".
+
+   Y el nombre porque el saludo del inicio es "Hola, Sofía" y ese dato no
+   está en la sesión: en `auth.users` está el correo, el nombre está en la
+   ficha que le hizo el comercio. Son dos cosas distintas a propósito —una
+   persona puede llamarse distinto en dos comercios— y el que vale es el
+   de la ficha.
+   ------------------------------------------------------------ */
+
+drop function if exists public.mis_comercios();
+
+create or replace function public.mis_comercios()
+returns table (
+  empresa_id  uuid,
+  slug        text,
+  nombre      text,
+  rubro       text,
+  ficha_id    uuid,
+  mi_nombre   text,
+  desde       timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select e.id, e.slug, e.nombre, e.rubro, c.id, c.razon_social, c.creado_en
+    from clientes c
+    join empresas e on e.id = c.empresa_id
+   where c.usuario_id = auth.uid()
+     and c.activo = true
+     and e.activa = true
+   order by e.nombre
+$$;
+
+grant execute on function public.mis_comercios() to authenticated;
+
+
+/* ------------------------------------------------------------
    3 · El catálogo de módulos del cliente
 
    Dato de plataforma, como `rubros` y `roles_base`. Un rubro nuevo no
