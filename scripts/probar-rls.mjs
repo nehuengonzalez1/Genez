@@ -2214,8 +2214,13 @@ console.log("\nHorarios libres");
       [almhaH, enClase.id]);
     decir(clases.rows.every((r) => r.clase_id !== null),
       "un servicio con clases devuelve clases, no huecos inventados");
-    decir(clases.rows.every((r) => r.lugares > 0),
-      "y solo las que tienen lugar: una clase llena no es una opción");
+    /* Cambió en 0056: una clase llena ahora se muestra con `lugares` en
+       cero, para poder anotarse en la lista de espera. Lo que sigue sin
+       poder pasar —que se muestre llena Y sin espera habilitada— lo cubre
+       la sección "Lista de espera". Acá alcanza con que ninguna venga con
+       lugares negativos, que sería una cuenta rota. */
+    decir(clases.rows.every((r) => r.lugares >= 0),
+      "las clases vienen con sus lugares, y una llena viene en cero");
 
     const huecos = await c.query(
       "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
@@ -2528,6 +2533,144 @@ console.log("\nCancelar desde la app");
     const cancelado = turnos.rows.find((t) => t.id === aTiempo);
     decir(cancelado && cancelado.puede_cancelar === false,
       "y uno ya cancelado dice que no");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
+/* ------------------------------------------------------------
+   La lista de espera
+
+   Lo que más importa probar es lo que NO hace: no promueve a nadie. Es
+   una decisión de 0034 —"liberar un lugar y meter a alguien sin avisarle
+   es peor que el problema"— y una prueba es la única forma de que siga
+   siendo cierta cuando alguien la quiera "mejorar".
+   ------------------------------------------------------------ */
+console.log("\nLista de espera");
+
+{
+  const almhaE = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const itemE = (await una(
+    "select id from items where empresa_id = $1 and nombre = 'Pilates Reformer'", [almhaE])).id;
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, fila: r.rows[0] || null };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    const u = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'espera@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta en espera', $2, now()) returning id`, [almhaE, u])).id;
+    await c.query(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack espera', 4, current_date - 1, current_date + 30)`, [almhaE, ficha]);
+
+    /* Una clase de un lugar, y ese lugar ocupado por otra persona. */
+    const otra = (await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'La que llegó primero') returning id`,
+      [almhaE])).id;
+    const llena = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       values ($1, 'Clase llena', now() + interval '3 days', 60, 'confirmada', 1, $2, 0)
+       returning id`, [almhaE, itemE])).id;
+    await c.query(
+      `insert into reservas (empresa_id, cliente_id, clase_id, nombre, desde, duracion_min, estado)
+       select $1, $2, $3, 'La que llegó primero', desde, duracion_min, 'confirmada'
+         from reservas where id = $3`, [almhaE, otra, llena]);
+
+    const conLugar = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       values ($1, 'Clase con lugar', now() + interval '4 days', 60, 'confirmada', 3, $2, 0)
+       returning id`, [almhaE, itemE])).id;
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    /* ---- Una clase llena ahora se ve ---- */
+    const antes = await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
+      [almhaE, itemE]);
+    const laLlena = antes.rows.find((r) => r.clase_id === llena);
+    decir(!!laLlena, "una clase llena se ve, en vez de desaparecer sin explicación");
+    decir(laLlena && laLlena.lugares === 0, "y dice que no tiene lugar");
+    decir(laLlena && laLlena.en_espera === false, "y que todavía no está anotada");
+
+    /* ---- Anotarse ---- */
+    const anotada = await intentar("select public.anotarme_en_espera($1) r", [llena]);
+    decir(anotada.codigo === null && Number(anotada.fila.r.lugar) === 1,
+      "se anota y queda primera en la fila");
+
+    decir((await intentar("select public.anotarme_en_espera($1) r", [llena])).codigo === "P00A2",
+      "no se anota dos veces en la misma clase");
+
+    /* Si hay lugar, se reserva y no se espera. */
+    decir((await intentar("select public.anotarme_en_espera($1) r", [conLugar])).codigo === "P00A1",
+      "en una clase con lugar no se espera: se reserva");
+
+    const esperas = await c.query("select * from public.mis_esperas()");
+    decir(esperas.rowCount === 1 && esperas.rows[0].clase_id === llena,
+      "ve dónde está esperando");
+    decir(esperas.rows[0].servicio !== null,
+      "con el nombre del servicio, no un identificador");
+
+    /* ---- Lo que NO hace ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    await c.query(
+      "update reservas set estado = 'cancelada' where clase_id = $1 and cliente_id = $2",
+      [llena, otra]);
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    decir((await c.query("select * from public.mis_turnos()")).rows
+      .every((t) => t.id !== llena),
+      "cuando se libera un lugar NO la mete sola: eso lo avisa el comercio");
+    decir((await c.query("select * from public.mis_esperas()")).rowCount === 1,
+      "sigue esperando hasta que alguien le avise");
+
+    /* Y ahora que hay lugar, la puede reservar. */
+    const reserva = await intentar("select public.reservar_como_cliente($1) r",
+      [JSON.stringify({ empresa_id: almhaE, clase_id: llena })]);
+    decir(reserva.codigo === null, "y cuando le avisan, la reserva como cualquier otra");
+
+    /* ---- Bajarse ---- */
+    await c.query("select public.salir_de_espera($1)", [llena]);
+    decir((await c.query("select * from public.mis_esperas()")).rowCount === 0,
+      "puede bajarse de la lista");
+
+    /* ---- Si el comercio no la habilita ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    await c.query(
+      `update empresas set config = config || '{"turnos":{"esperaDesdeApp":false}}'::jsonb where id = $1`,
+      [almhaE]);
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    /* Esto tenía un `|| true` que la hacía pasar pase lo que pase. Una
+       prueba que no puede fallar es peor que no tenerla: ocupa un renglón
+       en verde y no verifica nada. */
+    decir((await intentar("select public.anotarme_en_espera($1) r", [llena])).codigo === "P00A0",
+      "con la espera apagada, el comercio la maneja desde el local");
+    const sinEspera = await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
+      [almhaE, itemE]);
+    decir(sinEspera.rows.every((r) => r.lugares > 0),
+      "y las clases llenas vuelven a no mostrarse: no se ofrece una lista que nadie mira");
   } finally {
     await c.query("rollback");
   }
