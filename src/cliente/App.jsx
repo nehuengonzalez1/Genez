@@ -40,6 +40,7 @@ import {
 } from "../datos/cliente.js";
 import { Navegacion, Cargando, Error as ErrorEstado, Boton, ROTULO } from "./ui.jsx";
 import { Inicio, Turnos, Plan, Cuenta } from "./pantallas.jsx";
+import { Reservar } from "./Reservar.jsx";
 
 /* ------------------------------------------------------------
    Bienvenida y login
@@ -181,6 +182,10 @@ export default function App() {
   const [clienta, setClienta] = useState(null);
   const [modulos, setModulos] = useState([]);
   const [donde, setDonde] = useState("inicio");
+  /* Reservar no es un modulo de la barra: es algo que se hace desde
+     Turnos o desde Inicio y despues se vuelve. Por eso es un estado
+     aparte y no un  mas. */
+  const [reservando, setReservando] = useState(false);
   const [turnos, setTurnos] = useState([]);
   const [abonos, setAbonos] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -256,10 +261,13 @@ export default function App() {
   const pantallas = {
     inicio: () => (
       <Inicio marca={marca} nombre={comercio.miNombre} hayModulo={hayModulo}
-        turnos={proximos(turnos)} abonos={abonos} onIr={setDonde} />
+        turnos={proximos(turnos)} abonos={abonos} onIr={setDonde}
+        onReservar={() => setReservando(true)} />
     ),
     turnos: () => (
-      <Turnos proximos={proximos(turnos)} anteriores={pasados(turnos).slice(0, 20)} varios={varios} />
+      <Turnos proximos={proximos(turnos)} anteriores={pasados(turnos).slice(0, 20)}
+        varios={varios} puedeReservar={hayModulo("turnos")}
+        onReservar={() => setReservando(true)} />
     ),
     plan: () => <Plan abonos={abonos} varios={varios} />,
     cuenta: () => (
@@ -268,6 +276,17 @@ export default function App() {
   };
 
   const dibujar = pantallas[donde] || pantallas.inicio;
+
+  /* Reservar se lleva la pantalla entera, incluida la barra: es una tarea
+     con principio y fin, y dejar la navegacion abajo invita a irse a la
+     mitad. */
+  if (reservando) {
+    return (
+      <Reservar empresaId={comercio.empresaId}
+        onCerrar={() => { setReservando(false); setDonde("turnos"); }}
+        onReservado={releer} />
+    );
+  }
 
   return (
     <div className="min-h-screen">

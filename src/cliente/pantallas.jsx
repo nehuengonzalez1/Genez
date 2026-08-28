@@ -60,7 +60,7 @@ function Turno({ t, mostrarComercio }) {
    vencido no contestan eso, así que no están.
    ------------------------------------------------------------ */
 
-export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr }) {
+export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReservar }) {
   const proximo = turnos[0] || null;
   const plan = abonos.find((a) => a.vigente) || null;
 
@@ -86,9 +86,10 @@ export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr }) {
             <Turno t={proximo} />
           ) : (
             <Tarjeta>
-              <p className="text-sm text-texto-suave">
-                No tenés turnos agendados.
-              </p>
+              <p className="text-sm text-texto-suave">No tenés turnos agendados.</p>
+              <div className="mt-4">
+                <Boton onClick={onReservar}>Reservar un turno</Boton>
+              </div>
             </Tarjeta>
           )}
         </Seccion>
@@ -143,7 +144,7 @@ export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr }) {
    TURNOS
    ------------------------------------------------------------ */
 
-export function Turnos({ proximos, anteriores, varios }) {
+export function Turnos({ proximos, anteriores, varios, puedeReservar, onReservar }) {
   const [pestana, setPestana] = React.useState("proximos");
   const lista = pestana === "proximos" ? proximos : anteriores;
 
@@ -160,9 +161,18 @@ export function Turnos({ proximos, anteriores, varios }) {
         ))}
       </div>
 
+      {puedeReservar && pestana === "proximos" && lista.length > 0 && (
+        <div className="mb-5">
+          <Boton onClick={onReservar}>Reservar otro turno</Boton>
+        </div>
+      )}
+
       {lista.length === 0 ? (
         <Vacio icono="calendario"
-          titulo={pestana === "proximos" ? "No tenés turnos próximos" : "Todavía no hay historial"}>
+          titulo={pestana === "proximos" ? "No tenés turnos próximos" : "Todavía no hay historial"}
+          accion={pestana === "proximos" && puedeReservar && (
+            <Boton onClick={onReservar}>Reservar turno</Boton>
+          )}>
           {pestana === "proximos"
             ? "Cuando saques un turno, lo vas a ver acá."
             : "Acá van a quedar los turnos a los que ya fuiste."}

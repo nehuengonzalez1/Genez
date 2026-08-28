@@ -188,6 +188,103 @@ export function pasados(turnos) {
 }
 
 /* ------------------------------------------------------------
+   Reservar
+
+   Tres consultas y ninguna toca una tabla, como todo lo demás de este
+   archivo. Las reglas del comercio —con cuánta anticipación, si hace
+   falta haber venido antes, si avisa cuando ya hay otro turno ese día—
+   están adentro de la base y no acá. La pantalla muestra lo que la base
+   deja y dice lo que la base contesta.
+   ------------------------------------------------------------ */
+
+export async function cargarServicios(empresaId) {
+  if (!empresaId) throw new Error("cargarServicios necesita saber de qué comercio.");
+
+  const { data, error } = await supabase.rpc("servicios_del_cliente", { p_empresa: empresaId });
+  if (error) throw new Error("No pudimos cargar los servicios.");
+
+  return (data || []).map((s) => ({
+    id: s.id,
+    nombre: s.nombre,
+    categoria: s.categoria || "",
+    precio: Number(s.precio || 0),
+    duracionMin: s.duracion_min,
+    /* Si el comercio publicó clases de esto. Cambia qué se pregunta
+       después: para una clase el horario ya viene armado. */
+    enClase: !!s.en_clase,
+  }));
+}
+
+const soloFecha = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+export async function cargarHorarios({ empresaId, itemId, dias = 14, personalId = null }) {
+  if (!empresaId || !itemId) throw new Error("cargarHorarios necesita el comercio y el servicio.");
+
+  const hoy = new Date();
+  const hasta = new Date(hoy);
+  hasta.setDate(hoy.getDate() + dias);
+
+  const { data, error } = await supabase.rpc("horarios_libres", {
+    p_empresa: empresaId,
+    p_item: itemId,
+    p_desde: soloFecha(hoy),
+    p_hasta: soloFecha(hasta),
+    p_personal: personalId,
+  });
+  if (error) throw new Error("No pudimos cargar los horarios.");
+
+  return (data || []).map((h) => ({
+    claseId: h.clase_id,
+    desde: new Date(h.desde),
+    duracionMin: h.duracion_min,
+    personalId: h.personal_id,
+    profesional: h.profesional || "",
+    recursoId: h.recurso_id,
+    recurso: h.recurso || "",
+    lugares: h.lugares,
+  }));
+}
+
+/* Devuelve `{ id, aviso }`. El aviso no es un error: es lo que hay que
+   mostrar sin frenar nada, y viene de la base para que salga igual desde
+   cualquier pantalla que reserve. */
+export async function reservar({ empresaId, horario, itemId }) {
+  const { data, error } = await supabase.rpc("reservar_como_cliente", {
+    p: {
+      empresa_id: empresaId,
+      clase_id: horario.claseId,
+      item_id: itemId,
+      desde: horario.desde.toISOString(),
+      personal_id: horario.personalId,
+      recurso_id: horario.recursoId,
+    },
+  });
+
+  if (error) throw traducir(error);
+  return { id: data.id, aviso: data.aviso || null };
+}
+
+/* Los mensajes de la base ya están escritos para que los lea una persona
+   —"Ese horario ya está muy cerca", "Para reservar por primera vez, pasá
+   por el local"— así que se usan tal cual. Lo que se traduce son los dos
+   casos donde el mensaje crudo de Postgres no le dice nada a nadie. */
+function traducir(error) {
+  const propios = ["P0090", "P0091", "P0092", "P0093", "P0094"];
+  if (error && propios.includes(error.code)) return new Error(error.message);
+
+  const otros = {
+    P0045: "Esa clase se llenó recién. Probá con otro horario.",
+    P0046: "Ya estás anotada en esa clase.",
+    P0044: "Esa clase se canceló.",
+    P0039: "Ese horario se acaba de ocupar. Probá con otro.",
+  };
+  if (error && otros[error.code]) return new Error(otros[error.code]);
+
+  return new Error("No pudimos tomar la reserva. Probá de nuevo.");
+}
+
+/* ------------------------------------------------------------
    Los abonos
    ------------------------------------------------------------ */
 
