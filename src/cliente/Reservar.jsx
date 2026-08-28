@@ -27,7 +27,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, Check, AlertTriangle, Users } from "lucide-react";
-import { cargarServicios, cargarHorarios, reservar } from "../datos/cliente.js";
+import { cargarServicios, cargarHorarios, reservar, anotarmeEnEspera } from "../datos/cliente.js";
 import {
   Pantalla, Tarjeta, Boton, Cargando, Vacio, Error as ErrorEstado, ROTULO, hora,
 } from "./ui.jsx";
@@ -121,7 +121,8 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
             {g.horarios.map((h, i) => (
               <button key={h.claseId || `${h.desde.toISOString()}-${i}`}
                 onClick={() => onElegir(h)}
-                className="w-full text-left bg-superficie border border-borde rounded-xl px-4 py-3.5 hover:border-acento transition-colors">
+                className={`w-full text-left bg-superficie border rounded-xl px-4 py-3.5 transition-colors ${
+                  h.lugares === 0 ? "border-borde opacity-70 hover:opacity-100" : "border-borde hover:border-acento"}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="f-m text-[17px]">{hora(h.desde)}</div>
@@ -136,6 +137,13 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
                     <div className="flex items-center gap-1 text-[11px] text-texto-tenue shrink-0">
                       <Users size={12} />
                       {h.lugares}
+                    </div>
+                  )}
+                  {/* Una clase llena no se esconde: es otra cosa que se
+                      puede hacer, no un horario que no sirve. */}
+                  {h.claseId && h.lugares === 0 && (
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-ojo border border-ojo bg-ojo-suave rounded px-1.5 py-0.5 shrink-0 whitespace-nowrap">
+                      {h.enEspera ? "En la lista" : "Completa"}
                     </div>
                   )}
                 </div>
@@ -157,10 +165,36 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
    ------------------------------------------------------------ */
 
 function Confirmar({ servicio, horario, yendo, error, onConfirmar, onVolver }) {
+  /* Una clase llena no se reserva: se pide lugar. Es la misma pantalla
+     porque lo que se está por hacer se lee igual —qué, cuándo, con
+     quién— y lo único que cambia es qué significa el botón. */
+  const esEspera = horario.lugares === 0;
+
+  if (horario.enEspera) {
+    return (
+      <div className="space-y-5">
+        <Tarjeta>
+          <div className={ROTULO}>Ya estás en la lista</div>
+          <div className="mt-3 space-y-2.5">
+            <div className="text-lg">{servicio.nombre}</div>
+            <div className="text-[15px] text-texto-suave">
+              {tituloDia(horario.desde)}, {hora(horario.desde)}
+            </div>
+          </div>
+        </Tarjeta>
+        <p className="text-sm text-texto-suave leading-relaxed">
+          Si se libera un lugar, el local te avisa. Podés bajarte de la lista
+          desde tus turnos.
+        </p>
+        <Boton variante="suave" onClick={onVolver}>Elegir otro horario</Boton>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <Tarjeta>
-        <div className={ROTULO}>Vas a reservar</div>
+        <div className={ROTULO}>{esEspera ? "Vas a pedir lugar" : "Vas a reservar"}</div>
         <div className="mt-3 space-y-2.5">
           <div className="text-lg">{servicio.nombre}</div>
           <div className="text-[15px] text-texto-suave">
@@ -181,9 +215,19 @@ function Confirmar({ servicio, horario, yendo, error, onConfirmar, onVolver }) {
         </div>
       )}
 
+      {esEspera && (
+        <p className="text-sm text-texto-suave leading-relaxed">
+          Esta clase está completa
+          {horario.esperando > 0 && ` y hay ${horario.esperando} esperando`}.
+          Si se libera un lugar, el local te avisa: no entrás sola.
+        </p>
+      )}
+
       <div className="space-y-2.5">
         <Boton onClick={onConfirmar} disabled={yendo}>
-          {yendo ? "Reservando…" : "Confirmar turno"}
+          {yendo
+            ? (esEspera ? "Anotándote…" : "Reservando…")
+            : (esEspera ? "Anotarme en la lista" : "Confirmar turno")}
         </Boton>
         <Boton variante="suave" onClick={onVolver} disabled={yendo}>
           Elegir otro horario
@@ -197,16 +241,30 @@ function Confirmar({ servicio, horario, yendo, error, onConfirmar, onVolver }) {
    Listo
    ------------------------------------------------------------ */
 
-function Listo({ servicio, horario, aviso, onVer, onOtro }) {
+function Listo({ servicio, horario, aviso, espera, onVer, onOtro }) {
   return (
     <div className="text-center py-10">
       <div className="w-14 h-14 rounded-full bg-bien-suave border border-bien flex items-center justify-center mx-auto">
         <Check size={26} className="text-bien" />
       </div>
-      <h2 className="f-d text-xl mt-5">Turno reservado</h2>
+      <h2 className="f-d text-xl mt-5">
+        {espera ? "Estás en la lista" : "Turno reservado"}
+      </h2>
       <p className="text-[15px] text-texto-suave mt-2">
         {servicio.nombre}, {tituloDia(horario.desde).toLowerCase()} a las {hora(horario.desde)}.
       </p>
+
+      {/* En qué lugar de la fila quedó lo cuenta la base, no la pantalla:
+          si tres de los de adelante se dieron de baja, decir "sos la
+          cuarta" sería mentir. */}
+      {espera && (
+        <p className="text-[15px] text-texto-suave mt-3 leading-relaxed">
+          {espera.lugar === 1
+            ? "Sos la primera de la lista."
+            : "Sos la número " + espera.lugar + " de la lista."}
+          {" "}Si se libera un lugar, el local te avisa.
+        </p>
+      )}
 
       {/* El aviso viene de la base. No es un error y no impide nada: es
           algo que conviene que sepa. */}
@@ -265,7 +323,11 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
   async function confirmar() {
     setYendo(true); setError("");
     try {
-      const r = await reservar({ empresaId, horario, itemId: servicio.id });
+      /* Una clase llena no se reserva: se pide lugar. Son dos funciones
+         distintas en la base, con reglas distintas. */
+      const r = horario.lugares === 0
+        ? { espera: await anotarmeEnEspera(horario.claseId) }
+        : await reservar({ empresaId, horario, itemId: servicio.id });
       /* Se guarda el horario junto con el resultado: despues de reservar
          ya no esta en la lista de disponibles —se lo acaba de tomar ella—
          asi que buscarlo de nuevo no lo encuentra. */
@@ -310,6 +372,7 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
         <Cargando />
       ) : hecho ? (
         <Listo servicio={servicio} horario={hecho.horario} aviso={hecho.aviso}
+          espera={hecho.espera}
           onVer={onCerrar}
           onOtro={() => { setHecho(null); setServicio(null); setHorario(null); }} />
       ) : !servicio ? (

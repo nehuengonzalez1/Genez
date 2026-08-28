@@ -144,7 +144,45 @@ export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReser
    TURNOS
    ------------------------------------------------------------ */
 
-export function Turnos({ proximos, anteriores, varios, puedeReservar, onReservar, onAbrirTurno }) {
+/* Estar en una lista no es tener un turno, así que va en su propia
+   sección y no mezclado con los próximos. Si estuviera en la misma lista,
+   alguien contaría como suya una clase que todavía no tiene. */
+function Esperando({ esperas, onBajarse, bajando }) {
+  if (!esperas.length) return null;
+
+  return (
+    <Seccion titulo="Estás esperando lugar">
+      {esperas.map((e) => (
+        <Tarjeta key={e.claseId} className="mb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[15px]">{e.servicio}</div>
+              <div className="text-sm text-texto-suave mt-1 flex items-center gap-1.5">
+                <Clock size={13} className="shrink-0" /> {cuando(e.desde)}
+              </div>
+              {e.profesional && (
+                <div className="text-sm text-texto-suave mt-0.5">Con {e.profesional}</div>
+              )}
+              <div className="text-[11px] text-texto-tenue mt-2">
+                {e.lugar === 1 ? "Sos la primera" : `Sos la número ${e.lugar}`}
+                {e.esperando > 1 && ` de ${e.esperando}`}
+              </div>
+            </div>
+          </div>
+          <button onClick={() => onBajarse(e.claseId)} disabled={bajando === e.claseId}
+            className="text-[13px] text-texto-tenue hover:text-mal mt-4 disabled:opacity-50">
+            {bajando === e.claseId ? "Saliendo…" : "Salir de la lista"}
+          </button>
+        </Tarjeta>
+      ))}
+    </Seccion>
+  );
+}
+
+export function Turnos({
+  proximos, anteriores, varios, puedeReservar, onReservar, onAbrirTurno,
+  esperas = [], onBajarse, bajando,
+}) {
   const [pestana, setPestana] = React.useState("proximos");
   const lista = pestana === "proximos" ? proximos : anteriores;
 
@@ -187,6 +225,10 @@ export function Turnos({ proximos, anteriores, varios, puedeReservar, onReservar
               onAbrir={pestana === "proximos" ? onAbrirTurno : undefined} />
           ))}
         </div>
+      )}
+
+      {pestana === "proximos" && (
+        <Esperando esperas={esperas} onBajarse={onBajarse} bajando={bajando} />
       )}
     </Pantalla>
   );

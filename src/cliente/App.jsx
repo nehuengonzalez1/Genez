@@ -36,6 +36,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   slugDelDominio, cargarMarca, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
+  cargarEsperas, salirDeEspera,
   proximos, pasados,
 } from "../datos/cliente.js";
 import { Navegacion, Cargando, Error as ErrorEstado, Boton, ROTULO } from "./ui.jsx";
@@ -190,6 +191,8 @@ export default function App() {
   const [turnoAbierto, setTurnoAbierto] = useState(null);
   const [turnos, setTurnos] = useState([]);
   const [abonos, setAbonos] = useState([]);
+  const [esperas, setEsperas] = useState([]);
+  const [bajando, setBajando] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
@@ -222,14 +225,16 @@ export default function App() {
 
   const releer = useCallback(async () => {
     if (!comercio) return;
-    const [ms, t, a] = await Promise.all([
+    const [ms, t, a, es] = await Promise.all([
       cargarModulos(comercio.empresaId),
       cargarTurnos(),
       cargarAbonos(),
+      cargarEsperas(),
     ]);
     setModulos(ms);
     setTurnos(t);
     setAbonos(a);
+    setEsperas(es);
     /* Si la pantalla en la que está dejó de existir —el comercio apagó el
        módulo mientras la tenía abierta— se vuelve al inicio en vez de
        quedar en una pantalla que ya no está en la barra. */
@@ -244,9 +249,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comercio && comercio.empresaId]);
 
+  async function bajarse(claseId) {
+    setBajando(claseId);
+    try {
+      await salirDeEspera(claseId);
+      await releer();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBajando(null);
+    }
+  }
+
   async function cerrar() {
     await salir();
-    setClienta(null); setTurnos([]); setAbonos([]); setModulos([]); setDonde("inicio");
+    setClienta(null); setTurnos([]); setAbonos([]); setEsperas([]); setModulos([]); setDonde("inicio");
   }
 
   /* Mientras no se sepa de qué comercio es, no se dibuja nada: cualquier
@@ -269,7 +286,8 @@ export default function App() {
     turnos: () => (
       <Turnos proximos={proximos(turnos)} anteriores={pasados(turnos).slice(0, 20)}
         varios={varios} puedeReservar={hayModulo("turnos")}
-        onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto} />
+        onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto}
+        esperas={esperas} onBajarse={bajarse} bajando={bajando} />
     ),
     plan: () => <Plan abonos={abonos} varios={varios} />,
     cuenta: () => (

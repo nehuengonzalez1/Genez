@@ -266,7 +266,51 @@ export async function cargarHorarios({ empresaId, itemId, dias = 14, personalId 
     recursoId: h.recurso_id,
     recurso: h.recurso || "",
     lugares: h.lugares,
+    /* Una clase llena llega con lugares en cero cuando el comercio
+       habilito la espera. No es un horario que no sirve: es otra cosa que
+       se puede hacer con el. */
+    enEspera: !!h.en_espera,
+    esperando: h.esperando || 0,
   }));
+}
+
+/* ------------------------------------------------------------
+   La lista de espera
+
+   Pedir lugar en una clase llena. No promueve a nadie: cuando se libere,
+   el comercio avisa. Ver la migracion 0056 para por que se dejo asi.
+   ------------------------------------------------------------ */
+
+export async function anotarmeEnEspera(claseId) {
+  const { data, error } = await supabase.rpc("anotarme_en_espera", { p_clase: claseId });
+  if (error) throw traducirEspera(error);
+  return { id: data.id, lugar: Number(data.lugar || 0) };
+}
+
+export async function salirDeEspera(claseId) {
+  const { error } = await supabase.rpc("salir_de_espera", { p_clase: claseId });
+  if (error) throw new Error("No pudimos sacarte de la lista. Proba de nuevo.");
+}
+
+export async function cargarEsperas() {
+  const { data, error } = await supabase.rpc("mis_esperas");
+  if (error) throw new Error("No pudimos cargar tus listas de espera.");
+
+  return (data || []).map((e) => ({
+    claseId: e.clase_id,
+    empresa: e.empresa,
+    servicio: e.servicio || "Clase",
+    profesional: e.profesional || "",
+    desde: new Date(e.desde),
+    lugar: e.lugar,
+    esperando: e.esperando,
+  }));
+}
+
+function traducirEspera(error) {
+  const propios = ["P0090", "P0042", "P0044", "P0046", "P0098", "P00A0", "P00A1", "P00A2"];
+  if (error && propios.includes(error.code)) return new Error(error.message);
+  return new Error("No pudimos anotarte en la lista. Proba de nuevo.");
 }
 
 /* Devuelve `{ id, aviso }`. El aviso no es un error: es lo que hay que
