@@ -196,9 +196,19 @@ export async function cambiarClave(nueva) {
 
    El oyente se queda igual. Los dos caminos miran lo mismo desde dos
    lados, y el que llegue primero gana. */
+/* El hash y la query se miran por separado y no pegados uno al otro.
+
+   Pegados, `#type=recovery` + `?c=almha` da `#type=recovery?c=almha`, y
+   ahí `type=recovery` ya no termina ni en `&` ni en el final del texto:
+   no matchea. Es exactamente la forma que tiene el link cuando la app
+   lleva algo en la query —la app del cliente en desarrollo lleva el
+   `?c=`— y andaba solo porque en la gestión la dirección no tiene
+   ninguna. Encontrado probándolo en la app del cliente. */
+const traeRecovery = (parte) => /(^|[#&?])type=recovery(&|$)/.test(parte);
+
 export const vinoDeRecuperacion =
   typeof window !== "undefined" &&
-  /(^|[#&?])type=recovery(&|$)/.test(window.location.hash + window.location.search);
+  [window.location.hash, window.location.search].some(traeRecovery);
 
 /* Avisa cuando el usuario entró por un link de recuperación, para
    mostrarle la pantalla de contraseña nueva en vez del sistema. */
