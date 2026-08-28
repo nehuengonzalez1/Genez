@@ -2169,11 +2169,16 @@ console.log("\nHorarios libres");
   const almhaH = (await una("select id from empresas where nombre = 'Almha'")).id;
   const barH   = (await una("select id from empresas where nombre = 'Bar Rivadavia'")).id;
 
-  const uCli = (await una(
-    "insert into auth.users (id, email) values (gen_random_uuid(), 'reserva@genez.test') returning id")).id;
-
   await c.query("begin");
   try {
+    /* El usuario va ADENTRO de la transacción. Afuera queda commiteado, y
+       la segunda corrida falla por correo duplicado —además de dejar un
+       usuario de prueba en una base real—. Es lo mismo que ya había
+       pasado con la bitácora: una prueba que escribe fuera de su
+       transacción no es una prueba, es un alta. */
+    const uCli = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'reserva@genez.test') returning id")).id;
+
     const ficha = (await una(
       `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
        values ($1, 'Clienta que reserva', $2, now()) returning id`, [almhaH, uCli])).id;
