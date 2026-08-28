@@ -2401,6 +2401,138 @@ console.log("\nReservar desde la app");
   }
 }
 
+/* ------------------------------------------------------------
+   Cancelar desde la app
+
+   Lo que se prueba de fondo es la decisión de modelo: una cancelación
+   tardía queda como `cancelada` y no como `ausente`, para que el lugar se
+   libere pero los informes no cuenten como falta a alguien que avisó.
+   ------------------------------------------------------------ */
+console.log("\nCancelar desde la app");
+
+{
+  const almhaC = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const itemC = (await una(
+    "select id from items where empresa_id = $1 and nombre = 'Pilates Reformer'", [almhaC])).id;
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, fila: r.rows[0] || null };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    const u = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'cancela@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta que cancela', $2, now()) returning id`, [almhaC, u])).id;
+    const abono = (await una(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack cancelar', 4, current_date - 1, current_date + 30) returning id`,
+      [almhaC, ficha])).id;
+
+    /* Uno cómodo (dentro de dos días) y uno sobre la hora. Las reglas de
+       Almha son 3 horas para cancelar sin costo. */
+    const aTiempo = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, abono_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, $4, 'x', now() + interval '2 days', 60, 'confirmada') returning id`,
+      [almhaC, ficha, itemC, abono])).id;
+    const sobreLaHora = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, abono_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, $4, 'x', now() + interval '90 minutes', 60, 'confirmada') returning id`,
+      [almhaC, ficha, itemC, abono])).id;
+    const sinAbono = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, 'x', now() + interval '90 minutes', 60, 'confirmada') returning id`,
+      [almhaC, ficha, itemC])).id;
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    decir(Number((await c.query("select * from public.mis_abonos()")).rows
+      .find((a) => a.nombre === "Pack cancelar")?.usadas) === 2,
+      "arranca con dos clases tomadas del pack");
+
+    /* ---- A tiempo ---- */
+    const t = await intentar("select public.cancelar_como_cliente($1) r", [aTiempo]);
+    decir(t.codigo === null && t.fila.r.tarde === false,
+      "cancelar con anticipación no es tarde");
+    decir(Number((await c.query("select * from public.mis_abonos()")).rows
+      .find((a) => a.nombre === "Pack cancelar")?.usadas) === 1,
+      "y devuelve la clase al abono");
+
+    /* ---- Sobre la hora, con abono ---- */
+    const tar = await intentar("select public.cancelar_como_cliente($1) r", [sobreLaHora]);
+    decir(tar.codigo === null && tar.fila.r.tarde === true && tar.fila.r.consumio === true,
+      "cancelar dentro de las 3 horas es tarde y gasta la clase");
+    decir(Number((await c.query("select * from public.mis_abonos()")).rows
+      .find((a) => a.nombre === "Pack cancelar")?.usadas) === 1,
+      "la clase sigue contada aunque el turno esté cancelado");
+
+    /* ---- Sobre la hora, sin abono ---- */
+    const deuda = await intentar("select public.cancelar_como_cliente($1) r", [sinAbono]);
+    decir(deuda.codigo === null && Number(deuda.fila.r.adeuda) > 0,
+      `sin abono queda un cargo anotado ($${deuda.fila?.r?.adeuda})`);
+
+    /* ---- La decisión de modelo ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const como = await una(
+      "select estado, campos_extra ->> 'cancelacionTarde' tarde from reservas where id = $1",
+      [sobreLaHora]);
+    decir(como.estado === "cancelada",
+      "una cancelación tardía queda como cancelada, no como ausente: el lugar se libera");
+    decir(como.tarde === "true",
+      "y por qué se cobró queda escrito en la reserva, no deducido de la hora");
+
+    /* Que no ensucie los informes es la razón de todo esto. */
+    decir((await una(
+      "select count(*)::int n from reservas where cliente_id = $1 and estado = 'ausente'",
+      [ficha])).n === 0,
+      "y no aparece como ausencia: avisó, no faltó");
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    /* ---- Lo que no se puede ---- */
+    decir((await intentar("select public.cancelar_como_cliente($1) r", [aTiempo])).codigo === "P0097",
+      "no se cancela dos veces");
+
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const ajeno = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado)
+       values ($1, 'De otra persona', now() + interval '2 days', 60, 'confirmada') returning id`,
+      [almhaC])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    decir((await intentar("select public.cancelar_como_cliente($1) r", [ajeno])).codigo === "P0095",
+      "ni el turno de otra persona");
+
+    /* ---- Y la pantalla sabe cuándo puede ---- */
+    const turnos = await c.query("select * from public.mis_turnos()");
+    decir(turnos.rows.every((t) => t.puede_cancelar !== null),
+      "cada turno dice si se puede cancelar, para que la pantalla no lo calcule aparte");
+    const cancelado = turnos.rows.find((t) => t.id === aTiempo);
+    decir(cancelado && cancelado.puede_cancelar === false,
+      "y uno ya cancelado dice que no");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
