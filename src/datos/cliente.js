@@ -374,6 +374,11 @@ export async function cargarTurnos({ desde = null } = {}) {
   return (data || []).map((t) => ({
     id: t.id,
     empresa: t.empresa,
+    /* Los dos ids hacen falta para buscarle otro horario a este turno:
+       `horarios_libres` pregunta por un servicio de un comercio. Y el
+       comercio importa porque `mis_turnos` trae los de todos juntos. */
+    empresaId: t.empresa_id,
+    itemId: t.item_id,
     servicio: t.servicio || "Turno",
     profesional: t.profesional || "",
     /* Dónde es, y las dos fotos. La sala ya era un dato desde la agenda y
@@ -397,6 +402,10 @@ export async function cargarTurnos({ desde = null } = {}) {
        verdades y la de abajo seria la que se ve. */
     puedeCancelar: !!t.puede_cancelar,
     cancelarHasta: t.cancelar_hasta ? new Date(t.cancelar_hasta) : null,
+    /* Mover tiene el mismo plazo que cancelar sin costo, pero no es la
+       misma respuesta: pasada esa hora cancelar se puede y cuesta, y
+       mover no se puede. Por eso son dos banderas y no una. Ver 0067. */
+    puedeMover: !!t.puede_mover,
   }));
 }
 
@@ -416,6 +425,47 @@ function traducirCancelacion(error) {
   const propios = ["P0095", "P0096", "P0097", "P0098"];
   if (error && propios.includes(error.code)) return new Error(error.message);
   return new Error("No pudimos cancelar el turno. Proba de nuevo.");
+}
+
+/* Mover el turno a otro horario. Devuelve el id —que puede ser el mismo,
+   si la fila se movió, o uno nuevo si se cambió de clase— y el aviso, que
+   no impide nada. Ver la migracion 0067. */
+export async function moverTurno({ reservaId, horario }) {
+  const { data, error } = await supabase.rpc("reprogramar_como_cliente", {
+    p_reserva: reservaId,
+    p: {
+      clase_id: horario.claseId,
+      desde: horario.desde.toISOString(),
+    },
+  });
+
+  if (error) throw traducirMovida(error);
+  return { id: data.id, aviso: data.aviso || null, antes: new Date(data.antes) };
+}
+
+/* Los propios de mover, mas los que levantan las funciones en las que
+   delega: las reglas del horario nuevo son las mismas que al reservar y
+   sus mensajes ya estan escritos para que los lea una persona. */
+function traducirMovida(error) {
+  const propios = [
+    "P0095",                                        // no es tuyo
+    "P00D0", "P00D1", "P00D2", "P00D4", "P00D5",    // los de mover
+    "P0091", "P0092", "P0093",                      // las reglas del horario
+    "P0056", "P0057", "P0058", "P0059",             // el plan, en la fecha nueva
+  ];
+  if (error && propios.includes(error.code)) return new Error(error.message);
+
+  const otros = {
+    P0045: "Esa clase se llenó recién. Probá con otro horario.",
+    P0044: "Esa clase se canceló.",
+    P0034: "Esa sala se acaba de ocupar. Probá con otro horario.",
+    P0035: "Ese horario se acaba de ocupar. Probá con otro.",
+    P0036: "A esa hora no hay nadie atendiendo. Probá con otro horario.",
+    P0037: "Ese día el local no atiende. Probá con otro horario.",
+  };
+  if (error && otros[error.code]) return new Error(otros[error.code]);
+
+  return new Error("No pudimos cambiar el horario. Probá de nuevo.");
 }
 
 /* Lo que todavía no pasó y no se canceló. Es lo que la persona abre la

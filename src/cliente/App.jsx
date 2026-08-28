@@ -624,6 +624,11 @@ export default function App() {
      Turnos o desde Inicio y despues se vuelve. Por eso es un estado
      aparte y no un  mas. */
   const [reservando, setReservando] = useState(false);
+  /* Cambiar el horario de un turno es la misma pantalla que reservar, con
+     el servicio ya decidido. Va como estado aparte y no como un
+     `reservando` con datos adentro porque son dos cosas que terminan
+     distinto: una deja un turno nuevo y la otra deja el mismo movido. */
+  const [moviendo, setMoviendo] = useState(null);
   const [turnoAbierto, setTurnoAbierto] = useState(null);
   const [turnos, setTurnos] = useState([]);
   const [abonos, setAbonos] = useState([]);
@@ -932,10 +937,10 @@ export default function App() {
   /* Reservar se lleva la pantalla entera, incluida la barra: es una tarea
      con principio y fin, y dejar la navegacion abajo invita a irse a la
      mitad. */
-  if (reservando) {
+  if (reservando || moviendo) {
     return (
-      <Reservar empresaId={comercio.empresaId}
-        onCerrar={() => { setReservando(false); setDonde("turnos"); }}
+      <Reservar empresaId={comercio.empresaId} moviendo={moviendo}
+        onCerrar={() => { setReservando(false); setMoviendo(null); setDonde("turnos"); }}
         onReservado={releer} />
     );
   }
@@ -956,7 +961,11 @@ export default function App() {
 
       <DetalleTurno turno={turnoAbierto}
         onCerrar={() => setTurnoAbierto(null)}
-        onCancelado={releer} />
+        onCancelado={releer}
+        /* Se cierra el detalle al pasar a elegir horario: la hoja de
+           abajo tapa media pantalla y lo que sigue es una tarea de tres
+           pasos, no una consulta. */
+        onMover={(t) => { setTurnoAbierto(null); setMoviendo(t); }} />
     </div>
   );
 }

@@ -19,16 +19,30 @@
    tarde, si gastó la clase, cuánto quedó debiendo— y eso se muestra tal
    cual. Adivinarlo antes sería arriesgarse a decir un número equivocado
    justo en la pantalla donde más molesta.
+
+   Y CAMBIAR EL HORARIO VA PRIMERO
+   -------------------------------
+   Arriba de cancelar, y en el botón que se ve. Quien abre esta pantalla
+   casi nunca quiere dejar de venir: quiere venir otro día. Mientras
+   cancelar fue lo único que había, esa persona cancelaba —perdiendo la
+   clase si era tarde— y volvía a reservar, o le escribía al local. Las
+   dos son peores para todos.
+
+   Las dos se pueden hasta la misma hora y después no dicen lo mismo:
+   cancelar sigue estando y cuesta, mover ya no se puede. Por eso son dos
+   banderas distintas y las decide la base. Ver la migración 0067.
    ============================================================ */
 
 import React, { useState } from "react";
-import { X, Clock, User, MapPin, Backpack, AlertTriangle, Check } from "lucide-react";
+import {
+  X, Clock, User, MapPin, Backpack, AlertTriangle, Check, CalendarClock,
+} from "lucide-react";
 import { cancelarTurno } from "../datos/cliente.js";
 import { Boton, Estado, ROTULO, cuando, hora } from "./ui.jsx";
 
 const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
 
-export function DetalleTurno({ turno, onCerrar, onCancelado }) {
+export function DetalleTurno({ turno, onCerrar, onCancelado, onMover }) {
   const [confirmando, setConfirmando] = useState(false);
   const [yendo, setYendo] = useState(false);
   const [error, setError] = useState("");
@@ -162,8 +176,25 @@ export function DetalleTurno({ turno, onCerrar, onCancelado }) {
               </div>
             )}
 
-            {turno.puedeCancelar && (
+            {/* Mover primero, y como acción principal: es lo que casi
+                siempre se vino a hacer. Cancelar queda abajo, en línea,
+                que es el peso que le corresponde a lo que nadie quiere.
+
+                Con la ventana ya vencida el botón no está: `puedeMover`
+                lo decide la base y ahí la única salida es cancelar —con
+                su costo— o el local. */}
+            {turno.puedeMover && !confirmando && (
               <div className="mt-7">
+                <Boton onClick={() => onMover(turno)}>
+                  <span className="flex items-center justify-center gap-2">
+                    <CalendarClock size={16} /> Cambiar el horario
+                  </span>
+                </Boton>
+              </div>
+            )}
+
+            {turno.puedeCancelar && (
+              <div className={turno.puedeMover && !confirmando ? "mt-2.5" : "mt-7"}>
                 {!confirmando ? (
                   <>
                     {/* El aviso antes de tocar nada, no después. */}
@@ -198,9 +229,15 @@ export function DetalleTurno({ turno, onCerrar, onCancelado }) {
               </div>
             )}
 
-            {/* Que no se pueda cancelar no es lo mismo que que no exista el
-                botón: si el comercio no lo permite, conviene decirlo. */}
-            {!turno.puedeCancelar && turno.desde > new Date()
+            {/* Que no se pueda no es lo mismo que que no exista el botón:
+                si el comercio no lo permite, conviene decirlo.
+
+                Solo cuando no queda ninguna de las dos. Un comercio que
+                deja mover y no cancelar es un caso real —prefiere
+                reacomodar el lugar antes que perderlo— y ahí mandar a
+                llamar al local arriba de un botón que sí anda es decir
+                dos cosas distintas en la misma pantalla. */}
+            {!turno.puedeCancelar && !turno.puedeMover && turno.desde > new Date()
               && turno.estado !== "cancelada" && (
               <p className="mt-7 text-sm text-texto-suave leading-relaxed">
                 Para cambiar o cancelar este turno, hablá con el local.
