@@ -130,6 +130,62 @@
 }
 
 /* ============================================================
+   EL TEMA CÁLIDO · la app del cliente
+   ============================================================
+
+   El claro con las superficies tibias en vez de grises. No es un capricho
+   de gusto: es que las dos aplicaciones se usan en lugares distintos.
+
+   El sistema de gestión vive en una cocina de noche, en un salón con luz
+   baja, en una caja con la persiana abajo, y ahí el oscuro descansa la
+   vista. La app del cliente vive en el teléfono de alguien en el
+   colectivo, a las tres de la tarde, con sol. Ahí el oscuro se ve mal y
+   ninguna de las razones del otro tema aplica.
+
+   Por eso son distintas a propósito, y por eso está escrito acá: si no,
+   el próximo que la mire la va a "corregir" al oscuro.
+
+   Es un tema y no una hoja de estilos aparte. Las pantallas siguen
+   pidiendo `bg-superficie` y `text-texto-suave`, así que el mismo
+   componente funciona en los dos. Un comercio puede tener su app clara y
+   su gestión oscura sin que nadie escriba un color dos veces.
+   ============================================================ */
+
+.tema-calido {
+  /* Crema en vez de blanco: menos brillo en la mano y más cerca de la
+     estética de un lugar donde uno va a que lo atiendan. */
+  --fondo:        250 247 242;
+  --superficie:   255 255 255;
+  --superficie-2: 245 241 235;
+  --superficie-3: 234 228 220;
+
+  --texto:        41 37 36;
+  --texto-suave:  87 83 78;
+  --texto-tenue:  138 130 124;
+
+  --borde:        235 229 221;
+  --borde-fuerte: 214 205 195;
+
+  --acento:        234 88 12;
+  --acento-vivo:   249 115 22;
+  --acento-suave:  255 240 226;
+  --sobre-acento:  255 255 255;
+
+  --bien:       21 128 61;
+  --bien-suave: 226 246 232;
+  --ojo:        180 83 9;
+  --ojo-suave:  254 243 219;
+  --mal:        185 28 28;
+  --mal-suave:  254 230 230;
+  --info:       2 132 199;
+  --info-suave: 226 242 252;
+  --reserva:       109 40 217;
+  --reserva-suave: 238 234 254;
+
+  color-scheme: light;
+}
+
+/* ============================================================
    LA ESCALA
    ============================================================
 

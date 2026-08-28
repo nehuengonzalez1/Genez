@@ -1800,6 +1800,882 @@ console.log("\nEscalar permisos");
   }
 }
 
+/* ------------------------------------------------------------
+   La identidad del cliente
+
+   Lo único de este sistema que va a mirar gente de afuera del comercio.
+   Ver 0050 y docs/modelo-identidad-del-cliente.md.
+
+   Lo que se prueba acá no es que el cliente vea lo suyo —eso es la parte
+   fácil— sino que NO vea lo ajeno, y sobre todo que no vea columnas que no
+   le corresponden aunque la fila sí. Por eso el cliente lee funciones y no
+   tablas: una política decide sobre la fila y deja pasar todas sus
+   columnas, incluidas las que se agreguen mañana.
+   ------------------------------------------------------------ */
+console.log("\nLa identidad del cliente");
+
+{
+  const claims = (id) =>
+    c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: id, role: "authenticated" })]);
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, filas: r.rowCount };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code, filas: 0 };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    const almha = (await una("select id from empresas where nombre = 'Almha'")).id;
+    /* El del bar se toma acá y no más abajo: más abajo ya somos la
+       clienta, y una clienta no ve ninguna empresa —que es justamente lo
+       que se está probando—. */
+    const barAjeno = (await una("select id from empresas where nombre = 'Bar Rivadavia'")).id;
+
+    /* Una persona con ficha en Almha y cuenta enlazada. */
+    const uCli = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'clienta@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta de prueba', $2, now()) returning id`, [almha, uCli])).id;
+
+    /* Otra clienta del mismo comercio, sin cuenta: es la que no se tiene
+       que ver. Que sea del mismo comercio es el punto: aislar entre
+       comercios ya estaba probado, lo nuevo es aislar adentro de uno. */
+    const ajena = (await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Otra clienta') returning id`,
+      [almha])).id;
+
+    const prof = (await una("select id from personal where empresa_id = $1 limit 1", [almha])).id;
+    const serv = (await una(
+      "select id from items where empresa_id = $1 and tipo = 'servicio' limit 1", [almha])).id;
+
+    await c.query(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado, personal_id, item_id, notas)
+       values ($1, $2, 'Clienta de prueba', now() + interval '2 days', 60, 'pendiente', $3, $4, 'NOTA INTERNA')`,
+      [almha, ficha, prof, serv]);
+    await c.query(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado, personal_id, item_id, notas)
+       values ($1, $2, 'Otra clienta', now() + interval '3 days', 60, 'pendiente', $3, $4, 'NOTA AJENA')`,
+      [almha, ajena, prof, serv]);
+
+    await c.query("set local role authenticated");
+    await claims(uCli);
+
+    /* ---- Lo que no ve ---- */
+    for (const t of ["empresas", "clientes", "reservas", "items", "operaciones", "perfiles", "personal", "abonos"]) {
+      const n = (await una(`select count(*)::int n from ${t}`)).n;
+      decir(n === 0, `no lee ${t} directamente (${n} filas)`);
+    }
+
+    /* ---- Lo que sí ---- */
+    const mias = await c.query("select * from public.mis_fichas()");
+    decir(mias.rowCount === 1 && mias.rows[0].mis_fichas === ficha,
+      "mis_fichas devuelve su ficha y solo la suya");
+
+    const com = await c.query("select * from public.mis_comercios()");
+    decir(com.rowCount === 1 && com.rows[0].nombre === "Almha",
+      "mis_comercios devuelve Almha y ningún otro");
+
+    const turnos = await c.query("select * from public.mis_turnos()");
+    decir(turnos.rowCount === 1, `ve su turno y no el de la otra clienta (${turnos.rowCount})`);
+    decir(turnos.rows[0] && turnos.rows[0].servicio !== null,
+      "el turno viene con el nombre del servicio, no en null");
+    decir(turnos.rows[0] && turnos.rows[0].profesional !== null,
+      "y con el profesional");
+
+    /* La razón por la que esto son funciones y no políticas. */
+    const columnas = Object.keys(turnos.rows[0] || {});
+    decir(!columnas.includes("notas"),
+      "el turno NO trae `notas`: eso lo escribe recepción para adentro");
+
+    /* Las clases usadas se cuentan por `abono_id`, no por el rango de
+       fechas del abono. Contar los turnos que caen entre `desde` y `vence`
+       cuenta también los que se pagaron sueltos o con otro abono
+       solapado: con datos reales, a una clienta de Almha le daba
+       "Pack 4 clases: 24 de 4". */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const abono = (await una(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack de prueba', 4, current_date - 10, current_date + 20) returning id`,
+      [almha, ficha])).id;
+    /* Dos con el abono y una suelta, las tres adentro de la ventana. */
+    for (const [dias, conAbono] of [[-3, true], [-2, true], [-1, false]]) {
+      await c.query(
+        `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado, abono_id)
+         values ($1, $2, 'Clienta de prueba', now() + ($3 || ' days')::interval, 60, 'confirmada', $4)`,
+        [almha, ficha, dias, conAbono ? abono : null]);
+    }
+    await c.query("set local role authenticated");
+    await claims(uCli);
+
+    const abo = await c.query("select * from public.mis_abonos()");
+    const pack = abo.rows.find((x) => x.nombre === "Pack de prueba");
+    decir(pack && Number(pack.usadas) === 2,
+      `las clases usadas se cuentan por abono, no por fecha (${pack && pack.usadas} de 3 turnos en la ventana)`);
+
+    const cat = await c.query("select * from public.catalogo_de($1)", [almha]);
+    decir(cat.rowCount > 0, `ve el catálogo de servicios de Almha (${cat.rowCount})`);
+    decir(!Object.keys(cat.rows[0] || {}).includes("costo"),
+      "y el catálogo NO trae el costo");
+
+    const catAjeno = await c.query("select * from public.catalogo_de($1)", [barAjeno]);
+    decir(catAjeno.rowCount === 0,
+      "no ve el catálogo de un comercio del que no es cliente");
+
+    /* ---- Que no escriba nada ---- */
+    const escribir = await intentar(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde) values ($1, $2, 'Colada', now())`,
+      [almha, ficha]);
+    decir(escribir.codigo === "42501", "no puede insertar un turno por su cuenta");
+
+    const robar = await intentar(
+      "update clientes set usuario_id = $1 where id = $2", [uCli, ajena]);
+    decir(robar.codigo === null && robar.filas === 0,
+      "ni enlazarse la ficha de otra persona");
+
+    /* ---- Las dos categorías no se mezclan ---- */
+    /* Se vuelve a administrador Y se limpian los claims. Solo con `reset
+       role` la sesión sigue diciendo que auth.uid() es la clienta, y el
+       insert de abajo termina anotando en la bitácora un usuario que no
+       está en `perfiles`. Eso destapó un problema real de 0048, arreglado
+       en 0050: la bitácora daba por sentado que todo autenticado es
+       personal, y desde que hay clientes eso dejó de ser cierto. */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+
+    const comoPersonal = await intentar(
+      `insert into perfiles (id, empresa_id, nombre, rol) values ($1, $2, 'Colada', 'dueno')`,
+      [uCli, almha]);
+    decir(comoPersonal.codigo === "P0080",
+      "una cuenta de cliente no puede recibir un perfil de personal");
+
+    const uPer = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'moza@genez.test') returning id")).id;
+    await c.query(
+      "insert into perfiles (id, empresa_id, nombre, rol) values ($1, $2, 'Moza', 'cajero')", [uPer, almha]);
+    const alReves = await intentar(
+      "update clientes set usuario_id = $1 where id = $2", [uPer, ajena]);
+    decir(alReves.codigo === "P0080",
+      "y una cuenta de personal no puede enlazarse como cliente");
+
+    const dosVeces = await intentar(
+      `insert into clientes (empresa_id, razon_social, usuario_id) values ($1, 'Duplicada', $2)`,
+      [almha, uCli]);
+    decir(dosVeces.codigo === "P0081",
+      "una cuenta no puede tener dos fichas en el mismo comercio");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
+/* ------------------------------------------------------------
+   Las reglas de reserva
+
+   Tres capas, como los permisos: un piso conservador, lo de fábrica del
+   rubro, y lo que el comercio cambió. Lo que se prueba es que las tres se
+   apilen en ese orden y que un comercio que no tocó nada se lleve las
+   correcciones del rubro.
+
+   Y sobre todo que ninguna vuelva null: esta función la va a llamar la
+   que reserva, y una regla en null se lee como "sin restricción", que es
+   lo peor que puede pasar cuando lo que falta es justamente el límite.
+   ------------------------------------------------------------ */
+console.log("\nReglas de reserva");
+
+{
+  const CLAVES = ["anticipacionMin", "cancelacionHoras", "tardeConsume",
+                  "permiteCancelar", "requiereHistorial", "avisarMismoDia"];
+
+  const almhaId = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const barId2  = (await una("select id from empresas where nombre = 'Bar Rivadavia'")).id;
+
+  const rAlmha = (await una("select public.reglas_de($1) r", [almhaId])).r;
+  const rBar   = (await una("select public.reglas_de($1) r", [barId2])).r;
+
+  decir(CLAVES.every((k) => rAlmha[k] !== null && rAlmha[k] !== undefined),
+    "ninguna regla vuelve null: sin límite sería peor que un límite equivocado");
+
+  decir(rAlmha.anticipacionMin === 60 && rAlmha.cancelacionHoras === 3,
+    "servicios trae las de fábrica de su rubro (60 min, 3 h)");
+
+  decir(rBar.cancelacionHoras === 24 && rBar.permiteCancelar === false,
+    "un rubro que no definió reglas cae en el piso conservador, no en las de otro");
+
+  await c.query("begin");
+  try {
+    await c.query(
+      `update empresas set config = config || '{"turnos":{"cancelacionHoras":6}}'::jsonb where id = $1`,
+      [almhaId]);
+    const cambiado = (await una("select public.reglas_de($1) r", [almhaId])).r;
+    decir(cambiado.cancelacionHoras === 6,
+      "lo que el comercio cambia le gana al rubro");
+    decir(cambiado.anticipacionMin === 60,
+      "y lo que no tocó sigue saliendo del rubro, no se congela");
+
+    /* La razón de guardar la diferencia y no la foto: si mañana el rubro
+       corrige un valor, al comercio que nunca lo tocó le llega solo. */
+    await c.query(
+      `update rubros set reglas = reglas || '{"anticipacionMin":30}'::jsonb where clave = 'servicios'`);
+    const conCorreccion = (await una("select public.reglas_de($1) r", [almhaId])).r;
+    decir(conCorreccion.anticipacionMin === 30,
+      "una corrección del rubro llega sola al comercio que no la tocó");
+    decir(conCorreccion.cancelacionHoras === 6,
+      "y no le pisa lo que sí había cambiado");
+  } finally {
+    await c.query("rollback");
+  }
+
+  /* Cambiarlas es configurar el comercio: no hay permiso nuevo, es el que
+     ya protege la ficha de la empresa desde 0045. */
+  await comoUsuario(CAJERO, async () => {
+    const v = await c.query(
+      `update empresas set config = config || '{"turnos":{"cancelacionHoras":99}}'::jsonb where id = $1`,
+      [almhaId]);
+    decir(v.rowCount === 0, "un comercio no puede cambiarle las reglas a otro");
+  });
+}
+
+/* ------------------------------------------------------------
+   La marca y los módulos del cliente
+
+   `marca_de` es la única función del sistema que puede llamar alguien sin
+   sesión, así que es la que más cuidado pide: lo que devuelva es público
+   para siempre. Se prueba que devuelva la marca y nada más, y que ser
+   anónimo no abra ninguna otra puerta.
+
+   Y que la navegación se calcule. Es lo que hace que el motor sea uno
+   solo: un comercio sin `agenda` no muestra Turnos sin que nadie escriba
+   un `if`.
+   ------------------------------------------------------------ */
+console.log("\nMarca y módulos del cliente");
+
+{
+  const almhaM = (await una("select id, slug from empresas where nombre = 'Almha'"));
+  const barM   = (await una("select id, slug from empresas where nombre = 'Bar Rivadavia'"));
+
+  decir(almhaM.slug === "almha", `el slug sale del nombre (${almhaM.slug})`);
+  decir(barM.slug === "bar-rivadavia", `y limpia los espacios (${barM.slug})`);
+
+  /* ---- Lo público, siendo nadie ---- */
+  await c.query("begin");
+  try {
+    await c.query("set local role anon");
+
+    const marca = await c.query("select * from public.marca_de('almha')");
+    decir(marca.rowCount === 1, "sin sesión se puede leer la marca de un comercio");
+
+    const campos = Object.keys(marca.rows[0] || {});
+    decir(!campos.includes("id") && !campos.includes("modulos") && !campos.includes("config"),
+      "y devuelve solo marca: ni el id, ni los módulos, ni la configuración");
+
+    decir((await c.query("select * from public.marca_de('no-existe')")).rowCount === 0,
+      "un slug que no existe devuelve vacío, no un error que confirme nada");
+
+    for (const t of ["empresas", "clientes", "reservas", "items", "abonos"]) {
+      const n = (await una(`select count(*)::int n from ${t}`)).n;
+      decir(n === 0, `ser anónimo no abre ${t} (${n} filas)`);
+    }
+  } finally {
+    await c.query("rollback");
+  }
+
+  /* ---- La navegación se calcula ---- */
+  const navDe = async (id) =>
+    (await c.query("select * from public.modulos_del_cliente($1)", [id])).rows.map((x) => x.clave);
+
+  const navAlmha = await navDe(almhaM.id);
+  const navBar   = await navDe(barM.id);
+
+  decir(navAlmha.includes("turnos") && navAlmha.includes("plan"),
+    `Almha ve Turnos y Mi plan: tiene agenda y ventas (${navAlmha.join(", ")})`);
+  decir(!navBar.includes("turnos"),
+    `el bar no ve Turnos porque no tiene agenda (${navBar.join(", ")})`);
+  decir(navBar.includes("inicio") && navBar.includes("cuenta"),
+    "pero Inicio y Cuenta están siempre: son el piso");
+
+  decir(!navAlmha.includes("beneficios"),
+    "Beneficios no le aparece a nadie: pide un módulo de gestión que no existe");
+
+  await c.query("begin");
+  try {
+    /* Lo que el comercio decide: apagar y renombrar. */
+    await c.query(
+      `update empresas set config = config ||
+         '{"cliente":{"apagados":{"plan":true},"nombres":{"turnos":"Clases"}}}'::jsonb
+        where id = $1`, [almhaM.id]);
+
+    const nav = await c.query("select * from public.modulos_del_cliente($1)", [almhaM.id]);
+    decir(!nav.rows.some((x) => x.clave === "plan"),
+      "el comercio puede apagar un módulo que sí contrató");
+    decir(nav.rows.find((x) => x.clave === "turnos")?.nombre === "Clases",
+      "y renombrarlo: un gimnasio le dice Clases a lo que una estética le dice Turnos");
+
+    /* Y lo que decide la plataforma: si la pantalla existe. */
+    await c.query("update modulos_cliente set activo = true where clave = 'pagos'");
+    decir((await navDe(almhaM.id)).includes("pagos"),
+      "construir una pantalla la hace aparecer sola, sin tocar el front");
+    decir(!(await navDe(barM.id)).includes("pagos"),
+      "y solo a quien tenga el módulo de gestión que la alimenta");
+
+    /* Descontratar el módulo de gestión se lleva puesta la pantalla del
+       cliente: es la relación que hace que no haya pantallas sin datos.
+
+       Va con la identidad de la plataforma porque `proteger_lo_comercial`
+       impide que un comercio se cambie sus propios módulos —"los cambia
+       Genez, no el comercio"—, que es exactamente lo que tiene que hacer.
+       La primera versión de esta prueba lo hacía como administrador sin
+       sesión y el disparador la frenó, con razón. */
+    const plataforma = await una(
+      "select id from perfiles where es_plataforma = true limit 1");
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: plataforma.id, role: "authenticated" })]);
+
+    await c.query(
+      "update empresas set modulos = array_remove(modulos, 'agenda') where id = $1", [almhaM.id]);
+    decir(!(await navDe(almhaM.id)).includes("turnos"),
+      "y descontratar agenda le saca Turnos: no queda una pantalla sin datos detrás");
+
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
+/* ------------------------------------------------------------
+   Los horarios libres
+
+   Lo que la app le ofrece al cliente para reservar. Dos formas —clases
+   publicadas con lugar, y huecos calculados— con la misma forma de
+   salida, para que la pantalla dibuje una lista y no dos.
+
+   Lo que más importa probar no es que ofrezca: es que **no ofrezca lo que
+   no corresponde**. Un horario mostrado y después rechazado es la peor
+   manera de decir que no.
+   ------------------------------------------------------------ */
+console.log("\nHorarios libres");
+
+{
+  const almhaH = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const barH   = (await una("select id from empresas where nombre = 'Bar Rivadavia'")).id;
+
+  await c.query("begin");
+  try {
+    /* El usuario va ADENTRO de la transacción. Afuera queda commiteado, y
+       la segunda corrida falla por correo duplicado —además de dejar un
+       usuario de prueba en una base real—. Es lo mismo que ya había
+       pasado con la bitácora: una prueba que escribe fuera de su
+       transacción no es una prueba, es un alta. */
+    const uCli = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'reserva@genez.test') returning id")).id;
+
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta que reserva', $2, now()) returning id`, [almhaH, uCli])).id;
+
+    const enClase = await una(
+      `select id, nombre from items where empresa_id = $1 and nombre = 'Pilates Reformer'`, [almhaH]);
+    const individual = await una(
+      `select id, nombre from items where empresa_id = $1 and nombre = 'Masaje Relajante'`, [almhaH]);
+
+    /* La zona del comercio: sin esto, un horario de agenda de las 10 se
+       arma como las 10 UTC y los huecos salen tres horas corridos
+       respecto de los turnos reales. */
+    decir((await una("select public.zona_horaria_de($1) z", [almhaH])).z ===
+          "America/Argentina/Buenos_Aires",
+      "un comercio sin zona configurada cae en una de fábrica, no en UTC");
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: uCli, role: "authenticated" })]);
+
+    const servicios = await c.query("select * from public.servicios_del_cliente($1)", [almhaH]);
+    decir(servicios.rowCount > 0, `ve los servicios del comercio (${servicios.rowCount})`);
+    decir(!Object.keys(servicios.rows[0] || {}).includes("costo"),
+      "y siguen sin traer el costo");
+    decir(servicios.rows.find((s) => s.nombre === "Pilates Reformer")?.en_clase === true,
+      "sabe que Pilates Reformer se da en clase, porque el comercio publicó clases");
+    decir(servicios.rows.find((s) => s.nombre === "Masaje Relajante")?.en_clase === false,
+      "y que un masaje no: nadie publicó clases de eso");
+
+    /* ---- Las dos formas ---- */
+    const clases = await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 14)",
+      [almhaH, enClase.id]);
+    decir(clases.rows.every((r) => r.clase_id !== null),
+      "un servicio con clases devuelve clases, no huecos inventados");
+    /* Cambió en 0056: una clase llena ahora se muestra con `lugares` en
+       cero, para poder anotarse en la lista de espera. Lo que sigue sin
+       poder pasar —que se muestre llena Y sin espera habilitada— lo cubre
+       la sección "Lista de espera". Acá alcanza con que ninguna venga con
+       lugares negativos, que sería una cuenta rota. */
+    decir(clases.rows.every((r) => r.lugares >= 0),
+      "las clases vienen con sus lugares, y una llena viene en cero");
+
+    const huecos = await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
+      [almhaH, individual.id]);
+    decir(huecos.rows.every((r) => r.clase_id === null),
+      "un servicio sin clases devuelve huecos calculados");
+    decir(huecos.rows.every((r) => r.profesional !== null),
+      "y cada hueco dice con quién: sale de personal_servicios, no de cualquiera");
+
+    /* ---- Lo que no tiene que ofrecer ---- */
+    const reglas = (await una("select public.reglas_de($1) r", [almhaH])).r;
+    const minimo = new Date(Date.now() + reglas.anticipacionMin * 60000);
+    const todos = [...clases.rows, ...huecos.rows];
+    decir(todos.every((r) => new Date(r.desde) >= minimo),
+      `nada dentro de los ${reglas.anticipacionMin} minutos de anticipación mínima`);
+
+    decir((await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
+      [barH, enClase.id])).rowCount === 0,
+      "y nada de un comercio del que no es cliente");
+
+    /* La clase en la que ya está anotada no se ofrece: no es una opción,
+       es una confusión. */
+    if (clases.rowCount > 0) {
+      const laClase = clases.rows[0].clase_id;
+      await c.query("reset role");
+      await c.query("select set_config('request.jwt.claims', '', true)");
+      await c.query(
+        `insert into reservas (empresa_id, cliente_id, clase_id, nombre, desde, duracion_min, estado)
+         select $1, $2, $3, 'Clienta que reserva', desde, duracion_min, 'confirmada'
+           from reservas where id = $3`, [almhaH, ficha, laClase]);
+      await c.query("set local role authenticated");
+      await c.query("select set_config('request.jwt.claims', $1, true)",
+        [JSON.stringify({ sub: uCli, role: "authenticated" })]);
+
+      const despues = await c.query(
+        "select * from public.horarios_libres($1, $2, current_date, current_date + 14)",
+        [almhaH, enClase.id]);
+      decir(!despues.rows.some((r) => r.clase_id === laClase),
+        "la clase en la que ya está anotada deja de ofrecerse");
+    }
+  } finally {
+    await c.query("rollback");
+  }
+}
+
+/* ------------------------------------------------------------
+   Reservar desde la app
+
+   Se tocaron `agendar_turno` e `inscribir`, que usa el mostrador desde
+   0032 y 0034. Lo primero que se prueba es que sigan siendo las mismas
+   para él: abrirle la puerta al cliente no puede cambiarle nada a quien
+   ya las usaba.
+
+   Y después las reglas de 0051, que es lo que hace que el sistema diga
+   que no cuando corresponde.
+   ------------------------------------------------------------ */
+console.log("\nReservar desde la app");
+
+{
+  const almhaR = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const enClaseR = await una(
+    "select id from items where empresa_id = $1 and nombre = 'Pilates Reformer'", [almhaR]);
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, fila: r.rows[0] || null };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code, mensaje: e.message };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    const u = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'reservante@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta nueva', $2, now()) returning id`, [almhaR, u])).id;
+
+    /* Una clase futura con lugar, creada acá para no depender de que la
+       semilla tenga una: una prueba que depende de datos que alguien
+       puede borrar no es una prueba. */
+    const clase = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       values ($1, 'Clase de prueba', now() + interval '3 days', 60, 'confirmada', 2, $2, 0)
+       returning id`, [almhaR, enClaseR.id])).id;
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    const reservar = (extra) =>
+      intentar("select public.reservar_como_cliente($1) r",
+        [JSON.stringify({ empresa_id: almhaR, ...extra })]);
+
+    /* ---- La regla contra el turno fantasma ---- */
+    const primeraVez = await reservar({ clase_id: clase });
+    decir(primeraVez.codigo === "P0094",
+      "quien nunca vino no puede tomar un lugar sin pagar");
+
+    /* Con abono ya pagó, así que puede. */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const abono = (await una(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack de prueba', 4, current_date - 1, current_date + 30)
+       returning id`, [almhaR, ficha])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    const conAbono = await reservar({ clase_id: clase });
+    decir(conAbono.codigo === null && conAbono.fila.r.id,
+      "con un abono vigente sí puede: ya pagó");
+
+    /* ---- Y el abono se gasta ---- */
+    const usadas = await c.query("select * from public.mis_abonos()");
+    decir(Number(usadas.rows.find((a) => a.nombre === "Pack de prueba")?.usadas) === 1,
+      "la clase se descuenta del abono, sin que nadie lo haga a mano");
+
+    /* ---- Dos veces en la misma clase ---- */
+    const repetida = await reservar({ clase_id: clase });
+    decir(repetida.codigo === "P0093" || repetida.codigo === "P0046",
+      "no se puede anotar dos veces en la misma clase");
+
+    /* ---- Dos turnos a la misma hora ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const otraClase = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       select $1, 'Otra a la misma hora', desde, duracion_min, 'confirmada', 3, item_id, 0
+         from reservas where id = $2 returning id`, [almhaR, clase])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    const choque = await reservar({ clase_id: otraClase });
+    decir(choque.codigo === "P0093",
+      "ni tener dos turnos a la misma hora: no puede estar en dos lados");
+
+    /* ---- La anticipación mínima ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const yaMismo = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       values ($1, 'Ya empieza', now() + interval '10 minutes', 60, 'confirmada', 5, $2, 0)
+       returning id`, [almhaR, enClaseR.id])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    decir((await reservar({ clase_id: yaMismo })).codigo === "P0091",
+      "nada dentro de la anticipación mínima del comercio");
+
+    /* ---- El aviso, que no impide ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const mismoDia = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       select $1, 'Mas tarde el mismo dia', desde + interval '4 hours', duracion_min,
+              'confirmada', 5, item_id, 0
+         from reservas where id = $2 returning id`, [almhaR, clase])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    const conAviso = await reservar({ clase_id: mismoDia });
+    decir(conAviso.codigo === null, "dos turnos el mismo día sí se puede");
+    decir(conAviso.fila && conAviso.fila.r.aviso !== null,
+      "pero avisa, y el aviso viene de la base y no de la pantalla");
+
+    /* ---- Otro comercio ---- */
+    decir((await intentar("select public.reservar_como_cliente($1) r",
+      [JSON.stringify({ empresa_id: barId, clase_id: clase })])).codigo === "P0090",
+      "no puede reservar en un comercio del que no es cliente");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
+/* ------------------------------------------------------------
+   Cancelar desde la app
+
+   Lo que se prueba de fondo es la decisión de modelo: una cancelación
+   tardía queda como `cancelada` y no como `ausente`, para que el lugar se
+   libere pero los informes no cuenten como falta a alguien que avisó.
+   ------------------------------------------------------------ */
+console.log("\nCancelar desde la app");
+
+{
+  const almhaC = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const itemC = (await una(
+    "select id from items where empresa_id = $1 and nombre = 'Pilates Reformer'", [almhaC])).id;
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, fila: r.rows[0] || null };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    const u = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'cancela@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta que cancela', $2, now()) returning id`, [almhaC, u])).id;
+    const abono = (await una(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack cancelar', 4, current_date - 1, current_date + 30) returning id`,
+      [almhaC, ficha])).id;
+
+    /* Uno cómodo (dentro de dos días) y uno sobre la hora. Las reglas de
+       Almha son 3 horas para cancelar sin costo. */
+    const aTiempo = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, abono_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, $4, 'x', now() + interval '2 days', 60, 'confirmada') returning id`,
+      [almhaC, ficha, itemC, abono])).id;
+    const sobreLaHora = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, abono_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, $4, 'x', now() + interval '90 minutes', 60, 'confirmada') returning id`,
+      [almhaC, ficha, itemC, abono])).id;
+    const sinAbono = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, 'x', now() + interval '90 minutes', 60, 'confirmada') returning id`,
+      [almhaC, ficha, itemC])).id;
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    decir(Number((await c.query("select * from public.mis_abonos()")).rows
+      .find((a) => a.nombre === "Pack cancelar")?.usadas) === 2,
+      "arranca con dos clases tomadas del pack");
+
+    /* ---- A tiempo ---- */
+    const t = await intentar("select public.cancelar_como_cliente($1) r", [aTiempo]);
+    decir(t.codigo === null && t.fila.r.tarde === false,
+      "cancelar con anticipación no es tarde");
+    decir(Number((await c.query("select * from public.mis_abonos()")).rows
+      .find((a) => a.nombre === "Pack cancelar")?.usadas) === 1,
+      "y devuelve la clase al abono");
+
+    /* ---- Sobre la hora, con abono ---- */
+    const tar = await intentar("select public.cancelar_como_cliente($1) r", [sobreLaHora]);
+    decir(tar.codigo === null && tar.fila.r.tarde === true && tar.fila.r.consumio === true,
+      "cancelar dentro de las 3 horas es tarde y gasta la clase");
+    decir(Number((await c.query("select * from public.mis_abonos()")).rows
+      .find((a) => a.nombre === "Pack cancelar")?.usadas) === 1,
+      "la clase sigue contada aunque el turno esté cancelado");
+
+    /* ---- Sobre la hora, sin abono ---- */
+    const deuda = await intentar("select public.cancelar_como_cliente($1) r", [sinAbono]);
+    decir(deuda.codigo === null && Number(deuda.fila.r.adeuda) > 0,
+      `sin abono queda un cargo anotado ($${deuda.fila?.r?.adeuda})`);
+
+    /* ---- La decisión de modelo ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const como = await una(
+      "select estado, campos_extra ->> 'cancelacionTarde' tarde from reservas where id = $1",
+      [sobreLaHora]);
+    decir(como.estado === "cancelada",
+      "una cancelación tardía queda como cancelada, no como ausente: el lugar se libera");
+    decir(como.tarde === "true",
+      "y por qué se cobró queda escrito en la reserva, no deducido de la hora");
+
+    /* Que no ensucie los informes es la razón de todo esto. */
+    decir((await una(
+      "select count(*)::int n from reservas where cliente_id = $1 and estado = 'ausente'",
+      [ficha])).n === 0,
+      "y no aparece como ausencia: avisó, no faltó");
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    /* ---- Lo que no se puede ---- */
+    decir((await intentar("select public.cancelar_como_cliente($1) r", [aTiempo])).codigo === "P0097",
+      "no se cancela dos veces");
+
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const ajeno = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado)
+       values ($1, 'De otra persona', now() + interval '2 days', 60, 'confirmada') returning id`,
+      [almhaC])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    decir((await intentar("select public.cancelar_como_cliente($1) r", [ajeno])).codigo === "P0095",
+      "ni el turno de otra persona");
+
+    /* ---- Y la pantalla sabe cuándo puede ---- */
+    const turnos = await c.query("select * from public.mis_turnos()");
+    decir(turnos.rows.every((t) => t.puede_cancelar !== null),
+      "cada turno dice si se puede cancelar, para que la pantalla no lo calcule aparte");
+    const cancelado = turnos.rows.find((t) => t.id === aTiempo);
+    decir(cancelado && cancelado.puede_cancelar === false,
+      "y uno ya cancelado dice que no");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
+/* ------------------------------------------------------------
+   La lista de espera
+
+   Lo que más importa probar es lo que NO hace: no promueve a nadie. Es
+   una decisión de 0034 —"liberar un lugar y meter a alguien sin avisarle
+   es peor que el problema"— y una prueba es la única forma de que siga
+   siendo cierta cuando alguien la quiera "mejorar".
+   ------------------------------------------------------------ */
+console.log("\nLista de espera");
+
+{
+  const almhaE = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const itemE = (await una(
+    "select id from items where empresa_id = $1 and nombre = 'Pilates Reformer'", [almhaE])).id;
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, fila: r.rows[0] || null };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    const u = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'espera@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta en espera', $2, now()) returning id`, [almhaE, u])).id;
+    await c.query(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack espera', 4, current_date - 1, current_date + 30)`, [almhaE, ficha]);
+
+    /* Una clase de un lugar, y ese lugar ocupado por otra persona. */
+    const otra = (await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'La que llegó primero') returning id`,
+      [almhaE])).id;
+    const llena = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       values ($1, 'Clase llena', now() + interval '3 days', 60, 'confirmada', 1, $2, 0)
+       returning id`, [almhaE, itemE])).id;
+    await c.query(
+      `insert into reservas (empresa_id, cliente_id, clase_id, nombre, desde, duracion_min, estado)
+       select $1, $2, $3, 'La que llegó primero', desde, duracion_min, 'confirmada'
+         from reservas where id = $3`, [almhaE, otra, llena]);
+
+    const conLugar = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       values ($1, 'Clase con lugar', now() + interval '4 days', 60, 'confirmada', 3, $2, 0)
+       returning id`, [almhaE, itemE])).id;
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    /* ---- Una clase llena ahora se ve ---- */
+    const antes = await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
+      [almhaE, itemE]);
+    const laLlena = antes.rows.find((r) => r.clase_id === llena);
+    decir(!!laLlena, "una clase llena se ve, en vez de desaparecer sin explicación");
+    decir(laLlena && laLlena.lugares === 0, "y dice que no tiene lugar");
+    decir(laLlena && laLlena.en_espera === false, "y que todavía no está anotada");
+
+    /* ---- Anotarse ---- */
+    const anotada = await intentar("select public.anotarme_en_espera($1) r", [llena]);
+    decir(anotada.codigo === null && Number(anotada.fila.r.lugar) === 1,
+      "se anota y queda primera en la fila");
+
+    decir((await intentar("select public.anotarme_en_espera($1) r", [llena])).codigo === "P00A2",
+      "no se anota dos veces en la misma clase");
+
+    /* Si hay lugar, se reserva y no se espera. */
+    decir((await intentar("select public.anotarme_en_espera($1) r", [conLugar])).codigo === "P00A1",
+      "en una clase con lugar no se espera: se reserva");
+
+    const esperas = await c.query("select * from public.mis_esperas()");
+    decir(esperas.rowCount === 1 && esperas.rows[0].clase_id === llena,
+      "ve dónde está esperando");
+    decir(esperas.rows[0].servicio !== null,
+      "con el nombre del servicio, no un identificador");
+
+    /* ---- Lo que NO hace ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    await c.query(
+      "update reservas set estado = 'cancelada' where clase_id = $1 and cliente_id = $2",
+      [llena, otra]);
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    decir((await c.query("select * from public.mis_turnos()")).rows
+      .every((t) => t.id !== llena),
+      "cuando se libera un lugar NO la mete sola: eso lo avisa el comercio");
+    decir((await c.query("select * from public.mis_esperas()")).rowCount === 1,
+      "sigue esperando hasta que alguien le avise");
+
+    /* Y ahora que hay lugar, la puede reservar. */
+    const reserva = await intentar("select public.reservar_como_cliente($1) r",
+      [JSON.stringify({ empresa_id: almhaE, clase_id: llena })]);
+    decir(reserva.codigo === null, "y cuando le avisan, la reserva como cualquier otra");
+
+    /* ---- Bajarse ---- */
+    await c.query("select public.salir_de_espera($1)", [llena]);
+    decir((await c.query("select * from public.mis_esperas()")).rowCount === 0,
+      "puede bajarse de la lista");
+
+    /* ---- Si el comercio no la habilita ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    await c.query(
+      `update empresas set config = config || '{"turnos":{"esperaDesdeApp":false}}'::jsonb where id = $1`,
+      [almhaE]);
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    /* Esto tenía un `|| true` que la hacía pasar pase lo que pase. Una
+       prueba que no puede fallar es peor que no tenerla: ocupa un renglón
+       en verde y no verifica nada. */
+    decir((await intentar("select public.anotarme_en_espera($1) r", [llena])).codigo === "P00A0",
+      "con la espera apagada, el comercio la maneja desde el local");
+    const sinEspera = await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
+      [almhaE, itemE]);
+    decir(sinEspera.rows.every((r) => r.lugares > 0),
+      "y las clases llenas vuelven a no mostrarse: no se ofrece una lista que nadie mira");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
