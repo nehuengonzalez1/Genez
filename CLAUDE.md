@@ -29,6 +29,28 @@ El primer cliente es un minimercado (Super 25) y el segundo un bar (Bar Rivadavi
 pero la arquitectura tiene que servir para cualquier rubro: no hardcodear supuestos
 de góndola, código de barras o stock físico en el núcleo.
 
+## Dos aplicaciones, un repositorio
+
+El sistema de gestión —lo que usa el comercio— y la **app del cliente**, que es
+lo que ve quien saca el turno. Dos entradas (`index.html` y `cliente.html`), dos
+bundles, la misma base y los mismos colores.
+
+Cuál se sirve lo decide el **host**, en `middleware.js`, que es lo único que corre
+antes del sistema de archivos: `genez.com.ar` es la gestión y cualquier subdominio
+que no esté reservado es la app de ese comercio. Un rewrite de `vercel.json` no
+puede hacerlo —se evalúan después de los archivos y `/` ya encontró `index.html`—
+y eso ya costó un rato: está explicado en `middleware.js` y en `ARQUITECTURA.md`.
+
+```
+http://localhost:5173/            el sistema de gestión
+http://localhost:5173/cliente.html?c=almha   la app del cliente
+https://almha.genez.com.ar/       la misma, en producción
+```
+
+En desarrollo no hay subdominio, así que el comercio se fuerza con `?c=`. La app
+del cliente tiene su propia guía de diseño en `docs/modelo-identidad-del-cliente.md`
+y su sección en `ARQUITECTURA.md`.
+
 ## Comandos
 
 ```bash

@@ -22,6 +22,9 @@ módulo nuevo.
 | `src/modulos/` | Una pantalla por archivo. |
 | `src/ui/` | Componentes compartidos: `Card`, `Boton`, `Modal`, `Tabs`, `Apagado`, campos. |
 | `src/genez/PanelGenez.jsx` | `Login`, `PanelGenez` (plataforma) y `Sistema`, que es el contenedor de estado de un comercio. |
+| `src/cliente/` | La otra aplicación: la del cliente del comercio. Entrada aparte (`cliente.html`). Ver "La app del cliente". |
+| `api/` | Lo que necesita una credencial de servidor: el modelo, Mercado Pago, el alta de accesos, el manifest y el ícono de la PWA. |
+| `middleware.js` | Lo único que corre antes que el resto: decide, por el host, cuál de las dos aplicaciones se sirve. |
 | `supabase/migrations/` | El esquema, numerado. Se aplica con `node scripts/aplicar-sql.mjs <archivo>`. |
 | `scripts/probar-*.mjs` | Las pruebas. Corren contra la base real. |
 
@@ -36,7 +39,16 @@ node scripts/probar-agrupado.mjs   # líneas repetidas
 node scripts/probar-pedidos.mjs    # estados, flujo por canal e historial
 node scripts/probar-comanda.mjs    # dividir la cuenta, cerrar y auditoría
 node scripts/probar-salon.mjs      # los cinco estados de una mesa y la reserva
+node scripts/probar-dominio.mjs    # qué aplicación sirve cada host
 ```
+
+`probar-dominio.mjs` es el único que no toca la base ni la red: le pasa un
+host a `middleware.js` y mira qué contesta. Existe porque esa regla se
+equivoca donde no se la puede mirar —contra un dominio que en desarrollo
+no existe— y las dos formas de equivocarse duelen: de menos, el subdominio
+de un comercio sirve la gestión; de más, cada vista previa de
+`*.vercel.app` sirve la app del cliente y no queda dónde probar el
+sistema.
 
 `probar-rls.mjs` toma la identidad de un usuario con `set local role
 authenticated`, así las políticas se aplican igual que desde el navegador.
@@ -444,6 +456,75 @@ en el estado de React con un id inventado y no tocaba la base. Ahora hace
 el alta de verdad, y la lista quedó de solo lectura: editar el rol o dar
 de baja se hace en el Permisos del comercio, que es donde se ve contra qué
 se está cambiando.
+
+## La app del cliente
+
+El segundo lado del producto: lo que ve quien saca el turno y no quien lo
+anota. Vive en `src/cliente/`, con su capa de datos en
+`src/datos/cliente.js` y su entrada propia, `cliente.html`. El diseño
+—incluido lo que quedó abierto— está en
+`docs/modelo-identidad-del-cliente.md`, y las migraciones son de 0050 a
+0056.
+
+Es **un motor, no una app por comercio**: la marca, los módulos y los
+datos salen de la base. No hay una versión de Almha, hay una fila de
+Almha.
+
+**Dos entradas y dos bundles.** El teléfono de alguien que quiere ver a
+qué hora tiene turno no tiene por qué bajarse el punto de venta, el salón
+y los gráficos. Mismo repositorio igual, para que los colores, el cliente
+de Supabase y la sesión sean los mismos y no se desincronicen.
+
+**El cliente no lee tablas, lee funciones.** `mis_fichas`, `mis_turnos`,
+`mis_abonos`, `catalogo_de`, `huecos_del_cliente`. Una política de RLS
+decide sobre la fila y deja pasar todas sus columnas —el costo de un
+servicio, las notas internas de recepción—, y peor: cada columna que se
+agregue mañana quedaría expuesta sola. Un `.from("reservas")` en
+`src/datos/cliente.js` está mal aunque funcione. La explicación larga está
+en el encabezado de ese archivo.
+
+**Un cliente nunca tiene una fila en `perfiles`.** `perfiles` significa
+"trabaja en este comercio", y de eso cuelga `puede_ver`. No es un permiso
+mal dado: es la categoría equivocada.
+
+### El host decide cuál de las dos aplicaciones se sirve
+
+`almha.genez.com.ar/` es la app del cliente y `genez.com.ar/` el sistema
+de gestión. Son dos HTML en el mismo despliegue y lo único que los separa
+es el host.
+
+**Eso no se puede resolver con un rewrite de `vercel.json`, y ahí se fue
+un rato.** Había una regla con la condición de host y no tomaba nunca, ni
+con lookahead ni con el nombre exacto: el problema no era la condición.
+Los rewrites se evalúan **después** del sistema de archivos, y `/`
+encuentra `index.html` publicado antes de que la regla se mire. La prueba
+está en el mismo despliegue: el rewrite de `/cliente` sí funciona, y la
+única diferencia es que `/cliente` no existe como archivo.
+
+Lo hace `middleware.js`, que es lo único que corre antes. Y no dice
+"almha": si dijera, cada comercio nuevo sería un despliegue. Alcanza con
+saber que el host es un subdominio del dominio de la plataforma —de ahí
+la lista de reservados y el corte por `genez.com.ar`, que es lo que deja
+afuera a los `*.vercel.app` de cada vista previa—. Cuál comercio es lo
+resuelve la app después, con `marca_de`.
+
+### La PWA es del comercio
+
+`api/manifest.js` arma el manifest por comercio: en la pantalla de inicio
+del teléfono tiene que decir Almha y no Genez. Sale de `marca_de`, que es
+pública por diseño —un manifest lo lee el navegador antes de que nadie
+inicie sesión— y si algo falla se sirve el genérico: una app instalable
+con nombre feo es mejor que una que no se puede instalar.
+
+`api/icono.js` dibuja una inicial sobre el naranja mientras el comercio no
+suba su ícono cuadrado. Es un lugar ocupado y se nota que lo es:
+inventarle un logo quedaría en la pantalla de inicio de sus clientas como
+si fuera la marca del local.
+
+`public/sw.js` cachea **el envase y nunca el contenido**. Nada de Supabase
+ni de `/api`: un turno cancelado hace una hora que se muestra como vigente
+es peor que no mostrar nada, y son datos de una persona en un caché que
+sobrevive al cierre de sesión.
 
 ## Lo que ya funciona y no hay que rehacer
 
