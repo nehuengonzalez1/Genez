@@ -2262,6 +2262,145 @@ console.log("\nHorarios libres");
   }
 }
 
+/* ------------------------------------------------------------
+   Reservar desde la app
+
+   Se tocaron `agendar_turno` e `inscribir`, que usa el mostrador desde
+   0032 y 0034. Lo primero que se prueba es que sigan siendo las mismas
+   para él: abrirle la puerta al cliente no puede cambiarle nada a quien
+   ya las usaba.
+
+   Y después las reglas de 0051, que es lo que hace que el sistema diga
+   que no cuando corresponde.
+   ------------------------------------------------------------ */
+console.log("\nReservar desde la app");
+
+{
+  const almhaR = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const enClaseR = await una(
+    "select id from items where empresa_id = $1 and nombre = 'Pilates Reformer'", [almhaR]);
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, fila: r.rows[0] || null };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code, mensaje: e.message };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    const u = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'reservante@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta nueva', $2, now()) returning id`, [almhaR, u])).id;
+
+    /* Una clase futura con lugar, creada acá para no depender de que la
+       semilla tenga una: una prueba que depende de datos que alguien
+       puede borrar no es una prueba. */
+    const clase = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       values ($1, 'Clase de prueba', now() + interval '3 days', 60, 'confirmada', 2, $2, 0)
+       returning id`, [almhaR, enClaseR.id])).id;
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    const reservar = (extra) =>
+      intentar("select public.reservar_como_cliente($1) r",
+        [JSON.stringify({ empresa_id: almhaR, ...extra })]);
+
+    /* ---- La regla contra el turno fantasma ---- */
+    const primeraVez = await reservar({ clase_id: clase });
+    decir(primeraVez.codigo === "P0094",
+      "quien nunca vino no puede tomar un lugar sin pagar");
+
+    /* Con abono ya pagó, así que puede. */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const abono = (await una(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack de prueba', 4, current_date - 1, current_date + 30)
+       returning id`, [almhaR, ficha])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    const conAbono = await reservar({ clase_id: clase });
+    decir(conAbono.codigo === null && conAbono.fila.r.id,
+      "con un abono vigente sí puede: ya pagó");
+
+    /* ---- Y el abono se gasta ---- */
+    const usadas = await c.query("select * from public.mis_abonos()");
+    decir(Number(usadas.rows.find((a) => a.nombre === "Pack de prueba")?.usadas) === 1,
+      "la clase se descuenta del abono, sin que nadie lo haga a mano");
+
+    /* ---- Dos veces en la misma clase ---- */
+    const repetida = await reservar({ clase_id: clase });
+    decir(repetida.codigo === "P0093" || repetida.codigo === "P0046",
+      "no se puede anotar dos veces en la misma clase");
+
+    /* ---- Dos turnos a la misma hora ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const otraClase = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       select $1, 'Otra a la misma hora', desde, duracion_min, 'confirmada', 3, item_id, 0
+         from reservas where id = $2 returning id`, [almhaR, clase])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    const choque = await reservar({ clase_id: otraClase });
+    decir(choque.codigo === "P0093",
+      "ni tener dos turnos a la misma hora: no puede estar en dos lados");
+
+    /* ---- La anticipación mínima ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const yaMismo = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       values ($1, 'Ya empieza', now() + interval '10 minutes', 60, 'confirmada', 5, $2, 0)
+       returning id`, [almhaR, enClaseR.id])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    decir((await reservar({ clase_id: yaMismo })).codigo === "P0091",
+      "nada dentro de la anticipación mínima del comercio");
+
+    /* ---- El aviso, que no impide ---- */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    const mismoDia = (await una(
+      `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
+       select $1, 'Mas tarde el mismo dia', desde + interval '4 hours', duracion_min,
+              'confirmada', 5, item_id, 0
+         from reservas where id = $2 returning id`, [almhaR, clase])).id;
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: u, role: "authenticated" })]);
+
+    const conAviso = await reservar({ clase_id: mismoDia });
+    decir(conAviso.codigo === null, "dos turnos el mismo día sí se puede");
+    decir(conAviso.fila && conAviso.fila.r.aviso !== null,
+      "pero avisa, y el aviso viene de la base y no de la pantalla");
+
+    /* ---- Otro comercio ---- */
+    decir((await intentar("select public.reservar_como_cliente($1) r",
+      [JSON.stringify({ empresa_id: barId, clase_id: clase })])).codigo === "P0090",
+      "no puede reservar en un comercio del que no es cliente");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
