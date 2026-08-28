@@ -25,9 +25,9 @@ import {
    Un turno, en tarjeta
    ------------------------------------------------------------ */
 
-function Turno({ t, mostrarComercio }) {
+function Turno({ t, mostrarComercio, onAbrir }) {
   return (
-    <Tarjeta className="mb-3">
+    <Tarjeta className="mb-3" onClick={onAbrir ? () => onAbrir(t) : undefined}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[15px]">{t.servicio}</div>
@@ -60,7 +60,7 @@ function Turno({ t, mostrarComercio }) {
    vencido no contestan eso, así que no están.
    ------------------------------------------------------------ */
 
-export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReservar }) {
+export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReservar, onAbrirTurno }) {
   const proximo = turnos[0] || null;
   const plan = abonos.find((a) => a.vigente) || null;
 
@@ -83,7 +83,7 @@ export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReser
             </button>
           )}>
           {proximo ? (
-            <Turno t={proximo} />
+            <Turno t={proximo} onAbrir={onAbrirTurno} />
           ) : (
             <Tarjeta>
               <p className="text-sm text-texto-suave">No tenés turnos agendados.</p>
@@ -144,7 +144,7 @@ export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReser
    TURNOS
    ------------------------------------------------------------ */
 
-export function Turnos({ proximos, anteriores, varios, puedeReservar, onReservar }) {
+export function Turnos({ proximos, anteriores, varios, puedeReservar, onReservar, onAbrirTurno }) {
   const [pestana, setPestana] = React.useState("proximos");
   const lista = pestana === "proximos" ? proximos : anteriores;
 
@@ -179,7 +179,13 @@ export function Turnos({ proximos, anteriores, varios, puedeReservar, onReservar
         </Vacio>
       ) : (
         <div className={pestana === "historial" ? "opacity-70" : ""}>
-          {lista.map((t) => <Turno key={t.id} t={t} mostrarComercio={varios} />)}
+          {/* Solo los proximos se abren: en el historial no hay nada que
+              hacer con un turno, y un panel que solo informa invita a
+              tocarlo para nada. */}
+          {lista.map((t) => (
+            <Turno key={t.id} t={t} mostrarComercio={varios}
+              onAbrir={pestana === "proximos" ? onAbrirTurno : undefined} />
+          ))}
         </div>
       )}
     </Pantalla>

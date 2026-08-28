@@ -41,6 +41,7 @@ import {
 import { Navegacion, Cargando, Error as ErrorEstado, Boton, ROTULO } from "./ui.jsx";
 import { Inicio, Turnos, Plan, Cuenta } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
+import { DetalleTurno } from "./DetalleTurno.jsx";
 
 /* ------------------------------------------------------------
    Bienvenida y login
@@ -186,6 +187,7 @@ export default function App() {
      Turnos o desde Inicio y despues se vuelve. Por eso es un estado
      aparte y no un  mas. */
   const [reservando, setReservando] = useState(false);
+  const [turnoAbierto, setTurnoAbierto] = useState(null);
   const [turnos, setTurnos] = useState([]);
   const [abonos, setAbonos] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -262,12 +264,12 @@ export default function App() {
     inicio: () => (
       <Inicio marca={marca} nombre={comercio.miNombre} hayModulo={hayModulo}
         turnos={proximos(turnos)} abonos={abonos} onIr={setDonde}
-        onReservar={() => setReservando(true)} />
+        onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto} />
     ),
     turnos: () => (
       <Turnos proximos={proximos(turnos)} anteriores={pasados(turnos).slice(0, 20)}
         varios={varios} puedeReservar={hayModulo("turnos")}
-        onReservar={() => setReservando(true)} />
+        onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto} />
     ),
     plan: () => <Plan abonos={abonos} varios={varios} />,
     cuenta: () => (
@@ -294,6 +296,10 @@ export default function App() {
         ? <ErrorEstado onReintentar={() => { setError(""); releer(); }}>{error}</ErrorEstado>
         : dibujar()}
       <Navegacion modulos={modulos} actual={donde} onIr={setDonde} />
+
+      <DetalleTurno turno={turnoAbierto}
+        onCerrar={() => setTurnoAbierto(null)}
+        onCancelado={releer} />
     </div>
   );
 }

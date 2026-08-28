@@ -170,7 +170,30 @@ export async function cargarTurnos({ desde = null } = {}) {
     duracionMin: t.duracion_min,
     estado: t.estado,
     esClase: !!t.es_clase,
+    /* Las dos las decide la base. Si la pantalla calculara si se puede
+       cancelar, la primera vez que un comercio cambie la regla habria dos
+       verdades y la de abajo seria la que se ve. */
+    puedeCancelar: !!t.puede_cancelar,
+    cancelarHasta: t.cancelar_hasta ? new Date(t.cancelar_hasta) : null,
   }));
+}
+
+/* Devuelve que paso: si fue tarde, si gasto la clase y si quedo un cargo.
+   La pantalla lo dice; no lo deduce. */
+export async function cancelarTurno(reservaId) {
+  const { data, error } = await supabase.rpc("cancelar_como_cliente", { p_reserva: reservaId });
+  if (error) throw traducirCancelacion(error);
+  return {
+    tarde: !!data.tarde,
+    consumio: !!data.consumio,
+    adeuda: Number(data.adeuda || 0),
+  };
+}
+
+function traducirCancelacion(error) {
+  const propios = ["P0095", "P0096", "P0097", "P0098"];
+  if (error && propios.includes(error.code)) return new Error(error.message);
+  return new Error("No pudimos cancelar el turno. Proba de nuevo.");
 }
 
 /* Lo que todavía no pasó y no se canceló. Es lo que la persona abre la
