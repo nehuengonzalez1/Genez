@@ -108,6 +108,23 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), servirApi()],
+
+    /* Dos entradas, dos bundles. La app del cliente no tiene por qué
+       cargar el punto de venta, el salón, los reportes ni los gráficos:
+       son 1,5 MB que viajarían al teléfono de alguien que quiere ver a
+       qué hora tiene turno.
+
+       Mismo repositorio igual, para que los colores, el cliente de
+       Supabase y la sesión sean los mismos y no se desincronicen. */
+    build: {
+      rollupOptions: {
+        input: {
+          gestion: resolve(process.cwd(), "index.html"),
+          cliente: resolve(process.cwd(), "cliente.html"),
+        },
+      },
+    },
+
     server: {
       port: 5173,
       open: true,

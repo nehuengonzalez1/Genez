@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/anthropic/:ruta*", "destination": "/api/anthropic" }
+    { "source": "/api/anthropic/:ruta*", "destination": "/api/anthropic" },
+    { "source": "/cliente", "destination": "/cliente.html" }
   ]
 }
