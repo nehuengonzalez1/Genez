@@ -1800,6 +1800,157 @@ console.log("\nEscalar permisos");
   }
 }
 
+/* ------------------------------------------------------------
+   La identidad del cliente
+
+   Lo único de este sistema que va a mirar gente de afuera del comercio.
+   Ver 0050 y docs/modelo-identidad-del-cliente.md.
+
+   Lo que se prueba acá no es que el cliente vea lo suyo —eso es la parte
+   fácil— sino que NO vea lo ajeno, y sobre todo que no vea columnas que no
+   le corresponden aunque la fila sí. Por eso el cliente lee funciones y no
+   tablas: una política decide sobre la fila y deja pasar todas sus
+   columnas, incluidas las que se agreguen mañana.
+   ------------------------------------------------------------ */
+console.log("\nLa identidad del cliente");
+
+{
+  const claims = (id) =>
+    c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: id, role: "authenticated" })]);
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, filas: r.rowCount };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code, filas: 0 };
+    }
+  };
+
+  await c.query("begin");
+  try {
+    const almha = (await una("select id from empresas where nombre = 'Almha'")).id;
+    /* El del bar se toma acá y no más abajo: más abajo ya somos la
+       clienta, y una clienta no ve ninguna empresa —que es justamente lo
+       que se está probando—. */
+    const barAjeno = (await una("select id from empresas where nombre = 'Bar Rivadavia'")).id;
+
+    /* Una persona con ficha en Almha y cuenta enlazada. */
+    const uCli = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'clienta@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta de prueba', $2, now()) returning id`, [almha, uCli])).id;
+
+    /* Otra clienta del mismo comercio, sin cuenta: es la que no se tiene
+       que ver. Que sea del mismo comercio es el punto: aislar entre
+       comercios ya estaba probado, lo nuevo es aislar adentro de uno. */
+    const ajena = (await una(
+      `insert into clientes (empresa_id, razon_social) values ($1, 'Otra clienta') returning id`,
+      [almha])).id;
+
+    const prof = (await una("select id from personal where empresa_id = $1 limit 1", [almha])).id;
+    const serv = (await una(
+      "select id from items where empresa_id = $1 and tipo = 'servicio' limit 1", [almha])).id;
+
+    await c.query(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado, personal_id, item_id, notas)
+       values ($1, $2, 'Clienta de prueba', now() + interval '2 days', 60, 'pendiente', $3, $4, 'NOTA INTERNA')`,
+      [almha, ficha, prof, serv]);
+    await c.query(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde, duracion_min, estado, personal_id, item_id, notas)
+       values ($1, $2, 'Otra clienta', now() + interval '3 days', 60, 'pendiente', $3, $4, 'NOTA AJENA')`,
+      [almha, ajena, prof, serv]);
+
+    await c.query("set local role authenticated");
+    await claims(uCli);
+
+    /* ---- Lo que no ve ---- */
+    for (const t of ["empresas", "clientes", "reservas", "items", "operaciones", "perfiles", "personal", "abonos"]) {
+      const n = (await una(`select count(*)::int n from ${t}`)).n;
+      decir(n === 0, `no lee ${t} directamente (${n} filas)`);
+    }
+
+    /* ---- Lo que sí ---- */
+    const mias = await c.query("select * from public.mis_fichas()");
+    decir(mias.rowCount === 1 && mias.rows[0].mis_fichas === ficha,
+      "mis_fichas devuelve su ficha y solo la suya");
+
+    const com = await c.query("select * from public.mis_comercios()");
+    decir(com.rowCount === 1 && com.rows[0].nombre === "Almha",
+      "mis_comercios devuelve Almha y ningún otro");
+
+    const turnos = await c.query("select * from public.mis_turnos()");
+    decir(turnos.rowCount === 1, `ve su turno y no el de la otra clienta (${turnos.rowCount})`);
+    decir(turnos.rows[0] && turnos.rows[0].servicio !== null,
+      "el turno viene con el nombre del servicio, no en null");
+    decir(turnos.rows[0] && turnos.rows[0].profesional !== null,
+      "y con el profesional");
+
+    /* La razón por la que esto son funciones y no políticas. */
+    const columnas = Object.keys(turnos.rows[0] || {});
+    decir(!columnas.includes("notas"),
+      "el turno NO trae `notas`: eso lo escribe recepción para adentro");
+
+    const cat = await c.query("select * from public.catalogo_de($1)", [almha]);
+    decir(cat.rowCount > 0, `ve el catálogo de servicios de Almha (${cat.rowCount})`);
+    decir(!Object.keys(cat.rows[0] || {}).includes("costo"),
+      "y el catálogo NO trae el costo");
+
+    const catAjeno = await c.query("select * from public.catalogo_de($1)", [barAjeno]);
+    decir(catAjeno.rowCount === 0,
+      "no ve el catálogo de un comercio del que no es cliente");
+
+    /* ---- Que no escriba nada ---- */
+    const escribir = await intentar(
+      `insert into reservas (empresa_id, cliente_id, nombre, desde) values ($1, $2, 'Colada', now())`,
+      [almha, ficha]);
+    decir(escribir.codigo === "42501", "no puede insertar un turno por su cuenta");
+
+    const robar = await intentar(
+      "update clientes set usuario_id = $1 where id = $2", [uCli, ajena]);
+    decir(robar.codigo === null && robar.filas === 0,
+      "ni enlazarse la ficha de otra persona");
+
+    /* ---- Las dos categorías no se mezclan ---- */
+    /* Se vuelve a administrador Y se limpian los claims. Solo con `reset
+       role` la sesión sigue diciendo que auth.uid() es la clienta, y el
+       insert de abajo termina anotando en la bitácora un usuario que no
+       está en `perfiles`. Eso destapó un problema real de 0048, arreglado
+       en 0050: la bitácora daba por sentado que todo autenticado es
+       personal, y desde que hay clientes eso dejó de ser cierto. */
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+
+    const comoPersonal = await intentar(
+      `insert into perfiles (id, empresa_id, nombre, rol) values ($1, $2, 'Colada', 'dueno')`,
+      [uCli, almha]);
+    decir(comoPersonal.codigo === "P0080",
+      "una cuenta de cliente no puede recibir un perfil de personal");
+
+    const uPer = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'moza@genez.test') returning id")).id;
+    await c.query(
+      "insert into perfiles (id, empresa_id, nombre, rol) values ($1, $2, 'Moza', 'cajero')", [uPer, almha]);
+    const alReves = await intentar(
+      "update clientes set usuario_id = $1 where id = $2", [uPer, ajena]);
+    decir(alReves.codigo === "P0080",
+      "y una cuenta de personal no puede enlazarse como cliente");
+
+    const dosVeces = await intentar(
+      `insert into clientes (empresa_id, razon_social, usuario_id) values ($1, 'Duplicada', $2)`,
+      [almha, uCli]);
+    decir(dosVeces.codigo === "P0081",
+      "una cuenta no puede tener dos fichas en el mismo comercio");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

@@ -138,18 +138,35 @@ language sql stable security definer
 as $$ select id from clientes where usuario_id = auth.uid() $$;
 ```
 
-Y después, políticas **adicionales** sobre `reservas`, `abonos` y las ventas
-propias:
+### Corregido al construir 0050: funciones, no políticas
 
-```sql
-create policy reservas_del_cliente on reservas
-  for select using (cliente_id in (select public.mis_fichas()));
-```
+Este documento proponía políticas de RLS sobre `reservas` y `abonos`. **Al
+mirar las columnas quedó claro que estaba mal**, y así se construyó:
 
-**Adicionales y no reemplazos.** Las políticas de RLS se suman: la del
-personal sigue igual y esta abre una puerta nueva y angosta. Tocar
-`reservas_todo` para que contemple las dos cosas es la forma de romper el
-sistema de gestión mientras se construye la app del cliente.
+- `items` tiene `costo`, `stock_min` y `proveedor_id`.
+- `reservas` y `abonos` tienen `notas`, que es donde recepción escribe
+  para adentro.
+
+Una política decide sobre la **fila** y deja pasar todas sus columnas. Darle
+lectura de `items` para que vea el catálogo es darle el costo.
+
+Y hay algo peor que el costo de hoy: con una política de fila, **cada
+columna que se agregue mañana queda expuesta sola**. El día que alguien
+sume `margen` a `items`, pasa a ser pública sin que nadie lo decida.
+
+Por eso **el cliente no lee tablas, lee funciones** que proyectan solo lo
+suyo: `mis_fichas`, `mis_comercios`, `mis_turnos`, `mis_abonos`,
+`catalogo_de`. Las columnas nuevas nacen privadas, que es el default
+correcto para lo único de este sistema que va a mirar gente de afuera.
+
+Tampoco vistas, por dos razones que se suman: una vista con
+`security_invoker` —que este proyecto exige en todas— heredaría las
+políticas del que pregunta, que para un cliente no existen, y devolvería
+vacío. Y sin `security_invoker` sería una vista que saltea RLS, que es
+justo lo que la prueba de vistas impide.
+
+**No se tocó ninguna política existente.** El sistema de gestión quedó
+exactamente igual.
 
 ---
 
