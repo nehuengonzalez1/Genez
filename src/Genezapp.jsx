@@ -2,9 +2,9 @@
    15. RAÍZ · quién entró decide qué se ve
    ============================================================ */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
-import { cargarSesion, cargarComercios, salir, alRecuperarClave } from "./datos/sesion.js";
+import { cargarSesion, cargarComercios, salir, alRecuperarClave, vinoDeRecuperacion } from "./datos/sesion.js";
 import { cargarRubro } from "./datos/rubros.js";
 import { cargarRoles } from "./datos/permisos.js";
 
@@ -32,19 +32,39 @@ export default function App() {
   const [rubro, setRubro] = useState(undefined);
   const [roles, setRoles] = useState(null);
   const [errorInicio, setErrorInicio] = useState("");
-  const [recuperando, setRecuperando] = useState(false);
+  const [recuperando, setRecuperando] = useState(vinoDeRecuperacion);
+
+  /* Lo mismo que `recuperando`, para poder leerlo desde adentro de una
+     promesa. El estado que ve un `catch` es el del momento en que se armó
+     la cadena, y acá lo que importa es lo que pasó mientras corría. */
+  const recuperandoRef = useRef(vinoDeRecuperacion);
 
   /* El link del correo abre una sesión que solo sirve para cambiar la
      contraseña. Se escucha antes que nada: si se dejara seguir de largo,
      entraría al sistema como si nada y el usuario nunca vería la pantalla
      para elegir la clave nueva. */
-  useEffect(() => alRecuperarClave(() => setRecuperando(true)), []);
+  useEffect(() => alRecuperarClave(() => {
+    recuperandoRef.current = true;
+    setRecuperando(true);
+  }), []);
 
   useEffect(() => {
     let vigente = true;
     cargarSesion()
       .then((s) => { if (vigente) setSesion(s); })
       .catch(async (e) => {
+        /* Si vino del link de recuperación no se cierra nada. Esa sesión
+           es lo único que permite cambiar la clave, y cerrarla deja la
+           pantalla de contraseña nueva sin poder guardar: Supabase
+           contesta "falta la sesión de autenticación" y no hay forma de
+           salir de ahí más que pedir otro link, que va a hacer lo mismo.
+
+           Pasa siempre con una clienta del comercio —no tiene perfil, así
+           que `cargarSesion` lanza— y era invisible porque las dos partes
+           por separado están bien: cerrar una sesión a medias es correcto,
+           y mostrar la pantalla de clave nueva también. */
+        if (recuperandoRef.current) return;
+
         /* Hay sesión en Auth pero algo falta del lado de Genez (típico:
            el usuario existe y no tiene perfil). Se cierra para no dejarlo
            en un limbo donde el login no reacciona. */
