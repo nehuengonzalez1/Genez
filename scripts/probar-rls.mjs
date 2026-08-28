@@ -2044,6 +2044,114 @@ console.log("\nReglas de reserva");
   });
 }
 
+/* ------------------------------------------------------------
+   La marca y los módulos del cliente
+
+   `marca_de` es la única función del sistema que puede llamar alguien sin
+   sesión, así que es la que más cuidado pide: lo que devuelva es público
+   para siempre. Se prueba que devuelva la marca y nada más, y que ser
+   anónimo no abra ninguna otra puerta.
+
+   Y que la navegación se calcule. Es lo que hace que el motor sea uno
+   solo: un comercio sin `agenda` no muestra Turnos sin que nadie escriba
+   un `if`.
+   ------------------------------------------------------------ */
+console.log("\nMarca y módulos del cliente");
+
+{
+  const almhaM = (await una("select id, slug from empresas where nombre = 'Almha'"));
+  const barM   = (await una("select id, slug from empresas where nombre = 'Bar Rivadavia'"));
+
+  decir(almhaM.slug === "almha", `el slug sale del nombre (${almhaM.slug})`);
+  decir(barM.slug === "bar-rivadavia", `y limpia los espacios (${barM.slug})`);
+
+  /* ---- Lo público, siendo nadie ---- */
+  await c.query("begin");
+  try {
+    await c.query("set local role anon");
+
+    const marca = await c.query("select * from public.marca_de('almha')");
+    decir(marca.rowCount === 1, "sin sesión se puede leer la marca de un comercio");
+
+    const campos = Object.keys(marca.rows[0] || {});
+    decir(!campos.includes("id") && !campos.includes("modulos") && !campos.includes("config"),
+      "y devuelve solo marca: ni el id, ni los módulos, ni la configuración");
+
+    decir((await c.query("select * from public.marca_de('no-existe')")).rowCount === 0,
+      "un slug que no existe devuelve vacío, no un error que confirme nada");
+
+    for (const t of ["empresas", "clientes", "reservas", "items", "abonos"]) {
+      const n = (await una(`select count(*)::int n from ${t}`)).n;
+      decir(n === 0, `ser anónimo no abre ${t} (${n} filas)`);
+    }
+  } finally {
+    await c.query("rollback");
+  }
+
+  /* ---- La navegación se calcula ---- */
+  const navDe = async (id) =>
+    (await c.query("select * from public.modulos_del_cliente($1)", [id])).rows.map((x) => x.clave);
+
+  const navAlmha = await navDe(almhaM.id);
+  const navBar   = await navDe(barM.id);
+
+  decir(navAlmha.includes("turnos") && navAlmha.includes("plan"),
+    `Almha ve Turnos y Mi plan: tiene agenda y ventas (${navAlmha.join(", ")})`);
+  decir(!navBar.includes("turnos"),
+    `el bar no ve Turnos porque no tiene agenda (${navBar.join(", ")})`);
+  decir(navBar.includes("inicio") && navBar.includes("cuenta"),
+    "pero Inicio y Cuenta están siempre: son el piso");
+
+  decir(!navAlmha.includes("beneficios"),
+    "Beneficios no le aparece a nadie: pide un módulo de gestión que no existe");
+
+  await c.query("begin");
+  try {
+    /* Lo que el comercio decide: apagar y renombrar. */
+    await c.query(
+      `update empresas set config = config ||
+         '{"cliente":{"apagados":{"plan":true},"nombres":{"turnos":"Clases"}}}'::jsonb
+        where id = $1`, [almhaM.id]);
+
+    const nav = await c.query("select * from public.modulos_del_cliente($1)", [almhaM.id]);
+    decir(!nav.rows.some((x) => x.clave === "plan"),
+      "el comercio puede apagar un módulo que sí contrató");
+    decir(nav.rows.find((x) => x.clave === "turnos")?.nombre === "Clases",
+      "y renombrarlo: un gimnasio le dice Clases a lo que una estética le dice Turnos");
+
+    /* Y lo que decide la plataforma: si la pantalla existe. */
+    await c.query("update modulos_cliente set activo = true where clave = 'pagos'");
+    decir((await navDe(almhaM.id)).includes("pagos"),
+      "construir una pantalla la hace aparecer sola, sin tocar el front");
+    decir(!(await navDe(barM.id)).includes("pagos"),
+      "y solo a quien tenga el módulo de gestión que la alimenta");
+
+    /* Descontratar el módulo de gestión se lleva puesta la pantalla del
+       cliente: es la relación que hace que no haya pantallas sin datos.
+
+       Va con la identidad de la plataforma porque `proteger_lo_comercial`
+       impide que un comercio se cambie sus propios módulos —"los cambia
+       Genez, no el comercio"—, que es exactamente lo que tiene que hacer.
+       La primera versión de esta prueba lo hacía como administrador sin
+       sesión y el disparador la frenó, con razón. */
+    const plataforma = await una(
+      "select id from perfiles where es_plataforma = true limit 1");
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: plataforma.id, role: "authenticated" })]);
+
+    await c.query(
+      "update empresas set modulos = array_remove(modulos, 'agenda') where id = $1", [almhaM.id]);
+    decir(!(await navDe(almhaM.id)).includes("turnos"),
+      "y descontratar agenda le saca Turnos: no queda una pantalla sin datos detrás");
+
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
