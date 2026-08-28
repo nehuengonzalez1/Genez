@@ -332,6 +332,29 @@ export function proximos(turnos) {
    no son lo mismo: el historial es a lo que fuiste. Un turno cancelado
    ahí adentro hace que la lista de lo que hiciste incluya lo que no
    hiciste, y encima empuja hacia abajo los que sí. */
+/* ------------------------------------------------------------
+   Lo que pagué
+
+   Un renglón por pago y no por operación: una cuenta pagada mitad en
+   efectivo y mitad con tarjeta son dos pagos, y juntarlos perdería con
+   qué se pagó cada parte. Ver la migración 0059.
+   ------------------------------------------------------------ */
+
+export async function cargarPagos({ desde = null } = {}) {
+  const { data, error } = await supabase.rpc("mis_pagos", { p_desde: desde });
+  if (error) throw new Error("No pudimos cargar tus pagos.");
+
+  return (data || []).map((p) => ({
+    id: p.id,
+    empresa: p.empresa,
+    fecha: new Date(p.fecha),
+    /* Postgres devuelve `numeric` como texto para no perder precisión. */
+    monto: Number(p.monto),
+    medio: p.medio || "",
+    concepto: p.concepto || "Compra",
+  }));
+}
+
 export function historial(turnos) {
   const ahora = new Date();
   return turnos.filter((t) => t.desde < ahora && t.estado !== "cancelada");
@@ -494,8 +517,13 @@ export async function cargarAbonos() {
     id: a.id,
     empresa: a.empresa,
     nombre: a.nombre,
+    /* Tres clases de abono y no dos: un pack tiene `clases`, un plan
+       tiene `topeSemanal`, y el que no tiene ninguno de los dos es libre
+       de verdad. Los dos pueden convivir. Ver la migración 0060. */
     clases: a.clases,
     usadas: Number(a.usadas || 0),
+    topeSemanal: a.tope_semanal ?? null,
+    usadasSemana: a.usadas_semana == null ? null : Number(a.usadas_semana),
     desde: a.desde ? new Date(a.desde + "T00:00:00") : null,
     vence: a.vence ? new Date(a.vence + "T00:00:00") : null,
     vigente: !!a.vigente,

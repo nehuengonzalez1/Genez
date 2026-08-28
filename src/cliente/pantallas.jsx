@@ -17,7 +17,7 @@
 import React from "react";
 import { Clock, MapPin, ChevronRight, LogOut, Mail, Building2 } from "lucide-react";
 import {
-  Pantalla, Tarjeta, Seccion, Boton, Vacio, Estado, ROTULO,
+  Pantalla, Tarjeta, Seccion, Boton, Vacio, Cargando, Estado, ROTULO,
   cuando, hora, diaCorto,
 } from "./ui.jsx";
 
@@ -179,15 +179,26 @@ export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReser
                     </div>
                   )}
                 </div>
-                {/* Solo si el plan tiene un tope. Un plan libre no tiene
-                    sesiones que contar, y mostrar un cero sería mentir. */}
-                {plan.clases != null && (
+                {/* Lo que le queda, según qué clase de plan sea. Un pack
+                    cuenta sesiones y un plan cuenta por semana; el que no
+                    tiene ninguno de los dos no muestra número, porque un
+                    cero ahí diría que no le queda nada. */}
+                {plan.clases != null ? (
                   <div className="text-right shrink-0">
                     <div className="f-m text-3xl leading-none">
                       {Math.max(0, plan.clases - plan.usadas)}
                     </div>
                     <div className="text-[11px] text-texto-tenue mt-1">
                       de {plan.clases} sin usar
+                    </div>
+                  </div>
+                ) : plan.topeSemanal != null && (
+                  <div className="text-right shrink-0">
+                    <div className="f-m text-3xl leading-none">
+                      {Math.max(0, plan.topeSemanal - (plan.usadasSemana || 0))}
+                    </div>
+                    <div className="text-[11px] text-texto-tenue mt-1">
+                      de {plan.topeSemanal} esta semana
                     </div>
                   </div>
                 )}
@@ -342,7 +353,7 @@ export function Turnos({
    MI PLAN
    ------------------------------------------------------------ */
 
-export function Plan({ abonos, varios }) {
+export function Plan({ abonos, varios, onVer }) {
   const vigentes = abonos.filter((a) => a.vigente);
   const vencidos = abonos.filter((a) => !a.vigente);
 
@@ -375,14 +386,26 @@ export function Plan({ abonos, varios }) {
               libre no tiene sesiones que contar, y con dos columnas fijas
               queda media grilla vacía al lado del vencimiento. */}
           <div className={`grid gap-3 mt-5 ${
-            a.clases != null && a.vence ? "grid-cols-2" : "grid-cols-1"}`}>
-            {a.clases != null && (
+            (a.clases != null || a.topeSemanal != null) && a.vence ? "grid-cols-2" : "grid-cols-1"}`}>
+            {a.clases != null ? (
               <div className="bg-superficie-2 rounded-lg p-4">
                 <div className="f-m text-3xl leading-none">
                   {Math.max(0, a.clases - a.usadas)}
                 </div>
                 <div className="text-[11px] text-texto-tenue mt-1.5">
                   sesiones disponibles
+                </div>
+              </div>
+            ) : a.topeSemanal != null && (
+              /* Un plan con tope semanal no es libre, que es lo que esta
+                 pantalla venía diciendo por omisión: no mostraba nada y
+                 quedaba solo el vencimiento. */
+              <div className="bg-superficie-2 rounded-lg p-4">
+                <div className="f-m text-3xl leading-none">
+                  {Math.max(0, a.topeSemanal - (a.usadasSemana || 0))}
+                </div>
+                <div className="text-[11px] text-texto-tenue mt-1.5">
+                  de {a.topeSemanal} esta semana
                 </div>
               </div>
             )}
@@ -428,9 +451,192 @@ export function Plan({ abonos, varios }) {
           ))}
         </Seccion>
       )}
+
+      {/* Las dos pantallas de la maqueta que cuelgan del plan. Van como
+          filas y no como botones: son lugares a los que se entra, no
+          acciones que se ejecutan. */}
+      <Seccion titulo="Ver también">
+        {[
+          ["sesiones", "Sesiones", "Cuántas trae tu plan y cuántas usaste"],
+          ["pagos", "Pagos", "Lo que pagaste, cuándo y con qué"],
+        ].map(([k, n, sub]) => (
+          <Tarjeta key={k} className="mb-2.5" onClick={() => onVer(k)}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[15px]">{n}</div>
+                <div className="text-[13px] text-texto-tenue mt-0.5">{sub}</div>
+              </div>
+              <ChevronRight size={18} className="text-texto-tenue shrink-0" />
+            </div>
+          </Tarjeta>
+        ))}
+      </Seccion>
     </Pantalla>
   );
 }
+/* ------------------------------------------------------------
+   SESIONES · pantalla 10 de la maqueta
+
+   El desglose de lo que da el plan: cuántas trae, cuántas se usaron y
+   cuántas quedan. Mi plan contesta "¿tengo?"; esto contesta "¿cuántas y
+   en qué se fueron?", que es la pregunta de quien está decidiendo si
+   reserva otra esta semana.
+
+   NO DICE "EL MES"
+   La maqueta lo titula "Resumen del mes", que es cierto para un plan
+   mensual y falso para un pack de cuatro clases sin vencimiento. Acá el
+   período es el del abono, que es lo que el dato realmente sabe, y se
+   dice cuál es. Inventar un mes obligaría a repartir las clases de un
+   pack entre meses que el comercio nunca definió.
+   ------------------------------------------------------------ */
+
+function Numero({ valor, rotulo }) {
+  return (
+    <div className="bg-superficie-2 rounded-lg p-4">
+      <div className="f-m text-3xl leading-none">{valor}</div>
+      <div className="text-[11px] text-texto-tenue mt-1.5">{rotulo}</div>
+    </div>
+  );
+}
+
+export function Sesiones({ abonos, turnos, onVolver, onVerTurnos }) {
+  const plan = abonos.find((a) => a.vigente) || null;
+
+  /* Un pack cuenta sesiones; un plan con tope cuenta por semana; el que
+     no tiene ninguno de los dos es libre. Las dos primeras pueden ser
+     ciertas a la vez —doce clases, máximo dos por semana— así que se
+     preguntan por separado y no con un `else`. */
+  const cuenta = plan && plan.clases != null;
+  const porSemana = plan && plan.topeSemanal != null;
+
+  return (
+    <Pantalla titulo="Sesiones" onVolver={onVolver}>
+      {!plan ? (
+        <Vacio icono="credencial" titulo="No tenés un plan activo">
+          Cuando contrates uno, acá vas a ver cuántas sesiones trae y
+          cuántas te quedan.
+        </Vacio>
+      ) : (
+        <>
+          <Tarjeta>
+            <div className={ROTULO}>Tu plan</div>
+            <div className="text-lg mt-2">{plan.nombre}</div>
+            {plan.vence && (
+              <div className="text-sm text-texto-suave mt-0.5">
+                Hasta el {plan.vence.toLocaleDateString("es-AR", { day: "numeric", month: "long" })}
+              </div>
+            )}
+
+            {cuenta && (
+              <div className="grid grid-cols-3 gap-2.5 mt-5">
+                <Numero valor={plan.clases} rotulo="del plan" />
+                <Numero valor={plan.usadas} rotulo="usadas" />
+                <Numero valor={Math.max(0, plan.clases - plan.usadas)} rotulo="te quedan" />
+              </div>
+            )}
+
+            {porSemana && (
+              <div className="grid grid-cols-2 gap-2.5 mt-5">
+                <Numero valor={plan.topeSemanal} rotulo="por semana" />
+                <Numero valor={Math.max(0, plan.topeSemanal - (plan.usadasSemana || 0))}
+                  rotulo="esta semana" />
+              </div>
+            )}
+
+            {!cuenta && !porSemana && (
+              <p className="text-sm text-texto-suave mt-4 leading-relaxed">
+                Es un plan libre: no tiene un tope de sesiones.
+              </p>
+            )}
+          </Tarjeta>
+
+          <Seccion titulo="Próximas sesiones"
+            accion={turnos.length > 0 && (
+              <button onClick={onVerTurnos} className="text-[13px] text-acento font-semibold">
+                Ver todas
+              </button>
+            )}>
+            {turnos.length === 0 ? (
+              <Tarjeta>
+                <p className="text-sm text-texto-suave">No tenés sesiones agendadas.</p>
+              </Tarjeta>
+            ) : (
+              turnos.slice(0, 5).map((t) => (
+                <TurnoFila key={t.id} t={t} />
+              ))
+            )}
+          </Seccion>
+        </>
+      )}
+    </Pantalla>
+  );
+}
+
+/* ------------------------------------------------------------
+   PAGOS · pantalla 11 de la maqueta
+
+   Lo que pagó, cuándo y con qué. Es de las pocas cosas que una persona
+   busca sola, sin querer preguntarle a nadie.
+
+   FALTA "PRÓXIMO PAGO", Y NO ES UN OLVIDO
+   La maqueta abre con "Próximo pago · 15 Jun · $24.000 · Pagar ahora".
+   Eso necesita que un abono se renueve solo y que haya un cobro
+   recurrente, y hoy los abonos no tienen ni una cosa ni la otra: se
+   venden de a uno, en el local. Dibujar una fecha de renovación que nadie
+   calcula sería el primer número inventado de esta app.
+
+   Cuando exista la renovación, esta pantalla ya tiene dónde ponerlo.
+   ------------------------------------------------------------ */
+
+/* Como lo dice la base y como lo diría una persona. Lo que no esté en la
+   lista se muestra tal cual: es mejor que un pago diga "cheque" a que la
+   pantalla se calle porque no lo tenía previsto. */
+const MEDIOS = {
+  efectivo: "Efectivo",
+  debito: "Débito",
+  credito: "Crédito",
+  mp: "Mercado Pago",
+  transferencia: "Transferencia",
+  qr: "QR",
+  cuenta: "Cuenta corriente",
+};
+
+export function Pagos({ pagos, cargando, varios, onVolver }) {
+  const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
+
+  return (
+    <Pantalla titulo="Pagos" onVolver={onVolver}>
+      {cargando ? (
+        <Cargando>Buscando tus pagos…</Cargando>
+      ) : pagos.length === 0 ? (
+        <Vacio icono="billete" titulo="Todavía no hay pagos">
+          Acá van a quedar los pagos que hagas, con la fecha y el medio.
+        </Vacio>
+      ) : (
+        <Seccion titulo="Pagos realizados">
+          {pagos.map((p) => (
+            <Tarjeta key={p.id} className="mb-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[15px] truncate">{p.concepto}</div>
+                  <div className="text-sm text-texto-suave mt-0.5">
+                    {p.fecha.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
+                  </div>
+                  <div className="text-[13px] text-texto-tenue mt-0.5">
+                    {MEDIOS[p.medio] || p.medio}
+                    {varios && ` · ${p.empresa}`}
+                  </div>
+                </div>
+                <div className="f-m text-[15px] shrink-0">{money(p.monto)}</div>
+              </div>
+            </Tarjeta>
+          ))}
+        </Seccion>
+      )}
+    </Pantalla>
+  );
+}
+
 
 /* ------------------------------------------------------------
    CUENTA

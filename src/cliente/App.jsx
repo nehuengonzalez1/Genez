@@ -36,7 +36,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   slugDelDominio, cargarMarca, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
-  cargarEsperas, salirDeEspera,
+  cargarEsperas, salirDeEspera, cargarPagos,
   pedirClaveNueva, guardarClaveNueva, alRecuperarClave, vinoDeRecuperacion,
   marcaGuardada,
   proximos, historial, cancelados,
@@ -45,7 +45,7 @@ import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import {
   Navegacion, Cargando, Error as ErrorEstado, SinConexion, useHayConexion, Boton, ROTULO,
 } from "./ui.jsx";
-import { Inicio, Turnos, Plan, Cuenta } from "./pantallas.jsx";
+import { Inicio, Turnos, Plan, Sesiones, Pagos, Cuenta } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 
@@ -463,6 +463,18 @@ export default function App() {
   const [turnos, setTurnos] = useState([]);
   const [abonos, setAbonos] = useState([]);
   const [esperas, setEsperas] = useState([]);
+
+  /* Los pagos se piden cuando alguien entra a verlos y no al arrancar: es
+     la única lista de la app que no aparece en ninguna pantalla de la
+     barra. Cargarla siempre sería una consulta más en cada apertura para
+     algo que casi nadie abre.
+
+     `null` quiere decir "todavía no se pidieron", que es distinto de "no
+     tiene ninguno" y la pantalla dibuja como cargando.
+
+     Y cuál de las dos subpantallas del plan se está viendo. */
+  const [pagos, setPagos] = useState(null);
+  const [enPlan, setEnPlan] = useState(null);
   const [bajando, setBajando] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -543,6 +555,23 @@ export default function App() {
       setBajando(null);
     }
   }
+
+  /* Se piden una sola vez, la primera que alguien entra a la pantalla. Si
+     falla queda en `null` y se vuelve a intentar al entrar de nuevo, que
+     para una lista que no cambia sola es reintento suficiente. */
+  useEffect(() => {
+    if (enPlan !== "pagos" || pagos !== null) return;
+    let vigente = true;
+    cargarPagos()
+      .then((ps) => { if (vigente) setPagos(ps); })
+      .catch((e) => { if (vigente) setError(e.message); });
+    return () => { vigente = false; };
+  }, [enPlan, pagos]);
+
+  /* Al cambiar de pestaña se sale de la subpantalla: volver a "Mi plan"
+     desde la barra tiene que mostrar el plan y no la última cosa que se
+     miró adentro hace media hora. */
+  useEffect(() => { setEnPlan(null); }, [donde]);
 
   /* Vuelve a preguntar quién entró. Es lo que reintenta la pantalla sin
      conexión: el problema de ahí es que `cargarClienta` no llegó, así que
@@ -629,7 +658,26 @@ export default function App() {
         onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto}
         esperas={esperas} onBajarse={bajarse} bajando={bajando} />
     ),
-    plan: () => <Plan abonos={abonos} varios={varios} />,
+    /* Sesiones y Pagos cuelgan del plan, como en la maqueta: no son
+       pestañas de la barra sino lugares a los que se entra desde acá y se
+       vuelve. Por eso son un estado de esta pantalla y no un `donde`
+       nuevo —si fueran pestañas, la barra tendría seis— y por eso al
+       cambiar de pestaña se olvidan. */
+    plan: () => {
+      if (enPlan === "sesiones") {
+        return (
+          <Sesiones abonos={abonos} turnos={proximos(turnos)}
+            onVolver={() => setEnPlan(null)} onVerTurnos={() => { setEnPlan(null); setDonde("turnos"); }} />
+        );
+      }
+      if (enPlan === "pagos") {
+        return (
+          <Pagos pagos={pagos} cargando={pagos === null} varios={varios}
+            onVolver={() => setEnPlan(null)} />
+        );
+      }
+      return <Plan abonos={abonos} varios={varios} onVer={setEnPlan} />;
+    },
     cuenta: () => (
       <Cuenta marca={marca} comercio={comercio} email={clienta.email}
         comercios={clienta.comercios} onSalir={cerrar} />

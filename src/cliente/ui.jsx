@@ -17,7 +17,7 @@
 
 import React from "react";
 import {
-  Home, CalendarDays, CreditCard, User, ShoppingBag, Star, Receipt, WifiOff,
+  Home, CalendarDays, CreditCard, User, ShoppingBag, Star, Receipt, WifiOff, ChevronLeft,
 } from "lucide-react";
 
 export const ROTULO =
@@ -82,12 +82,27 @@ export function Navegacion({ modulos, actual, onIr }) {
 
 /* El alto de la barra de abajo más su margen: sin esto, el último
    elemento de cualquier lista queda tapado y nadie lo ve. */
-export function Pantalla({ titulo, children }) {
+export function Pantalla({ titulo, onVolver, children }) {
   return (
     <div className="max-w-lg mx-auto px-5 pb-28">
       {titulo && (
         <header className="pt-6 pb-4">
-          <h1 className="f-d text-2xl">{titulo}</h1>
+          {/* Con flecha, el título se corre al lado y baja de tamaño: una
+              pantalla a la que se entra desde otra no es una sección de la
+              barra de abajo, y no tiene por qué pesar lo mismo. Los 44px
+              son el mínimo de lo que se toca con el pulgar, en píxeles
+              porque es una medida física. */}
+          {onVolver ? (
+            <div className="flex items-center gap-2 -ml-[11px]">
+              <button type="button" onClick={onVolver} aria-label="Volver"
+                className="w-[44px] h-[44px] flex items-center justify-center text-texto-suave hover:text-texto transition-colors shrink-0">
+                <ChevronLeft size={22} />
+              </button>
+              <h1 className="f-d text-xl">{titulo}</h1>
+            </div>
+          ) : (
+            <h1 className="f-d text-2xl">{titulo}</h1>
+          )}
         </header>
       )}
       {children}
