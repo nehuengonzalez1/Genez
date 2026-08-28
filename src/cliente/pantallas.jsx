@@ -459,6 +459,7 @@ export function Plan({ abonos, varios, onVer }) {
         {[
           ["sesiones", "Sesiones", "Cuántas trae tu plan y cuántas usaste"],
           ["pagos", "Pagos", "Lo que pagaste, cuándo y con qué"],
+          ["actividad", "Actividad", "Tus turnos y tus pagos, en orden"],
         ].map(([k, n, sub]) => (
           <Tarjeta key={k} className="mb-2.5" onClick={() => onVer(k)}>
             <div className="flex items-center justify-between gap-3">
@@ -636,6 +637,151 @@ export function Pagos({ pagos, cargando, varios, onVolver }) {
     </Pantalla>
   );
 }
+/* ------------------------------------------------------------
+   ACTIVIDAD · pantalla 12 de la maqueta
+
+   Todo lo que pasó, en una línea de tiempo. No agrega ningún dato: junta
+   los turnos y los pagos, que ya estaban cada uno en su pantalla, y los
+   ordena por fecha.
+
+   Y ahí está lo que aporta. "¿Cuándo fue la última vez que vine?" y
+   "¿esto ya lo pagué?" son preguntas que se contestan mirando dos listas
+   y cruzándolas de memoria. Acá se leen de corrido.
+
+   NO SE INVENTA UNA TABLA DE EVENTOS
+   Se podría guardar cada cosa que pasa en una tabla de actividad. Sería
+   un segundo registro de hechos que ya están escritos en `reservas` y en
+   `pagos`, con el problema de siempre: el día que los dos no coincidan,
+   hay que averiguar cuál tiene razón. Esto se arma al vuelo y no puede
+   desincronizarse de nada.
+
+   FALTAN LOS BENEFICIOS, Y ES LA MISMA RAZÓN DE SIEMPRE
+   La maqueta tiene una cuarta ficha —"Sumaste 120 puntos", "Beneficio
+   utilizado"— que necesita el módulo de puntos. Cuando exista, es un
+   arreglo más en `TODO` y una ficha más arriba.
+   ------------------------------------------------------------ */
+
+/* Qué le pasó al turno, dicho para quien lo tuvo. La base habla de
+   estados; una persona lee lo que hizo. */
+const QUE_PASO = {
+  pendiente: "Turno reservado",
+  confirmada: "Turno confirmado",
+  cumplida: "Turno cumplido",
+  cancelada: "Turno cancelado",
+  ausente: "Ausencia registrada",
+};
+
+export function Actividad({ turnos, pagos, cargando, onVolver }) {
+  const [filtro, setFiltro] = React.useState("todo");
+  const [cuantos, setCuantos] = React.useState(15);
+
+  const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
+
+  /* Lo que pasó, no lo que va a pasar.
+
+     Con los turnos futuros adentro, la pantalla abría en septiembre
+     —"Turno confirmado" cuatro veces— y la historia real quedaba abajo.
+     Actividad contesta "¿cuándo vine la última vez?" y "¿esto ya lo
+     pagué?"; lo que viene ya tiene su lugar en Turnos.
+
+     La fecha de un turno es la del turno y no la de cuando se reservó,
+     que es el único dato que hay. Por eso un turno futuro cancelado no
+     aparece acá: aparece en la pestaña Cancelados. */
+  const ahora = new Date();
+
+  /* Un solo arreglo con las dos cosas adentro, cada una traducida a lo
+     mismo: cuándo, qué pasó y sobre qué. Así ordenar es ordenar por una
+     fecha y no cruzar dos listas. */
+  const todo = [
+    ...turnos.filter((t) => t.desde < ahora).map((t) => ({
+      id: "t" + t.id,
+      tipo: "turnos",
+      fecha: t.desde,
+      titulo: QUE_PASO[t.estado] || "Turno",
+      detalle: [t.servicio, t.profesional].filter(Boolean).join(" · "),
+      monto: null,
+    })),
+    ...pagos.map((p) => ({
+      id: "p" + p.id,
+      tipo: "pagos",
+      fecha: p.fecha,
+      titulo: "Pago realizado",
+      detalle: p.concepto,
+      monto: p.monto,
+    })),
+  ].sort((a, b) => b.fecha - a.fecha);
+
+  const lista = filtro === "todo" ? todo : todo.filter((x) => x.tipo === filtro);
+  const visibles = lista.slice(0, cuantos);
+
+  return (
+    <Pantalla titulo="Actividad" onVolver={onVolver}>
+      <div className="flex gap-2 mb-6">
+        {[["todo", "Todo"], ["turnos", "Turnos"], ["pagos", "Pagos"]].map(([k, n]) => (
+          <button key={k} onClick={() => { setFiltro(k); setCuantos(15); }}
+            className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+              filtro === k
+                ? "bg-superficie border-borde-fuerte text-texto"
+                : "border-borde text-texto-suave hover:text-texto"
+            }`}>
+            {n}
+          </button>
+        ))}
+      </div>
+
+      {cargando ? (
+        <Cargando>Armando tu historia…</Cargando>
+      ) : visibles.length === 0 ? (
+        <Vacio icono="calendario" titulo="Todavía no hay nada">
+          Acá van a quedar tus turnos y tus pagos, en orden.
+        </Vacio>
+      ) : (
+        <>
+          <ol>
+            {visibles.map((x, i) => (
+              <li key={x.id} className="flex gap-3.5">
+                {/* El punto y la línea. La línea no se dibuja en el
+                    último, si no queda colgando de la nada. */}
+                <div className="flex flex-col items-center shrink-0 pt-1.5">
+                  <span className={`w-2 h-2 rounded-full ${
+                    x.tipo === "pagos" ? "bg-texto-tenue" : "bg-acento"}`} />
+                  {i < visibles.length - 1 && (
+                    <span className="w-px flex-1 bg-borde mt-1" />
+                  )}
+                </div>
+
+                <div className="min-w-0 pb-6 flex-1">
+                  <div className="text-[11px] uppercase tracking-[0.08em] text-texto-tenue">
+                    {x.fecha.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
+                  </div>
+                  <div className="flex items-start justify-between gap-3 mt-1">
+                    <div className="min-w-0">
+                      <div className="text-[15px]">{x.titulo}</div>
+                      {x.detalle && (
+                        <div className="text-sm text-texto-suave mt-0.5">{x.detalle}</div>
+                      )}
+                    </div>
+                    {x.monto != null && (
+                      <div className="f-m text-[15px] shrink-0">{money(x.monto)}</div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          {lista.length > visibles.length && (
+            <button onClick={() => setCuantos((n) => n + 20)}
+              className="w-full text-center text-[13px] text-acento font-semibold py-2">
+              Ver más
+            </button>
+          )}
+        </>
+      )}
+    </Pantalla>
+  );
+}
+
 
 
 /* ------------------------------------------------------------

@@ -45,7 +45,7 @@ import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import {
   Navegacion, Cargando, Error as ErrorEstado, SinConexion, useHayConexion, Boton, ROTULO,
 } from "./ui.jsx";
-import { Inicio, Turnos, Plan, Sesiones, Pagos, Cuenta } from "./pantallas.jsx";
+import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Cuenta } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 
@@ -560,7 +560,7 @@ export default function App() {
      falla queda en `null` y se vuelve a intentar al entrar de nuevo, que
      para una lista que no cambia sola es reintento suficiente. */
   useEffect(() => {
-    if (enPlan !== "pagos" || pagos !== null) return;
+    if ((enPlan !== "pagos" && enPlan !== "actividad") || pagos !== null) return;
     let vigente = true;
     cargarPagos()
       .then((ps) => { if (vigente) setPagos(ps); })
@@ -673,6 +673,12 @@ export default function App() {
       if (enPlan === "pagos") {
         return (
           <Pagos pagos={pagos} cargando={pagos === null} varios={varios}
+            onVolver={() => setEnPlan(null)} />
+        );
+      }
+      if (enPlan === "actividad") {
+        return (
+          <Actividad turnos={turnos} pagos={pagos || []} cargando={pagos === null}
             onVolver={() => setEnPlan(null)} />
         );
       }
