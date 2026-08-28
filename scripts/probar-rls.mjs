@@ -1977,6 +1977,73 @@ console.log("\nLa identidad del cliente");
   }
 }
 
+/* ------------------------------------------------------------
+   Las reglas de reserva
+
+   Tres capas, como los permisos: un piso conservador, lo de fábrica del
+   rubro, y lo que el comercio cambió. Lo que se prueba es que las tres se
+   apilen en ese orden y que un comercio que no tocó nada se lleve las
+   correcciones del rubro.
+
+   Y sobre todo que ninguna vuelva null: esta función la va a llamar la
+   que reserva, y una regla en null se lee como "sin restricción", que es
+   lo peor que puede pasar cuando lo que falta es justamente el límite.
+   ------------------------------------------------------------ */
+console.log("\nReglas de reserva");
+
+{
+  const CLAVES = ["anticipacionMin", "cancelacionHoras", "tardeConsume",
+                  "permiteCancelar", "requiereHistorial", "avisarMismoDia"];
+
+  const almhaId = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const barId2  = (await una("select id from empresas where nombre = 'Bar Rivadavia'")).id;
+
+  const rAlmha = (await una("select public.reglas_de($1) r", [almhaId])).r;
+  const rBar   = (await una("select public.reglas_de($1) r", [barId2])).r;
+
+  decir(CLAVES.every((k) => rAlmha[k] !== null && rAlmha[k] !== undefined),
+    "ninguna regla vuelve null: sin límite sería peor que un límite equivocado");
+
+  decir(rAlmha.anticipacionMin === 60 && rAlmha.cancelacionHoras === 3,
+    "servicios trae las de fábrica de su rubro (60 min, 3 h)");
+
+  decir(rBar.cancelacionHoras === 24 && rBar.permiteCancelar === false,
+    "un rubro que no definió reglas cae en el piso conservador, no en las de otro");
+
+  await c.query("begin");
+  try {
+    await c.query(
+      `update empresas set config = config || '{"reserva":{"cancelacionHoras":6}}'::jsonb where id = $1`,
+      [almhaId]);
+    const cambiado = (await una("select public.reglas_de($1) r", [almhaId])).r;
+    decir(cambiado.cancelacionHoras === 6,
+      "lo que el comercio cambia le gana al rubro");
+    decir(cambiado.anticipacionMin === 60,
+      "y lo que no tocó sigue saliendo del rubro, no se congela");
+
+    /* La razón de guardar la diferencia y no la foto: si mañana el rubro
+       corrige un valor, al comercio que nunca lo tocó le llega solo. */
+    await c.query(
+      `update rubros set reglas = reglas || '{"anticipacionMin":30}'::jsonb where clave = 'servicios'`);
+    const conCorreccion = (await una("select public.reglas_de($1) r", [almhaId])).r;
+    decir(conCorreccion.anticipacionMin === 30,
+      "una corrección del rubro llega sola al comercio que no la tocó");
+    decir(conCorreccion.cancelacionHoras === 6,
+      "y no le pisa lo que sí había cambiado");
+  } finally {
+    await c.query("rollback");
+  }
+
+  /* Cambiarlas es configurar el comercio: no hay permiso nuevo, es el que
+     ya protege la ficha de la empresa desde 0045. */
+  await comoUsuario(CAJERO, async () => {
+    const v = await c.query(
+      `update empresas set config = config || '{"reserva":{"cancelacionHoras":99}}'::jsonb where id = $1`,
+      [almhaId]);
+    decir(v.rowCount === 0, "un comercio no puede cambiarle las reglas a otro");
+  });
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
