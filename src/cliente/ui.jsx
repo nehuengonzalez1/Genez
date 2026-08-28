@@ -95,24 +95,32 @@ export function Pantalla({ titulo, children }) {
   );
 }
 
-export function Tarjeta({ children, className = "", onClick }) {
+/* `aire` en false deja la tarjeta sin padding, para las que llevan una
+   foto de borde a borde: la imagen tiene que llegar al filo y el texto de
+   abajo pone el suyo. */
+export function Tarjeta({ children, className = "", onClick, aire = true }) {
   const Como = onClick ? "button" : "div";
   return (
     <Como onClick={onClick}
-      className={`w-full text-left bg-superficie border border-borde rounded-xl p-5 ${
+      className={`w-full text-left bg-superficie border border-borde rounded-xl overflow-hidden ${
+        aire ? "p-5" : ""} ${
         onClick ? "hover:shadow-sm transition-shadow" : ""} ${className}`}>
       {children}
     </Como>
   );
 }
 
+/* Sin título es una sección igual: agrupa y separa. Antes dibujaba el
+   rótulo vacío y quedaba un renglón de aire que no decía nada. */
 export function Seccion({ titulo, accion, children }) {
   return (
     <section className="mt-7 first:mt-0">
-      <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className={ROTULO}>{titulo}</h2>
-        {accion}
-      </div>
+      {(titulo || accion) && (
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          {titulo ? <h2 className={ROTULO}>{titulo}</h2> : <span />}
+          {accion}
+        </div>
+      )}
       {children}
     </section>
   );

@@ -39,7 +39,7 @@ import {
   cargarEsperas, salirDeEspera,
   pedirClaveNueva, guardarClaveNueva, alRecuperarClave, vinoDeRecuperacion,
   marcaGuardada,
-  proximos, pasados,
+  proximos, historial, cancelados,
 } from "../datos/cliente.js";
 import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { Navegacion, Cargando, Error as ErrorEstado, Boton, ROTULO } from "./ui.jsx";
@@ -586,7 +586,8 @@ export default function App() {
         onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto} />
     ),
     turnos: () => (
-      <Turnos proximos={proximos(turnos)} anteriores={pasados(turnos).slice(0, 20)}
+      <Turnos proximos={proximos(turnos)} anteriores={historial(turnos).slice(0, 20)}
+        cancelados={cancelados(turnos).slice(0, 20)}
         varios={varios} puedeReservar={hayModulo("turnos")}
         onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto}
         esperas={esperas} onBajarse={bajarse} bajando={bajando} />

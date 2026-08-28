@@ -22,39 +22,96 @@ import {
 } from "./ui.jsx";
 
 /* ------------------------------------------------------------
-   Un turno, en tarjeta
+   Un turno, en sus dos formas
+
+   La maqueta usa dos y no una: el próximo va grande, con su foto, y los
+   que vienen después van en fila. Es la diferencia entre "esto es lo que
+   te toca" y "esto es lo que hay". Con una sola forma para las dos cosas,
+   el turno de mañana pesa lo mismo que el de dentro de tres semanas.
+
+   LA FOTO ES UN LUGAR VACÍO
+   Hoy no hay ninguna cargada. Cuando no hay, la tarjeta no deja un
+   rectángulo gris: no dibuja la banda y el contenido sube. Es lo mismo
+   que hace la portada en la bienvenida, y es lo que permite que el día
+   que Almha suba sus fotos aparezcan solas.
    ------------------------------------------------------------ */
 
-function Turno({ t, mostrarComercio, onAbrir }) {
+/* "Reformer 2 · Camila". Las dos pueden faltar —un servicio sin sala, una
+   clase sin profesional asignado— así que el separador se pone solo
+   cuando hay algo de los dos lados. */
+function donde(t) {
+  return [t.recurso, t.profesional].filter(Boolean).join(" · ");
+}
+
+function TurnoDestacado({ t, mostrarComercio, onAbrir }) {
   return (
-    <Tarjeta className="mb-3" onClick={onAbrir ? () => onAbrir(t) : undefined}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[15px]">{t.servicio}</div>
-          <div className="text-sm text-texto-suave mt-1 flex items-start gap-1.5">
-            <Clock size={13} className="shrink-0 mt-[3px]" /> {cuando(t.desde)}
-          </div>
-          {t.profesional && (
-            <div className="text-sm text-texto-suave mt-0.5">Con {t.profesional}</div>
-          )}
-          {mostrarComercio && (
-            <div className="text-[11px] text-texto-tenue mt-2 flex items-center gap-1">
-              <MapPin size={11} /> {t.empresa}
-            </div>
-          )}
+    <Tarjeta className="mb-3" aire={false} onClick={onAbrir ? () => onAbrir(t) : undefined}>
+      {t.imagen && (
+        <div className="h-36 bg-superficie-2">
+          <img src={t.imagen} alt="" className="w-full h-full object-cover" />
         </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
+      )}
+
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[13px] uppercase tracking-[0.08em] font-bold">
+              {t.servicio}
+            </div>
+            <div className="text-[15px] mt-1.5">{cuando(t.desde)}</div>
+            {donde(t) && (
+              <div className="text-sm text-texto-suave mt-0.5">{donde(t)}</div>
+            )}
+            {mostrarComercio && (
+              <div className="text-[11px] text-texto-tenue mt-2 flex items-center gap-1">
+                <MapPin size={11} /> {t.empresa}
+              </div>
+            )}
+          </div>
+          {onAbrir && <ChevronRight size={18} className="text-texto-tenue shrink-0 mt-0.5" />}
+        </div>
+
+        <div className="mt-4 flex items-center gap-2">
           <Estado estado={t.estado} />
-          {/* El mismo borde y el mismo padding que el sello, con el borde
-              invisible. Sin eso los dos textos están alineados a la
-              derecha y aun así no coinciden: el sello mete el suyo 7px
-              para adentro —1 de borde y 6 de padding— y "Clase" queda
-              pegado al filo. Se leía como un descuido en cada tarjeta. */}
           {t.esClase && (
             <span className="text-[10px] text-texto-tenue uppercase tracking-wider px-1.5 border border-transparent">
               Clase
             </span>
           )}
+        </div>
+      </div>
+    </Tarjeta>
+  );
+}
+
+function TurnoFila({ t, mostrarComercio, onAbrir }) {
+  return (
+    <Tarjeta className="mb-2.5" onClick={onAbrir ? () => onAbrir(t) : undefined}>
+      <div className="flex items-center gap-3.5">
+        {/* La miniatura solo si hay foto. Sin ella la fila arranca en el
+            texto y no queda un cuadrado vacío ocupando el lugar. */}
+        {t.imagen && (
+          <div className="w-12 h-12 rounded-lg bg-superficie-2 shrink-0 overflow-hidden">
+            <img src={t.imagen} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] truncate">{t.servicio}</div>
+          <div className="text-sm text-texto-suave mt-0.5">{cuando(t.desde)}</div>
+          {donde(t) && (
+            <div className="text-[13px] text-texto-tenue mt-0.5 truncate">{donde(t)}</div>
+          )}
+          {mostrarComercio && (
+            <div className="text-[11px] text-texto-tenue mt-1 flex items-center gap-1">
+              <MapPin size={11} /> {t.empresa}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <Estado estado={t.estado} />
+          {onAbrir && <ChevronRight size={16} className="text-texto-tenue" />}
         </div>
       </div>
     </Tarjeta>
@@ -92,7 +149,7 @@ export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReser
             </button>
           )}>
           {proximo ? (
-            <Turno t={proximo} onAbrir={onAbrirTurno} />
+            <TurnoDestacado t={proximo} onAbrir={onAbrirTurno} />
           ) : (
             <Tarjeta>
               <p className="text-sm text-texto-suave">No tenés turnos agendados.</p>
@@ -189,25 +246,42 @@ function Esperando({ esperas, onBajarse, bajando }) {
 }
 
 export function Turnos({
-  proximos, anteriores, varios, puedeReservar, onReservar, onAbrirTurno,
+  proximos, anteriores, cancelados, varios, puedeReservar, onReservar, onAbrirTurno,
   esperas = [], onBajarse, bajando,
 }) {
   const [pestana, setPestana] = React.useState("proximos");
-  const lista = pestana === "proximos" ? proximos : anteriores;
+
+  /* Tres y no dos, como la maqueta. Un turno cancelado no es historial:
+     el historial es a lo que fuiste, y mezclarlos hace que la lista de lo
+     que hiciste incluya lo que no hiciste. Antes caían todos juntos en
+     "Historial" porque `pasados` se llevaba lo vencido y lo cancelado. */
+  const LISTAS = {
+    proximos: proximos,
+    historial: anteriores,
+    cancelados: cancelados,
+  };
+  const lista = LISTAS[pestana] || [];
+
+  const VACIOS = {
+    proximos: ["No tenés turnos próximos", "Reservá tu próximo turno y seguí cuidándote."],
+    historial: ["Todavía no hay historial", "Acá van a quedar los turnos a los que ya fuiste."],
+    cancelados: ["No cancelaste ningún turno", "Si alguna vez cancelás uno, lo vas a ver acá."],
+  };
+
+  const [tituloVacio, textoVacio] = VACIOS[pestana];
+
+  /* En próximos, el primero va grande y el resto en fila. En las otras dos
+     no hay un "próximo": son listas de cosas que ya pasaron y ninguna
+     manda sobre las demás. */
+  const destacado = pestana === "proximos" ? lista[0] : null;
+  const resto = pestana === "proximos" ? lista.slice(1) : lista;
 
   return (
-    <Pantalla titulo="Tus turnos">
-      {/* La pestaña activa se separa por su borde y su color, no por
-          flotar: la sombra fija va contra la regla 4 de DISENO.md, que
-          deja las sombras solo para el mouse encima.
-
-          Las dos llevan borde y a la inactiva se le pone transparente. Si
-          lo llevara una sola, cambiar de pestaña movería 2px todo lo de
-          abajo. */}
+    <Pantalla titulo="Mis turnos">
       <div className="flex gap-1 bg-superficie-2 rounded-lg p-1 mb-5">
-        {[["proximos", "Próximos"], ["historial", "Historial"]].map(([k, n]) => (
+        {[["proximos", "Próximos"], ["historial", "Historial"], ["cancelados", "Cancelados"]].map(([k, n]) => (
           <button key={k} onClick={() => setPestana(k)}
-            className={`flex-1 rounded-md py-2 text-sm font-semibold border transition-colors ${
+            className={`flex-1 rounded-md py-2 text-[13px] font-semibold border transition-colors ${
               pestana === k ? "bg-superficie border-borde text-texto" : "border-transparent text-texto-suave"
             }`}>
             {n}
@@ -215,48 +289,50 @@ export function Turnos({
         ))}
       </div>
 
-      {/* De línea y no lleno, que es lo que era.
-
-          El naranja lleno pesaba más que los turnos, que son lo que la
-          persona vino a ver: un bloque saturado a todo el ancho arriba de
-          la lista se lee primero, siempre. La regla 6 de DISENO.md dice
-          que el acento es para lo que se toca, y acá todo lo de abajo
-          también se toca.
-
-          Con esto el lleno queda con un solo significado en toda la app:
-          confirmar algo —reservar, cancelar— o ser lo único que se puede
-          hacer, como en la pantalla vacía de acá abajo. Ahí sí tiene que
-          gritar; con seis turnos en pantalla, no. */}
-      {puedeReservar && pestana === "proximos" && lista.length > 0 && (
-        <div className="mb-5">
-          <Boton variante="linea" onClick={onReservar}>Reservar otro turno</Boton>
-        </div>
-      )}
-
       {lista.length === 0 ? (
-        <Vacio icono="calendario"
-          titulo={pestana === "proximos" ? "No tenés turnos próximos" : "Todavía no hay historial"}
+        <Vacio icono="calendario" titulo={tituloVacio}
           accion={pestana === "proximos" && puedeReservar && (
             <Boton onClick={onReservar}>Reservar turno</Boton>
           )}>
-          {pestana === "proximos"
-            ? "Cuando saques un turno, lo vas a ver acá."
-            : "Acá van a quedar los turnos a los que ya fuiste."}
+          {textoVacio}
         </Vacio>
       ) : (
-        <div className={pestana === "historial" ? "opacity-70" : ""}>
-          {/* Solo los proximos se abren: en el historial no hay nada que
-              hacer con un turno, y un panel que solo informa invita a
-              tocarlo para nada. */}
-          {lista.map((t) => (
-            <Turno key={t.id} t={t} mostrarComercio={varios}
-              onAbrir={pestana === "proximos" ? onAbrirTurno : undefined} />
-          ))}
+        <div className={pestana === "proximos" ? "" : "opacity-80"}>
+          {destacado && (
+            <Seccion titulo="Próximo turno">
+              <TurnoDestacado t={destacado} mostrarComercio={varios} onAbrir={onAbrirTurno} />
+            </Seccion>
+          )}
+
+          {resto.length > 0 && (
+            <Seccion titulo={destacado ? "Otros próximos" : null}>
+              {/* Solo los próximos se abren: en el historial no hay nada
+                  que hacer con un turno, y un panel que solo informa
+                  invita a tocarlo para nada. */}
+              {resto.map((t) => (
+                <TurnoFila key={t.id} t={t} mostrarComercio={varios}
+                  onAbrir={pestana === "proximos" ? onAbrirTurno : undefined} />
+              ))}
+            </Seccion>
+          )}
         </div>
       )}
 
       {pestana === "proximos" && (
         <Esperando esperas={esperas} onBajarse={onBajarse} bajando={bajando} />
+      )}
+
+      {/* Abajo y no arriba, como la maqueta, y ahí sí lleno.
+
+          Arriba de la lista un bloque naranja se lee antes que los turnos,
+          que son lo que la persona vino a ver; abajo no compite con nada y
+          cae donde uno llega después de mirar lo que tiene. La maqueta ya
+          tenía resuelto lo que en el repaso anterior había dejado como
+          "cambiarlo cuando toques la pantalla". */}
+      {puedeReservar && pestana === "proximos" && lista.length > 0 && (
+        <div className="mt-7">
+          <Boton onClick={onReservar}>Reservar turno</Boton>
+        </div>
       )}
     </Pantalla>
   );

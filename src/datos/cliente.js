@@ -275,6 +275,12 @@ export async function cargarTurnos({ desde = null } = {}) {
     empresa: t.empresa,
     servicio: t.servicio || "Turno",
     profesional: t.profesional || "",
+    /* Dónde es, y las dos fotos. La sala ya era un dato desde la agenda y
+       no la mostraba nadie; las fotos son el lugar hecho para cuando el
+       comercio suba las suyas. Ver la migración 0057. */
+    recurso: t.recurso || "",
+    imagen: t.imagen || null,
+    foto: t.foto || null,
     desde: new Date(t.desde),
     duracionMin: t.duracion_min,
     estado: t.estado,
@@ -314,9 +320,19 @@ export function proximos(turnos) {
     .sort((a, b) => a.desde - b.desde);
 }
 
-export function pasados(turnos) {
+/* Tres listas y no dos, como la maqueta.
+
+   `pasados` metía en la misma bolsa lo que ya pasó y lo que se canceló, y
+   no son lo mismo: el historial es a lo que fuiste. Un turno cancelado
+   ahí adentro hace que la lista de lo que hiciste incluya lo que no
+   hiciste, y encima empuja hacia abajo los que sí. */
+export function historial(turnos) {
   const ahora = new Date();
-  return turnos.filter((t) => t.desde < ahora || t.estado === "cancelada");
+  return turnos.filter((t) => t.desde < ahora && t.estado !== "cancelada");
+}
+
+export function cancelados(turnos) {
+  return turnos.filter((t) => t.estado === "cancelada");
 }
 
 /* ------------------------------------------------------------
