@@ -2152,6 +2152,111 @@ console.log("\nMarca y módulos del cliente");
   }
 }
 
+/* ------------------------------------------------------------
+   Los horarios libres
+
+   Lo que la app le ofrece al cliente para reservar. Dos formas —clases
+   publicadas con lugar, y huecos calculados— con la misma forma de
+   salida, para que la pantalla dibuje una lista y no dos.
+
+   Lo que más importa probar no es que ofrezca: es que **no ofrezca lo que
+   no corresponde**. Un horario mostrado y después rechazado es la peor
+   manera de decir que no.
+   ------------------------------------------------------------ */
+console.log("\nHorarios libres");
+
+{
+  const almhaH = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const barH   = (await una("select id from empresas where nombre = 'Bar Rivadavia'")).id;
+
+  const uCli = (await una(
+    "insert into auth.users (id, email) values (gen_random_uuid(), 'reserva@genez.test') returning id")).id;
+
+  await c.query("begin");
+  try {
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta que reserva', $2, now()) returning id`, [almhaH, uCli])).id;
+
+    const enClase = await una(
+      `select id, nombre from items where empresa_id = $1 and nombre = 'Pilates Reformer'`, [almhaH]);
+    const individual = await una(
+      `select id, nombre from items where empresa_id = $1 and nombre = 'Masaje Relajante'`, [almhaH]);
+
+    /* La zona del comercio: sin esto, un horario de agenda de las 10 se
+       arma como las 10 UTC y los huecos salen tres horas corridos
+       respecto de los turnos reales. */
+    decir((await una("select public.zona_horaria_de($1) z", [almhaH])).z ===
+          "America/Argentina/Buenos_Aires",
+      "un comercio sin zona configurada cae en una de fábrica, no en UTC");
+
+    await c.query("set local role authenticated");
+    await c.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ sub: uCli, role: "authenticated" })]);
+
+    const servicios = await c.query("select * from public.servicios_del_cliente($1)", [almhaH]);
+    decir(servicios.rowCount > 0, `ve los servicios del comercio (${servicios.rowCount})`);
+    decir(!Object.keys(servicios.rows[0] || {}).includes("costo"),
+      "y siguen sin traer el costo");
+    decir(servicios.rows.find((s) => s.nombre === "Pilates Reformer")?.en_clase === true,
+      "sabe que Pilates Reformer se da en clase, porque el comercio publicó clases");
+    decir(servicios.rows.find((s) => s.nombre === "Masaje Relajante")?.en_clase === false,
+      "y que un masaje no: nadie publicó clases de eso");
+
+    /* ---- Las dos formas ---- */
+    const clases = await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 14)",
+      [almhaH, enClase.id]);
+    decir(clases.rows.every((r) => r.clase_id !== null),
+      "un servicio con clases devuelve clases, no huecos inventados");
+    decir(clases.rows.every((r) => r.lugares > 0),
+      "y solo las que tienen lugar: una clase llena no es una opción");
+
+    const huecos = await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
+      [almhaH, individual.id]);
+    decir(huecos.rows.every((r) => r.clase_id === null),
+      "un servicio sin clases devuelve huecos calculados");
+    decir(huecos.rows.every((r) => r.profesional !== null),
+      "y cada hueco dice con quién: sale de personal_servicios, no de cualquiera");
+
+    /* ---- Lo que no tiene que ofrecer ---- */
+    const reglas = (await una("select public.reglas_de($1) r", [almhaH])).r;
+    const minimo = new Date(Date.now() + reglas.anticipacionMin * 60000);
+    const todos = [...clases.rows, ...huecos.rows];
+    decir(todos.every((r) => new Date(r.desde) >= minimo),
+      `nada dentro de los ${reglas.anticipacionMin} minutos de anticipación mínima`);
+
+    decir((await c.query(
+      "select * from public.horarios_libres($1, $2, current_date, current_date + 7)",
+      [barH, enClase.id])).rowCount === 0,
+      "y nada de un comercio del que no es cliente");
+
+    /* La clase en la que ya está anotada no se ofrece: no es una opción,
+       es una confusión. */
+    if (clases.rowCount > 0) {
+      const laClase = clases.rows[0].clase_id;
+      await c.query("reset role");
+      await c.query("select set_config('request.jwt.claims', '', true)");
+      await c.query(
+        `insert into reservas (empresa_id, cliente_id, clase_id, nombre, desde, duracion_min, estado)
+         select $1, $2, $3, 'Clienta que reserva', desde, duracion_min, 'confirmada'
+           from reservas where id = $3`, [almhaH, ficha, laClase]);
+      await c.query("set local role authenticated");
+      await c.query("select set_config('request.jwt.claims', $1, true)",
+        [JSON.stringify({ sub: uCli, role: "authenticated" })]);
+
+      const despues = await c.query(
+        "select * from public.horarios_libres($1, $2, current_date, current_date + 14)",
+        [almhaH, enClase.id]);
+      decir(!despues.rows.some((r) => r.clase_id === laClase),
+        "la clase en la que ya está anotada deja de ofrecerse");
+    }
+  } finally {
+    await c.query("rollback");
+  }
+}
+
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;
