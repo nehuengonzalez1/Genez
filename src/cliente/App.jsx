@@ -37,6 +37,7 @@ import {
   slugDelDominio, cargarMarca, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
   cargarEsperas, salirDeEspera, cargarPagos, guardarMisDatos,
+  cargarAvisos, marcarAvisosVistos,
   pedirClaveNueva, guardarClaveNueva, alRecuperarClave, vinoDeRecuperacion,
   marcaGuardada,
   proximos, historial, cancelados,
@@ -45,7 +46,7 @@ import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import {
   Navegacion, Cargando, Error as ErrorEstado, SinConexion, useHayConexion, Boton, ROTULO,
 } from "./ui.jsx";
-import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Cuenta, MisDatos } from "./pantallas.jsx";
+import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Avisos, Cuenta, MisDatos } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 
@@ -479,6 +480,11 @@ export default function App() {
   /* Lo mismo para la cuenta: "Mis datos" es un lugar al que se entra
      desde ahi y del que se vuelve, no una pestaña de la barra. */
   const [enCuenta, setEnCuenta] = useState(null);
+
+  /* Los avisos se cargan con el resto: la campana de Inicio tiene que
+     saber si hay algo sin ver antes de que nadie la toque. */
+  const [avisos, setAvisos] = useState([]);
+  const [verAvisos, setVerAvisos] = useState(false);
   const [bajando, setBajando] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -524,16 +530,18 @@ export default function App() {
 
   const releer = useCallback(async () => {
     if (!comercio) return;
-    const [ms, t, a, es] = await Promise.all([
+    const [ms, t, a, es, av] = await Promise.all([
       cargarModulos(comercio.empresaId),
       cargarTurnos(),
       cargarAbonos(),
       cargarEsperas(),
+      cargarAvisos(),
     ]);
     setModulos(ms);
     setTurnos(t);
     setAbonos(a);
     setEsperas(es);
+    setAvisos(av);
     /* Si la pantalla en la que está dejó de existir —el comercio apagó el
        módulo mientras la tenía abierta— se vuelve al inicio en vez de
        quedar en una pantalla que ya no está en la barra. */
@@ -575,7 +583,7 @@ export default function App() {
   /* Al cambiar de pestaña se sale de la subpantalla: volver a "Mi plan"
      desde la barra tiene que mostrar el plan y no la última cosa que se
      miró adentro hace media hora. */
-  useEffect(() => { setEnPlan(null); setEnCuenta(null); }, [donde]);
+  useEffect(() => { setEnPlan(null); setEnCuenta(null); setVerAvisos(false); }, [donde]);
 
   /* Vuelve a preguntar quién entró. Es lo que reintenta la pantalla sin
      conexión: el problema de ahí es que `cargarClienta` no llegó, así que
@@ -590,6 +598,24 @@ export default function App() {
       setCargando(false);
     }
   }, []);
+
+  /* Entrar a los avisos es haberlos visto. Se marca acá y no con un botón
+     de "marcar como leídos": declarar que leyó lo que tiene delante es
+     trabajo que la pantalla puede hacer sin preguntar.
+
+     El punto naranja de cada uno se apaga en la próxima lectura y no
+     mientras los está mirando: si desaparecieran bajo el dedo, no habría
+     forma de ver cuáles eran los nuevos. */
+  const verLosAvisos = useCallback(async () => {
+    setVerAvisos(true);
+    if (!comercio || !avisos.some((a) => a.nuevo)) return;
+    try {
+      await marcarAvisosVistos(comercio.empresaId);
+    } catch {
+      /* Que no se haya podido marcar no le arruina la lectura a nadie: lo
+         único que pasa es que el punto sigue ahí la próxima vez. */
+    }
+  }, [comercio, avisos]);
 
   async function cerrar() {
     await salir();
@@ -650,11 +676,21 @@ export default function App() {
   const varios = clienta.comercios.length > 1;
 
   const pantallas = {
-    inicio: () => (
-      <Inicio marca={marca} nombre={comercio.miNombre} hayModulo={hayModulo}
-        turnos={proximos(turnos)} abonos={abonos} onIr={setDonde}
-        onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto} />
-    ),
+    inicio: () => {
+      if (verAvisos) {
+        return <Avisos avisos={avisos} varios={varios} onVolver={() => setVerAvisos(false)} />;
+      }
+      return (
+        <Inicio marca={marca} nombre={comercio.miNombre} hayModulo={hayModulo}
+          turnos={proximos(turnos)} abonos={abonos} onIr={setDonde}
+          onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto}
+          avisosNuevos={avisos.filter((a) => a.nuevo).length}
+          /* La campana solo existe si hay algo que mirar. Sin avisos no se
+             dibuja: una campana que nunca tuvo nada adentro enseña a no
+             tocarla, y el día que tenga algo ya la aprendió a ignorar. */
+          onVerAvisos={avisos.length ? verLosAvisos : null} />
+      );
+    },
     turnos: () => (
       <Turnos proximos={proximos(turnos)} anteriores={historial(turnos).slice(0, 20)}
         cancelados={cancelados(turnos).slice(0, 20)}

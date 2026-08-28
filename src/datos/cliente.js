@@ -279,6 +279,38 @@ export async function guardarMisDatos(empresaId, { email, tel, domicilio, nacimi
 }
 
 /* ------------------------------------------------------------
+   Los avisos
+
+   Lo que el comercio ya le mandó, no un canal nuevo. Sale de `contactos`,
+   la misma tabla en la que Comunicaciones y CRM anotan cada mensaje: quien
+   abre la app ve lo mismo que le llegó al teléfono y no una versión
+   paralela que algún día no coincide. Ver la migración 0064.
+   ------------------------------------------------------------ */
+
+export async function cargarAvisos() {
+  const { data, error } = await supabase.rpc("mis_avisos", { p_desde: null });
+  if (error) throw new Error("No pudimos cargar tus avisos.");
+
+  return (data || []).map((a) => ({
+    id: a.id,
+    empresa: a.empresa,
+    empresaId: a.empresa_id,
+    fecha: new Date(a.fecha),
+    motivo: a.motivo || "",
+    texto: a.texto || "",
+    /* De un turno o del vínculo. Es lo que separa las dos fichas de la
+       pantalla, y sale de si el aviso apunta a una reserva. */
+    deTurno: !!a.reserva_id,
+    nuevo: !!a.nuevo,
+  }));
+}
+
+export async function marcarAvisosVistos(empresaId) {
+  const { error } = await supabase.rpc("marcar_avisos_vistos", { p_empresa: empresaId });
+  if (error) throw new Error(error.message || "No pudimos marcar los avisos.");
+}
+
+/* ------------------------------------------------------------
    Los turnos
 
    `mis_turnos` devuelve los de todos los comercios juntos, porque la

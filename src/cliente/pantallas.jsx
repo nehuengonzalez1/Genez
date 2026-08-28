@@ -15,7 +15,7 @@
    ============================================================ */
 
 import React from "react";
-import { Clock, MapPin, ChevronRight, LogOut, User, Building2 } from "lucide-react";
+import { Clock, MapPin, ChevronRight, LogOut, User, Building2, Bell } from "lucide-react";
 import {
   Pantalla, Tarjeta, Seccion, Boton, Vacio, Cargando, Estado, ROTULO,
   cuando, hora, diaCorto,
@@ -126,19 +126,40 @@ function TurnoFila({ t, mostrarComercio, onAbrir }) {
    vencido no contestan eso, así que no están.
    ------------------------------------------------------------ */
 
-export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReservar, onAbrirTurno }) {
+export function Inicio({
+  marca, nombre, turnos, abonos, hayModulo, onIr, onReservar, onAbrirTurno,
+  avisosNuevos = 0, onVerAvisos,
+}) {
   const proximo = turnos[0] || null;
   const plan = abonos.find((a) => a.vigente) || null;
 
   return (
     <Pantalla>
-      <header className="pt-7 pb-1">
-        <h1 className="f-d text-2xl">
-          Hola{nombre ? `, ${nombre.split(" ")[0]}` : ""} <span className="font-normal">👋</span>
-        </h1>
-        <p className="text-sm text-texto-suave mt-1">
-          {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
-        </p>
+      <header className="pt-7 pb-1 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="f-d text-2xl">
+            Hola{nombre ? `, ${nombre.split(" ")[0]}` : ""} <span className="font-normal">👋</span>
+          </h1>
+          <p className="text-sm text-texto-suave mt-1">
+            {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
+
+        {/* La campana solo si hay algo que mirar. Una campana que nunca
+            tuvo nada adentro le enseña a la persona a no tocarla, y el día
+            que tenga algo ya aprendió a ignorarla.
+
+            El punto y no el número: cuántos avisos sin ver hay no cambia
+            lo que va a hacer, que es entrar a leerlos. */}
+        {onVerAvisos && (
+          <button onClick={onVerAvisos} aria-label="Avisos"
+            className="relative -mr-[11px] -mt-[6px] w-[44px] h-[44px] flex items-center justify-center text-texto-suave hover:text-texto transition-colors shrink-0">
+            <Bell size={20} />
+            {avisosNuevos > 0 && (
+              <span className="absolute top-[9px] right-[10px] w-2 h-2 rounded-full bg-acento border-2 border-fondo" />
+            )}
+          </button>
+        )}
       </header>
 
       {hayModulo("turnos") && (
@@ -847,6 +868,92 @@ function Instalar({ marca }) {
     </Seccion>
   );
 }
+/* ------------------------------------------------------------
+   AVISOS · pantalla 15 de la maqueta
+
+   Lo que el comercio le mandó, en un solo lugar. No es un canal nuevo:
+   son los mismos mensajes que salieron por WhatsApp desde Comunicaciones
+   y desde CRM. Quien abre la app ve lo mismo que le llegó al teléfono.
+
+   NO HAY PANTALLA DE DETALLE
+   La maqueta tiene una (la 16): un mensaje abierto, con su imagen y un
+   botón "Ir a la tienda". Eso es una promoción, y las promociones son del
+   módulo de beneficios, que no existe.
+
+   Lo que sí existe son estos: dos renglones de texto que el comercio
+   escribió a mano. Abrir una pantalla para mostrar dos renglones que ya
+   se leen enteros en la lista es un toque de más que no muestra nada
+   nuevo. Cuando haya promociones con imagen, la pantalla 16 se justifica
+   sola.
+
+   Y NO HAY "MARCAR TODAS COMO LEÍDAS"
+   Se marcan solas al entrar, que es cuando efectivamente las vio. Un
+   botón para declarar que leyó lo que tiene delante es trabajo que la
+   pantalla puede hacer sin preguntar.
+   ------------------------------------------------------------ */
+
+const FICHAS = [
+  ["todas", "Todas"],
+  ["turnos", "Turnos"],
+  ["novedades", "Novedades"],
+];
+
+export function Avisos({ avisos, varios, onVolver }) {
+  const [ficha, setFicha] = React.useState("todas");
+
+  const lista = avisos.filter((a) =>
+    ficha === "todas" ? true : ficha === "turnos" ? a.deTurno : !a.deTurno);
+
+  return (
+    <Pantalla titulo="Avisos" onVolver={onVolver}>
+      <div className="flex gap-2 mb-6">
+        {FICHAS.map(([k, n]) => (
+          <button key={k} onClick={() => setFicha(k)}
+            className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+              ficha === k
+                ? "bg-superficie border-borde-fuerte text-texto"
+                : "border-borde text-texto-suave hover:text-texto"
+            }`}>
+            {n}
+          </button>
+        ))}
+      </div>
+
+      {lista.length === 0 ? (
+        <Vacio icono="casa" titulo="No hay avisos">
+          Acá van a aparecer los mensajes que te mande {varios ? "cada comercio" : "el comercio"}:
+          los recordatorios de tus turnos y lo que te quieran contar.
+        </Vacio>
+      ) : (
+        lista.map((a) => (
+          <Tarjeta key={a.id} className="mb-2.5">
+            <div className="flex items-start gap-3">
+              {/* El punto de lo no visto. Se apaga solo al entrar, así que
+                  a la segunda vuelta no está: es una marca de "esto es de
+                  ahora" y no un estado que haya que administrar. */}
+              <span className={`w-2 h-2 rounded-full shrink-0 mt-2 ${
+                a.nuevo ? "bg-acento" : "bg-transparent"}`} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[11px] uppercase tracking-[0.08em] text-texto-tenue">
+                    {a.deTurno ? "Tu turno" : "Del comercio"}
+                    {varios && ` · ${a.empresa}`}
+                  </span>
+                  <span className="text-[11px] text-texto-tenue shrink-0">
+                    {a.fecha.toLocaleDateString("es-AR", { day: "numeric", month: "short" })
+                      .replace(".", "")}
+                  </span>
+                </div>
+                <p className="text-sm mt-1.5 leading-relaxed">{a.texto}</p>
+              </div>
+            </div>
+          </Tarjeta>
+        ))
+      )}
+    </Pantalla>
+  );
+}
+
 /* ------------------------------------------------------------
    MI CUENTA · pantalla 17 de la maqueta
 
