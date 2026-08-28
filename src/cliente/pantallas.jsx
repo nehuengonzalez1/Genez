@@ -31,8 +31,8 @@ function Turno({ t, mostrarComercio, onAbrir }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[15px]">{t.servicio}</div>
-          <div className="text-sm text-texto-suave mt-1 flex items-center gap-1.5">
-            <Clock size={13} className="shrink-0" /> {cuando(t.desde)}
+          <div className="text-sm text-texto-suave mt-1 flex items-start gap-1.5">
+            <Clock size={13} className="shrink-0 mt-[3px]" /> {cuando(t.desde)}
           </div>
           {t.profesional && (
             <div className="text-sm text-texto-suave mt-0.5">Con {t.profesional}</div>
@@ -166,8 +166,8 @@ function Esperando({ esperas, onBajarse, bajando }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[15px]">{e.servicio}</div>
-              <div className="text-sm text-texto-suave mt-1 flex items-center gap-1.5">
-                <Clock size={13} className="shrink-0" /> {cuando(e.desde)}
+              <div className="text-sm text-texto-suave mt-1 flex items-start gap-1.5">
+                <Clock size={13} className="shrink-0 mt-[3px]" /> {cuando(e.desde)}
               </div>
               {e.profesional && (
                 <div className="text-sm text-texto-suave mt-0.5">Con {e.profesional}</div>

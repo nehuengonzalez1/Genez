@@ -200,6 +200,12 @@
 
    No se usa `zoom` para esto: las alturas en dvh —la pantalla de comanda
    ocupa 100dvh— no acompañan al zoom y queda una franja muerta abajo.
+
+   ESTO ES DEL SISTEMA DE GESTIÓN, NO DE LAS DOS APLICACIONES
+   ----------------------------------------------------------
+   La app del cliente comparte esta hoja pero corre en un teléfono, donde
+   no hay ningún 125% que cancelar: se pone los 16 de fábrica en
+   `src/cliente/main.jsx`, con la explicación al lado.
    ============================================================ */
 html { font-size: 13.5px; }
 
