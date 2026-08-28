@@ -36,8 +36,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   slugDelDominio, cargarMarca, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
-  cargarEsperas, salirDeEspera, cargarPagos,
-  pedirClaveNueva, guardarClaveNueva, alRecuperarClave, vinoDeRecuperacion,
+  cargarEsperas, salirDeEspera, cargarPagos, guardarMisDatos,
+  cargarAvisos, marcarAvisosVistos,
+  pedirClaveNueva, guardarClaveNueva, alRecuperarClave, vinoDeRecuperacion, registrarme,
   marcaGuardada,
   proximos, historial, cancelados,
 } from "../datos/cliente.js";
@@ -45,7 +46,7 @@ import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import {
   Navegacion, Cargando, Error as ErrorEstado, SinConexion, useHayConexion, Boton, ROTULO,
 } from "./ui.jsx";
-import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Cuenta } from "./pantallas.jsx";
+import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Avisos, Cuenta, MisDatos } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 
@@ -143,7 +144,7 @@ function Lema({ texto }) {
   );
 }
 
-function Bienvenida({ marca, onIngresar }) {
+function Bienvenida({ marca, onIngresar, onCrear }) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* La portada es del comercio. Sin una cargada no se deja un hueco
@@ -163,17 +164,23 @@ function Bienvenida({ marca, onIngresar }) {
           <p className="text-sm text-texto-suave mt-4 leading-relaxed">{marca.bajada}</p>
         )}
 
-        <div className="mt-9">
+        <div className="mt-9 space-y-3">
           <Boton onClick={onIngresar}>Ingresar</Boton>
+
+          {/* "Crear cuenta" solo donde el comercio abrió el registro. De
+              fábrica está cerrado, así que para la mayoría este botón no
+              existe y abajo queda la frase de siempre: la cuenta se pide
+              en el local. Ver 0065. */}
+          {marca.autoregistro && (
+            <Boton variante="linea" onClick={onCrear}>Crear cuenta</Boton>
+          )}
         </div>
 
-        {/* Donde la maqueta pone "Crear cuenta". Mientras el alta la haga
-            el comercio, un botón que lleva a un formulario que no existe
-            es peor que decir cómo se consigue la cuenta. Llega cuando
-            llegue el alta. */}
-        <p className="text-[13px] text-texto-suave mt-6 text-center leading-relaxed">
-          ¿Todavía no tenés cuenta? Pedísela a {marca.nombre} y te la damos de alta.
-        </p>
+        {!marca.autoregistro && (
+          <p className="text-[13px] text-texto-suave mt-6 text-center leading-relaxed">
+            ¿Todavía no tenés cuenta? Pedísela a {marca.nombre} y te la damos de alta.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -296,6 +303,163 @@ function Ingresar({ marca, onEntro, onVolver }) {
         <p className="text-[13px] text-texto-suave mt-8 text-center leading-relaxed">
           ¿Todavía no tenés cuenta? Pedísela a {marca.nombre} y te la damos de alta.
         </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   4 · Crear cuenta
+
+   Solo aparece si el comercio lo abrió. De fábrica está cerrado, así que
+   para la mayoría esta pantalla no existe y la bienvenida sigue diciendo
+   que la cuenta se pide en el local. Ver 0065.
+
+   NO SE RECLAMA NINGUNA FICHA
+   ---------------------------
+   La maqueta titula "Creá tu cuenta / y vinculate con Almha", y esa
+   segunda línea es justo lo que no se hace. Reclamar la ficha propia por
+   teléfono es el camino que §4 del modelo de identidad marca como
+   peligroso: cualquiera pone el teléfono de otra y se lleva su historial.
+
+   Así que la cuenta empieza vacía, y la pantalla lo dice antes de que
+   alguien la cree. Descubrirlo después —entrar y no encontrar sus veinte
+   turnos— sería peor que decirlo ahora.
+
+   EL TELÉFONO ES OPCIONAL Y NO BUSCA NADA
+   ---------------------------------------
+   Se pide porque el comercio lo necesita para avisarle algo, no para
+   encontrarla. Que sirva para encontrarse a sí misma es exactamente lo
+   que no se construyó.
+
+   LO QUE ACEPTA, ACEPTA ALGO QUE EXISTE
+   -------------------------------------
+   La maqueta tiene un tilde de términos y condiciones con dos links. Esos
+   documentos no existen, y un link a la nada es peor que no tenerlo:
+   parece que hay algo escrito y no lo hay.
+
+   Queda el tilde, con el texto que sí es cierto y verificable: qué va a
+   ver el comercio. El día que haya términos, se agrega el link.
+   ------------------------------------------------------------ */
+
+function Registro({ marca, onCreada, onVolver }) {
+  const [d, setD] = React.useState({ nombre: "", email: "", tel: "", clave: "" });
+  const [acepta, setAcepta] = React.useState(false);
+  const [yendo, setYendo] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [confirmar, setConfirmar] = React.useState("");
+
+  const cambiar = (k) => (e) => { setD({ ...d, [k]: e.target.value }); setError(""); };
+  const listo = d.nombre.trim() && d.email.includes("@") && d.clave.length >= 6 && acepta;
+
+  async function crear(e) {
+    e.preventDefault();
+    if (yendo || !listo) return;
+    setYendo(true); setError("");
+    try {
+      const r = await registrarme({
+        slug: marca.slug,
+        nombre: d.nombre,
+        email: d.email,
+        clave: d.clave,
+        tel: d.tel,
+      });
+      if (r.confirmar) setConfirmar(r.email);
+      else onCreada(r.clienta);
+    } catch (err) {
+      setError(err.message);
+      setYendo(false);
+    }
+  }
+
+  /* La cuenta quedó creada y falta que confirme el correo. No es un error
+     ni un éxito a medias: es un paso más, y el que sigue no está en esta
+     pantalla sino en su casilla. */
+  if (confirmar) {
+    return (
+      <div className="min-h-screen flex flex-col max-w-lg w-full mx-auto px-6">
+        <div className="flex-1 flex flex-col justify-center pb-16">
+          <h1 className="f-d text-[26px]">Revisá tu correo</h1>
+          <p className="text-sm text-texto-suave mt-3 leading-relaxed">
+            Le mandamos un link a <span className="f-m">{confirmar}</span> para
+            confirmar que es tuyo. Cuando lo toques, entrás.
+          </p>
+          <div className="mt-8">
+            <Boton variante="linea" onClick={onVolver}>Volver</Boton>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col max-w-lg w-full mx-auto px-6">
+      <header className="pt-6 pb-2">
+        <button type="button" onClick={onVolver} aria-label="Volver"
+          className="-ml-[11px] w-[44px] h-[44px] flex items-center justify-center text-texto-suave hover:text-texto transition-colors">
+          <ChevronLeft size={22} />
+        </button>
+      </header>
+
+      <div className="flex-1 flex flex-col justify-center pb-16">
+        <h1 className="f-d text-[26px]">Creá tu cuenta</h1>
+        <p className="text-sm text-texto-suave mt-1.5 leading-relaxed">
+          Es una cuenta nueva y arranca vacía. Si ya venís a {marca.nombre},
+          pediles que te la enlacen con tu ficha así ves tu historial.
+        </p>
+
+        <form onSubmit={crear} className="mt-8 space-y-4">
+          <label className="block">
+            <span className={ROTULO}>Nombre y apellido</span>
+            <input type="text" value={d.nombre} autoFocus autoComplete="name"
+              onChange={cambiar("nombre")} className={CAMPO} placeholder="Sofía Martínez" />
+          </label>
+
+          <label className="block">
+            <span className={ROTULO}>Correo</span>
+            <input type="email" value={d.email} autoComplete="email" inputMode="email"
+              onChange={cambiar("email")} className={CAMPO} placeholder="ejemplo@correo.com" />
+          </label>
+
+          <label className="block">
+            <span className={ROTULO}>Teléfono</span>
+            <input type="tel" value={d.tel} autoComplete="tel" inputMode="tel"
+              onChange={cambiar("tel")} className={CAMPO} placeholder="11 5555 5555" />
+            <span className="block text-[11px] text-texto-tenue mt-1.5">
+              Para que {marca.nombre} pueda avisarte algo. Podés dejarlo vacío.
+            </span>
+          </label>
+
+          <label className="block">
+            <span className={ROTULO}>Contraseña</span>
+            <input type="password" value={d.clave} autoComplete="new-password"
+              onChange={cambiar("clave")} className={CAMPO} placeholder="Mínimo 6 caracteres" />
+          </label>
+
+          <label className="flex items-start gap-3 pt-1 cursor-pointer">
+            <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)}
+              className="mt-1 w-4 h-4 accent-[rgb(var(--acento))] shrink-0" />
+            <span className="text-[13px] text-texto-suave leading-relaxed">
+              Entiendo que {marca.nombre} va a ver mis turnos y mis datos de contacto.
+            </span>
+          </label>
+
+          {error && (
+            <div className="text-sm text-mal border border-mal bg-mal-suave rounded-lg px-3.5 py-3 leading-relaxed">
+              {error}
+            </div>
+          )}
+
+          <button type="submit" disabled={yendo || !listo}
+            className="w-full bg-acento hover:bg-acento-vivo disabled:opacity-50 text-sobre-acento font-bold rounded-lg px-4 py-3 text-[15px] transition-colors">
+            {yendo ? "Creando…" : "Crear cuenta"}
+          </button>
+        </form>
+
+        <button type="button" onClick={onVolver}
+          className="w-full text-center text-[13px] text-texto-suave mt-7">
+          ¿Ya tenés cuenta? <span className="text-acento font-semibold">Ingresá</span>
+        </button>
       </div>
     </div>
   );
@@ -475,6 +639,15 @@ export default function App() {
      Y cuál de las dos subpantallas del plan se está viendo. */
   const [pagos, setPagos] = useState(null);
   const [enPlan, setEnPlan] = useState(null);
+
+  /* Lo mismo para la cuenta: "Mis datos" es un lugar al que se entra
+     desde ahi y del que se vuelve, no una pestaña de la barra. */
+  const [enCuenta, setEnCuenta] = useState(null);
+
+  /* Los avisos se cargan con el resto: la campana de Inicio tiene que
+     saber si hay algo sin ver antes de que nadie la toque. */
+  const [avisos, setAvisos] = useState([]);
+  const [verAvisos, setVerAvisos] = useState(false);
   const [bajando, setBajando] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -520,16 +693,18 @@ export default function App() {
 
   const releer = useCallback(async () => {
     if (!comercio) return;
-    const [ms, t, a, es] = await Promise.all([
+    const [ms, t, a, es, av] = await Promise.all([
       cargarModulos(comercio.empresaId),
       cargarTurnos(),
       cargarAbonos(),
       cargarEsperas(),
+      cargarAvisos(),
     ]);
     setModulos(ms);
     setTurnos(t);
     setAbonos(a);
     setEsperas(es);
+    setAvisos(av);
     /* Si la pantalla en la que está dejó de existir —el comercio apagó el
        módulo mientras la tenía abierta— se vuelve al inicio en vez de
        quedar en una pantalla que ya no está en la barra. */
@@ -571,7 +746,7 @@ export default function App() {
   /* Al cambiar de pestaña se sale de la subpantalla: volver a "Mi plan"
      desde la barra tiene que mostrar el plan y no la última cosa que se
      miró adentro hace media hora. */
-  useEffect(() => { setEnPlan(null); }, [donde]);
+  useEffect(() => { setEnPlan(null); setEnCuenta(null); setVerAvisos(false); }, [donde]);
 
   /* Vuelve a preguntar quién entró. Es lo que reintenta la pantalla sin
      conexión: el problema de ahí es que `cargarClienta` no llegó, así que
@@ -586,6 +761,24 @@ export default function App() {
       setCargando(false);
     }
   }, []);
+
+  /* Entrar a los avisos es haberlos visto. Se marca acá y no con un botón
+     de "marcar como leídos": declarar que leyó lo que tiene delante es
+     trabajo que la pantalla puede hacer sin preguntar.
+
+     El punto naranja de cada uno se apaga en la próxima lectura y no
+     mientras los está mirando: si desaparecieran bajo el dedo, no habría
+     forma de ver cuáles eran los nuevos. */
+  const verLosAvisos = useCallback(async () => {
+    setVerAvisos(true);
+    if (!comercio || !avisos.some((a) => a.nuevo)) return;
+    try {
+      await marcarAvisosVistos(comercio.empresaId);
+    } catch {
+      /* Que no se haya podido marcar no le arruina la lectura a nadie: lo
+         único que pasa es que el punto sigue ahí la próxima vez. */
+    }
+  }, [comercio, avisos]);
 
   async function cerrar() {
     await salir();
@@ -636,9 +829,14 @@ export default function App() {
         : <ErrorEstado onReintentar={reintentarSesion}>{error}</ErrorEstado>;
     }
 
+    if (entrando === "registro") {
+      return <Registro marca={marca} onCreada={setClienta} onVolver={() => setEntrando(false)} />;
+    }
     return entrando
       ? <Ingresar marca={marca} onEntro={setClienta} onVolver={() => setEntrando(false)} />
-      : <Bienvenida marca={marca} onIngresar={() => setEntrando(true)} />;
+      : <Bienvenida marca={marca}
+          onIngresar={() => setEntrando(true)}
+          onCrear={() => setEntrando("registro")} />;
   }
   if (!comercio) return <SinFicha marca={marca} email={clienta.email} onSalir={cerrar} />;
 
@@ -646,11 +844,21 @@ export default function App() {
   const varios = clienta.comercios.length > 1;
 
   const pantallas = {
-    inicio: () => (
-      <Inicio marca={marca} nombre={comercio.miNombre} hayModulo={hayModulo}
-        turnos={proximos(turnos)} abonos={abonos} onIr={setDonde}
-        onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto} />
-    ),
+    inicio: () => {
+      if (verAvisos) {
+        return <Avisos avisos={avisos} varios={varios} onVolver={() => setVerAvisos(false)} />;
+      }
+      return (
+        <Inicio marca={marca} nombre={comercio.miNombre} hayModulo={hayModulo}
+          turnos={proximos(turnos)} abonos={abonos} onIr={setDonde}
+          onReservar={() => setReservando(true)} onAbrirTurno={setTurnoAbierto}
+          avisosNuevos={avisos.filter((a) => a.nuevo).length}
+          /* La campana solo existe si hay algo que mirar. Sin avisos no se
+             dibuja: una campana que nunca tuvo nada adentro enseña a no
+             tocarla, y el día que tenga algo ya la aprendió a ignorar. */
+          onVerAvisos={avisos.length ? verLosAvisos : null} />
+      );
+    },
     turnos: () => (
       <Turnos proximos={proximos(turnos)} anteriores={historial(turnos).slice(0, 20)}
         cancelados={cancelados(turnos).slice(0, 20)}
@@ -684,10 +892,26 @@ export default function App() {
       }
       return <Plan abonos={abonos} varios={varios} onVer={setEnPlan} />;
     },
-    cuenta: () => (
-      <Cuenta marca={marca} comercio={comercio} email={clienta.email}
-        comercios={clienta.comercios} onSalir={cerrar} />
-    ),
+    cuenta: () => {
+      if (enCuenta === "datos") {
+        return (
+          <MisDatos marca={marca} comercio={comercio} email={clienta.email}
+            onVolver={() => setEnCuenta(null)}
+            onGuardar={async (d) => {
+              await guardarMisDatos(comercio.empresaId, d);
+              /* Se relee la ficha: lo que la pantalla tiene que mostrar
+                 después de guardar es lo que quedó escrito y no lo que se
+                 tipeó. Si la base recortó o ignoró algo, se ve. */
+              setClienta(await cargarClienta());
+            }} />
+        );
+      }
+      return (
+        <Cuenta marca={marca} comercio={comercio} email={clienta.email}
+          comercios={clienta.comercios} onSalir={cerrar}
+          onVerPerfil={() => setEnCuenta("datos")} />
+      );
+    },
   };
 
   const dibujar = pantallas[donde] || pantallas.inicio;

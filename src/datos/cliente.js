@@ -107,6 +107,10 @@ export async function cargarMarca(slug) {
     lema: m.lema || "",
     bajada: m.bajada || "",
     logo: m.logo || null,
+    /* Si el comercio acepta que alguien se dé de alta solo. Sale de la
+       marca porque la bienvenida tiene que saberlo antes del login, y no
+       es un dato sensible: es lo mismo que un cartel en la puerta. */
+    autoregistro: !!m.autoregistro,
     portada: m.portada || null,
   };
 
@@ -148,6 +152,49 @@ export async function entrarComoCliente(email, clave) {
   if (error) throw new Error("Correo o contraseña incorrectos.");
 
   return cargarClienta();
+}
+
+/* Registrarse en el comercio de esta app.
+
+   Dos pasos y no uno, porque son dos cosas distintas: Supabase crea la
+   cuenta y la base crea la ficha. Si el segundo falla, queda una cuenta
+   sin ficha, que es exactamente el estado que `SinFicha` ya sabe
+   mostrar: 'tu cuenta funciona, pero el comercio no te tiene asociada'.
+
+   NO RECLAMA NINGUNA FICHA EXISTENTE. Ver 0065 y §4 del modelo de
+   identidad: reclamar por teléfono es cómo alguien se lleva el
+   historial de otro. */
+export async function registrarme({ slug, nombre, email, clave, tel }) {
+  const { data, error } = await supabase.auth.signUp({
+    email: (email || "").trim(),
+    password: clave,
+  });
+
+  if (error) {
+    if (/already registered|already been registered/i.test(error.message)) {
+      throw new Error("Ese correo ya tiene una cuenta. Entrá con tu contraseña.");
+    }
+    if (/password/i.test(error.message)) {
+      throw new Error("La contraseña necesita al menos 6 caracteres.");
+    }
+    throw new Error(error.message);
+  }
+
+  /* Con la confirmación por correo prendida en Supabase, `signUp` no
+     deja sesión: la cuenta existe y todavía no puede escribir nada. Se
+     dice y no se falla, que es lo que pasa de verdad. */
+  if (!data.session) {
+    return { confirmar: true, email: (email || "").trim() };
+  }
+
+  const { error: eFicha } = await supabase.rpc("registrarme_en", {
+    p_slug: slug,
+    p_nombre: nombre,
+    p_tel: tel || null,
+  });
+  if (eFicha) throw new Error(eFicha.message || "No pudimos crear tu ficha.");
+
+  return { confirmar: false, clienta: await cargarClienta() };
 }
 
 export async function salir() {
@@ -248,6 +295,13 @@ export async function cargarClienta() {
        ficha. */
     miNombre: c.mi_nombre || '',
     desde: c.desde ? new Date(c.desde) : null,
+    /* Los datos de contacto que el comercio tiene de ella, y que ella
+       puede corregir. El correo de acá es a dónde le escriben; con el que
+       entra es `email`, arriba, y son dos cosas. Ver 0063. */
+    miEmail: c.mi_email || "",
+    miTel: c.mi_tel || "",
+    miDomicilio: c.mi_domicilio || "",
+    miNacimiento: c.mi_nacimiento || "",
   }));
 
   return {
@@ -255,6 +309,52 @@ export async function cargarClienta() {
     comercios,
     sinFichas: comercios.length === 0,
   };
+}
+
+/* Corregir los datos de contacto. No manda el id de la ficha: la elige la
+   base a partir de quién pregunta, así no hay ninguna función a la que
+   haya que preguntarle "¿y esa ficha es tuya?". Ver 0063. */
+export async function guardarMisDatos(empresaId, { email, tel, domicilio, nacimiento }) {
+  const { error } = await supabase.rpc("guardar_mis_datos", {
+    p_empresa: empresaId,
+    p_email: email || null,
+    p_tel: tel || null,
+    p_domicilio: domicilio || null,
+    p_nacimiento: nacimiento || null,
+  });
+  if (error) throw new Error(error.message || "No pudimos guardar tus datos.");
+}
+
+/* ------------------------------------------------------------
+   Los avisos
+
+   Lo que el comercio ya le mandó, no un canal nuevo. Sale de `contactos`,
+   la misma tabla en la que Comunicaciones y CRM anotan cada mensaje: quien
+   abre la app ve lo mismo que le llegó al teléfono y no una versión
+   paralela que algún día no coincide. Ver la migración 0064.
+   ------------------------------------------------------------ */
+
+export async function cargarAvisos() {
+  const { data, error } = await supabase.rpc("mis_avisos", { p_desde: null });
+  if (error) throw new Error("No pudimos cargar tus avisos.");
+
+  return (data || []).map((a) => ({
+    id: a.id,
+    empresa: a.empresa,
+    empresaId: a.empresa_id,
+    fecha: new Date(a.fecha),
+    motivo: a.motivo || "",
+    texto: a.texto || "",
+    /* De un turno o del vínculo. Es lo que separa las dos fichas de la
+       pantalla, y sale de si el aviso apunta a una reserva. */
+    deTurno: !!a.reserva_id,
+    nuevo: !!a.nuevo,
+  }));
+}
+
+export async function marcarAvisosVistos(empresaId) {
+  const { error } = await supabase.rpc("marcar_avisos_vistos", { p_empresa: empresaId });
+  if (error) throw new Error(error.message || "No pudimos marcar los avisos.");
 }
 
 /* ------------------------------------------------------------

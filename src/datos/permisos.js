@@ -43,6 +43,17 @@ export const BANDERAS = [
     d: "Cambiar la ficha del negocio y estos mismos permisos.",
     pesado: true,
   },
+  /* Separado de `darAccesos` en 0061, por el mismo razonamiento con el que
+     0049 separó aquel de `configurar`: dar de alta un acceso al sistema es
+     habilitar a alguien a ver la caja, los costos y la agenda entera;
+     habilitar a una clienta a ver sus propios turnos no se le parece. Si
+     colgara del mismo permiso, un comercio que quiere que recepción invite
+     clientas tendría que darle a recepción el alta de empleados. */
+  {
+    k: "darAppClientes",
+    n: "Dar de alta clientes en la app",
+    d: "Invitar a un cliente a la app donde ve sus turnos, y quitarle el acceso.",
+  },
   /* Separado de `configurar` en 0049. No es lo mismo cambiar la ficha del
      negocio que habilitar a una persona a entrar, y de fábrica lo tenían
      los dos roles de arriba por igual. Ahora arranca solo en el dueño. */

@@ -15,7 +15,7 @@
    ============================================================ */
 
 import React from "react";
-import { Clock, MapPin, ChevronRight, LogOut, Mail, Building2 } from "lucide-react";
+import { Clock, MapPin, ChevronRight, LogOut, User, Building2, Bell } from "lucide-react";
 import {
   Pantalla, Tarjeta, Seccion, Boton, Vacio, Cargando, Estado, ROTULO,
   cuando, hora, diaCorto,
@@ -126,19 +126,40 @@ function TurnoFila({ t, mostrarComercio, onAbrir }) {
    vencido no contestan eso, así que no están.
    ------------------------------------------------------------ */
 
-export function Inicio({ marca, nombre, turnos, abonos, hayModulo, onIr, onReservar, onAbrirTurno }) {
+export function Inicio({
+  marca, nombre, turnos, abonos, hayModulo, onIr, onReservar, onAbrirTurno,
+  avisosNuevos = 0, onVerAvisos,
+}) {
   const proximo = turnos[0] || null;
   const plan = abonos.find((a) => a.vigente) || null;
 
   return (
     <Pantalla>
-      <header className="pt-7 pb-1">
-        <h1 className="f-d text-2xl">
-          Hola{nombre ? `, ${nombre.split(" ")[0]}` : ""} <span className="font-normal">👋</span>
-        </h1>
-        <p className="text-sm text-texto-suave mt-1">
-          {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
-        </p>
+      <header className="pt-7 pb-1 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="f-d text-2xl">
+            Hola{nombre ? `, ${nombre.split(" ")[0]}` : ""} <span className="font-normal">👋</span>
+          </h1>
+          <p className="text-sm text-texto-suave mt-1">
+            {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
+
+        {/* La campana solo si hay algo que mirar. Una campana que nunca
+            tuvo nada adentro le enseña a la persona a no tocarla, y el día
+            que tenga algo ya aprendió a ignorarla.
+
+            El punto y no el número: cuántos avisos sin ver hay no cambia
+            lo que va a hacer, que es entrar a leerlos. */}
+        {onVerAvisos && (
+          <button onClick={onVerAvisos} aria-label="Avisos"
+            className="relative -mr-[11px] -mt-[6px] w-[44px] h-[44px] flex items-center justify-center text-texto-suave hover:text-texto transition-colors shrink-0">
+            <Bell size={20} />
+            {avisosNuevos > 0 && (
+              <span className="absolute top-[9px] right-[10px] w-2 h-2 rounded-full bg-acento border-2 border-fondo" />
+            )}
+          </button>
+        )}
       </header>
 
       {hayModulo("turnos") && (
@@ -847,57 +868,160 @@ function Instalar({ marca }) {
     </Seccion>
   );
 }
+/* ------------------------------------------------------------
+   AVISOS · pantalla 15 de la maqueta
 
-/* El mes y el año, sin el día: "desde el 14 de abril de 2026" es una
-   precisión que no le sirve a nadie y se lee peor. */
-const mesYAno = (d) =>
-  d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+   Lo que el comercio le mandó, en un solo lugar. No es un canal nuevo:
+   son los mismos mensajes que salieron por WhatsApp desde Comunicaciones
+   y desde CRM. Quien abre la app ve lo mismo que le llegó al teléfono.
 
-export function Cuenta({ marca, comercio, email, comercios, onSalir }) {
+   NO HAY PANTALLA DE DETALLE
+   La maqueta tiene una (la 16): un mensaje abierto, con su imagen y un
+   botón "Ir a la tienda". Eso es una promoción, y las promociones son del
+   módulo de beneficios, que no existe.
+
+   Lo que sí existe son estos: dos renglones de texto que el comercio
+   escribió a mano. Abrir una pantalla para mostrar dos renglones que ya
+   se leen enteros en la lista es un toque de más que no muestra nada
+   nuevo. Cuando haya promociones con imagen, la pantalla 16 se justifica
+   sola.
+
+   Y NO HAY "MARCAR TODAS COMO LEÍDAS"
+   Se marcan solas al entrar, que es cuando efectivamente las vio. Un
+   botón para declarar que leyó lo que tiene delante es trabajo que la
+   pantalla puede hacer sin preguntar.
+   ------------------------------------------------------------ */
+
+const FICHAS = [
+  ["todas", "Todas"],
+  ["turnos", "Turnos"],
+  ["novedades", "Novedades"],
+];
+
+export function Avisos({ avisos, varios, onVolver }) {
+  const [ficha, setFicha] = React.useState("todas");
+
+  const lista = avisos.filter((a) =>
+    ficha === "todas" ? true : ficha === "turnos" ? a.deTurno : !a.deTurno);
+
+  return (
+    <Pantalla titulo="Avisos" onVolver={onVolver}>
+      <div className="flex gap-2 mb-6">
+        {FICHAS.map(([k, n]) => (
+          <button key={k} onClick={() => setFicha(k)}
+            className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+              ficha === k
+                ? "bg-superficie border-borde-fuerte text-texto"
+                : "border-borde text-texto-suave hover:text-texto"
+            }`}>
+            {n}
+          </button>
+        ))}
+      </div>
+
+      {lista.length === 0 ? (
+        <Vacio icono="casa" titulo="No hay avisos">
+          Acá van a aparecer los mensajes que te mande {varios ? "cada comercio" : "el comercio"}:
+          los recordatorios de tus turnos y lo que te quieran contar.
+        </Vacio>
+      ) : (
+        lista.map((a) => (
+          <Tarjeta key={a.id} className="mb-2.5">
+            <div className="flex items-start gap-3">
+              {/* El punto de lo no visto. Se apaga solo al entrar, así que
+                  a la segunda vuelta no está: es una marca de "esto es de
+                  ahora" y no un estado que haya que administrar. */}
+              <span className={`w-2 h-2 rounded-full shrink-0 mt-2 ${
+                a.nuevo ? "bg-acento" : "bg-transparent"}`} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[11px] uppercase tracking-[0.08em] text-texto-tenue">
+                    {a.deTurno ? "Tu turno" : "Del comercio"}
+                    {varios && ` · ${a.empresa}`}
+                  </span>
+                  <span className="text-[11px] text-texto-tenue shrink-0">
+                    {a.fecha.toLocaleDateString("es-AR", { day: "numeric", month: "short" })
+                      .replace(".", "")}
+                  </span>
+                </div>
+                <p className="text-sm mt-1.5 leading-relaxed">{a.texto}</p>
+              </div>
+            </div>
+          </Tarjeta>
+        ))
+      )}
+    </Pantalla>
+  );
+}
+
+/* ------------------------------------------------------------
+   MI CUENTA · pantalla 17 de la maqueta
+
+   Era una tarjeta con el correo adentro y dos tercios de pantalla en
+   blanco. La maqueta la resuelve como lo que es: una portada con quien
+   sos y una lista de lugares a los que se entra.
+
+   LAS FILAS QUE NO EXISTEN NO SE DIBUJAN
+   La maqueta lista seis: Mis datos, Métodos de pago, Notificaciones,
+   Seguridad, Ayuda y Cerrar sesión. Están las que llevan a algo. Una fila
+   que no hace nada no es "casi lista": es una promesa incumplida en la
+   pantalla donde alguien va a buscar ayuda.
+
+   Se agregan solas cuando exista cada cosa.
+   ------------------------------------------------------------ */
+
+function FilaCuenta({ icono: Ico, nombre, sub, onTocar, tono = "" }) {
+  return (
+    <button onClick={onTocar}
+      className="w-full flex items-center gap-3.5 px-4 py-3.5 min-h-[44px] text-left border-b border-borde last:border-b-0 hover:bg-superficie-2 transition-colors">
+      <Ico size={17} className={`shrink-0 ${tono || "text-texto-tenue"}`} />
+      <span className="min-w-0 flex-1">
+        <span className={`block text-[15px] ${tono}`}>{nombre}</span>
+        {sub && <span className="block text-[13px] text-texto-tenue mt-0.5 truncate">{sub}</span>}
+      </span>
+      <ChevronRight size={16} className="text-texto-tenue shrink-0" />
+    </button>
+  );
+}
+
+export function Cuenta({ marca, comercio, email, comercios, onSalir, onVerPerfil }) {
   return (
     <Pantalla titulo="Mi cuenta">
-      {/* Acá había un correo y nada más: una tarjeta con rótulo para un
-          solo dato, y dos tercios de pantalla en blanco abajo.
-
-          El nombre y desde cuándo ya venían en `mis_comercios` y no los
-          mostraba nadie. No es llenar la pantalla: es que "Mi cuenta"
-          diga quién sos y no cómo te logueás.
-
-          El nombre sale de la ficha del comercio y no de la cuenta,
-          porque es el que el comercio usa: la misma persona puede estar
-          anotada distinto en dos lados. */}
-      <Tarjeta className="mb-6">
-        <div className={ROTULO}>Tus datos</div>
-
-        {comercio && comercio.miNombre && (
-          <div className="text-lg mt-3">{comercio.miNombre}</div>
-        )}
-
-        {/* Se parte y no se corta. Con `truncate` el correo entraba justo
-            —253px en 253— así que en un teléfono un poco más angosto le
-            faltaba el final, y es el único lugar de la app donde se
-            muestra. Un dato cortado es peor que un renglón de más. */}
-        <div className="mt-2 flex items-start gap-2.5 text-[15px]">
-          <Mail size={15} className="text-texto-tenue shrink-0 mt-1" />
-          <span className="break-all">{email}</span>
-        </div>
-
-        {comercio && comercio.desde && (
-          <div className="text-sm text-texto-suave mt-3">
-            Con {marca.nombre} desde {mesYAno(comercio.desde)}
+      {/* La portada: quién sos, no cómo te logueás. La inicial en vez de
+          una foto porque no hay ninguna cargada y un círculo gris vacío
+          dice menos que una letra. */}
+      <div className="flex items-center gap-4 mb-6">
+        <span className="w-14 h-14 shrink-0 rounded-full bg-superficie-2 flex items-center justify-center text-lg font-bold text-texto-suave">
+          {(comercio && comercio.miNombre ? comercio.miNombre : "?")
+            .trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
+        </span>
+        <div className="min-w-0">
+          <div className="f-d text-xl truncate">
+            {comercio && comercio.miNombre ? comercio.miNombre : "Tu cuenta"}
           </div>
-        )}
-      </Tarjeta>
+          <div className="text-sm text-texto-suave truncate">{email}</div>
+        </div>
+      </div>
+
+      <div className="bg-superficie border border-borde rounded-xl overflow-hidden">
+        <FilaCuenta icono={User} nombre="Mis datos"
+          sub="Tu correo, tu teléfono y tu domicilio" onTocar={onVerPerfil} />
+      </div>
 
       {/* Solo si hay más de uno. Con un comercio, decir "dónde sos
           cliente" es contarle a alguien algo que ya sabe. */}
       {comercios.length > 1 && (
         <Seccion titulo="Dónde sos cliente">
           {comercios.map((c) => (
-            <Tarjeta key={c.empresaId} className="mb-3">
+            <Tarjeta key={c.empresaId} className="mb-2.5">
               <div className="flex items-center gap-2.5">
                 <Building2 size={15} className="text-texto-tenue shrink-0" />
                 <span className="text-[15px]">{c.nombre}</span>
+                {c.desde && (
+                  <span className="text-[13px] text-texto-tenue ml-auto shrink-0">
+                    desde {c.desde.getFullYear()}
+                  </span>
+                )}
               </div>
             </Tarjeta>
           ))}
@@ -919,6 +1043,110 @@ export function Cuenta({ marca, comercio, email, comercios, onSalir }) {
       <p className="text-center text-[11px] text-texto-tenue mt-10">
         {marca.nombre} · powered by GENEZ
       </p>
+    </Pantalla>
+  );
+}
+
+/* ------------------------------------------------------------
+   MIS DATOS · pantalla 18 de la maqueta
+
+   Lo que puede corregir y lo que no, con la razón a la vista en vez de un
+   campo apagado sin explicación.
+
+   El nombre y el correo con el que entra se muestran igual, en gris.
+   Esconderlos sería fingir que no existen, y quien viene a cambiar el
+   nombre tiene que enterarse acá de a quién pedírselo, no descubrir que
+   no está.
+
+   Ver 0063 para por qué cada uno cae de un lado o del otro.
+   ------------------------------------------------------------ */
+
+export function MisDatos({ marca, comercio, email, onVolver, onGuardar }) {
+  const [d, setD] = React.useState({
+    email: (comercio && comercio.miEmail) || "",
+    tel: (comercio && comercio.miTel) || "",
+    domicilio: (comercio && comercio.miDomicilio) || "",
+    nacimiento: (comercio && comercio.miNacimiento) || "",
+  });
+  const [yendo, setYendo] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [listo, setListo] = React.useState(false);
+
+  const campo = "w-full bg-superficie border border-borde rounded-lg px-3.5 py-3 text-base mt-1.5 outline-none text-texto placeholder:text-texto-tenue focus:border-acento transition-colors";
+  const cambiar = (k) => (e) => { setD({ ...d, [k]: e.target.value }); setListo(false); setError(""); };
+
+  async function guardar(e) {
+    e.preventDefault();
+    if (yendo) return;
+    setYendo(true); setError("");
+    try {
+      await onGuardar(d);
+      setListo(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setYendo(false);
+    }
+  }
+
+  return (
+    <Pantalla titulo="Mis datos" onVolver={onVolver}>
+      {/* Lo que el comercio maneja. En gris y con el porqué al lado. */}
+      <Tarjeta className="mb-6">
+        <div className={ROTULO}>Los maneja {marca.nombre}</div>
+        <div className="text-[15px] mt-3">{(comercio && comercio.miNombre) || "—"}</div>
+        <div className="text-sm text-texto-suave mt-1 break-all">{email}</div>
+        <p className="text-[13px] text-texto-tenue mt-3 leading-relaxed">
+          Tu nombre es con el que {marca.nombre} te factura, y ese correo es
+          con el que entrás. Si alguno está mal, pediles que lo cambien.
+        </p>
+      </Tarjeta>
+
+      <form onSubmit={guardar} className="space-y-4">
+        <label className="block">
+          <span className={ROTULO}>A dónde te escribimos</span>
+          <input type="email" value={d.email} onChange={cambiar("email")}
+            className={campo} placeholder="ejemplo@correo.com" inputMode="email" />
+        </label>
+
+        <label className="block">
+          <span className={ROTULO}>Teléfono</span>
+          <input type="tel" value={d.tel} onChange={cambiar("tel")}
+            className={campo} placeholder="11 5555 5555" inputMode="tel" />
+        </label>
+
+        <label className="block">
+          <span className={ROTULO}>Domicilio</span>
+          <input type="text" value={d.domicilio} onChange={cambiar("domicilio")}
+            className={campo} placeholder="Calle y número" />
+        </label>
+
+        <label className="block">
+          <span className={ROTULO}>Fecha de nacimiento</span>
+          <input type="date" value={d.nacimiento} onChange={cambiar("nacimiento")}
+            className={campo} />
+        </label>
+
+        {error && (
+          <div className="text-sm text-mal border border-mal bg-mal-suave rounded-lg px-3.5 py-3">
+            {error}
+          </div>
+        )}
+
+        {/* Se avisa que quedó guardado y no se sale de la pantalla: quien
+            corrigió el teléfono suele querer corregir también la dirección,
+            y devolverlo a la lista lo obliga a entrar de nuevo. */}
+        {listo && !error && (
+          <div className="text-sm text-bien border border-bien bg-bien-suave rounded-lg px-3.5 py-3">
+            Listo, lo guardamos.
+          </div>
+        )}
+
+        <button type="submit" disabled={yendo}
+          className="w-full bg-acento hover:bg-acento-vivo disabled:opacity-50 text-sobre-acento font-bold rounded-lg px-4 py-3 text-[15px] transition-colors">
+          {yendo ? "Guardando…" : "Guardar cambios"}
+        </button>
+      </form>
     </Pantalla>
   );
 }

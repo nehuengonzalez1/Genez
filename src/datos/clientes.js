@@ -139,6 +139,10 @@ function conCuentas(f) {
     abonosActivos: num(f.abonos_activos),
     notas: num(f.notas),
     alertas: num(f.alertas),
+    /* Si tiene la app y desde cuándo. No sale la cuenta: para la ficha
+       alcanza con si tiene acceso. Ver 0062. */
+    tieneApp: !!f.usuario_id,
+    enlazadaEn: f.enlazado_en ? new Date(f.enlazado_en) : null,
   };
 }
 
@@ -270,4 +274,68 @@ export async function alertasDe(empresaId, clienteId) {
     .limit(5);
   if (error) throw error;
   return data || [];
+}
+
+/* ------------------------------------------------------------
+   Darle la app, y quitársela
+
+   Lo único de esta pantalla que no va contra la base: crear una cuenta en
+   Auth y averiguar si un correo ya tiene una necesitan la `service_role`,
+   que no puede estar en el navegador. Es la misma división que Permisos
+   → Personas hace con `api/usuarios.js`.
+
+   El enlace en sí sí es un `update` sobre `clientes`, y lo hace el
+   servidor con el token de quien llama para que lo miren RLS y los tres
+   disparadores de 0050. Ver `api/clientes-acceso.js`.
+   ------------------------------------------------------------ */
+
+async function llamarAcceso(cuerpo) {
+  const { data } = await supabase.auth.getSession();
+  const token = data && data.session ? data.session.access_token : null;
+  if (!token) throw new Error("Se venció la sesión. Volvé a entrar.");
+
+  let r;
+  try {
+    r = await fetch("/api/clientes-acceso", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(cuerpo),
+    });
+  } catch {
+    throw new Error("No se pudo hablar con el servidor. Revisá la conexión.");
+  }
+
+  let respuesta = null;
+  try {
+    respuesta = await r.json();
+  } catch {
+    /* Un 404 de Vercel o de Vite no viene en JSON. */
+    throw new Error(
+      r.status === 404
+        ? "La función no está publicada. En desarrollo tiene que estar corriendo `npm run dev`."
+        : "El servidor contestó algo que no se entiende."
+    );
+  }
+
+  if (!r.ok) {
+    throw new Error((respuesta && respuesta.error && respuesta.error.message) || "No se pudo completar.");
+  }
+  return respuesta;
+}
+
+/* `email` es opcional: sin él se usa el de la ficha. Va como parámetro
+   porque la pantalla deja corregirlo antes de mandar, que es el momento
+   en que alguien mira si está bien escrito.
+
+   El `empresaId` viaja siempre aunque el servidor lo ignore para un
+   usuario de comercio —ahí sale del token, que es lo único confiable—.
+   Lo usa la plataforma, que no tiene comercio propio y es el único caso
+   donde el parámetro decide. Es la misma división que hace
+   `api/usuarios.js`. */
+export async function invitarALaApp(empresaId, fichaId, email) {
+  return llamarAcceso({ accion: "invitar", empresaId, fichaId, email: email || undefined });
+}
+
+export async function quitarLaApp(empresaId, fichaId) {
+  return llamarAcceso({ accion: "quitar", empresaId, fichaId });
 }

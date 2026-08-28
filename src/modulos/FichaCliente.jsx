@@ -18,9 +18,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   ChevronLeft, Plus, AlertTriangle, Trash2, Calendar, Ticket,
-  Receipt, StickyNote, Phone, Mail, MapPin,
+  Receipt, StickyNote, Phone, Mail, MapPin, Smartphone,
 } from "lucide-react";
-import { cargarFicha, anotarEnFicha, borrarNota } from "../datos/clientes.js";
+import { cargarFicha, anotarEnFicha, borrarNota, invitarALaApp, quitarLaApp } from "../datos/clientes.js";
 import { estadoDe } from "../datos/agenda.js";
 import { estadoAbono } from "../datos/abonos.js";
 import { money, nf, pct, linkWhatsapp } from "../utils/helpers.js";
@@ -42,6 +42,157 @@ const haceCuanto = (d) => {
   const meses = Math.floor(dias / 30);
   return `hace ${meses} ${meses === 1 ? "mes" : "meses"}`;
 };
+
+/* ------------------------------------------------------------
+   El acceso a la app
+
+   Lo que faltaba para que la app del cliente sirva: hasta hoy enlazar una
+   ficha con una cuenta era correr SQL a mano, así que la app estaba
+   publicada y no la podía usar nadie.
+
+   VA EN LA FICHA Y NO EN UNA PANTALLA DE "USUARIOS DE LA APP"
+   Porque no es una lista aparte de gente: es un dato de esta persona, al
+   lado de su teléfono y su correo. Una pantalla propia obligaría a
+   buscarla dos veces —una para ver su historia y otra para invitarla— y
+   a mantener sincronizadas dos listas de lo mismo.
+
+   EL CORREO SE PUEDE CORREGIR ANTES DE MANDAR
+   Es el único momento en que alguien lo mira sabiendo que de eso depende
+   a quién le llega el acceso a la historia de esta persona. La ficha
+   propone el suyo; quien invita confirma. Esa confirmación es la firma
+   que el modelo de identidad pide en §4.
+   ------------------------------------------------------------ */
+
+function AccesoApp({ cliente, onInvitar, onQuitar, puede, toast }) {
+  const [abierto, setAbierto] = useState(false);
+  const [correo, setCorreo] = useState(cliente.email || "");
+  const [yendo, setYendo] = useState(false);
+  const [confirmandoQuitar, setConfirmandoQuitar] = useState(false);
+
+  async function invitar() {
+    if (yendo) return;
+    setYendo(true);
+    try {
+      const r = await onInvitar(correo.trim());
+      toast(r.invitada
+        ? `Le mandamos la invitación a ${r.email}.`
+        : `Esa cuenta ya existía, así que ${cliente.razonSocial} ya puede entrar con su contraseña de siempre.`);
+      setAbierto(false);
+    } catch (e) {
+      toast(e.message, "mal");
+    } finally {
+      setYendo(false);
+    }
+  }
+
+  async function quitar() {
+    if (yendo) return;
+    setYendo(true);
+    try {
+      await onQuitar();
+      toast("Le quitamos el acceso a la app. La ficha queda como estaba.");
+      setConfirmandoQuitar(false);
+    } catch (e) {
+      toast(e.message, "mal");
+    } finally {
+      setYendo(false);
+    }
+  }
+
+  /* Ya la tiene: lo único que hay para hacer es sacársela, y eso no se
+     ofrece como un botón al mismo nivel que el resto. */
+  if (cliente.tieneApp) {
+    return (
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Smartphone size={16} className="text-bien shrink-0" />
+            <span className="text-sm">
+              Tiene la app
+              {cliente.enlazadaEn && (
+                <span className="text-texto-tenue"> · desde el {fecha(cliente.enlazadaEn)}</span>
+              )}
+            </span>
+          </div>
+          {puede && (
+            confirmandoQuitar ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-texto-suave">¿Le sacamos el acceso?</span>
+                <Boton size="sm" variant="ghost" onClick={() => setConfirmandoQuitar(false)}>No</Boton>
+                <Boton size="sm" onClick={quitar} disabled={yendo}>
+                  {yendo ? "Sacando…" : "Sí, sacar"}
+                </Boton>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmandoQuitar(true)}
+                className="text-xs text-texto-tenue hover:text-mal">
+                Quitar el acceso
+              </button>
+            )
+          )}
+        </div>
+      </Card>
+    );
+  }
+
+  /* Sin permiso no se ofrece nada, y tampoco se dice "no tiene la app":
+     es una fila de ruido para quien no puede hacer nada al respecto. */
+  if (!puede) return null;
+
+  return (
+    <Card className="p-4">
+      {!abierto ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Smartphone size={16} className="text-texto-tenue shrink-0" />
+            <span className="text-sm text-texto-suave">
+              Todavía no tiene la app para ver sus turnos.
+            </span>
+          </div>
+          <Boton size="sm" variant="ghost" onClick={() => { setCorreo(cliente.email || ""); setAbierto(true); }}>
+            Darle la app
+          </Boton>
+        </div>
+      ) : (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">
+            Invitar a {cliente.razonSocial}
+          </div>
+          <p className="text-sm text-texto-suave mt-2 leading-relaxed">
+            Le va a llegar un correo con un link para poner su contraseña. Con eso
+            entra a ver sus turnos y su plan, y nada más.
+          </p>
+
+          {/* El correo, editable y confirmado a mano. De acá depende a quién
+              le llega el acceso a la historia de esta persona. */}
+          <label className="block mt-3">
+            <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">
+              A qué correo
+            </span>
+            <input type="email" value={correo} autoFocus
+              onChange={(e) => setCorreo(e.target.value)}
+              className={`${inputCls} mt-1`} placeholder="ejemplo@correo.com" />
+          </label>
+          {!cliente.email && (
+            <p className="text-[11px] text-texto-tenue mt-1.5">
+              La ficha no tenía correo. El que pongas acá queda guardado en ella.
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Boton size="sm" variant="ghost" onClick={() => setAbierto(false)} disabled={yendo}>
+              Cancelar
+            </Boton>
+            <Boton size="sm" onClick={invitar} disabled={yendo || !correo.includes("@")}>
+              {yendo ? "Mandando…" : "Mandar la invitación"}
+            </Boton>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 
 export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permisos, toast }) {
   const [datos, setDatos] = useState(null);
@@ -122,6 +273,18 @@ export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permiso
           </div>
         </div>
       </Card>
+
+      {/* ---------- El acceso a la app ---------- */}
+      <AccesoApp cliente={c} puede={!!permisos.darAppClientes} toast={toast}
+        onInvitar={async (correo) => {
+          const r = await invitarALaApp(empresaId, c.id, correo);
+          /* Se relee en vez de dar por hecho que quedó: lo que decide si
+             tiene la app es la columna, y lo que la pantalla tiene que
+             mostrar es lo que quedó escrito, no lo que se pidió. */
+          await releer();
+          return r;
+        }}
+        onQuitar={async () => { await quitarLaApp(empresaId, c.id); await releer(); }} />
 
       {/* ---------- Las alertas, fuera de las pestañas ---------- */}
       {alertas.length > 0 && (

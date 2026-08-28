@@ -26,7 +26,7 @@
    ============================================================ */
 
 import React, { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, Check, AlertTriangle, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Check, AlertTriangle, Users } from "lucide-react";
 import { cargarServicios, cargarHorarios, reservar, anotarmeEnEspera } from "../datos/cliente.js";
 import {
   Pantalla, Tarjeta, Boton, Cargando, Vacio, Error as ErrorEstado, ROTULO, hora,
@@ -63,35 +63,212 @@ function tituloDia(d) {
 }
 
 /* ------------------------------------------------------------
-   Paso 1 · Qué
+   Paso 1 · Qué, con quién y cuándo · pantalla 7 de la maqueta
+
+   La maqueta muestra una pantalla con filas —Servicio, Profesional,
+   Fecha, Horario, Sala— y un botón "Ver disponibilidad". Lo construido
+   era otra cosa: elegir servicio y saltar directo a la grilla de
+   horarios, con el argumento de que en un teléfono cuatro campos son
+   cuatro pantallas.
+
+   Ese argumento era contra una maqueta que no había mirado: no son
+   cuatro pantallas, es una con cuatro filas. Y la diferencia importa,
+   porque quien va siempre con la misma profesional hoy tiene que
+   buscarla entre 43 horarios en vez de decir su nombre una vez.
+
+   SOLO EL SERVICIO ES OBLIGATORIO
+   Lo demás son filtros que se pueden saltear. Quien no tiene preferencia
+   toca Servicio y va derecho a los horarios, que es el camino que la
+   versión anterior hacía bien y no había que perder.
+
+   LAS OPCIONES SALEN DE LOS HUECOS, NO DE UNA LISTA DE PERSONAL
+   No hay ninguna función nueva ni ninguna tabla más expuesta:
+   `horarios_libres` ya devuelve el profesional y la sala de cada hueco,
+   así que las opciones son exactamente los que tienen disponibilidad.
+
+   Eso además arregla solo un problema que una lista de personal tendría:
+   nunca se ofrece una profesional que no puede atender, y una que se fue
+   de vacaciones desaparece del filtro sin que nadie la dé de baja.
+
+   Un filtro que dejaría la lista vacía no se ofrece: si Camila no tiene
+   nada el jueves, el jueves no aparece cuando Camila está elegida.
    ------------------------------------------------------------ */
 
-function ElegirServicio({ servicios, onElegir }) {
-  if (!servicios.length) {
-    return (
-      <Vacio icono="calendario" titulo="No hay servicios para reservar">
-        Todavía no hay nada publicado para tomar turno.
-      </Vacio>
-    );
-  }
-
+/* Los cuatro puntos de la maqueta. No son pasos obligatorios —tres de las
+   cuatro filas se pueden saltear— sino lo que ya eligió: prender uno
+   cuenta algo, y numerarlos en una pantalla donde el orden no manda
+   contaría algo falso. */
+function Puntos({ hechos }) {
   return (
-    <div className="space-y-3">
-      {servicios.map((s) => (
-        <Tarjeta key={s.id} onClick={() => onElegir(s)}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[15px]">{s.nombre}</div>
-              <div className="text-sm text-texto-suave mt-1">
-                {s.duracionMin} min
-                {s.enClase && " · en clase"}
-              </div>
-            </div>
-            <div className="text-sm text-texto-suave shrink-0">{money(s.precio)}</div>
-          </div>
-        </Tarjeta>
+    <div className="flex items-center gap-2 mb-6">
+      {[0, 1, 2, 3].map((i) => (
+        <span key={i} className={`h-1.5 rounded-full transition-all ${
+          i < hechos ? "w-6 bg-acento" : "w-1.5 bg-borde"}`} />
       ))}
     </div>
+  );
+}
+
+function Fila({ rotulo, valor, vacio, onTocar, apagada }) {
+  return (
+    <button onClick={onTocar} disabled={apagada}
+      className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 min-h-[44px] text-left border-b border-borde last:border-b-0 transition-colors ${
+        apagada ? "opacity-40" : "hover:bg-superficie-2"}`}>
+      <span className="text-sm text-texto-suave shrink-0">{rotulo}</span>
+      <span className="flex items-center gap-2 min-w-0">
+        <span className={`text-[15px] truncate ${valor ? "" : "text-texto-tenue"}`}>
+          {valor || vacio}
+        </span>
+        <ChevronRight size={16} className="text-texto-tenue shrink-0" />
+      </span>
+    </button>
+  );
+}
+
+/* La lista que se abre al tocar una fila. Va como hoja de abajo por lo
+   mismo que el detalle del turno: elegir entre seis cosas no merece
+   perder de vista la pantalla desde donde se eligió. */
+function Elegir({ titulo, opciones, valor, onElegir, onCerrar }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <div className="absolute inset-0 bg-fondo/60 backdrop-blur-[2px]" onClick={onCerrar} />
+      <div className="relative w-full max-w-lg bg-superficie rounded-t-2xl border-t border-x border-borde max-h-[75vh] overflow-auto seguro-abajo">
+        <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-3">
+          <div className={ROTULO}>{titulo}</div>
+          <button onClick={onCerrar} aria-label="Cerrar"
+            className="-mr-2 w-[44px] h-[44px] flex items-center justify-center text-texto-tenue hover:text-texto">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="px-5 pb-5">
+          {opciones.map((o) => (
+            <button key={o.k} onClick={() => { onElegir(o.k); onCerrar(); }}
+              className={`w-full text-left px-4 py-3 min-h-[44px] rounded-lg border mb-2 transition-colors ${
+                o.k === valor
+                  ? "border-acento bg-acento-suave/40"
+                  : "border-borde hover:border-borde-fuerte"}`}>
+              <div className="text-[15px]">{o.n}</div>
+              {o.sub && <div className="text-[13px] text-texto-tenue mt-0.5">{o.sub}</div>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Filtros({
+  servicios, servicio, horarios, buscando,
+  personal, dia, recurso, onCambiar, onElegirServicio, onVer,
+}) {
+  const [abierta, setAbierta] = useState(null);
+
+  /* Lo que se puede elegir sale de los huecos que hay, y cada filtro se
+     calcula sobre lo que dejan pasar los otros dos. Así no se ofrece una
+     combinación que no existe: elegir a Camila y después un día en el que
+     Camila no trabaja daría una lista vacía y la culpa parecería del
+     sistema. */
+  const pasa = (h, salvo) =>
+    (salvo === "personal" || !personal || h.personalId === personal) &&
+    (salvo === "dia" || !dia || h.desde.toDateString() === dia) &&
+    (salvo === "recurso" || !recurso || h.recursoId === recurso);
+
+  const unicos = (campo, nombre, salvo) => {
+    const vistos = new Map();
+    for (const h of horarios) {
+      if (!h[campo] || !pasa(h, salvo)) continue;
+      if (!vistos.has(h[campo])) vistos.set(h[campo], h[nombre]);
+    }
+    return [...vistos].map(([k, n]) => ({ k, n }));
+  };
+
+  const profesionales = unicos("personalId", "profesional", "personal");
+  const salas = unicos("recursoId", "recurso", "recurso");
+
+  const dias = [];
+  const diasVistos = new Set();
+  for (const h of horarios) {
+    const k = h.desde.toDateString();
+    if (diasVistos.has(k) || !pasa(h, "dia")) continue;
+    diasVistos.add(k);
+    dias.push({ k, n: tituloDia(h.desde) });
+  }
+
+  const nombreDe = (lista, k) => (lista.find((o) => o.k === k) || {}).n || "";
+  const cuantos = horarios.filter((h) => pasa(h)).length;
+
+  /* Cuántas de las cuatro ya están decididas. El horario se elige en la
+     pantalla siguiente, así que acá el cuarto punto nunca se prende: es
+     lo que falta hacer y por eso el botón dice "ver disponibilidad". */
+  const hechos = [servicio, personal, dia].filter(Boolean).length;
+
+  return (
+    <>
+      <Puntos hechos={hechos} />
+
+      <div className="bg-superficie border border-borde rounded-xl overflow-hidden">
+        <Fila rotulo="Servicio" valor={servicio && servicio.nombre}
+          vacio="Elegir" onTocar={() => setAbierta("servicio")} />
+
+        {/* Los filtros se apagan hasta que haya servicio: no hay de qué
+            listar profesionales todavía. */}
+        <Fila rotulo="Profesional" valor={nombreDe(profesionales, personal)}
+          vacio="Cualquiera" apagada={!servicio || profesionales.length < 2}
+          onTocar={() => setAbierta("personal")} />
+
+        <Fila rotulo="Fecha" valor={nombreDe(dias, dia)}
+          vacio="Cualquiera" apagada={!servicio || !dias.length}
+          onTocar={() => setAbierta("dia")} />
+
+        {salas.length > 1 && (
+          <Fila rotulo="Sala o equipo" valor={nombreDe(salas, recurso)}
+            vacio="Cualquiera" apagada={!servicio}
+            onTocar={() => setAbierta("recurso")} />
+        )}
+      </div>
+
+      {servicio && !buscando && (
+        <p className="text-[13px] text-texto-tenue mt-3">
+          {cuantos === 0
+            ? "Con esos filtros no queda ningún horario."
+            : cuantos === 1 ? "Queda 1 horario." : `Quedan ${cuantos} horarios.`}
+        </p>
+      )}
+
+      <div className="mt-7">
+        <Boton onClick={onVer} disabled={!servicio || buscando || cuantos === 0}>
+          {buscando ? "Buscando…" : "Ver disponibilidad"}
+        </Boton>
+      </div>
+
+      {abierta === "servicio" && (
+        <Elegir titulo="Qué querés reservar" valor={servicio && servicio.id}
+          opciones={servicios.map((s) => ({
+            k: s.id, n: s.nombre,
+            sub: `${s.duracionMin} min${s.enClase ? " · en clase" : ""} · ${money(s.precio)}`,
+          }))}
+          onElegir={(id) => onElegirServicio(servicios.find((s) => s.id === id))}
+          onCerrar={() => setAbierta(null)} />
+      )}
+
+      {abierta === "personal" && (
+        <Elegir titulo="Con quién" valor={personal}
+          opciones={[{ k: null, n: "Cualquiera" }, ...profesionales]}
+          onElegir={(k) => onCambiar("personal", k)} onCerrar={() => setAbierta(null)} />
+      )}
+
+      {abierta === "dia" && (
+        <Elegir titulo="Qué día" valor={dia}
+          opciones={[{ k: null, n: "Cualquiera" }, ...dias]}
+          onElegir={(k) => onCambiar("dia", k)} onCerrar={() => setAbierta(null)} />
+      )}
+
+      {abierta === "recurso" && (
+        <Elegir titulo="En qué sala" valor={recurso}
+          opciones={[{ k: null, n: "Cualquiera" }, ...salas]}
+          onElegir={(k) => onCambiar("recurso", k)} onCerrar={() => setAbierta(null)} />
+      )}
+    </>
   );
 }
 
@@ -348,6 +525,17 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
   const [servicio, setServicio] = useState(null);
   const [horarios, setHorarios] = useState([]);
   const [horario, setHorario] = useState(null);
+
+  /* Los filtros de la pantalla 7. Van acá y no adentro de `Filtros`
+     porque sobreviven a ir a los horarios y volver: quien eligió a
+     Camila y se arrepintió del horario no tiene que volver a elegirla. */
+  const [personal, setPersonal] = useState(null);
+  const [dia, setDia] = useState(null);
+  const [recurso, setRecurso] = useState(null);
+
+  /* Se mira la disponibilidad o se están eligiendo los filtros. No es
+     un paso más: es la misma pantalla 7 abierta o cerrada. */
+  const [viendo, setViendo] = useState(false);
   const [hecho, setHecho] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [buscando, setBuscando] = useState(false);
@@ -366,7 +554,10 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
   useEffect(() => { traerServicios(); }, [traerServicios]);
 
   async function elegirServicio(s) {
-    setServicio(s); setBuscando(true); setError("");
+    /* Cambiar de servicio invalida los filtros: la profesional que daba
+       reformer puede no dar faciales. */
+    setServicio(s); setPersonal(null); setDia(null); setRecurso(null);
+    setBuscando(true); setError("");
     try {
       setHorarios(await cargarHorarios({ empresaId, itemId: s.id }));
     } catch (e) {
@@ -404,14 +595,16 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
   }
 
   function atras() {
-    if (hecho) { setHecho(null); setServicio(null); setHorario(null); return; }
+    if (hecho) { setHecho(null); setServicio(null); setHorario(null); setViendo(false); return; }
     if (horario) return setHorario(null);
-    if (servicio) return setServicio(null);
+    if (viendo) return setViendo(false);
     onCerrar();
   }
 
-  const titulo = hecho ? "" : !servicio ? "¿Qué querés reservar?"
-    : !horario ? servicio.nombre : "Confirmar";
+  const titulo = hecho ? ""
+    : !viendo ? "Reservar turno"
+    : !horario ? servicio.nombre
+    : "Confirmar";
 
   return (
     <div className="max-w-lg mx-auto px-5 pb-28">
@@ -447,8 +640,19 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
           espera={hecho.espera}
           onVer={onCerrar}
           onOtro={() => { setHecho(null); setServicio(null); setHorario(null); }} />
-      ) : !servicio ? (
-        <ElegirServicio servicios={servicios} onElegir={elegirServicio} />
+      ) : !viendo ? (
+        <>
+          {error && (
+            <div className="mb-4 text-sm text-mal border border-mal bg-mal-suave rounded-lg px-4 py-3 leading-relaxed">
+              {error}
+            </div>
+          )}
+          <Filtros servicios={servicios} servicio={servicio} horarios={horarios}
+            buscando={buscando} personal={personal} dia={dia} recurso={recurso}
+            onElegirServicio={elegirServicio}
+            onCambiar={(k, v) => ({ personal: setPersonal, dia: setDia, recurso: setRecurso }[k])(v)}
+            onVer={() => setViendo(true)} />
+        </>
       ) : !horario ? (
         <>
           {error && (
@@ -456,8 +660,11 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
               {error}
             </div>
           )}
-          <ElegirHorario servicio={servicio} horarios={horarios}
-            cargando={buscando} onElegir={setHorario} />
+          <ElegirHorario servicio={servicio} cargando={buscando} onElegir={setHorario}
+            horarios={horarios.filter((h) =>
+              (!personal || h.personalId === personal) &&
+              (!dia || h.desde.toDateString() === dia) &&
+              (!recurso || h.recursoId === recurso))} />
         </>
       ) : (
         <Confirmar servicio={servicio} horario={horario} yendo={yendo} error={error}
