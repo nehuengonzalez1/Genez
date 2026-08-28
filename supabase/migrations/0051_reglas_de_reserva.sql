@@ -29,7 +29,7 @@
 
    SE GUARDA LA DIFERENCIA, NO LA FOTO
    -----------------------------------
-   `config -> 'reserva'` tiene solo las claves que el comercio cambió. Con
+   `config -> 'turnos'` tiene solo las claves que el comercio cambió. Con
    la foto entera, el día que se corrija un valor de fábrica el comercio
    que nunca lo tocó se quedaría con el viejo para siempre y sin que nadie
    lo note. Es la decisión de 0045 una vez más.
@@ -52,7 +52,7 @@ alter table rubros
   add column if not exists reglas jsonb not null default '{}'::jsonb;
 
 comment on column rubros.reglas is
-  'Reglas de reserva de fábrica del rubro. Cada comercio pisa lo que quiera en empresas.config->reserva.';
+  'Reglas de reserva de fábrica del rubro. Cada comercio pisa lo que quiera en empresas.config->turnos.';
 
 
 /* Solo el rubro de servicios por ahora: es el único donde el cliente
@@ -92,7 +92,20 @@ update rubros
      /* Si se avisa cuando ya tiene otro turno el mismo día. No lo
         impide: lo dice. Dos turnos en un día es raro y a veces es un
         error de dedo, pero también es alguien que quiere doble clase. */
-     'avisarMismoDia',     true
+     'avisarMismoDia',     true,
+
+     /* Si la app ofrece anotarse en la lista de espera cuando el horario
+        está completo. La tabla `espera` existe desde 0034; esto decide si
+        el cliente se anota solo o si eso lo maneja el mostrador. */
+     'esperaDesdeApp',     true,
+
+     /* Si faltar gasta la clase. No es una clave nueva: ya existía como
+        `config.turnos.ausenciaConsume` desde 0035 y la lee
+        `ausencia_consume()`. Se nombra acá para que `reglas_de` sea la
+        única respuesta a "qué reglas tiene este comercio" —si quedara
+        afuera, habría que saber que esa se pregunta en otro lado— y para
+        que las dos lean exactamente el mismo lugar. */
+     'ausenciaConsume',    true
    )
  where clave = 'servicios'
    and not (reglas ? 'anticipacionMin');
@@ -124,10 +137,12 @@ as $$
         'tardeConsume',        true,
         'permiteCancelar',     false,
         'requiereHistorial',   true,
-        'avisarMismoDia',      true
+        'avisarMismoDia',      true,
+        'esperaDesdeApp',      false,
+        'ausenciaConsume',     true
       )
    || coalesce(r.reglas, '{}'::jsonb)
-   || coalesce(e.config -> 'reserva', '{}'::jsonb)
+   || coalesce(e.config -> 'turnos', '{}'::jsonb)
   from empresas e
   left join rubros r on r.clave = e.rubro
  where e.id = p_empresa
@@ -149,3 +164,104 @@ grant execute on function public.reglas_de(uuid) to authenticated;
    La pantalla para editarlas va en Ajustes, con el resto de la
    configuración del comercio.
    ------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------
+   4 · Las clases usadas se cuentan en un solo lugar
+
+   `abonos_vista` (0035) contaba las clases gastadas con un lateral, y
+   `mis_abonos` (0050) las volvía a contar con su propia consulta. Ya
+   habían empezado a diferir: la vista respeta `ausencia_consume` —una
+   ausencia gasta la clase o no, según el comercio— y la función que ve el
+   cliente no lo hacía.
+
+   O sea que la misma persona veía "te quedan 3" en la app y el mostrador
+   veía 2. De todos los errores posibles ese es el peor de explicar,
+   porque los dos números parecen razonables.
+
+   Se extrae a una función que usan las dos. El día que cambie la regla de
+   qué gasta una clase, cambia en un lugar.
+   ------------------------------------------------------------ */
+
+create or replace function public.clases_usadas(p_abono uuid)
+returns integer
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select count(*)::integer
+    from reservas r
+    join abonos a on a.id = r.abono_id
+   where r.abono_id = p_abono
+     and r.estado <> 'cancelada'
+     /* Una cancelación siempre devuelve la clase; una ausencia, según lo
+        que haya decidido el comercio. */
+     and (r.estado <> 'ausente' or public.ausencia_consume(a.empresa_id))
+$$;
+
+comment on function public.clases_usadas is
+  'Las clases que gastó un abono. Es de donde tienen que leer abonos_vista y mis_abonos, para que el mostrador y el cliente no vean números distintos.';
+
+grant execute on function public.clases_usadas(uuid) to authenticated;
+
+
+/* La vista del mostrador pasa a usarla. El resultado es el mismo que
+   venía dando: es la misma condición, movida. */
+create or replace view abonos_vista
+with (security_invoker = true) as
+select
+  a.*,
+  c.razon_social as cliente,
+  i.categoria    as area,
+  /* A bigint porque la vista ya publicaba bigint —venia de count(*)— y
+     una vista no puede cambiarle el tipo a una columna que ya existe. */
+  public.clases_usadas(a.id)::bigint as usadas,
+  case when a.clases is null then null
+       else (a.clases - public.clases_usadas(a.id))::bigint end as restantes,
+  (a.vence is not null and a.vence < current_date) as vencido,
+  case
+    when a.anulado then 'anulado'
+    when a.vence is not null and a.vence < current_date then 'vencido'
+    when a.clases is not null and public.clases_usadas(a.id) >= a.clases then 'consumido'
+    else 'activo'
+  end as estado
+from abonos a
+left join clientes c on c.id = a.cliente_id
+left join items    i on i.id = a.item_id;
+
+
+/* Y la del cliente también. Acá estaba el error: contaba sin mirar la
+   política de ausencias del comercio. */
+create or replace function public.mis_abonos()
+returns table (
+  id        uuid,
+  empresa   text,
+  nombre    text,
+  clases    integer,
+  usadas    bigint,
+  desde     date,
+  vence     date,
+  vigente   boolean
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    a.id,
+    e.nombre,
+    a.nombre,
+    a.clases,
+    public.clases_usadas(a.id)::bigint,
+    a.desde,
+    a.vence,
+    (not a.anulado and (a.vence is null or a.vence >= current_date))
+  from abonos a
+  join empresas e on e.id = a.empresa_id
+ where a.cliente_id in (select public.mis_fichas())
+   and a.anulado = false
+ order by (not a.anulado and (a.vence is null or a.vence >= current_date)) desc,
+          a.desde desc
+$$;

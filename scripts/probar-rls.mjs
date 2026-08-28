@@ -2013,7 +2013,7 @@ console.log("\nReglas de reserva");
   await c.query("begin");
   try {
     await c.query(
-      `update empresas set config = config || '{"reserva":{"cancelacionHoras":6}}'::jsonb where id = $1`,
+      `update empresas set config = config || '{"turnos":{"cancelacionHoras":6}}'::jsonb where id = $1`,
       [almhaId]);
     const cambiado = (await una("select public.reglas_de($1) r", [almhaId])).r;
     decir(cambiado.cancelacionHoras === 6,
@@ -2038,7 +2038,7 @@ console.log("\nReglas de reserva");
      ya protege la ficha de la empresa desde 0045. */
   await comoUsuario(CAJERO, async () => {
     const v = await c.query(
-      `update empresas set config = config || '{"reserva":{"cancelacionHoras":99}}'::jsonb where id = $1`,
+      `update empresas set config = config || '{"turnos":{"cancelacionHoras":99}}'::jsonb where id = $1`,
       [almhaId]);
     decir(v.rowCount === 0, "un comercio no puede cambiarle las reglas a otro");
   });
