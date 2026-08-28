@@ -36,7 +36,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   slugDelDominio, cargarMarca, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
-  cargarEsperas, salirDeEspera, cargarPagos,
+  cargarEsperas, salirDeEspera, cargarPagos, guardarMisDatos,
   pedirClaveNueva, guardarClaveNueva, alRecuperarClave, vinoDeRecuperacion,
   marcaGuardada,
   proximos, historial, cancelados,
@@ -45,7 +45,7 @@ import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import {
   Navegacion, Cargando, Error as ErrorEstado, SinConexion, useHayConexion, Boton, ROTULO,
 } from "./ui.jsx";
-import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Cuenta } from "./pantallas.jsx";
+import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Cuenta, MisDatos } from "./pantallas.jsx";
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 
@@ -475,6 +475,10 @@ export default function App() {
      Y cuál de las dos subpantallas del plan se está viendo. */
   const [pagos, setPagos] = useState(null);
   const [enPlan, setEnPlan] = useState(null);
+
+  /* Lo mismo para la cuenta: "Mis datos" es un lugar al que se entra
+     desde ahi y del que se vuelve, no una pestaña de la barra. */
+  const [enCuenta, setEnCuenta] = useState(null);
   const [bajando, setBajando] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -571,7 +575,7 @@ export default function App() {
   /* Al cambiar de pestaña se sale de la subpantalla: volver a "Mi plan"
      desde la barra tiene que mostrar el plan y no la última cosa que se
      miró adentro hace media hora. */
-  useEffect(() => { setEnPlan(null); }, [donde]);
+  useEffect(() => { setEnPlan(null); setEnCuenta(null); }, [donde]);
 
   /* Vuelve a preguntar quién entró. Es lo que reintenta la pantalla sin
      conexión: el problema de ahí es que `cargarClienta` no llegó, así que
@@ -684,10 +688,26 @@ export default function App() {
       }
       return <Plan abonos={abonos} varios={varios} onVer={setEnPlan} />;
     },
-    cuenta: () => (
-      <Cuenta marca={marca} comercio={comercio} email={clienta.email}
-        comercios={clienta.comercios} onSalir={cerrar} />
-    ),
+    cuenta: () => {
+      if (enCuenta === "datos") {
+        return (
+          <MisDatos marca={marca} comercio={comercio} email={clienta.email}
+            onVolver={() => setEnCuenta(null)}
+            onGuardar={async (d) => {
+              await guardarMisDatos(comercio.empresaId, d);
+              /* Se relee la ficha: lo que la pantalla tiene que mostrar
+                 después de guardar es lo que quedó escrito y no lo que se
+                 tipeó. Si la base recortó o ignoró algo, se ve. */
+              setClienta(await cargarClienta());
+            }} />
+        );
+      }
+      return (
+        <Cuenta marca={marca} comercio={comercio} email={clienta.email}
+          comercios={clienta.comercios} onSalir={cerrar}
+          onVerPerfil={() => setEnCuenta("datos")} />
+      );
+    },
   };
 
   const dibujar = pantallas[donde] || pantallas.inicio;

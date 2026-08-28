@@ -248,6 +248,13 @@ export async function cargarClienta() {
        ficha. */
     miNombre: c.mi_nombre || '',
     desde: c.desde ? new Date(c.desde) : null,
+    /* Los datos de contacto que el comercio tiene de ella, y que ella
+       puede corregir. El correo de acá es a dónde le escriben; con el que
+       entra es `email`, arriba, y son dos cosas. Ver 0063. */
+    miEmail: c.mi_email || "",
+    miTel: c.mi_tel || "",
+    miDomicilio: c.mi_domicilio || "",
+    miNacimiento: c.mi_nacimiento || "",
   }));
 
   return {
@@ -255,6 +262,20 @@ export async function cargarClienta() {
     comercios,
     sinFichas: comercios.length === 0,
   };
+}
+
+/* Corregir los datos de contacto. No manda el id de la ficha: la elige la
+   base a partir de quién pregunta, así no hay ninguna función a la que
+   haya que preguntarle "¿y esa ficha es tuya?". Ver 0063. */
+export async function guardarMisDatos(empresaId, { email, tel, domicilio, nacimiento }) {
+  const { error } = await supabase.rpc("guardar_mis_datos", {
+    p_empresa: empresaId,
+    p_email: email || null,
+    p_tel: tel || null,
+    p_domicilio: domicilio || null,
+    p_nacimiento: nacimiento || null,
+  });
+  if (error) throw new Error(error.message || "No pudimos guardar tus datos.");
 }
 
 /* ------------------------------------------------------------
