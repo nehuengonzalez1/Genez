@@ -112,46 +112,102 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
     );
   }
 
+  /* El nombre se dice una sola vez, lo más arriba que se pueda.
+
+     Medido antes de tocar esto: 43 huecos en 8 días, y una sola
+     profesional. En una lista de tarjetas eso era "Carla Gómez" escrito
+     43 veces, con el peso tipográfico de un dato que hay que leer.
+
+     Tres niveles, del más general al más puntual, porque un comercio
+     puede tener una sola profesional, una por día, o varias el mismo
+     día. Solo el último caso lo escribe en cada hueco, que es cuando de
+     verdad distingue uno de otro. */
+  const quien = (h) => h.profesional || "";
+  const unicos = (hs) => [...new Set(hs.map(quien).filter(Boolean))];
+  const deTodos = unicos(horarios);
+  const comunTodos = deTodos.length === 1 ? deTodos[0] : null;
+
   return (
     <div className="space-y-6">
-      {porDia(horarios).map((g) => (
-        <section key={g.clave}>
-          <div className={`${ROTULO} mb-2.5`}>{tituloDia(g.fecha)}</div>
-          <div className="space-y-2.5">
-            {g.horarios.map((h, i) => (
-              <button key={h.claseId || `${h.desde.toISOString()}-${i}`}
-                onClick={() => onElegir(h)}
-                className={`w-full text-left bg-superficie border rounded-xl px-4 py-3.5 transition-colors ${
-                  h.lugares === 0 ? "border-borde opacity-70 hover:opacity-100" : "border-borde hover:border-acento"}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="f-m text-[17px]">{hora(h.desde)}</div>
-                    <div className="text-sm text-texto-suave mt-0.5 truncate">
+      {comunTodos && (
+        <p className="text-sm text-texto-suave -mt-2">Con {comunTodos}</p>
+      )}
+
+      {porDia(horarios).map((g) => {
+        const delDia = unicos(g.horarios);
+        const comunDia = !comunTodos && delDia.length === 1 ? delDia[0] : null;
+        const enCadaHueco = !comunTodos && !comunDia;
+
+        return (
+          <section key={g.clave}>
+            <div className="mb-2.5">
+              <div className={ROTULO}>{tituloDia(g.fecha)}</div>
+              {comunDia && (
+                <div className="text-sm text-texto-suave mt-1">Con {comunDia}</div>
+              )}
+            </div>
+
+            {/* Tres columnas y no una pila.
+
+                Elegir turno es comparar horas, y en vertical, con una
+                tarjeta de 77px entre número y número, las horas del
+                mismo día no se ven juntas: eran 5,8 pantallas de scroll
+                para 43 huecos. Así cada día entra en dos filas.
+
+                Tres entra hasta en un teléfono de 320px, que es donde se
+                mide esto: la celda queda en 87px con 61 de espacio
+                adentro, y lo más ancho que lleva —COMPLETA— mide 56. */}
+            <div className="grid grid-cols-3 gap-2.5">
+              {g.horarios.map((h, i) => (
+                <button key={h.claseId || `${h.desde.toISOString()}-${i}`}
+                  onClick={() => onElegir(h)}
+                  /* El `min-h` no es decoración: con `py-3` y la hora en
+                     `leading-none` la celda medía 43px, uno menos que el
+                     mínimo que `ui.jsx` se fija para lo que se toca con
+                     el pulgar. Y acá hay 43 de estos, uno al lado del
+                     otro. */
+                  className={`bg-superficie border rounded-lg px-3 py-3 min-h-[44px] text-left transition-colors ${
+                    h.lugares === 0 ? "border-borde opacity-70 hover:opacity-100" : "border-borde hover:border-acento"}`}>
+                  <div className="f-m text-[17px] leading-none">{hora(h.desde)}</div>
+
+                  {enCadaHueco && h.profesional && (
+                    <div className="text-[11px] text-texto-suave mt-1.5 truncate">
                       {h.profesional}
-                      {h.recurso && ` · ${h.recurso}`}
                     </div>
-                  </div>
+                  )}
+
                   {/* Los lugares solo cuando son varios: en un turno
                       individual "1 lugar" no le dice nada a nadie. */}
                   {h.claseId && h.lugares > 0 && (
-                    <div className="flex items-center gap-1 text-[11px] text-texto-tenue shrink-0">
+                    <div className="flex items-center gap-1 text-[11px] text-texto-tenue mt-1.5">
                       <Users size={12} />
                       {h.lugares}
                     </div>
                   )}
+
                   {/* Una clase llena no se esconde: es otra cosa que se
-                      puede hacer, no un horario que no sirve. */}
+                      puede hacer, no un horario que no sirve.
+
+                      Sin el recuadro que tenía en la lista: en una celda
+                      de 87px el borde y el fondo se comen el ancho, y el
+                      color solo ya dice lo mismo.
+
+                      Y dice "En lista" y no "En la lista", que medido
+                      daba 63px contra los 61 de espacio que hay a 320px:
+                      se desbordaba por dos. Corto y sin género, que es lo
+                      que corresponde en un motor que mañana atiende a
+                      cualquiera. */}
                   {h.claseId && h.lugares === 0 && (
-                    <div className="text-[10px] uppercase tracking-wider font-bold text-ojo border border-ojo bg-ojo-suave rounded px-1.5 py-0.5 shrink-0 whitespace-nowrap">
-                      {h.enEspera ? "En la lista" : "Completa"}
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-ojo mt-1.5 whitespace-nowrap">
+                      {h.enEspera ? "En lista" : "Completa"}
                     </div>
                   )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -360,7 +416,23 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
   return (
     <div className="max-w-lg mx-auto px-5 pb-28">
       <header className="pt-6 pb-4 flex items-center gap-2">
-        <button onClick={atras} className="-ml-2 p-2 text-texto-suave hover:text-texto">
+        {/* 44px, que es el mínimo que `ui.jsx` se fija a sí mismo para lo
+            que se toca con el pulgar. Eran 38 —un ícono de 22 con 8 de
+            padding— y es el único botón para volver de un recorrido de
+            tres pasos: errarle es empezar de nuevo.
+
+            En píxeles y no `w-11`, que es lo que uno escribiría. `w-11`
+            son 2.75rem y acá el rem no vale 16: `index.css` lo baja a
+            13.5 para achicar el sistema de gestión de una sola vez.
+            Escrito así daba 37px, o sea que "arreglarlo" lo dejaba
+            practicamente igual. Un mínimo para un dedo es una medida
+            física y no puede depender de la escala del sistema.
+
+            El -ml-[11px] es la mitad de lo que el área agrega alrededor
+            del ícono: así el chevron sigue alineado con el borde del
+            contenido y no se nota que el botón creció. */}
+        <button onClick={atras} aria-label="Volver"
+          className="-ml-[11px] w-[44px] h-[44px] flex items-center justify-center text-texto-suave hover:text-texto">
           <ChevronLeft size={22} />
         </button>
         <h1 className="f-d text-xl">{titulo || "Listo"}</h1>

@@ -31,8 +31,8 @@ function Turno({ t, mostrarComercio, onAbrir }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[15px]">{t.servicio}</div>
-          <div className="text-sm text-texto-suave mt-1 flex items-center gap-1.5">
-            <Clock size={13} className="shrink-0" /> {cuando(t.desde)}
+          <div className="text-sm text-texto-suave mt-1 flex items-start gap-1.5">
+            <Clock size={13} className="shrink-0 mt-[3px]" /> {cuando(t.desde)}
           </div>
           {t.profesional && (
             <div className="text-sm text-texto-suave mt-0.5">Con {t.profesional}</div>
@@ -45,7 +45,16 @@ function Turno({ t, mostrarComercio, onAbrir }) {
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           <Estado estado={t.estado} />
-          {t.esClase && <span className="text-[10px] text-texto-tenue uppercase tracking-wider">Clase</span>}
+          {/* El mismo borde y el mismo padding que el sello, con el borde
+              invisible. Sin eso los dos textos están alineados a la
+              derecha y aun así no coinciden: el sello mete el suyo 7px
+              para adentro —1 de borde y 6 de padding— y "Clase" queda
+              pegado al filo. Se leía como un descuido en cada tarjeta. */}
+          {t.esClase && (
+            <span className="text-[10px] text-texto-tenue uppercase tracking-wider px-1.5 border border-transparent">
+              Clase
+            </span>
+          )}
         </div>
       </div>
     </Tarjeta>
@@ -157,8 +166,8 @@ function Esperando({ esperas, onBajarse, bajando }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[15px]">{e.servicio}</div>
-              <div className="text-sm text-texto-suave mt-1 flex items-center gap-1.5">
-                <Clock size={13} className="shrink-0" /> {cuando(e.desde)}
+              <div className="text-sm text-texto-suave mt-1 flex items-start gap-1.5">
+                <Clock size={13} className="shrink-0 mt-[3px]" /> {cuando(e.desde)}
               </div>
               {e.profesional && (
                 <div className="text-sm text-texto-suave mt-0.5">Con {e.profesional}</div>
@@ -188,20 +197,39 @@ export function Turnos({
 
   return (
     <Pantalla titulo="Tus turnos">
+      {/* La pestaña activa se separa por su borde y su color, no por
+          flotar: la sombra fija va contra la regla 4 de DISENO.md, que
+          deja las sombras solo para el mouse encima.
+
+          Las dos llevan borde y a la inactiva se le pone transparente. Si
+          lo llevara una sola, cambiar de pestaña movería 2px todo lo de
+          abajo. */}
       <div className="flex gap-1 bg-superficie-2 rounded-lg p-1 mb-5">
         {[["proximos", "Próximos"], ["historial", "Historial"]].map(([k, n]) => (
           <button key={k} onClick={() => setPestana(k)}
-            className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
-              pestana === k ? "bg-superficie text-texto shadow-sm" : "text-texto-suave"
+            className={`flex-1 rounded-md py-2 text-sm font-semibold border transition-colors ${
+              pestana === k ? "bg-superficie border-borde text-texto" : "border-transparent text-texto-suave"
             }`}>
             {n}
           </button>
         ))}
       </div>
 
+      {/* De línea y no lleno, que es lo que era.
+
+          El naranja lleno pesaba más que los turnos, que son lo que la
+          persona vino a ver: un bloque saturado a todo el ancho arriba de
+          la lista se lee primero, siempre. La regla 6 de DISENO.md dice
+          que el acento es para lo que se toca, y acá todo lo de abajo
+          también se toca.
+
+          Con esto el lleno queda con un solo significado en toda la app:
+          confirmar algo —reservar, cancelar— o ser lo único que se puede
+          hacer, como en la pantalla vacía de acá abajo. Ahí sí tiene que
+          gritar; con seis turnos en pantalla, no. */}
       {puedeReservar && pestana === "proximos" && lista.length > 0 && (
         <div className="mb-5">
-          <Boton onClick={onReservar}>Reservar otro turno</Boton>
+          <Boton variante="linea" onClick={onReservar}>Reservar otro turno</Boton>
         </div>
       )}
 
@@ -392,15 +420,45 @@ function Instalar({ marca }) {
   );
 }
 
-export function Cuenta({ marca, email, comercios, onSalir }) {
+/* El mes y el año, sin el día: "desde el 14 de abril de 2026" es una
+   precisión que no le sirve a nadie y se lee peor. */
+const mesYAno = (d) =>
+  d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+
+export function Cuenta({ marca, comercio, email, comercios, onSalir }) {
   return (
     <Pantalla titulo="Mi cuenta">
+      {/* Acá había un correo y nada más: una tarjeta con rótulo para un
+          solo dato, y dos tercios de pantalla en blanco abajo.
+
+          El nombre y desde cuándo ya venían en `mis_comercios` y no los
+          mostraba nadie. No es llenar la pantalla: es que "Mi cuenta"
+          diga quién sos y no cómo te logueás.
+
+          El nombre sale de la ficha del comercio y no de la cuenta,
+          porque es el que el comercio usa: la misma persona puede estar
+          anotada distinto en dos lados. */}
       <Tarjeta className="mb-6">
         <div className={ROTULO}>Tus datos</div>
-        <div className="mt-3 flex items-center gap-2.5 text-[15px]">
-          <Mail size={15} className="text-texto-tenue shrink-0" />
-          <span className="truncate">{email}</span>
+
+        {comercio && comercio.miNombre && (
+          <div className="text-lg mt-3">{comercio.miNombre}</div>
+        )}
+
+        {/* Se parte y no se corta. Con `truncate` el correo entraba justo
+            —253px en 253— así que en un teléfono un poco más angosto le
+            faltaba el final, y es el único lugar de la app donde se
+            muestra. Un dato cortado es peor que un renglón de más. */}
+        <div className="mt-2 flex items-start gap-2.5 text-[15px]">
+          <Mail size={15} className="text-texto-tenue shrink-0 mt-1" />
+          <span className="break-all">{email}</span>
         </div>
+
+        {comercio && comercio.desde && (
+          <div className="text-sm text-texto-suave mt-3">
+            Con {marca.nombre} desde {mesYAno(comercio.desde)}
+          </div>
+        )}
       </Tarjeta>
 
       {/* Solo si hay más de uno. Con un comercio, decir "dónde sos

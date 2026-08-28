@@ -1,11 +1,6 @@
 {
   "rewrites": [
     { "source": "/api/anthropic/:ruta*", "destination": "/api/anthropic" },
-    {
-      "source": "/",
-      "has": [{ "type": "host", "value": "almha.genez.com.ar" }],
-      "destination": "/cliente.html"
-    },
     { "source": "/cliente", "destination": "/cliente.html" }
   ]
 }

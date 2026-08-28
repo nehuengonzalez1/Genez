@@ -160,6 +160,15 @@ export async function cambiarClave(nueva) {
     if (/expired|invalid/i.test(error.message)) {
       throw new Error("El link venció o ya se usó. Pedí uno nuevo.");
     }
+    /* Supabase contesta "Auth session missing!" —a veces traducido— y así
+       como viene no le dice nada a nadie: quien lo lee está mirando una
+       pantalla que le pidió una contraseña, y "falta la sesión de
+       autenticación" parece un error del sistema y no algo que se pueda
+       resolver. Es lo que pasa si la sesión del link se cerró en el
+       medio. */
+    if (/session missing|sesi[oó]n de autenticaci[oó]n/i.test(error.message)) {
+      throw new Error("Se perdió la sesión del link. Abrí de nuevo el link del correo, sin refrescar la página.");
+    }
     throw new Error(error.message);
   }
 
@@ -173,6 +182,33 @@ export async function cambiarClave(nueva) {
     await supabase.from("perfiles").update({ debe_cambiar_clave: false }).eq("id", data.user.id);
   }
 }
+
+/* ¿Esta carga de la página viene del link del correo?
+
+   Se mira al importar el módulo, y no cuando React monta, porque
+   supabase-js lee el hash del link y lo borra. Si eso pasa antes de que
+   se registre el oyente de abajo, el evento no lo escucha nadie: quien
+   tiene perfil entra derecho al sistema con una sesión que solo servía
+   para cambiar la clave, y nunca ve la pantalla para elegir una nueva.
+
+   Acá el hash todavía está: `supabase.js` crea el cliente al importarse,
+   pero procesar la URL lo hace después, en otra tarea.
+
+   El oyente se queda igual. Los dos caminos miran lo mismo desde dos
+   lados, y el que llegue primero gana. */
+/* El hash y la query se miran por separado y no pegados uno al otro.
+
+   Pegados, `#type=recovery` + `?c=almha` da `#type=recovery?c=almha`, y
+   ahí `type=recovery` ya no termina ni en `&` ni en el final del texto:
+   no matchea. Es exactamente la forma que tiene el link cuando la app
+   lleva algo en la query —la app del cliente en desarrollo lleva el
+   `?c=`— y andaba solo porque en la gestión la dirección no tiene
+   ninguna. Encontrado probándolo en la app del cliente. */
+const traeRecovery = (parte) => /(^|[#&?])type=recovery(&|$)/.test(parte);
+
+export const vinoDeRecuperacion =
+  typeof window !== "undefined" &&
+  [window.location.hash, window.location.search].some(traeRecovery);
 
 /* Avisa cuando el usuario entró por un link de recuperación, para
    mostrarle la pantalla de contraseña nueva en vez del sistema. */

@@ -113,6 +113,73 @@ export async function salir() {
 }
 
 /* ------------------------------------------------------------
+   Recuperar la contraseña
+
+   El sistema de gestión ya tiene esto y hasta ahora servía para las dos
+   aplicaciones. No alcanza, y por dos razones que no se arreglan con un
+   parámetro:
+
+   El link volvía al Site URL, o sea a la gestión. Una clienta de Almha
+   terminaba eligiendo su contraseña en una pantalla oscura que dice
+   Genez —y antes de arreglarlo, ni siquiera eso: `cargarSesion` fallaba
+   porque un cliente no tiene perfil y el error cerraba la sesión del
+   propio link—.
+
+   Y `cambiarClave` apaga `debe_cambiar_clave` en `perfiles`. Para
+   alguien que trabaja en el comercio eso es la mitad del asunto; para un
+   cliente es una tabla que no le corresponde ni puede tocar.
+
+   Lo que sí se comparte son los dos avisos de que la carga viene de un
+   link, que no son de la gestión ni de esta app: son de Supabase.
+   ------------------------------------------------------------ */
+
+export { alRecuperarClave, vinoDeRecuperacion } from "./sesion.js";
+
+/* A dónde tiene que volver el link.
+
+   La dirección de esta app y no la del sistema: en producción es el
+   subdominio del comercio y alcanza con el origen. En desarrollo hay que
+   conservar el `?c=`, que es lo único que dice de qué comercio es la app
+   —sin eso el link vuelve a una pantalla que no es de nadie—.
+
+   Tiene que estar en los Redirect URLs de Supabase. Si no está, Supabase
+   ignora esto en silencio y manda al Site URL, que fue exactamente lo
+   que pasó la primera vez. */
+function aDondeVuelve() {
+  const u = new URL(window.location.href);
+  const slug = u.searchParams.get("c");
+  return `${u.origin}${u.pathname}${slug ? `?c=${encodeURIComponent(slug)}` : ""}`;
+}
+
+/* Nunca dice si el correo existe: eso le sirve a quien está averiguando
+   qué direcciones tienen cuenta, no a quien se olvidó la contraseña. Por
+   eso quien llama muestra el mismo mensaje pase lo que pase. */
+export async function pedirClaveNueva(email) {
+  await supabase.auth.resetPasswordForEmail((email || "").trim(), {
+    redirectTo: aDondeVuelve(),
+  });
+}
+
+export async function guardarClaveNueva(nueva) {
+  if (!nueva || nueva.length < 8) {
+    throw new Error("La contraseña necesita al menos 8 caracteres.");
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: nueva });
+  if (!error) return;
+
+  if (/expired|invalid/i.test(error.message)) {
+    throw new Error("El link venció o ya se usó. Pedí uno nuevo.");
+  }
+  /* Supabase contesta "Auth session missing!" y así como viene parece un
+     error del sistema y no algo que se pueda resolver. */
+  if (/session missing|sesi[oó]n de autenticaci[oó]n/i.test(error.message)) {
+    throw new Error("Se perdió la sesión del link. Abrí de nuevo el link del correo.");
+  }
+  throw new Error(error.message);
+}
+
+/* ------------------------------------------------------------
    Quién entró
 
    Devuelve null si no hay sesión. Si hay sesión pero la cuenta no está
