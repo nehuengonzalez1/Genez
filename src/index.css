@@ -37,6 +37,21 @@
   --borde:        41 41 41;
   --borde-fuerte: 68 68 68;
 
+  /* EL TELON
+
+     El fondo oscuro de la pantalla de carga de la app del cliente. Se
+     define una sola vez y NO se pisa en `.tema-calido`, a proposito: es
+     el unico color del sistema que vale lo mismo en los dos temas.
+
+     Porque no es una superficie, es un telon: el momento en que aparece
+     la marca y todavia no hay aplicacion. Si acompañara al tema, en el
+     claro seria crema sobre crema y no habria momento ninguno.
+
+     Va aca y no como un hex suelto en la pantalla por la regla de
+     siempre: un color de Tailwind crudo queda fijo y nadie se acuerda
+     de remapearlo. */
+  --telon:       10 10 10;
+  --sobre-telon: 168 162 158;
   /* El naranja de Genez. `sobre-acento` es lo que se lee encima. */
   --acento:        249 115 22;
   --acento-vivo:   251 146 60;

@@ -51,6 +51,43 @@ export function slugDelDominio() {
   return null;
 }
 
+/* La marca, guardada en el teléfono
+
+   Para que la pantalla de carga diga Almha y no un vacío. El nombre lo
+   trae `marca_de`, que es una ida a la base: hasta que vuelve no hay
+   marca, y la primera pantalla de una app que se abre todos los días no
+   puede ser genérica.
+
+   Se guarda por comercio, porque una misma persona puede tener dos
+   instaladas. Y no es un caché de datos: es el envase —el nombre y los
+   colores, que ya son públicos—, lo mismo que el service worker guarda
+   del HTML y nunca de los turnos.
+
+   Todo entre `try`: en una ventana privada, o con el almacenamiento
+   bloqueado, `localStorage` no lee ni escribe y tira. Sin esto la app
+   entera no arranca por una comodidad. */
+const LLAVE_MARCA = "genez.marca.";
+
+export function marcaGuardada(slug) {
+  if (!slug || typeof window === "undefined") return null;
+  try {
+    const crudo = window.localStorage.getItem(LLAVE_MARCA + slug);
+    return crudo ? JSON.parse(crudo) : null;
+  } catch {
+    return null;
+  }
+}
+
+function guardarMarca(marca) {
+  if (!marca || !marca.slug) return;
+  try {
+    window.localStorage.setItem(LLAVE_MARCA + marca.slug, JSON.stringify(marca));
+  } catch {
+    /* Sin lugar para guardarla, la app anda igual: lo único que se pierde
+       es que la pantalla de carga tenga nombre. */
+  }
+}
+
 /* La marca del comercio. Es la única consulta del sistema que se puede
    hacer sin sesión, y devuelve solo lo que ya es público: cómo se llama
    y cómo se ve. Ver la migración 0052. */
@@ -62,7 +99,7 @@ export async function cargarMarca(slug) {
   if (!data || !data.length) return null;
 
   const m = data[0];
-  return {
+  const marca = {
     slug: m.slug,
     nombre: m.nombre,
     rubro: m.rubro,
@@ -72,6 +109,11 @@ export async function cargarMarca(slug) {
     logo: m.logo || null,
     portada: m.portada || null,
   };
+
+  /* Se guarda la que vino, no la que estaba: si el comercio cambia su
+     nombre o sube su logo, la próxima carga ya lo muestra. */
+  guardarMarca(marca);
+  return marca;
 }
 
 /* Qué muestra la app de este comercio. Sale de cruzar el catálogo de

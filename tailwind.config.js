@@ -23,6 +23,9 @@ export default {
         borde:        color("borde"),
         "borde-fuerte": color("borde-fuerte"),
 
+        telon:        color("telon"),
+        "sobre-telon": color("sobre-telon"),
+
         acento:       color("acento"),
         "acento-vivo": color("acento-vivo"),
         "acento-suave": color("acento-suave"),
