@@ -2770,6 +2770,56 @@ console.log("\nMover el turno desde la app");
     decir(vieja.hacia === cambio.fila.r.id,
       "y las dos puntas quedan enlazadas, para que el mostrador lea la historia y no la adivine");
 
+    /* ---- El recordatorio ya mandado hablaba de la hora vieja ----
+
+       El defecto que 0067 dejó abierto y 0068 cerró. La ventana es real:
+       el aviso sale 24 horas antes y mover se puede hasta 3 horas antes,
+       o sea que hay veintiuna en las que el mensaje ya salió y el turno
+       todavía se mueve.
+
+       `p_horas` va grande a propósito. La ventana de la función es un
+       parámetro, así que en vez de fabricar un turno dentro de las
+       próximas 24 horas —que según a qué hora corra la prueba cruza la
+       medianoche y `revisar_turno` lo rechaza— se agranda la ventana y
+       se usan los turnos que ya hay. */
+
+    const pendiente = async (id) => {
+      const r = await c.query(
+        "select 1 from comunicaciones_pendientes($1, 720) where reserva_id = $2", [almhaM, id]);
+      return r.rowCount === 1;
+    };
+
+    await comoLaBase();
+    /* La fecha explícita, y con `clock_timestamp()`: `contactos.fecha`
+       usa `now()` de fábrica, que adentro de una prueba entera en una
+       transacción es la misma hora para todo y no deja ordenar nada. */
+    const avisar = () => c.query(
+      `insert into contactos (empresa_id, cliente_id, reserva_id, motivo, texto, fecha)
+       values ($1, $2, $3, 'recordatorio', 'Te esperamos manana', clock_timestamp())`,
+      [almhaM, ficha, otro]);
+
+    decir(await pendiente(otro), "un turno sin avisar aparece en los pendientes de Comunicaciones");
+    await avisar();
+    decir(!(await pendiente(otro)), "y avisado deja de aparecer: no se avisa dos veces");
+
+    await comoElla();
+    const movido = await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(7, 15)})) r`,
+      [otro]);
+    decir(movido.codigo === null, "la clienta lo mueve después de haber recibido el aviso");
+
+    await comoLaBase();
+    decir(await pendiente(otro),
+      "y vuelve a los pendientes: el mensaje que salió decía una hora que ya no existe");
+
+    /* Lo que no tiene que pasar: que vuelva para siempre. */
+    await avisar();
+    decir(!(await pendiente(otro)),
+      "avisado de la hora nueva, se va de la lista otra vez");
+
+    decir((await una("select movida_en from reservas where id = $1", [otro])).movida_en !== null,
+      "la marca de cuándo se movió la pone la base y no quien mueve: el mostrador también la deja");
+
     /* ---- El comercio manda ---- */
 
     await c.query(
