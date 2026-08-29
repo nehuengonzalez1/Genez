@@ -2636,9 +2636,12 @@ console.log("\nMover el turno desde la app");
        select $1, $2, $3, 'Otra', desde, duracion_min, 'confirmada' from reservas where id = $3`,
       [almhaM, itemM, llena]);
 
+    /* Nace `pendiente` a propósito: es el estado que usa un local que
+       toma el turno y después llama para confirmarlo, y es el que 0067
+       pisaba al mover. */
     const inscripcion = (await una(
       `insert into reservas (empresa_id, cliente_id, item_id, clase_id, abono_id, nombre, desde, duracion_min, estado)
-       select $1, $2, $3, $4, $5, 'x', desde, duracion_min, 'confirmada' from reservas where id = $4
+       select $1, $2, $3, $4, $5, 'x', desde, duracion_min, 'pendiente' from reservas where id = $4
        returning id`,
       [almhaM, ficha, itemM, martes, abono])).id;
 
@@ -2750,7 +2753,7 @@ console.log("\nMover el turno desde la app");
       [inscripcion, llena])).codigo === "P0045", "ni a una clase completa");
 
     await comoLaBase();
-    decir((await una("select estado from reservas where id = $1", [inscripcion])).estado === "confirmada",
+    decir((await una("select estado from reservas where id = $1", [inscripcion])).estado === "pendiente",
       "y al rechazarla no se pierde la que tenía: es una sola transacción");
     await comoElla();
 
@@ -2769,6 +2772,12 @@ console.log("\nMover el turno desde la app");
       "la vieja queda cancelada y sin la marca de tardía: mover a tiempo no cuesta nada");
     decir(vieja.hacia === cambio.fila.r.id,
       "y las dos puntas quedan enlazadas, para que el mostrador lea la historia y no la adivine");
+
+    /* Mover cambia la hora y nada más. El estado es del comercio: un
+       local que llama para confirmar lo usa para saber a quién le falta
+       llamar, y con esto la clienta se lo confirmaba sola. */
+    decir((await una("select estado from reservas where id = $1", [cambio.fila.r.id])).estado === "pendiente",
+      "la inscripción nueva conserva el estado de la vieja: mover no confirma un turno pendiente");
 
     /* ---- El recordatorio ya mandado hablaba de la hora vieja ----
 
