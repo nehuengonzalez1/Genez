@@ -764,7 +764,12 @@ export function Reservar({ empresaId, moviendo = null, onCerrar, onReservado }) 
               {error}
             </div>
           )}
-          <ElegirHorario servicio={servicio} cargando={buscando} onElegir={setHorario}
+          {/* Elegir otro horario borra el error del anterior. Sin esto, un
+              rechazo —"ese abono vence el 31/08"— seguía escrito en la
+              confirmación del horario siguiente, diciéndole que no se
+              puede algo que todavía nadie intentó. */}
+          <ElegirHorario servicio={servicio} cargando={buscando}
+            onElegir={(h) => { setError(""); setHorario(h); }}
             horarios={horarios.filter((h) =>
               (!personal || h.personalId === personal) &&
               (!dia || h.desde.toDateString() === dia) &&
