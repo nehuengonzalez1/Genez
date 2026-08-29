@@ -614,18 +614,30 @@ export function Reservar({ empresaId, moviendo = null, onCerrar, onReservado }) 
   const [error, setError] = useState("");
   const [errorCarga, setErrorCarga] = useState("");
 
+  /* Los horarios se piden en tres momentos —al abrir, al elegir servicio y
+     al releer después de un rechazo— y qué se ofrece tiene que ser lo
+     mismo en los tres.
+
+     Moviendo se sacan los completos: una clase llena es una opción cuando
+     no tenés nada, pero cuando ya tenés el turno, cambiarlo por un lugar
+     en una lista de espera es soltar lo seguro por lo que quizás.
+
+     Estaba escrito en la carga de arriba y no en las otras dos, así que
+     un rechazo de la base —"ese abono vence el 31/08"— releía la lista
+     sin filtro y volvían a aparecer las clases completas. Lo encontró la
+     captura, que es exactamente para lo que DISENO.md la pide. */
+  const traerHorarios = useCallback(async (itemId) => {
+    const hs = await cargarHorarios({ empresaId: emp, itemId });
+    return moviendo ? hs.filter((h) => h.lugares > 0) : hs;
+  }, [emp, moviendo]);
+
   const traerServicios = useCallback(() => {
     setCargando(true); setErrorCarga("");
     /* Moviendo se saltea el catálogo y se piden los horarios de una: la
        única pregunta que queda es cuándo. */
     if (moviendo) {
-      return cargarHorarios({ empresaId: emp, itemId: moviendo.itemId })
-        /* Sin los completos, y se filtra acá para que el recuento de la
-           pantalla de filtros y la grilla cuenten lo mismo. Una clase
-           llena es una opción cuando no tenés nada; cuando ya tenés el
-           turno, cambiarlo por un lugar en una lista de espera es soltar
-           lo seguro por lo que quizás. */
-        .then((hs) => setHorarios(hs.filter((h) => h.lugares > 0)))
+      return traerHorarios(moviendo.itemId)
+        .then(setHorarios)
         .catch((e) => setErrorCarga(e.message))
         .finally(() => setCargando(false));
     }
@@ -633,7 +645,7 @@ export function Reservar({ empresaId, moviendo = null, onCerrar, onReservado }) 
       .then(setServicios)
       .catch((e) => setErrorCarga(e.message))
       .finally(() => setCargando(false));
-  }, [emp, moviendo]);
+  }, [emp, moviendo, traerHorarios]);
 
   useEffect(() => { traerServicios(); }, [traerServicios]);
 
@@ -643,7 +655,7 @@ export function Reservar({ empresaId, moviendo = null, onCerrar, onReservado }) 
     setServicio(s); setPersonal(null); setDia(null); setRecurso(null);
     setBuscando(true); setError("");
     try {
-      setHorarios(await cargarHorarios({ empresaId: emp, itemId: s.id }));
+      setHorarios(await traerHorarios(s.id));
     } catch (e) {
       setErrorCarga(e.message);
     } finally {
@@ -673,7 +685,7 @@ export function Reservar({ empresaId, moviendo = null, onCerrar, onReservado }) 
       setError(e.message);
       setHorario(null);
       try {
-        setHorarios(await cargarHorarios({ empresaId: emp, itemId: servicio.id }));
+        setHorarios(await traerHorarios(servicio.id));
       } catch { /* si tampoco se pueden releer, el error de arriba alcanza */ }
     } finally {
       setYendo(false);
