@@ -517,6 +517,21 @@ estando y cuesta; mover ya no se puede. Cobrarlo sería descontar la clase
 *y además* dar otro lugar, y dejarlo gratis sería la puerta de al lado
 para esquivar el costo de cancelar tarde.
 
+**Cada horario dice si entra en el plan de quien pregunta**, y lo dice
+`horarios_libres` antes de que elija. El caso lo destapó una captura: con
+el abono venciéndole el 31, a la clienta se le ofrecían cuatro horarios de
+septiembre que no podía tomar y se enteraba al confirmar. La marca
+significa distinto según de dónde se venga —reservando se toma igual y se
+paga aparte; moviendo no se puede, porque el plan del turno es el que es—
+y por eso `horarios_libres` recibe el turno que se está moviendo.
+
+**La marca y el rechazo salen de la misma función.** `abono_cubre`
+envuelve a `revisar_abono` y contesta si levantó. No se copia su lógica:
+`revisar_abono` tiene que seguir siendo la única respuesta porque además
+dice *cuál* de las tres reglas falló, que es el mensaje que lee la
+persona. Un "entra en tu plan" calculado aparte se desincroniza, y el día
+que pase la pantalla miente con cara de saber.
+
 ### El host decide cuál de las dos aplicaciones se sirve
 
 `almha.genez.com.ar/` es la app del cliente y `genez.com.ar/` el sistema

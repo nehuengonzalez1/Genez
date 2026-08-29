@@ -311,7 +311,7 @@ function Filtros({
    Paso 2 · Cuándo
    ------------------------------------------------------------ */
 
-function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
+function ElegirHorario({ servicio, horarios, cargando, moviendo, onElegir }) {
   if (cargando) return <Cargando>Buscando horarios…</Cargando>;
 
   if (!horarios.length) {
@@ -339,10 +339,30 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
   const deTodos = unicos(horarios);
   const comunTodos = deTodos.length === 1 ? deTodos[0] : null;
 
+  /* Marcar lo que no entra en el plan solo dice algo si algo entra. Sin
+     abono vigente no entra ninguno, y marcarlos todos sería ponerle un
+     sello a la lista entera para no distinguir nada. */
+  const hayPlan = horarios.some((h) => h.enPlan);
+  const marcar = (h) => hayPlan && !h.enPlan;
+
   return (
     <div className="space-y-6">
       {comunTodos && (
         <p className="text-sm text-texto-suave -mt-2">Con {comunTodos}</p>
+      )}
+
+      {/* Una vez arriba y no en cada celda, que es lo mismo que se hace
+          con el nombre de la profesional: en la celda entran ocho
+          caracteres y la explicación no. Y dice dos cosas distintas
+          porque son dos: reservando se puede tomar igual y se paga
+          aparte; moviendo no, porque el plan del turno es el que es y
+          cambiarlo por otro en silencio no lo hace nadie. */}
+      {horarios.some(marcar) && (
+        <p className="text-sm text-texto-suave -mt-2 leading-relaxed">
+          {moviendo
+            ? "Los que dicen «no entra» quedan fuera de tu plan, así que no podés mover el turno ahí."
+            : "Los que dicen «no entra» quedan fuera de tu plan: ese turno se paga aparte."}
+        </p>
       )}
 
       {porDia(horarios).map((g) => {
@@ -373,13 +393,25 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
               {g.horarios.map((h, i) => (
                 <button key={h.claseId || `${h.desde.toISOString()}-${i}`}
                   onClick={() => onElegir(h)}
+                  /* Moviendo, lo que queda fuera del plan no se puede
+                     elegir: la base lo va a rechazar, y ofrecerlo para
+                     rechazarlo después es lo que 0053 llama la peor forma
+                     de decir que no. Reservando sí se elige. */
+                  disabled={!!moviendo && marcar(h)}
                   /* El `min-h` no es decoración: con `py-3` y la hora en
                      `leading-none` la celda medía 43px, uno menos que el
                      mínimo que `ui.jsx` se fija para lo que se toca con
                      el pulgar. Y acá hay 43 de estos, uno al lado del
                      otro. */
                   className={`bg-superficie border rounded-lg px-3 py-3 min-h-[44px] text-left transition-colors ${
-                    h.lugares === 0 ? "border-borde opacity-70 hover:opacity-100" : "border-borde hover:border-acento"}`}>
+                    /* Apagada pero legible. Al 40% la hora se perdia, y
+                       lo que hay que poder leer es justamente cual es el
+                       horario que no entra: si no se lee, la celda es
+                       ruido en vez de informacion. Mas apagada que la
+                       clase completa, que sigue siendo tocable. */
+                    moviendo && marcar(h) ? "border-borde opacity-50"
+                    : h.lugares === 0 ? "border-borde opacity-70 hover:opacity-100"
+                    : "border-borde hover:border-acento"}`}>
                   <div className="f-m text-[17px] leading-none">{hora(h.desde)}</div>
 
                   {enCadaHueco && h.profesional && (
@@ -412,6 +444,15 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
                   {h.claseId && h.lugares === 0 && (
                     <div className="text-[10px] uppercase tracking-wider font-bold text-ojo mt-1.5 whitespace-nowrap">
                       {h.enEspera ? "En lista" : "Completa"}
+                    </div>
+                  )}
+
+                  {/* Ocho caracteres, los mismos que COMPLETA, que es lo
+                      que entra en una celda de 87px a 320px de ancho. La
+                      frase entera va arriba, una sola vez. */}
+                  {marcar(h) && h.lugares !== 0 && (
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-texto-tenue mt-1.5 whitespace-nowrap">
+                      No entra
                     </div>
                   )}
                 </button>
@@ -497,6 +538,18 @@ function Confirmar({ servicio, horario, moviendo, yendo, error, onConfirmar, onV
         <div className="text-sm text-mal border border-mal bg-mal-suave rounded-lg px-4 py-3 leading-relaxed">
           {error}
         </div>
+      )}
+
+      {/* Lo último que se dice antes de confirmar, y es sobre plata: en la
+          grilla ya estaba la marca, pero un sello de ocho caracteres no
+          es lo mismo que decirlo entero donde se decide. Moviendo no
+          aparece nunca —esos horarios no se pueden elegir— así que no
+          hace falta preguntarlo. */}
+      {!horario.enPlan && !esEspera && (
+        <p className="text-sm text-texto-suave leading-relaxed">
+          Este horario queda fuera de tu plan, así que se paga aparte.
+          {servicio.precio > 0 && ` Sale ${money(servicio.precio)}.`}
+        </p>
       )}
 
       {esEspera && (
@@ -627,7 +680,9 @@ export function Reservar({ empresaId, moviendo = null, onCerrar, onReservado }) 
      sin filtro y volvían a aparecer las clases completas. Lo encontró la
      captura, que es exactamente para lo que DISENO.md la pide. */
   const traerHorarios = useCallback(async (itemId) => {
-    const hs = await cargarHorarios({ empresaId: emp, itemId });
+    const hs = await cargarHorarios({
+      empresaId: emp, itemId, moviendo: moviendo && moviendo.id,
+    });
     return moviendo ? hs.filter((h) => h.lugares > 0) : hs;
   }, [emp, moviendo]);
 
@@ -768,7 +823,7 @@ export function Reservar({ empresaId, moviendo = null, onCerrar, onReservado }) 
               rechazo —"ese abono vence el 31/08"— seguía escrito en la
               confirmación del horario siguiente, diciéndole que no se
               puede algo que todavía nadie intentó. */}
-          <ElegirHorario servicio={servicio} cargando={buscando}
+          <ElegirHorario servicio={servicio} cargando={buscando} moviendo={moviendo}
             onElegir={(h) => { setError(""); setHorario(h); }}
             horarios={horarios.filter((h) =>
               (!personal || h.personalId === personal) &&

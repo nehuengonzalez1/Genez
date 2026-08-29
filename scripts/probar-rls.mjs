@@ -2779,6 +2779,80 @@ console.log("\nMover el turno desde la app");
     decir((await una("select estado from reservas where id = $1", [cambio.fila.r.id])).estado === "pendiente",
       "la inscripción nueva conserva el estado de la vieja: mover no confirma un turno pendiente");
 
+    /* ---- Lo que no entra en el plan se dice antes, no al confirmar ----
+
+       Lo encontro la captura de 0067: a la clienta de prueba, con el plan
+       venciendole el 31/08, la app le ofrecia cuatro horarios de
+       septiembre que su plan no cubria, y recien al confirmar la base
+       contestaba que no.
+
+       Lo que se prueba de fondo no es la marca: es que la marca y el
+       rechazo no puedan discrepar. Salen de la misma funcion, asi que la
+       prueba pide las dos cosas del mismo horario. */
+
+    await comoLaBase();
+    /* Un plan que vence antes que las clases de la semana que viene, para
+       que haya horarios adentro y afuera en la misma lista. Y con lugar
+       de sobra: a esta altura el pack de 3 ya esta gastado, y con el
+       agotado todo daria "no entra" por saldo, que no es lo que se esta
+       probando. */
+    await c.query(
+      "update abonos set vence = current_date + 1, clases = 20 where id = $1", [abono]);
+    /* Y algo en el pasado, porque `requiereHistorial` esta prendido en
+       Almha y la ficha nacio en esta transaccion con turnos solo a
+       futuro. Sin esto, reservar fuera del plan se rechaza por la regla
+       del primer turno y no por el plan. */
+    await c.query(
+      `insert into reservas (empresa_id, cliente_id, item_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, 'x', now() - interval '20 days', 60, 'cumplida')`,
+      [almhaM, ficha, itemM]);
+    const claseAdentro = await clase(1, 5);
+    const claseAfuera  = await clase(8, 5);
+    await comoElla();
+
+    const enPlan = async (idClase) => {
+      const r = await c.query(
+        `select en_plan from horarios_libres($1, $2, current_date, current_date + 30, null, $3)
+          where clase_id = $4`, [almhaM, itemM, null, idClase]);
+      return r.rows[0] && r.rows[0].en_plan;
+    };
+
+    decir(await enPlan(claseAdentro) === true, "un horario que el plan cubre se marca como que entra");
+    decir(await enPlan(claseAfuera) === false, "y uno posterior al vencimiento, como que no");
+
+    /* La mitad que importa: lo marcado como que no entra es exactamente
+       lo que la base rechaza al moverse. Si algun dia dejan de coincidir,
+       la pantalla miente con cara de saber. */
+    const aAfuera = await intentar(
+      "select public.reprogramar_como_cliente($1, jsonb_build_object('clase_id', $2::uuid)) r",
+      [cambio.fila.r.id, claseAfuera]);
+    decir(aAfuera.codigo === "P0056",
+      "y mover ahi se rechaza: la marca y el rechazo salen de la misma funcion");
+
+    /* Y reservar de cero SI lo toma: fuera del plan no es un error, es
+       un turno que se paga aparte. Es lo que cambio de 0070: antes
+       `reservar_como_cliente` elegia el abono mirando hoy y no la fecha
+       del turno, asi que reventaba en vez de tomarlo suelto. */
+    const suelto = await intentar("select public.reservar_como_cliente($1) r",
+      [JSON.stringify({ empresa_id: almhaM, clase_id: claseAfuera })]);
+    decir(suelto.codigo === null, "pero reservar de cero fuera del plan se puede: se paga aparte");
+
+    await comoLaBase();
+    decir((await una("select abono_id from reservas where id = $1", [suelto.fila.r.id])).abono_id === null,
+      "y esa reserva queda sin abono, en vez de gastarle uno que no la cubre");
+
+    /* La funcion que contesta sobre el plan de una ficha no se llama
+       desde afuera, por lo mismo que revisar_reglas_del_cliente. */
+    await comoElla();
+    decir((await intentar("select public.abono_cubre($1, $2, now() + interval '2 days')",
+      [abono, ficha])).codigo === "42501",
+      "abono_cubre es interna: contestaria sobre el plan de otra persona");
+
+    await comoLaBase();
+    await c.query(
+      "update abonos set vence = current_date + 60, clases = 3 where id = $1", [abono]);
+    await comoElla();
+
     /* ---- El recordatorio ya mandado hablaba de la hora vieja ----
 
        El defecto que 0067 dejó abierto y 0068 cerró. La ventana es real:

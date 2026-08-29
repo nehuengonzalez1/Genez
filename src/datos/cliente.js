@@ -546,7 +546,7 @@ export async function cargarServicios(empresaId) {
 const soloFecha = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-export async function cargarHorarios({ empresaId, itemId, dias = 14, personalId = null }) {
+export async function cargarHorarios({ empresaId, itemId, dias = 14, personalId = null, moviendo = null }) {
   if (!empresaId || !itemId) throw new Error("cargarHorarios necesita el comercio y el servicio.");
 
   const hoy = new Date();
@@ -559,6 +559,10 @@ export async function cargarHorarios({ empresaId, itemId, dias = 14, personalId 
     p_desde: soloFecha(hoy),
     p_hasta: soloFecha(hasta),
     p_personal: personalId,
+    /* Moviendo cambia la pregunta de "entra en tu plan": no es si alguno
+       de sus planes lo cubre, es si el plan de ESTE turno lo sigue
+       cubriendo. Ver la migracion 0070. */
+    p_moviendo: moviendo,
   });
   if (error) throw new Error("No pudimos cargar los horarios.");
 
@@ -576,6 +580,10 @@ export async function cargarHorarios({ empresaId, itemId, dias = 14, personalId 
        se puede hacer con el. */
     enEspera: !!h.en_espera,
     esperando: h.esperando || 0,
+    /* Si el plan de la persona cubre este horario. Lo contesta la base
+       con la misma funcion que despues acepta o rechaza, para que la
+       marca de la pantalla no pueda decir una cosa y el rechazo otra. */
+    enPlan: !!h.en_plan,
   }));
 }
 
