@@ -2539,6 +2539,401 @@ console.log("\nCancelar desde la app");
 }
 
 /* ------------------------------------------------------------
+   Mover el turno desde la app
+
+   Lo que se prueba de fondo son tres cosas que se rompen distinto:
+
+   · Que mover no cueste una clase. El saldo del abono contaba la reserva
+     que se estaba moviendo, así que quien tenía el pack entero
+     reservado —lo normal, no un borde— no podía mover ninguno.
+   · Que un turno individual conserve su id. Si algún día se cambia por
+     cancelar y crear, el recordatorio ya enviado apunta a una reserva
+     que quedó cancelada y el sistema manda otro.
+   · Que cambiar de clase sea una sola transacción. Si la clase nueva se
+     llenó recién, la vieja tiene que seguir ahí.
+
+   Las reglas se fijan acá adentro y no se leen de la configuración viva:
+   una prueba que afirma "Almha permite mover" se pone en rojo el día que
+   alguien lo apaga desde una pantalla, y eso no es un error del código.
+   ------------------------------------------------------------ */
+console.log("\nMover el turno desde la app");
+
+{
+  const almhaM = (await una("select id from empresas where nombre = 'Almha'")).id;
+  const itemM = (await una(
+    "select id from items where empresa_id = $1 and nombre = 'Pilates Reformer'", [almhaM])).id;
+
+  const intentar = async (sql, args = []) => {
+    await c.query("savepoint i");
+    try {
+      const r = await c.query(sql, args);
+      await c.query("release savepoint i");
+      return { codigo: null, fila: r.rows[0] || null };
+    } catch (e) {
+      await c.query("rollback to savepoint i");
+      return { codigo: e.code };
+    }
+  };
+
+  /* Anclado a una hora del día y no a `now() + 2 days`: con la prueba
+     corriendo a las 23:40, un turno de una hora cruzaría la medianoche y
+     `revisar_turno` lo rechaza con razón. Una prueba que falla según a
+     qué hora se corre no dice nada. */
+  const aLas = (dias, hora) =>
+    `date_trunc('day', now()) + interval '${dias} days ${hora} hours'`;
+
+  await c.query("begin");
+  try {
+    /* Las reglas, explícitas: tres horas para mover o cancelar sin costo,
+       y mover habilitado. */
+    await c.query(
+      `update empresas set config = coalesce(config, '{}'::jsonb)
+         || jsonb_build_object('turnos',
+              coalesce(config -> 'turnos', '{}'::jsonb)
+              || jsonb_build_object('cancelacionHoras', 3,
+                                    'permiteReprogramar', true,
+                                    'permiteCancelar', true))
+        where id = $1`, [almhaM]);
+
+    const u = (await una(
+      "insert into auth.users (id, email) values (gen_random_uuid(), 'mueve@genez.test') returning id")).id;
+    const ficha = (await una(
+      `insert into clientes (empresa_id, razon_social, usuario_id, enlazado_en)
+       values ($1, 'Clienta que mueve', $2, now()) returning id`, [almhaM, u])).id;
+
+    /* Un pack de tres con los tres turnos ya sacados: es el estado normal
+       de quien compró un pack y lo agendó, y es el que no dejaba mover
+       ninguno. */
+    const abono = (await una(
+      `insert into abonos (empresa_id, cliente_id, nombre, clases, desde, vence)
+       values ($1, $2, 'Pack mover', 3, current_date - 1, current_date + 60) returning id`,
+      [almhaM, ficha])).id;
+
+    /* Los dos individuales van sin profesional ni sala: lo que se prueba
+       acá es la regla del cliente y no el choque de agenda, que ya tiene
+       su prueba en la sección de reservas. */
+    const turno = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, abono_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, $4, 'x', ${aLas(2, 15)}, 60, 'confirmada') returning id`,
+      [almhaM, ficha, itemM, abono])).id;
+    const otro = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, abono_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, $4, 'x', ${aLas(6, 15)}, 60, 'confirmada') returning id`,
+      [almhaM, ficha, itemM, abono])).id;
+
+    /* Y el tercero es una inscripción a una clase publicada, que es el
+       otro brazo de la función. */
+    const clase = async (dias, cupo) => (await una(
+      `insert into reservas (empresa_id, item_id, nombre, desde, duracion_min, estado, cupo)
+       values ($1, $2, 'Reformer', ${aLas(dias, 18)}, 60, 'confirmada', $3) returning id`,
+      [almhaM, itemM, cupo])).id;
+
+    const martes = await clase(10, 5);
+    const jueves = await clase(12, 5);
+    const llena  = await clase(13, 1);
+    await c.query(
+      `insert into reservas (empresa_id, item_id, clase_id, nombre, desde, duracion_min, estado)
+       select $1, $2, $3, 'Otra', desde, duracion_min, 'confirmada' from reservas where id = $3`,
+      [almhaM, itemM, llena]);
+
+    /* Nace `pendiente` a propósito: es el estado que usa un local que
+       toma el turno y después llama para confirmarlo, y es el que 0067
+       pisaba al mover. */
+    const inscripcion = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, clase_id, abono_id, nombre, desde, duracion_min, estado)
+       select $1, $2, $3, $4, $5, 'x', desde, duracion_min, 'pendiente' from reservas where id = $4
+       returning id`,
+      [almhaM, ficha, itemM, martes, abono])).id;
+
+    const comoElla = async () => {
+      await c.query("set local role authenticated");
+      await c.query("select set_config('request.jwt.claims', $1, true)",
+        [JSON.stringify({ sub: u, role: "authenticated" })]);
+    };
+    /* Para mirar las tablas por dentro. Con la sesión de la clienta no se
+       ve ninguna, que es justamente el diseño: lee funciones. */
+    const comoLaBase = async () => {
+      await c.query("reset role");
+      await c.query("select set_config('request.jwt.claims', '', true)");
+    };
+
+    await comoElla();
+
+    const usadas = async () => Number((await c.query("select * from public.mis_abonos()")).rows
+      .find((a) => a.nombre === "Pack mover")?.usadas);
+
+    decir(await usadas() === 3, "arranca con el pack de 3 entero reservado");
+
+    /* ---- Un turno individual se mueve ---- */
+
+    decir((await intentar("select public.reprogramar_como_cliente($1, '{}'::jsonb) r",
+      [turno])).codigo === "P00D3", "sin horario nuevo no se mueve nada");
+
+    const ok = await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(3, 15)})) r`,
+      [turno]);
+    decir(ok.codigo === null, "el turno se mueve aunque el pack esté entero reservado");
+    decir(ok.codigo === null && ok.fila.r.id === turno,
+      "y conserva su id: la fila se movió, no se creó otra");
+    decir(await usadas() === 3, "mover no gasta una clase de más");
+
+    const ahora = (await c.query("select * from public.mis_turnos()")).rows.find((t) => t.id === turno);
+    decir(ahora && Math.abs(new Date(ahora.desde) - Date.now()) > 2.5 * 24 * 3600 * 1000,
+      "y el turno quedó en el horario nuevo");
+
+    await comoLaBase();
+    const rastro = await una(
+      "select campos_extra ->> 'movidaPor' quien, campos_extra ->> 'movidaDe' de from reservas where id = $1",
+      [turno]);
+    decir(rastro.quien === "cliente" && !!rastro.de,
+      "queda escrito quién lo movió y de qué horario venía");
+
+    /* Correr un turno de hora no cambia su estado, así que hasta 0067 no
+       entraba por ninguna de las dos puertas de `anotar_reserva` y no
+       dejaba asiento. Con los dos brazos de la función eso dejaba la
+       auditoría contando la mitad: cambiar de clase se veía y correr un
+       turno individual no. */
+    const asiento = await una(
+      `select accion, detalle ->> 'antes' antes from bitacora
+        where entidad = 'reservas' and entidad_id = $1 and accion = 'reserva.movida'`,
+      [turno]);
+    decir(!!asiento && !!asiento.antes,
+      "y queda en la bitácora, con la hora que tenía antes");
+    await comoElla();
+
+    /* ---- Lo que no se puede ---- */
+
+    decir((await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(3, 15)})) r`,
+      [turno])).codigo === "P00D5", "no se mueve al mismo horario que ya tenía");
+
+    decir((await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(6, 15)})) r`,
+      [turno])).codigo === "P0093", "ni encima de otro turno suyo");
+
+    decir((await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', now() + interval '30 minutes')) r`,
+      [turno])).codigo === "P0091", "ni a un horario que ya está muy cerca");
+
+    /* Sobre la hora el turno deja de ser suyo: cancelar cuesta, mover no
+       se puede. Es la diferencia entre las dos, y es la ventana
+       compartida la que la sostiene. */
+    await comoLaBase();
+    const encima = (await una(
+      `insert into reservas (empresa_id, cliente_id, item_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, 'x', now() + interval '90 minutes', 60, 'confirmada') returning id`,
+      [almhaM, ficha, itemM])).id;
+    const ajeno = (await una(
+      `insert into reservas (empresa_id, item_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, 'De nadie', ${aLas(4, 15)}, 60, 'confirmada') returning id`,
+      [almhaM, itemM])).id;
+    await comoElla();
+
+    decir((await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(9, 15)})) r`,
+      [encima])).codigo === "P00D2",
+      "dentro de las 3 horas ya no se mueve: ahí el lugar pasó a ser del comercio");
+
+    /* El mismo agujero que encontró 0055: `NULL not in (...)` no da
+       falso, da NULL, y con eso un turno sin ficha —de los que el
+       mostrador toma sin cargar a la persona— se movía desde cualquier
+       cuenta. */
+    decir((await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(9, 15)})) r`,
+      [ajeno])).codigo === "P0095", "ni el turno que no es de nadie");
+
+    /* ---- Cambiar de clase ---- */
+
+    decir((await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(11, 15)})) r`,
+      [inscripcion])).codigo === "P00D4",
+      "una clase no se mueve a un hueco individual: eso es cancelar y sacar otro");
+
+    decir((await intentar("select public.reprogramar_como_cliente($1, jsonb_build_object('clase_id', $2::uuid)) r",
+      [inscripcion, llena])).codigo === "P0045", "ni a una clase completa");
+
+    await comoLaBase();
+    decir((await una("select estado from reservas where id = $1", [inscripcion])).estado === "pendiente",
+      "y al rechazarla no se pierde la que tenía: es una sola transacción");
+    await comoElla();
+
+    const cambio = await intentar(
+      "select public.reprogramar_como_cliente($1, jsonb_build_object('clase_id', $2::uuid)) r",
+      [inscripcion, jueves]);
+    decir(cambio.codigo === null && cambio.fila.r.id !== inscripcion,
+      "cambiar de clase sí crea otra inscripción: no hay fila que correr de hora");
+    decir(await usadas() === 3, "y sigue gastando una sola clase del pack");
+
+    await comoLaBase();
+    const vieja = await una(
+      `select estado, campos_extra ->> 'cancelacionTarde' tarde,
+              campos_extra ->> 'reprogramadaA' hacia from reservas where id = $1`, [inscripcion]);
+    decir(vieja.estado === "cancelada" && vieja.tarde === null,
+      "la vieja queda cancelada y sin la marca de tardía: mover a tiempo no cuesta nada");
+    decir(vieja.hacia === cambio.fila.r.id,
+      "y las dos puntas quedan enlazadas, para que el mostrador lea la historia y no la adivine");
+
+    /* Mover cambia la hora y nada más. El estado es del comercio: un
+       local que llama para confirmar lo usa para saber a quién le falta
+       llamar, y con esto la clienta se lo confirmaba sola. */
+    decir((await una("select estado from reservas where id = $1", [cambio.fila.r.id])).estado === "pendiente",
+      "la inscripción nueva conserva el estado de la vieja: mover no confirma un turno pendiente");
+
+    /* ---- Lo que no entra en el plan se dice antes, no al confirmar ----
+
+       Lo encontro la captura de 0067: a la clienta de prueba, con el plan
+       venciendole el 31/08, la app le ofrecia cuatro horarios de
+       septiembre que su plan no cubria, y recien al confirmar la base
+       contestaba que no.
+
+       Lo que se prueba de fondo no es la marca: es que la marca y el
+       rechazo no puedan discrepar. Salen de la misma funcion, asi que la
+       prueba pide las dos cosas del mismo horario. */
+
+    await comoLaBase();
+    /* Un plan que vence antes que las clases de la semana que viene, para
+       que haya horarios adentro y afuera en la misma lista. Y con lugar
+       de sobra: a esta altura el pack de 3 ya esta gastado, y con el
+       agotado todo daria "no entra" por saldo, que no es lo que se esta
+       probando. */
+    await c.query(
+      "update abonos set vence = current_date + 1, clases = 20 where id = $1", [abono]);
+    /* Y algo en el pasado, porque `requiereHistorial` esta prendido en
+       Almha y la ficha nacio en esta transaccion con turnos solo a
+       futuro. Sin esto, reservar fuera del plan se rechaza por la regla
+       del primer turno y no por el plan. */
+    await c.query(
+      `insert into reservas (empresa_id, cliente_id, item_id, nombre, desde, duracion_min, estado)
+       values ($1, $2, $3, 'x', now() - interval '20 days', 60, 'cumplida')`,
+      [almhaM, ficha, itemM]);
+    const claseAdentro = await clase(1, 5);
+    const claseAfuera  = await clase(8, 5);
+    await comoElla();
+
+    const enPlan = async (idClase) => {
+      const r = await c.query(
+        `select en_plan from horarios_libres($1, $2, current_date, current_date + 30, null, $3)
+          where clase_id = $4`, [almhaM, itemM, null, idClase]);
+      return r.rows[0] && r.rows[0].en_plan;
+    };
+
+    decir(await enPlan(claseAdentro) === true, "un horario que el plan cubre se marca como que entra");
+    decir(await enPlan(claseAfuera) === false, "y uno posterior al vencimiento, como que no");
+
+    /* La mitad que importa: lo marcado como que no entra es exactamente
+       lo que la base rechaza al moverse. Si algun dia dejan de coincidir,
+       la pantalla miente con cara de saber. */
+    const aAfuera = await intentar(
+      "select public.reprogramar_como_cliente($1, jsonb_build_object('clase_id', $2::uuid)) r",
+      [cambio.fila.r.id, claseAfuera]);
+    decir(aAfuera.codigo === "P0056",
+      "y mover ahi se rechaza: la marca y el rechazo salen de la misma funcion");
+
+    /* Y reservar de cero SI lo toma: fuera del plan no es un error, es
+       un turno que se paga aparte. Es lo que cambio de 0070: antes
+       `reservar_como_cliente` elegia el abono mirando hoy y no la fecha
+       del turno, asi que reventaba en vez de tomarlo suelto. */
+    const suelto = await intentar("select public.reservar_como_cliente($1) r",
+      [JSON.stringify({ empresa_id: almhaM, clase_id: claseAfuera })]);
+    decir(suelto.codigo === null, "pero reservar de cero fuera del plan se puede: se paga aparte");
+
+    await comoLaBase();
+    decir((await una("select abono_id from reservas where id = $1", [suelto.fila.r.id])).abono_id === null,
+      "y esa reserva queda sin abono, en vez de gastarle uno que no la cubre");
+
+    /* La funcion que contesta sobre el plan de una ficha no se llama
+       desde afuera, por lo mismo que revisar_reglas_del_cliente. */
+    await comoElla();
+    decir((await intentar("select public.abono_cubre($1, $2, now() + interval '2 days')",
+      [abono, ficha])).codigo === "42501",
+      "abono_cubre es interna: contestaria sobre el plan de otra persona");
+
+    await comoLaBase();
+    await c.query(
+      "update abonos set vence = current_date + 60, clases = 3 where id = $1", [abono]);
+    await comoElla();
+
+    /* ---- El recordatorio ya mandado hablaba de la hora vieja ----
+
+       El defecto que 0067 dejó abierto y 0068 cerró. La ventana es real:
+       el aviso sale 24 horas antes y mover se puede hasta 3 horas antes,
+       o sea que hay veintiuna en las que el mensaje ya salió y el turno
+       todavía se mueve.
+
+       `p_horas` va grande a propósito. La ventana de la función es un
+       parámetro, así que en vez de fabricar un turno dentro de las
+       próximas 24 horas —que según a qué hora corra la prueba cruza la
+       medianoche y `revisar_turno` lo rechaza— se agranda la ventana y
+       se usan los turnos que ya hay. */
+
+    const pendiente = async (id) => {
+      const r = await c.query(
+        "select 1 from comunicaciones_pendientes($1, 720) where reserva_id = $2", [almhaM, id]);
+      return r.rowCount === 1;
+    };
+
+    await comoLaBase();
+    /* La fecha explícita, y con `clock_timestamp()`: `contactos.fecha`
+       usa `now()` de fábrica, que adentro de una prueba entera en una
+       transacción es la misma hora para todo y no deja ordenar nada. */
+    const avisar = () => c.query(
+      `insert into contactos (empresa_id, cliente_id, reserva_id, motivo, texto, fecha)
+       values ($1, $2, $3, 'recordatorio', 'Te esperamos manana', clock_timestamp())`,
+      [almhaM, ficha, otro]);
+
+    decir(await pendiente(otro), "un turno sin avisar aparece en los pendientes de Comunicaciones");
+    await avisar();
+    decir(!(await pendiente(otro)), "y avisado deja de aparecer: no se avisa dos veces");
+
+    await comoElla();
+    const movido = await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(7, 15)})) r`,
+      [otro]);
+    decir(movido.codigo === null, "la clienta lo mueve después de haber recibido el aviso");
+
+    await comoLaBase();
+    decir(await pendiente(otro),
+      "y vuelve a los pendientes: el mensaje que salió decía una hora que ya no existe");
+
+    /* Lo que no tiene que pasar: que vuelva para siempre. */
+    await avisar();
+    decir(!(await pendiente(otro)),
+      "avisado de la hora nueva, se va de la lista otra vez");
+
+    decir((await una("select movida_en from reservas where id = $1", [otro])).movida_en !== null,
+      "la marca de cuándo se movió la pone la base y no quien mueve: el mostrador también la deja");
+
+    /* ---- El comercio manda ---- */
+
+    await c.query(
+      `update empresas set config = config
+         || jsonb_build_object('turnos', (config -> 'turnos')
+              || jsonb_build_object('permiteReprogramar', false))
+        where id = $1`, [almhaM]);
+    await comoElla();
+
+    decir((await intentar(
+      `select public.reprogramar_como_cliente($1, jsonb_build_object('desde', ${aLas(9, 15)})) r`,
+      [turno])).codigo === "P00D0", "con la regla apagada, el turno se arregla por el local");
+
+    const apagados = await c.query("select * from public.mis_turnos()");
+    decir(apagados.rows.every((t) => t.puede_mover === false),
+      "y ningún turno ofrece el botón: la pantalla no lo calcula aparte");
+    decir(apagados.rows.some((t) => t.id === turno && !!t.empresa_id && !!t.item_id),
+      "cada turno trae su comercio y su servicio, que es lo que hace falta para buscarle otro horario");
+
+    /* ---- La función interna no se puede llamar de afuera ---- */
+
+    decir((await intentar(
+      "select public.revisar_reglas_del_cliente($1, $2, now() + interval '2 days', 60)",
+      [almhaM, ficha])).codigo === "42501",
+      "las reglas internas no se llaman desde una sesión: contestarían si otra persona tiene turno el martes");
+  } finally {
+    await c.query("rollback");
+  }
+}
+
+/* ------------------------------------------------------------
    La lista de espera
 
    Lo que más importa probar es lo que NO hace: no promueve a nadie. Es

@@ -463,8 +463,8 @@ El segundo lado del producto: lo que ve quien saca el turno y no quien lo
 anota. Vive en `src/cliente/`, con su capa de datos en
 `src/datos/cliente.js` y su entrada propia, `cliente.html`. El diseño
 —incluido lo que quedó abierto— está en
-`docs/modelo-identidad-del-cliente.md`, y las migraciones son de 0050 a
-0056.
+`docs/modelo-identidad-del-cliente.md`, y las migraciones van de 0050 en
+adelante.
 
 Es **un motor, no una app por comercio**: la marca, los módulos y los
 datos salen de la base. No hay una versión de Almha, hay una fila de
@@ -486,6 +486,51 @@ en el encabezado de ese archivo.
 **Un cliente nunca tiene una fila en `perfiles`.** `perfiles` significa
 "trabaja en este comercio", y de eso cuelga `puede_ver`. No es un permiso
 mal dado: es la categoría equivocada.
+
+**Y una función interna no se cierra con `revoke ... from public`.** Esta
+base tiene `alter default privileges ... grant execute on functions to
+anon, authenticated, service_role`, que lo pone Supabase: toda función
+nueva nace con esos tres roles adentro, y sacarle `public` no les toca
+nada. Verificado contra `pg_proc.proacl` cuando la prueba de 0067 se puso
+en rojo. Vale para cualquier función que no tenga que poder llamarse
+desde el navegador.
+
+### El turno, del lado del cliente
+
+Tres verbos y ninguno escribe en `reservas` directo:
+`reservar_como_cliente`, `cancelar_como_cliente` y
+`reprogramar_como_cliente`. Las reglas del comercio —anticipación,
+historial, aviso del mismo día, hasta cuándo se cancela— salen de
+`reglas_de`, que es fábrica del rubro con lo que el comercio cambió
+encima.
+
+**Mover no es cancelar y volver a sacar.** Un turno individual mueve su
+propia fila con `mover_turno`, que es la misma que usa el mostrador: así
+conserva su id, y con él el recordatorio ya enviado —`contactos.reserva_id`,
+de Comunicaciones— y su enlace con el abono. Solo una inscripción a una
+clase se cambia por otra, porque no hay fila que correr de hora y el cupo
+vive adentro de `inscribir`.
+
+**Mover y cancelar comparten la ventana y no la respuesta.** Las dos se
+pueden hasta `cancelacionHoras` antes. Pasada esa hora cancelar sigue
+estando y cuesta; mover ya no se puede. Cobrarlo sería descontar la clase
+*y además* dar otro lugar, y dejarlo gratis sería la puerta de al lado
+para esquivar el costo de cancelar tarde.
+
+**Cada horario dice si entra en el plan de quien pregunta**, y lo dice
+`horarios_libres` antes de que elija. El caso lo destapó una captura: con
+el abono venciéndole el 31, a la clienta se le ofrecían cuatro horarios de
+septiembre que no podía tomar y se enteraba al confirmar. La marca
+significa distinto según de dónde se venga —reservando se toma igual y se
+paga aparte; moviendo no se puede, porque el plan del turno es el que es—
+y por eso `horarios_libres` recibe el turno que se está moviendo.
+
+**La marca y el rechazo salen de la misma función.** `abono_cubre`
+envuelve a `revisar_abono` y contesta si levantó. No se copia su lógica:
+`revisar_abono` tiene que seguir siendo la única respuesta porque además
+dice *cuál* de las tres reglas falló, que es el mensaje que lee la
+persona. Un "entra en tu plan" calculado aparte se desincroniza, y el día
+que pase la pantalla miente con cara de saber.
 
 ### El host decide cuál de las dos aplicaciones se sirve
 

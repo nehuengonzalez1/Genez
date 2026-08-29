@@ -23,11 +23,25 @@
    reservable: descuenta la anticipación mínima del comercio, las clases
    llenas y las que ya tiene tomadas. Si la pantalla filtrara además por
    su cuenta, la primera vez que cambie una regla habría dos verdades.
+
+   Y ES LA MISMA PANTALLA PARA MOVER UN TURNO
+   ------------------------------------------
+   Con `moviendo` se entra desde el detalle de un turno en vez de desde
+   cero. Cambia poco y a propósito: elegir horario es elegir horario, y
+   quien acaba de reservar la semana pasada no tiene que aprender otra
+   pantalla para correr el mismo turno dos días.
+
+   Lo único que se saca es la elección de servicio, que deja de ser una
+   pregunta: mover es el mismo turno en otra hora. Cambiar de servicio es
+   cancelar y sacar otro, con otro precio, y la base lo rechaza igual
+   (P00D4).
    ============================================================ */
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, X, Check, AlertTriangle, Users } from "lucide-react";
-import { cargarServicios, cargarHorarios, reservar, anotarmeEnEspera } from "../datos/cliente.js";
+import {
+  cargarServicios, cargarHorarios, reservar, anotarmeEnEspera, moverTurno,
+} from "../datos/cliente.js";
 import {
   Pantalla, Tarjeta, Boton, Cargando, Vacio, Error as ErrorEstado, ROTULO, hora,
 } from "./ui.jsx";
@@ -109,18 +123,32 @@ function Puntos({ hechos }) {
   );
 }
 
-function Fila({ rotulo, valor, vacio, onTocar, apagada }) {
-  return (
-    <button onClick={onTocar} disabled={apagada}
-      className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 min-h-[44px] text-left border-b border-borde last:border-b-0 transition-colors ${
-        apagada ? "opacity-40" : "hover:bg-superficie-2"}`}>
+function Fila({ rotulo, valor, vacio, onTocar, apagada, fijo }) {
+  const contenido = (
+    <>
       <span className="text-sm text-texto-suave shrink-0">{rotulo}</span>
       <span className="flex items-center gap-2 min-w-0">
         <span className={`text-[15px] truncate ${valor ? "" : "text-texto-tenue"}`}>
           {valor || vacio}
         </span>
-        <ChevronRight size={16} className="text-texto-tenue shrink-0" />
+        {!fijo && <ChevronRight size={16} className="text-texto-tenue shrink-0" />}
       </span>
+    </>
+  );
+
+  /* Fijo no es lo mismo que apagado. `apagada` baja al 40%, que está bien
+     para un filtro que todavía no se puede tocar y está mal acá: moviendo
+     un turno, el servicio es el dato que dice qué se está moviendo y
+     tiene que leerse. Lo que se saca es el chevron, que es lo que promete
+     que algo se abre. */
+  const caja = "w-full flex items-center justify-between gap-3 px-4 py-3.5 min-h-[44px] text-left border-b border-borde last:border-b-0";
+
+  if (fijo) return <div className={caja}>{contenido}</div>;
+
+  return (
+    <button onClick={onTocar} disabled={apagada}
+      className={`${caja} transition-colors ${apagada ? "opacity-40" : "hover:bg-superficie-2"}`}>
+      {contenido}
     </button>
   );
 }
@@ -158,7 +186,7 @@ function Elegir({ titulo, opciones, valor, onElegir, onCerrar }) {
 }
 
 function Filtros({
-  servicios, servicio, horarios, buscando,
+  servicios, servicio, horarios, buscando, moviendo,
   personal, dia, recurso, onCambiar, onElegirServicio, onVer,
 }) {
   const [abierta, setAbierta] = useState(null);
@@ -206,9 +234,16 @@ function Filtros({
     <>
       <Puntos hechos={hechos} />
 
+      {moviendo && (
+        <p className="text-[15px] text-texto-suave -mt-2 mb-5 leading-relaxed">
+          Ahora lo tenés {tituloDia(moviendo.desde).toLowerCase()} a
+          las {hora(moviendo.desde)}. Elegí cuándo te queda mejor.
+        </p>
+      )}
+
       <div className="bg-superficie border border-borde rounded-xl overflow-hidden">
         <Fila rotulo="Servicio" valor={servicio && servicio.nombre}
-          vacio="Elegir" onTocar={() => setAbierta("servicio")} />
+          vacio="Elegir" fijo={!!moviendo} onTocar={() => setAbierta("servicio")} />
 
         {/* Los filtros se apagan hasta que haya servicio: no hay de qué
             listar profesionales todavía. */}
@@ -276,7 +311,7 @@ function Filtros({
    Paso 2 · Cuándo
    ------------------------------------------------------------ */
 
-function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
+function ElegirHorario({ servicio, horarios, cargando, moviendo, onElegir }) {
   if (cargando) return <Cargando>Buscando horarios…</Cargando>;
 
   if (!horarios.length) {
@@ -304,10 +339,30 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
   const deTodos = unicos(horarios);
   const comunTodos = deTodos.length === 1 ? deTodos[0] : null;
 
+  /* Marcar lo que no entra en el plan solo dice algo si algo entra. Sin
+     abono vigente no entra ninguno, y marcarlos todos sería ponerle un
+     sello a la lista entera para no distinguir nada. */
+  const hayPlan = horarios.some((h) => h.enPlan);
+  const marcar = (h) => hayPlan && !h.enPlan;
+
   return (
     <div className="space-y-6">
       {comunTodos && (
         <p className="text-sm text-texto-suave -mt-2">Con {comunTodos}</p>
+      )}
+
+      {/* Una vez arriba y no en cada celda, que es lo mismo que se hace
+          con el nombre de la profesional: en la celda entran ocho
+          caracteres y la explicación no. Y dice dos cosas distintas
+          porque son dos: reservando se puede tomar igual y se paga
+          aparte; moviendo no, porque el plan del turno es el que es y
+          cambiarlo por otro en silencio no lo hace nadie. */}
+      {horarios.some(marcar) && (
+        <p className="text-sm text-texto-suave -mt-2 leading-relaxed">
+          {moviendo
+            ? "Los que dicen «no entra» quedan fuera de tu plan, así que no podés mover el turno ahí."
+            : "Los que dicen «no entra» quedan fuera de tu plan: ese turno se paga aparte."}
+        </p>
       )}
 
       {porDia(horarios).map((g) => {
@@ -338,13 +393,25 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
               {g.horarios.map((h, i) => (
                 <button key={h.claseId || `${h.desde.toISOString()}-${i}`}
                   onClick={() => onElegir(h)}
+                  /* Moviendo, lo que queda fuera del plan no se puede
+                     elegir: la base lo va a rechazar, y ofrecerlo para
+                     rechazarlo después es lo que 0053 llama la peor forma
+                     de decir que no. Reservando sí se elige. */
+                  disabled={!!moviendo && marcar(h)}
                   /* El `min-h` no es decoración: con `py-3` y la hora en
                      `leading-none` la celda medía 43px, uno menos que el
                      mínimo que `ui.jsx` se fija para lo que se toca con
                      el pulgar. Y acá hay 43 de estos, uno al lado del
                      otro. */
                   className={`bg-superficie border rounded-lg px-3 py-3 min-h-[44px] text-left transition-colors ${
-                    h.lugares === 0 ? "border-borde opacity-70 hover:opacity-100" : "border-borde hover:border-acento"}`}>
+                    /* Apagada pero legible. Al 40% la hora se perdia, y
+                       lo que hay que poder leer es justamente cual es el
+                       horario que no entra: si no se lee, la celda es
+                       ruido en vez de informacion. Mas apagada que la
+                       clase completa, que sigue siendo tocable. */
+                    moviendo && marcar(h) ? "border-borde opacity-50"
+                    : h.lugares === 0 ? "border-borde opacity-70 hover:opacity-100"
+                    : "border-borde hover:border-acento"}`}>
                   <div className="f-m text-[17px] leading-none">{hora(h.desde)}</div>
 
                   {enCadaHueco && h.profesional && (
@@ -379,6 +446,15 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
                       {h.enEspera ? "En lista" : "Completa"}
                     </div>
                   )}
+
+                  {/* Ocho caracteres, los mismos que COMPLETA, que es lo
+                      que entra en una celda de 87px a 320px de ancho. La
+                      frase entera va arriba, una sola vez. */}
+                  {marcar(h) && h.lugares !== 0 && (
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-texto-tenue mt-1.5 whitespace-nowrap">
+                      No entra
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
@@ -397,11 +473,16 @@ function ElegirHorario({ servicio, horarios, cargando, onElegir }) {
    error acá que cancelar un turno después.
    ------------------------------------------------------------ */
 
-function Confirmar({ servicio, horario, yendo, error, onConfirmar, onVolver }) {
+function Confirmar({ servicio, horario, moviendo, yendo, error, onConfirmar, onVolver }) {
   /* Una clase llena no se reserva: se pide lugar. Es la misma pantalla
      porque lo que se está por hacer se lee igual —qué, cuándo, con
-     quién— y lo único que cambia es qué significa el botón. */
-  const esEspera = horario.lugares === 0;
+     quién— y lo único que cambia es qué significa el botón.
+
+     Moviendo no aplica: dejar un turno confirmado para entrar en una
+     lista de espera es cambiar algo seguro por algo que quizás, y no hay
+     forma de que eso sea lo que alguien quiso. Los horarios completos ni
+     se ofrecen. */
+  const esEspera = !moviendo && horario.lugares === 0;
 
   if (horario.enEspera) {
     return (
@@ -427,9 +508,20 @@ function Confirmar({ servicio, horario, yendo, error, onConfirmar, onVolver }) {
   return (
     <div className="space-y-5">
       <Tarjeta>
-        <div className={ROTULO}>{esEspera ? "Vas a pedir lugar" : "Vas a reservar"}</div>
+        <div className={ROTULO}>
+          {moviendo ? "Vas a cambiar el horario" : esEspera ? "Vas a pedir lugar" : "Vas a reservar"}
+        </div>
         <div className="mt-3 space-y-2.5">
           <div className="text-lg">{servicio.nombre}</div>
+
+          {/* Las dos horas juntas, y la vieja tachada. Es el único momento
+              donde se ven de qué a qué, y es más barato darse cuenta acá
+              de que era el otro jueves que cancelar un turno después. */}
+          {moviendo && (
+            <div className="text-[15px] text-texto-tenue line-through">
+              {tituloDia(moviendo.desde)}, {hora(moviendo.desde)}
+            </div>
+          )}
           <div className="text-[15px] text-texto-suave">
             {tituloDia(horario.desde)}, {hora(horario.desde)}
           </div>
@@ -448,6 +540,18 @@ function Confirmar({ servicio, horario, yendo, error, onConfirmar, onVolver }) {
         </div>
       )}
 
+      {/* Lo último que se dice antes de confirmar, y es sobre plata: en la
+          grilla ya estaba la marca, pero un sello de ocho caracteres no
+          es lo mismo que decirlo entero donde se decide. Moviendo no
+          aparece nunca —esos horarios no se pueden elegir— así que no
+          hace falta preguntarlo. */}
+      {!horario.enPlan && !esEspera && (
+        <p className="text-sm text-texto-suave leading-relaxed">
+          Este horario queda fuera de tu plan, así que se paga aparte.
+          {servicio.precio > 0 && ` Sale ${money(servicio.precio)}.`}
+        </p>
+      )}
+
       {esEspera && (
         <p className="text-sm text-texto-suave leading-relaxed">
           Esta clase está completa
@@ -459,8 +563,9 @@ function Confirmar({ servicio, horario, yendo, error, onConfirmar, onVolver }) {
       <div className="space-y-2.5">
         <Boton onClick={onConfirmar} disabled={yendo}>
           {yendo
-            ? (esEspera ? "Anotándote…" : "Reservando…")
-            : (esEspera ? "Anotarme en la lista" : "Confirmar turno")}
+            ? (moviendo ? "Cambiando…" : esEspera ? "Anotándote…" : "Reservando…")
+            : (moviendo ? "Confirmar el cambio"
+              : esEspera ? "Anotarme en la lista" : "Confirmar turno")}
         </Boton>
         <Boton variante="suave" onClick={onVolver} disabled={yendo}>
           Elegir otro horario
@@ -474,14 +579,14 @@ function Confirmar({ servicio, horario, yendo, error, onConfirmar, onVolver }) {
    Listo
    ------------------------------------------------------------ */
 
-function Listo({ servicio, horario, aviso, espera, onVer, onOtro }) {
+function Listo({ servicio, horario, aviso, espera, moviendo, onVer, onOtro }) {
   return (
     <div className="text-center py-10">
       <div className="w-14 h-14 rounded-full bg-bien-suave border border-bien flex items-center justify-center mx-auto">
         <Check size={26} className="text-bien" />
       </div>
       <h2 className="f-d text-xl mt-5">
-        {espera ? "Estás en la lista" : "Turno reservado"}
+        {moviendo ? "Horario cambiado" : espera ? "Estás en la lista" : "Turno reservado"}
       </h2>
       <p className="text-[15px] text-texto-suave mt-2">
         {servicio.nombre}, {tituloDia(horario.desde).toLowerCase()} a las {hora(horario.desde)}.
@@ -510,7 +615,10 @@ function Listo({ servicio, horario, aviso, espera, onVer, onOtro }) {
 
       <div className="mt-8 space-y-2.5">
         <Boton onClick={onVer}>Ver mis turnos</Boton>
-        <Boton variante="suave" onClick={onOtro}>Reservar otro</Boton>
+        {/* Moviendo no va: "reservar otro" después de cambiar un horario
+            ofrece sacar un segundo turno a quien vino a correr el que
+            tenía, que es lo contrario de lo que pidió. */}
+        {!moviendo && <Boton variante="suave" onClick={onOtro}>Reservar otro</Boton>}
       </div>
     </div>
   );
@@ -520,9 +628,25 @@ function Listo({ servicio, horario, aviso, espera, onVer, onOtro }) {
    El flujo
    ------------------------------------------------------------ */
 
-export function Reservar({ empresaId, onCerrar, onReservado }) {
+export function Reservar({ empresaId, moviendo = null, onCerrar, onReservado }) {
+  /* El comercio del turno y no el de la app. Son el mismo casi siempre
+     —la app es de un comercio— pero `mis_turnos` devuelve los de todos
+     juntos, así que quien es clienta de la estética y del gimnasio puede
+     estar mirando un turno del otro. */
+  const emp = (moviendo && moviendo.empresaId) || empresaId;
+
   const [servicios, setServicios] = useState([]);
-  const [servicio, setServicio] = useState(null);
+  /* Moviendo, el servicio ya está decidido: es el del turno. No sale de
+     `cargarServicios` porque no hace falta el catálogo entero para saber
+     lo que ya sabemos, y porque un servicio que el comercio dio de baja
+     después de que ella reservara no estaría en esa lista y dejaría el
+     turno sin poder moverse. */
+  const [servicio, setServicio] = useState(() => moviendo && {
+    id: moviendo.itemId,
+    nombre: moviendo.servicio,
+    enClase: moviendo.esClase,
+    duracionMin: moviendo.duracionMin,
+  });
   const [horarios, setHorarios] = useState([]);
   const [horario, setHorario] = useState(null);
 
@@ -543,13 +667,40 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
   const [error, setError] = useState("");
   const [errorCarga, setErrorCarga] = useState("");
 
+  /* Los horarios se piden en tres momentos —al abrir, al elegir servicio y
+     al releer después de un rechazo— y qué se ofrece tiene que ser lo
+     mismo en los tres.
+
+     Moviendo se sacan los completos: una clase llena es una opción cuando
+     no tenés nada, pero cuando ya tenés el turno, cambiarlo por un lugar
+     en una lista de espera es soltar lo seguro por lo que quizás.
+
+     Estaba escrito en la carga de arriba y no en las otras dos, así que
+     un rechazo de la base —"ese abono vence el 31/08"— releía la lista
+     sin filtro y volvían a aparecer las clases completas. Lo encontró la
+     captura, que es exactamente para lo que DISENO.md la pide. */
+  const traerHorarios = useCallback(async (itemId) => {
+    const hs = await cargarHorarios({
+      empresaId: emp, itemId, moviendo: moviendo && moviendo.id,
+    });
+    return moviendo ? hs.filter((h) => h.lugares > 0) : hs;
+  }, [emp, moviendo]);
+
   const traerServicios = useCallback(() => {
     setCargando(true); setErrorCarga("");
-    return cargarServicios(empresaId)
+    /* Moviendo se saltea el catálogo y se piden los horarios de una: la
+       única pregunta que queda es cuándo. */
+    if (moviendo) {
+      return traerHorarios(moviendo.itemId)
+        .then(setHorarios)
+        .catch((e) => setErrorCarga(e.message))
+        .finally(() => setCargando(false));
+    }
+    return cargarServicios(emp)
       .then(setServicios)
       .catch((e) => setErrorCarga(e.message))
       .finally(() => setCargando(false));
-  }, [empresaId]);
+  }, [emp, moviendo, traerHorarios]);
 
   useEffect(() => { traerServicios(); }, [traerServicios]);
 
@@ -559,7 +710,7 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
     setServicio(s); setPersonal(null); setDia(null); setRecurso(null);
     setBuscando(true); setError("");
     try {
-      setHorarios(await cargarHorarios({ empresaId, itemId: s.id }));
+      setHorarios(await traerHorarios(s.id));
     } catch (e) {
       setErrorCarga(e.message);
     } finally {
@@ -572,9 +723,11 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
     try {
       /* Una clase llena no se reserva: se pide lugar. Son dos funciones
          distintas en la base, con reglas distintas. */
-      const r = horario.lugares === 0
+      const r = moviendo
+        ? await moverTurno({ reservaId: moviendo.id, horario })
+        : horario.lugares === 0
         ? { espera: await anotarmeEnEspera(horario.claseId) }
-        : await reservar({ empresaId, horario, itemId: servicio.id });
+        : await reservar({ empresaId: emp, horario, itemId: servicio.id });
       /* Se guarda el horario junto con el resultado: despues de reservar
          ya no esta en la lista de disponibles —se lo acaba de tomar ella—
          asi que buscarlo de nuevo no lo encuentra. */
@@ -587,7 +740,7 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
       setError(e.message);
       setHorario(null);
       try {
-        setHorarios(await cargarHorarios({ empresaId, itemId: servicio.id }));
+        setHorarios(await traerHorarios(servicio.id));
       } catch { /* si tampoco se pueden releer, el error de arriba alcanza */ }
     } finally {
       setYendo(false);
@@ -595,14 +748,19 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
   }
 
   function atras() {
-    if (hecho) { setHecho(null); setServicio(null); setHorario(null); setViendo(false); return; }
+    /* Moviendo, terminar es volver: no hay a dónde empezar de nuevo si el
+       servicio nunca se eligió. */
+    if (hecho) {
+      if (moviendo) return onCerrar();
+      setHecho(null); setServicio(null); setHorario(null); setViendo(false); return;
+    }
     if (horario) return setHorario(null);
     if (viendo) return setViendo(false);
     onCerrar();
   }
 
   const titulo = hecho ? ""
-    : !viendo ? "Reservar turno"
+    : !viendo ? (moviendo ? "Cambiar el horario" : "Reservar turno")
     : !horario ? servicio.nombre
     : "Confirmar";
 
@@ -637,7 +795,7 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
         <Cargando />
       ) : hecho ? (
         <Listo servicio={servicio} horario={hecho.horario} aviso={hecho.aviso}
-          espera={hecho.espera}
+          espera={hecho.espera} moviendo={moviendo}
           onVer={onCerrar}
           onOtro={() => { setHecho(null); setServicio(null); setHorario(null); }} />
       ) : !viendo ? (
@@ -648,7 +806,8 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
             </div>
           )}
           <Filtros servicios={servicios} servicio={servicio} horarios={horarios}
-            buscando={buscando} personal={personal} dia={dia} recurso={recurso}
+            buscando={buscando} moviendo={moviendo}
+            personal={personal} dia={dia} recurso={recurso}
             onElegirServicio={elegirServicio}
             onCambiar={(k, v) => ({ personal: setPersonal, dia: setDia, recurso: setRecurso }[k])(v)}
             onVer={() => setViendo(true)} />
@@ -660,14 +819,20 @@ export function Reservar({ empresaId, onCerrar, onReservado }) {
               {error}
             </div>
           )}
-          <ElegirHorario servicio={servicio} cargando={buscando} onElegir={setHorario}
+          {/* Elegir otro horario borra el error del anterior. Sin esto, un
+              rechazo —"ese abono vence el 31/08"— seguía escrito en la
+              confirmación del horario siguiente, diciéndole que no se
+              puede algo que todavía nadie intentó. */}
+          <ElegirHorario servicio={servicio} cargando={buscando} moviendo={moviendo}
+            onElegir={(h) => { setError(""); setHorario(h); }}
             horarios={horarios.filter((h) =>
               (!personal || h.personalId === personal) &&
               (!dia || h.desde.toDateString() === dia) &&
               (!recurso || h.recursoId === recurso))} />
         </>
       ) : (
-        <Confirmar servicio={servicio} horario={horario} yendo={yendo} error={error}
+        <Confirmar servicio={servicio} horario={horario} moviendo={moviendo}
+          yendo={yendo} error={error}
           onConfirmar={confirmar} onVolver={() => setHorario(null)} />
       )}
     </div>
