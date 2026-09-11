@@ -1,0 +1,100 @@
+name: Sincronizar issues con Trello
+
+# Crea una tarjeta en el tablero "Genez - Plan de trabajo" cuando se abre un
+# issue (en la lista del sprint que indique su milestone, o en Backlog si no
+# tiene), y la mueve a "Hecho" cuando el issue se cierra (o de vuelta a su
+# lista de sprint si se reabre).
+#
+# Necesita dos secrets del repo: TRELLO_KEY y TRELLO_TOKEN.
+# Los IDs de abajo son de ESE tablero puntual, no son secretos.
+
+on:
+  issues:
+    types: [opened, closed, reopened]
+
+env:
+  TRELLO_BOARD_ID: 6aa4811ea3c3ffb09cedcaa5
+  LIST_BACKLOG: 6aa484c446d94ace1fa79a37
+  LIST_SPRINT1: 6aa486846a531131fd24ce1e
+  LIST_SPRINT2: 6aa486922d85a02f87296b5c
+  LIST_SPRINT3: 6aa4869b1811d0836aee94da
+  LIST_HECHO: 6aa486a676d9ee97048fa72c
+  LABEL_CRITICA: 6aa4811ea3c3ffb09cedcbd4
+  LABEL_ALTA: 6aa4811ea3c3ffb09cedcbd3
+  LABEL_MEDIA: 6aa4811ea3c3ffb09cedcbd2
+  LABEL_BAJA: 6aa4811ea3c3ffb09cedcbd1
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Crear o mover la tarjeta de Trello
+        env:
+          TRELLO_KEY: ${{ secrets.TRELLO_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_ACTION: ${{ github.event.action }}
+          MILESTONE_TITLE: ${{ github.event.issue.milestone.title }}
+          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
+        run: |
+          set -e
+          AUTH="key=${TRELLO_KEY}&token=${TRELLO_TOKEN}"
+
+          # A qué lista corresponde según el milestone (sprint) del issue.
+          case "$MILESTONE_TITLE" in
+            "Sprint 1 — Seguridad y accesos") LIST_ID="$LIST_SPRINT1" ;;
+            "Sprint 2 — Documentación e infraestructura") LIST_ID="$LIST_SPRINT2" ;;
+            "Sprint 3 — Calidad y mantenimiento") LIST_ID="$LIST_SPRINT3" ;;
+            *) LIST_ID="$LIST_BACKLOG" ;;
+          esac
+
+          # Label de prioridad -> label de Trello, según las labels del issue.
+          LABEL_ID=""
+          case ",$ISSUE_LABELS," in
+            *",prioridad: crítica,"*) LABEL_ID="$LABEL_CRITICA" ;;
+            *",prioridad: alta,"*) LABEL_ID="$LABEL_ALTA" ;;
+            *",prioridad: media,"*) LABEL_ID="$LABEL_MEDIA" ;;
+            *",prioridad: baja,"*) LABEL_ID="$LABEL_BAJA" ;;
+          esac
+
+          CARD_NAME="#${ISSUE_NUMBER} ${ISSUE_TITLE}"
+
+          if [ "$ISSUE_ACTION" = "opened" ]; then
+            QUERY="name=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' "$CARD_NAME")"
+            QUERY="$QUERY&desc=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' "$ISSUE_URL")"
+            QUERY="$QUERY&idList=$LIST_ID"
+            if [ -n "$LABEL_ID" ]; then
+              QUERY="$QUERY&idLabels=$LABEL_ID"
+            fi
+            curl -sf -X POST "https://api.trello.com/1/cards?${QUERY}&${AUTH}" > /dev/null
+            echo "Tarjeta creada en la lista $LIST_ID para $CARD_NAME"
+            exit 0
+          fi
+
+          # closed / reopened: hay que encontrar la tarjeta existente por nombre.
+          CARDS_JSON=$(curl -sf "https://api.trello.com/1/boards/${TRELLO_BOARD_ID}/cards?fields=name,id&${AUTH}")
+          CARD_ID=$(echo "$CARDS_JSON" | python3 -c "
+import json, sys
+cards = json.load(sys.stdin)
+prefix = '#${ISSUE_NUMBER} '
+for c in cards:
+    if c['name'].startswith(prefix):
+        print(c['id'])
+        break
+")
+
+          if [ -z "$CARD_ID" ]; then
+            echo "No se encontró tarjeta para #${ISSUE_NUMBER}, no hay nada que mover."
+            exit 0
+          fi
+
+          if [ "$ISSUE_ACTION" = "closed" ]; then
+            TARGET_LIST="$LIST_HECHO"
+          else
+            TARGET_LIST="$LIST_ID"
+          fi
+
+          curl -sf -X PUT "https://api.trello.com/1/cards/${CARD_ID}?idList=${TARGET_LIST}&${AUTH}" > /dev/null
+          echo "Tarjeta $CARD_ID movida a $TARGET_LIST"
