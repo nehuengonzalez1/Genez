@@ -1212,10 +1212,30 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      la base, que es la que recalcula el costo anterior y el margen. Si el
      guardado falla se relee todo el catálogo: seguir mostrando un cambio que
      no se guardó es peor que perder lo que el usuario tenía en pantalla. */
+  /* La ficha del producto elige el proveedor por nombre y la base guarda
+     `proveedor_id`. Hasta acá nadie los cruzaba y el nombre se descartaba en
+     silencio: el único vínculo que existía era el de la semilla. Se resuelve
+     en este único lugar por el que pasan todas las altas y ediciones, con
+     el id que ya trae `provs`, y si el nombre es nuevo se crea la ficha
+     —el mismo camino que el alta desde un remito—. */
+  const proveedorIdDe = useCallback(async (nombre) => {
+    const n = String(nombre || "").trim();
+    if (!n) return null;
+    const base = provsEnBase.current || {};
+    if (base[n] && base[n].id) return base[n].id;
+    const conIds = await guardarProveedores(empresaId, base, { ...base, [n]: { pago: "", entrega: "", tel: "", cuit: "" } });
+    provsEnBase.current = conIds;
+    setProvs((v) => ({ ...v, [n]: conIds[n] }));
+    return conIds[n].id;
+  }, [empresaId]);
+
   const actualizarProducto = useCallback(async (id, cambios, msg) => {
     setProductos((ps) => ps.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
     try {
-      const fresco = await guardarProducto(id, cambios);
+      const enBase = "proveedor" in cambios
+        ? { ...cambios, proveedorId: await proveedorIdDe(cambios.proveedor) }
+        : cambios;
+      const fresco = await guardarProducto(id, enBase);
       if (fresco) {
         setProductos((ps) => ps.map((p) => {
           if (p.id !== id) return p;
@@ -1235,11 +1255,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         setProductos(ps);
       } catch { /* el error ya se avisó; el catálogo queda como estaba */ }
     }
-  }, [empresaId]);
+  }, [empresaId, proveedorIdDe]);
 
   const agregarProducto = useCallback(async (datos, msg) => {
     try {
-      const p = await crearProducto(empresaId, aDatosDeBase(datos));
+      const proveedorId = await proveedorIdDe(datos.proveedor);
+      const p = await crearProducto(empresaId, { ...aDatosDeBase(datos), proveedorId });
       setProductos((ps) => [...ps, p]);
       // Con msg en null el alta no avisa: la usa quien importa muchos de una.
       if (msg !== null) toast(msg || `${p.nombre} creado.`);
@@ -1248,7 +1269,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       toast(e.message || "No se pudo crear el producto.", "mal");
       return null;
     }
-  }, [empresaId]);
+  }, [empresaId, proveedorIdDe]);
 
   /* Un solo camino para el alta y la edición: quien llama pasa el cliente
      entero y el id decide cuál de las dos es. Devuelve el cliente guardado
