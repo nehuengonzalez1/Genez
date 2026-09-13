@@ -19,7 +19,9 @@ env:
   LIST_SPRINT2: 6aa486922d85a02f87296b5c
   LIST_SPRINT3: 6aa4869b1811d0836aee94da
   LIST_SPRINT4: 6aa490dc0f7e6f4a8f611cb5
-  LIST_SPRINT5: 6aa490ec5278c503b1432596
+  LIST_SPRINT5: 6aa6ba883f736f1a40ed47b0
+  LIST_SPRINT6: 6aa6ba882acebf0c32eaa95e
+  LIST_SPRINT7: 6aa490ec5278c503b1432596
   LIST_HECHO: 6aa486a676d9ee97048fa72c
   LABEL_CRITICA: 6aa4811ea3c3ffb09cedcbd4
   LABEL_ALTA: 6aa4811ea3c3ffb09cedcbd3
@@ -50,7 +52,9 @@ jobs:
             "Sprint 2 — Documentación e infraestructura") LIST_ID="$LIST_SPRINT2" ;;
             "Sprint 3 — Calidad y mantenimiento") LIST_ID="$LIST_SPRINT3" ;;
             "Sprint 4 — Seguridad del desarrollo") LIST_ID="$LIST_SPRINT4" ;;
-            "Sprint 5 — Heurísticas y UI/UX") LIST_ID="$LIST_SPRINT5" ;;
+            "Sprint 5 — Listos para testear: supermercado") LIST_ID="$LIST_SPRINT5" ;;
+            "Sprint 6 — Listos para testear: casa de sanitarios") LIST_ID="$LIST_SPRINT6" ;;
+            "Sprint 7 — Heurísticas y UI/UX") LIST_ID="$LIST_SPRINT7" ;;
             *) LIST_ID="$LIST_BACKLOG" ;;
           esac
 
