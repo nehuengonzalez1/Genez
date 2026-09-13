@@ -1,14 +1,14 @@
 name: Pruebas
 
-# Corre en cada PR y en cada push a main lo que se puede probar sin la
-# base: hoy, qué aplicación sirve middleware.js para cada host. Las demás
-# pruebas (scripts/probar-*.mjs) corren contra una base real y entran acá
-# el día que haya un proyecto de Supabase de prueba con su SUPABASE_DB_URL
-# como secret; nunca contra el de producción.
+# Corre en cada PR y en cada push a develop o main lo que se puede probar
+# sin la base: hoy, qué aplicación sirve middleware.js para cada host. Las
+# demás pruebas (scripts/probar-*.mjs) corren contra una base real y
+# entran acá el día que haya un proyecto de Supabase de prueba con su
+# SUPABASE_DB_URL como secret; nunca contra el de producción.
 
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
   pull_request:
 
 jobs:
