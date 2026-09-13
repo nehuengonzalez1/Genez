@@ -10,13 +10,14 @@ import {
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
   Heart, MessageSquare
 } from "lucide-react";
-import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
+import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios } from "../datos/sesion.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { consultarCobros } from "../datos/mercadopago.js";
 import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
+import { cargarProveedores, guardarProveedores } from "../datos/proveedores.js";
 import { cargarTablero, tableroVacio } from "../datos/tablero.js";
 import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
@@ -1032,7 +1033,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const [resumenDia, setResumenDia] = useState({ total: 0, tickets: 0 });
   const [pedidos, setPedidos] = useState([]);
   const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
-  const [provs, setProvs] = useState(PROV_INFO);
+  const [provs, setProvs] = useState({});
   const [clientes, setClientes] = useState([]);
   const [tablero, setTablero] = useState(null);
   const [altaProd, setAltaProd] = useState(null);
@@ -1089,6 +1090,42 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }, 600);
     return () => clearTimeout(t);
   }, [ajustes, empresaId]);
+
+  /* Los proveedores tampoco vienen del generador. Se cargan por comercio
+     y, como las pantallas editan el objeto entero con `setProvs`, cada
+     cambio se compara contra lo que había en la base y se guarda solo la
+     diferencia: la pantalla no tiene que saber que existe una tabla.
+
+     Los guardados van en fila, uno después del otro, para que dos
+     ediciones seguidas no se comparen contra la misma foto vieja y
+     terminen insertando la misma ficha dos veces. */
+  const provsEnBase = useRef(null);
+  const colaProvs = useRef(Promise.resolve());
+  useEffect(() => {
+    let vigente = true;
+    provsEnBase.current = null;
+    cargarProveedores(empresaId)
+      .then((ps) => { if (!vigente) return; provsEnBase.current = ps; setProvs(ps); })
+      .catch((e) => {
+        if (!vigente) return;
+        setProvs({});
+        toast(e.message || "No pudimos cargar los proveedores.", "mal");
+      });
+    return () => { vigente = false; };
+  }, [empresaId]);
+
+  useEffect(() => {
+    if (!provsEnBase.current || provs === provsEnBase.current) return;
+    colaProvs.current = colaProvs.current
+      .then(() => guardarProveedores(empresaId, provsEnBase.current, provs))
+      .then((conIds) => {
+        provsEnBase.current = conIds;
+        /* Si alguna ficha nació sin id, el estado tiene que enterarse del
+           suyo antes de la próxima edición. */
+        if (Object.keys(conIds).some((n) => conIds[n].id !== (provs[n] || {}).id)) setProvs(conIds);
+      })
+      .catch((e) => toast(e.message || "No se pudieron guardar los proveedores.", "mal"));
+  }, [provs, empresaId]);
 
   /* El catálogo ya no viene del generador: se pide a la base al montar.
      App remonta Sistema con cada comercio (key), así que una sola carga
@@ -1934,7 +1971,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               miRol={sesion.rol} esPlataforma={esPlataforma} toast={toast} />
           )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
-          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
+          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
         </main>
       </div>
       )}

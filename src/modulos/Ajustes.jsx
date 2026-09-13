@@ -7,7 +7,7 @@ import {
   Plus, X, Check, Trash2, BellOff, Bell, Volume2, VolumeX,
   ScanLine, Barcode
 } from "lucide-react";
-import { uid, HOY, PROV_INFO } from "../datos/generador.js";
+import { uid, HOY } from "../datos/generador.js";
 import {
   FISCAL_INICIAL, CONDICIONES, letraComprobante, discriminaIVA,
   condicionNombre, mediosDe, conRecargo, money, nf, nf2, pct, hora,
@@ -21,7 +21,7 @@ const Vol2 = Volume2;
    13. AJUSTES
    ============================================================ */
 
-export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, mp, setMp, simularCobro }) {
+export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro }) {
   const f = ajustes.fiscal || FISCAL_INICIAL;
   const setFiscal = (cambios) => setAjustes({ ...ajustes, fiscal: { ...f, ...cambios } });
   return (
@@ -336,7 +336,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, toast, m
         <ul className="text-sm text-texto-suave mt-2 space-y-1">
           <li>{nf.format(productos.length)} productos con costo, precio, stock, proveedor y vencimiento</li>
           <li>90 días de historial de ventas y hasta 5 cambios de costo por producto</li>
-          <li>{Object.keys(PROV_INFO).length} proveedores con condiciones de pago y día de entrega</li>
+          <li>{Object.keys(provs).length} proveedores con condiciones de pago y día de entrega</li>
         </ul>
         <Boton variant="ghost" className="mt-4" onClick={() => { window.location.reload(); toast("Recargando…"); }}>Reiniciar la demo</Boton>
       </Card>
