@@ -14,7 +14,22 @@
  * devolvió Mercado Pago, para poder comprobarlo con una transferencia real.
  *
  * El token vive solo del lado del servidor: MP_ACCESS_TOKEN en Vercel.
+ *
+ * POR QUÉ PIDE SESIÓN
+ * -------------------
+ * Hasta acá lo único que la cuidaba era el origen, y con el chequeo por
+ * `endsWith` que `_comun.js` ya había corregido para las demás funciones:
+ * un dominio que terminara en el host pasaba, y un script sin `Origin` ni
+ * se miraba. Publicada, le contestaba a cualquiera nombre, monto y medio
+ * de pago de los cobros de la última media hora.
+ *
+ * Ahora pide el token de Supabase, igual que el resto de `api/`. Quien
+ * sondea es alguien con la caja abierta en el sistema, así que para el
+ * uso real no cambia nada. No se pide un permiso puntual: ver los cobros
+ * que entran es parte de cobrar, y cobrar ya lo decide el rol.
  */
+
+import { origenValido, quienLlama } from "../_comun.js";
 
 const MINUTOS_MAXIMO = 30;
 
@@ -63,10 +78,13 @@ async function buscar(token, campo, desde, hasta) {
 }
 
 export default async function handler(req, res) {
-  const origen = req.headers.origin;
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  if (origen && host && !origen.endsWith(host)) {
+  if (!origenValido(req)) {
     return res.status(403).json({ error: { message: "Origen no autorizado." } });
+  }
+
+  const yo = await quienLlama(req);
+  if (!yo) {
+    return res.status(401).json({ error: { message: "Necesitás una sesión abierta para ver los cobros." } });
   }
 
   const token = process.env.MP_ACCESS_TOKEN;
