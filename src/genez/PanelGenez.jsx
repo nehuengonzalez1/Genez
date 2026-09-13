@@ -13,6 +13,7 @@ import {
 import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios } from "../datos/sesion.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
+import { consultarCobros } from "../datos/mercadopago.js";
 import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
@@ -1432,8 +1433,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     const consultar = async () => {
       try {
         const desde = new Date(Date.now() - 5 * 60000).toISOString();
-        const r = await fetch(`/api/mp/pagos?desde=${encodeURIComponent(desde)}&t=${Date.now()}`);
-        const d = await r.json();
+        const d = await consultarCobros(desde);
         if (!vivo) return;
         setMp((m) => ({ ...m, configurado: !!d.configurado, ultimoChequeo: new Date(), error: d.error ? d.error.message : null }));
         const pagos = (d.pagos || []).slice().reverse();
@@ -1444,7 +1444,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           pagos.forEach(recibirCobro);
         }
       } catch (e) {
-        if (vivo) setMp((m) => ({ ...m, configurado: false, error: "Sin conexión con el servidor." }));
+        /* "Se venció la sesión" y "no hay servidor" se arreglan distinto,
+           y antes las dos decían lo mismo. */
+        if (vivo) setMp((m) => ({ ...m, configurado: false, error: e.message || "Sin conexión con el servidor." }));
       }
     };
     consultar();
