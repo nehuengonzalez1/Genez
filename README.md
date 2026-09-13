@@ -1,100 +1,106 @@
-# Sistema de gestión para minimercado — prototipo
+# Genez
 
-Prototipo navegable de gestión comercial para un minimercado de una caja:
-POS con pistola lectora, preparación de pedidos (picking), stock, compras,
-caja, reportes y motor de diagnóstico. Los datos son simulados pero coherentes:
-972 productos con costo, precio, stock, proveedor, vencimiento e historial de
-costos, y 90 días de ventas.
+Plataforma de gestión para comercios: cobro, caja, stock y compras para un
+minimercado; salón, comandas, cocina y centro de pedidos para un bar;
+agenda, clases, abonos, equipo y CRM para un negocio de turnos. Cada
+comercio es un inquilino aislado por RLS en Supabase, y **qué módulos ve,
+cómo se llaman y por dónde arranca lo decide su rubro, que es una fila de
+la base y no código** (`rubros`).
+
+Son dos aplicaciones en un mismo repositorio:
+
+- **El sistema de gestión**, lo que usa el comercio. Entrada `index.html`.
+- **La app del cliente**, lo que ve quien saca el turno. Entrada
+  `cliente.html`, servida en el subdominio de cada comercio
+  (`almha.genez.com.ar`). Cuál se sirve lo decide `middleware.js` por el
+  host.
 
 ## Levantarlo
 
-Necesitás Node 18 o superior.
+Necesitás Node 18 o superior y un proyecto de Supabase.
 
 ```bash
 npm install
+cp .env.example .env    # completá al menos VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY
 npm run dev
 ```
 
-Abre solo en `http://localhost:5173`. La primera carga genera el catálogo en
-memoria; no hay base de datos ni backend.
+- `http://localhost:5173/` — el sistema de gestión.
+- `http://localhost:5173/cliente.html?c=<slug>` — la app del cliente de
+  ese comercio (en desarrollo no hay subdominio, así que se fuerza con `?c=`).
 
-Para compilar la versión de producción:
+Solo las variables `VITE_*` viajan al navegador. El resto —`service_role`,
+la URL directa a la base, las claves de Anthropic y Mercado Pago— son de
+servidor y de scripts; `.env.example` explica cada una. Las funciones de
+`api/` corren en desarrollo por un middleware de `vite.config.js`, así que
+lo que se prueba local es lo mismo que corre publicado en Vercel.
 
-```bash
-npm run build
-npm run preview
-```
-
-## El asistente (opcional)
-
-Todo el sistema funciona sin conexión. Los diagnósticos de "Lo que tenés que
-saber" se calculan localmente sobre los datos: no llaman a ningún modelo.
-
-El chat del Asistente sí necesita la API de Anthropic. Para habilitarlo:
+Para entrar hace falta un usuario real de Supabase Auth: ver "Comandos" en
+`CLAUDE.md`.
 
 ```bash
-cp .env.example .env
-# editá .env y poné tu clave en ANTHROPIC_API_KEY
+npm run build && npm run preview   # la versión de producción
 ```
 
-La clave nunca llega al navegador: el servidor de desarrollo de Vite hace de
-intermediario y la agrega del lado del servidor (ver `vite.config.js`). Si
-publicás esto en algún lado, ese proxy hay que reemplazarlo por un backend real.
+## La base
 
-El modelo se configura en `index.html` (`window.__API_MODELO__`).
+El esquema vive en `supabase/migrations/`, numerado, y se aplica en orden:
 
-## Probar la pistola lectora
-
-Un lector de códigos se comporta como un teclado: escribe muy rápido y cierra
-con Enter. El sistema detecta esa ráfaga a nivel de ventana, así que se puede
-disparar sin hacer clic en ningún campo. Funciona en Vender, Pedidos,
-conteo de inventario y recepción de mercadería.
-
-Sin lector físico podés simularlo:
-
-- En **Vender**, escribí un código de barras y Enter (por ejemplo `7790001011137`).
-- En **Pedidos → Preparar**, usá el buscador de abajo: hace lo mismo que un disparo.
-
-## Cargar compras desde una foto
-
-En Compras → Cargar compra se puede subir una foto del remito o la factura.
-Los renglones se leen con el modelo y quedan en una tabla de revisión: nada se
-aplica al stock, al costo ni al precio hasta que confirmes. Los renglones que
-no coinciden con el catálogo aparecen marcados en amarillo para asignarlos a
-mano.
-
-Esta función necesita la API key (ver más arriba). Sin clave, el botón de la
-pistola sigue funcionando igual y es el camino recomendado para el uso diario.
-
-## Operar con el teclado
-
-El cobro está pensado para hacerse sin mouse. F1 abre la lista completa de
-atajos dentro de la aplicación. El recorrido típico es: escanear todo, Enter
-con el campo de búsqueda vacío para pasar a cobrar, elegir el medio de pago
-con las flechas o con las teclas 1 a 5, escribir con cuánto paga, Enter para
-confirmar y Enter otra vez para la venta siguiente.
-
-El cobro ocurre en tres ventanas: carga de productos, medio de pago y
-resultado. El ticket solo se emite si se pide (tecla I para imprimir,
-T para verlo en pantalla).
-
-## Imprimir
-
-El ticket y la comanda se componen como texto de ancho fijo, igual que lo
-recibe una impresora térmica: 32 caracteres a 58 mm, 48 a 80 mm. El ancho se
-elige en Ajustes. El botón Imprimir manda solo el papel, sin la interfaz.
-
-## Estructura
-
-```
-index.html            Punto de entrada. Configura el proxy del asistente.
-vite.config.js        Servidor de desarrollo y proxy hacia la API.
-src/main.jsx          Montaje de React.
-src/Minimercado.jsx   Toda la aplicación (datos, motor y módulos).
+```bash
+node scripts/aplicar-sql.mjs supabase/migrations/0001_core.sql
 ```
 
-El archivo `Minimercado.jsx` está dividido en secciones numeradas: generador de
-datos, helpers, motor de diagnóstico, componentes base, y después un módulo por
-pantalla. Para pasar esto a producción, lo primero que hay que separar es el
-generador de datos (secciones 1 y 2) de la interfaz: esas estructuras son, en
-la práctica, el modelo de datos del sistema.
+`supabase/seed/` tiene datos de demostración por rubro (un catálogo de
+minimercado, un bar con su salón y sus pedidos, una estética con cuatro
+meses de historia). Van marcados como demo y se borran de una.
+
+## Las pruebas
+
+Corren contra la base real leyendo `SUPABASE_DB_URL` del `.env`:
+
+```bash
+node scripts/probar-rls.mjs      # seguridad, con la identidad de un usuario real
+node scripts/probar-venta.mjs    # y el resto de scripts/probar-*.mjs
+node scripts/probar-dominio.mjs  # el único que no toca la red
+```
+
+`probar-rls.mjs` es el único que aplica las políticas; los demás corren
+como administrador y sirven para la lógica, no para los permisos.
+
+## Operar
+
+- **Lector de códigos de barras.** Se comporta como un teclado: el sistema
+  detecta la ráfaga a nivel de ventana y no hace falta hacer clic en ningún
+  campo. Sin lector, escribir un código del catálogo y Enter hace lo mismo.
+- **Teclado.** El cobro está pensado para hacerse sin mouse; F1 muestra los
+  atajos dentro de la aplicación.
+- **Impresión.** Ticket, pre cuenta y comanda se componen como texto de
+  ancho fijo para impresora térmica (58 u 80 mm, se elige en Ajustes).
+- **Asistente y lectura de remitos por foto.** Necesitan `ANTHROPIC_API_KEY`
+  del lado del servidor. Sin clave, todo lo demás funciona igual: los
+  diagnósticos se calculan localmente.
+- **Cobros por Mercado Pago.** Con `MP_ACCESS_TOKEN` en el servidor, la caja
+  avisa cada cobro entrante; sin token, Ajustes tiene un botón para simularlo.
+
+## Dónde está cada cosa
+
+| Carpeta | Qué contiene |
+|---|---|
+| `src/datos/` | La capa de datos. Un archivo por dominio. Es el único lugar que habla con Supabase. |
+| `src/modulos/` | Una pantalla del sistema de gestión por archivo. |
+| `src/cliente/` | La app del cliente. |
+| `src/genez/PanelGenez.jsx` | Login, panel de plataforma y `Sistema`, el contenedor de estado de un comercio. |
+| `src/ui/` | Componentes compartidos. |
+| `api/` | Lo que necesita una credencial de servidor: modelo, Mercado Pago, alta de accesos, manifest e ícono de la PWA. |
+| `middleware.js` | Decide por el host cuál de las dos aplicaciones se sirve. |
+| `supabase/` | Migraciones y semillas. |
+| `scripts/` | Aplicar SQL, pruebas y utilidades. |
+
+## Leer antes de tocar
+
+- **`ARQUITECTURA.md`** — la pila, el modelo de datos, las funciones de
+  Postgres, las reglas que no se pueden romper y una sección por módulo.
+- **`CLAUDE.md`** — cómo se trabaja en este repositorio: comandos,
+  convenciones, permisos, integraciones y lo que todavía vive en memoria.
+- **`DISENO.md`** — cómo tiene que verse.
+- **`docs/`** — los encargos de cada vertical, con lo que quedó abierto.
