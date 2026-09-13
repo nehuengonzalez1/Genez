@@ -145,6 +145,9 @@ export default defineConfig(({ mode }) => {
         input: {
           gestion: resolve(process.cwd(), "index.html"),
           cliente: resolve(process.cwd(), "cliente.html"),
+          /* La landing pública: no carga nada del sistema ni de la app del
+             cliente, solo las cards por rubro y, después, el alta guiada. */
+          landing: resolve(process.cwd(), "landing.html"),
         },
       },
     },
