@@ -22,9 +22,10 @@
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
-import { ShoppingCart, UtensilsCrossed, CalendarDays, Store, Check, ArrowRight, ArrowLeft } from "lucide-react";
+import { ShoppingCart, UtensilsCrossed, CalendarDays, Store, Check, ArrowRight } from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
 import { Tarjeta, Boton } from "../cliente/ui.jsx";
+import Stepper from "./Stepper.jsx";
 
 const ICONOS = { carrito: ShoppingCart, cubiertos: UtensilsCrossed, agenda: CalendarDays, tienda: Store };
 
@@ -89,7 +90,7 @@ export default function Landing() {
       {paso === "cards" ? (
         <Cards rubros={todos} elegido={elegido} rubro={rubro} onElegir={elegir} onContinuar={continuar} />
       ) : (
-        <Empezar rubro={rubro} onVolver={volver} />
+        <Stepper key={rubro ? rubro.clave : "ninguno"} rubro={rubro} onVolver={volver} />
       )}
 
       <footer className="mt-16 pt-6 border-t border-borde text-xs text-texto-tenue">
@@ -173,38 +174,3 @@ function Card({ rubro, activa, onElegir }) {
   );
 }
 
-function Empezar({ rubro, onVolver }) {
-  if (!rubro) return null;
-  const p = rubro.presentacion;
-  return (
-    <section className="pt-4 max-w-2xl">
-      <button onClick={onVolver} className="inline-flex items-center gap-1.5 text-sm text-texto-suave hover:text-texto mb-6">
-        <ArrowLeft size={16} /> Elegir otro rubro
-      </button>
-      <div className={ROTULO}>Tu rubro</div>
-      <h1 className="f-d text-3xl leading-tight mt-1">{p.titulo}</h1>
-      <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">{p.bajada}</p>
-
-      {p.destacados.length > 0 && (
-        <Tarjeta className="mt-8">
-          <div className={`${ROTULO} mb-3`}>Lo que vas a tener</div>
-          <ul className="space-y-2">
-            {p.destacados.map((d) => (
-              <li key={d} className="flex items-center gap-3 text-[15px]">
-                <Check size={16} className="text-bien shrink-0" />{d}
-              </li>
-            ))}
-          </ul>
-        </Tarjeta>
-      )}
-
-      {/* Honesto mientras el alta guiada no existe: se dice, no se simula. */}
-      <Tarjeta className="mt-4 border-dashed">
-        <div className={`${ROTULO} mb-2`}>Próximo paso</div>
-        <p className="text-[15px] leading-relaxed">
-          En breve vas a poder terminar acá mismo: tres preguntas sobre cómo trabajás, y te decimos qué módulos te corresponden, qué necesitás de tu lado y cuánto pagás para empezar.
-        </p>
-      </Tarjeta>
-    </section>
-  );
-}
