@@ -29,6 +29,7 @@ import { calcular, insights } from "../utils/diagnostico.js";
 import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apagado, Tabs } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
+import { PlanesPanel } from "./PlanesPanel.jsx";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
@@ -63,33 +64,10 @@ import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
    pero la validación real tiene que correr en el servidor. Mientras eso no
    exista, no repartir credenciales fuera de una demo acompañada.           */
 
-const MODULOS = [
-  { k: "cobro", n: "Cobro", d: "Punto de venta, tickets y vuelto", base: true },
-  { k: "caja", n: "Caja", d: "Arqueo, gastos y cierre", base: true },
-  { k: "ajustes", n: "Ajustes", d: "Configuración del negocio", base: true },
-  { k: "comandas", n: "Salón", d: "Mesas, comandas y cocina" },
-  { k: "productos", n: "Productos", d: "Catálogo, precios y listas" },
-  { k: "stock", n: "Stock", d: "Alertas, vencimientos e inventario" },
-  { k: "compras", n: "Compras", d: "Remitos, costos y proveedores" },
-  { k: "pedidos", n: "Pedidos", d: "Preparación con pistola" },
-  { k: "clientes", n: "Clientes", d: "Facturación A, B y C" },
-  { k: "equipo", n: "Equipo", d: "Quién trabaja, qué hace y cuándo" },
-  { k: "agenda", n: "Agenda", d: "Turnos, clases y disponibilidad" },
-  { k: "ventas", n: "Ventas", d: "Abonos, packs y planes" },
-  { k: "finanzas", n: "Finanzas", d: "Caja, ingresos, egresos y sueldos" },
-  { k: "servicios", n: "Servicios y recursos", d: "Qué se ofrece y dónde se hace" },
-  { k: "reportes", n: "Informes", d: "Ventas, márgenes y rubros" },
-  /* Dos informes y no uno con un `if` adentro: el del comercio mira
-     margen por producto y el del negocio de turnos mira ocupación, que no
-     comparten ni una métrica. Misma decisión que Finanzas en 0038. */
-  { k: "informes", n: "Informes", d: "Ingresos, ocupación, asistencia y clientes" },
-  { k: "crm", n: "Seguimiento", d: "A quién conviene escribirle, y por qué" },
-  { k: "comunicaciones", n: "Avisos", d: "Recordatorios de turno, plantillas e historial" },
-  { k: "permisos", n: "Permisos", d: "Qué puede hacer cada rol, y quién cambió qué" },
-  { k: "asistente", n: "Asistente", d: "Diagnóstico y consultas" },
-];
-
-const MODULOS_BASE = MODULOS.filter((m) => m.base).map((m) => m.k);
+/* El catálogo de módulos vive en src/datos/modulos.js: lo comparten este
+   panel, el sistema y el alta guiada, que no tiene sesión y no puede
+   cargar todo esto para saber cómo se llama "cobro". */
+import { MODULOS, MODULOS_BASE } from "../datos/modulos.js";
 
 /* Cada rol define qué módulos alcanza y qué acciones puede ejecutar.
    "todos" evita tener que actualizar el rol del dueño cada vez que se agrega
@@ -374,6 +352,8 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                 </button>
               ))}
             </div>
+
+            <PlanesPanel />
 
             <section className="mt-8">
               <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold mb-2">Imagen del login</h2>
