@@ -82,16 +82,10 @@ jobs:
           fi
 
           # closed / reopened: hay que encontrar la tarjeta existente por nombre.
+          # En una sola línea a propósito: un bloque de Python sin indentar
+          # corta el `run: |` y GitHub rechaza el archivo entero.
           CARDS_JSON=$(curl -sf "https://api.trello.com/1/boards/${TRELLO_BOARD_ID}/cards?fields=name,id&${AUTH}")
-          CARD_ID=$(echo "$CARDS_JSON" | python3 -c "
-import json, sys
-cards = json.load(sys.stdin)
-prefix = '#${ISSUE_NUMBER} '
-for c in cards:
-    if c['name'].startswith(prefix):
-        print(c['id'])
-        break
-")
+          CARD_ID=$(echo "$CARDS_JSON" | python3 -c 'import json,sys; p="#"+sys.argv[1]+" "; print(next((c["id"] for c in json.load(sys.stdin) if c["name"].startswith(p)), ""))' "$ISSUE_NUMBER")
 
           if [ -z "$CARD_ID" ]; then
             echo "No se encontró tarjeta para #${ISSUE_NUMBER}, no hay nada que mover."
