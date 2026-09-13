@@ -47,7 +47,7 @@ update rubros set presentacion = $json$
   "preguntas": [
     { "k": "peso", "n": "Vendo por peso (fiambre, verdura, pan)", "modulos": [], "necesita": ["Balanza que imprima etiquetas con código de barras"] },
     { "k": "cajas", "n": "Tengo más de una caja", "modulos": [], "necesita": ["Una computadora o tablet por caja"] },
-    { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": ["CUIT y condición frente al IVA"] },
+    { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": [] },
     { "k": "pedidos", "n": "Tomo pedidos para preparar o enviar", "modulos": ["pedidos"], "necesita": [] }
   ]
 }
@@ -64,7 +64,7 @@ update rubros set presentacion = $json$
     { "k": "mesas", "n": "Tengo salón con mesas", "modulos": ["comandas"], "necesita": [] },
     { "k": "delivery", "n": "Hago delivery o take away", "modulos": ["comandas"], "necesita": ["Un teléfono con WhatsApp para los pedidos"] },
     { "k": "cocina", "n": "Tengo cocina aparte de la barra", "modulos": ["comandas"], "necesita": ["Una impresora de comandas en la cocina"] },
-    { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": ["CUIT y condición frente al IVA"] }
+    { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": [] }
   ]
 }
 $json$::jsonb where clave = 'gastronomia';
