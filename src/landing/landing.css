@@ -1,0 +1,45 @@
+/* Tipografía propia de la landing. El sistema no carga fuentes (usa la del
+   equipo, que en un mostrador es lo correcto); una página que tiene que
+   convencer sí. `f-d` y `f-m` existen como clases en todo el repo pero no
+   estaban definidas: acá, y solo acá, significan algo. */
+
+body {
+  font-family: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.f-d {
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.f-m {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Los enlaces del menú son anclas: que el salto se vea como un
+   desplazamiento y no como un cambio de página. */
+html {
+  scroll-behavior: smooth;
+}
+
+/* El visual del hero: pantallas del sistema apiladas con un leve giro,
+   que se enderezan al pasar el mouse. Son fragmentos de la interfaz
+   —mismas tarjetas, mismos colores— y no una captura. */
+.escena > * {
+  transition: transform 0.5s ease;
+}
+
+.escena-a { transform: rotate(-2deg); }
+.escena-b { transform: rotate(1.5deg); }
+.escena-c { transform: rotate(-1deg); }
+
+.escena:hover .escena-a,
+.escena:hover .escena-b,
+.escena:hover .escena-c {
+  transform: rotate(0deg) translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .escena > * { transition: none; }
+}

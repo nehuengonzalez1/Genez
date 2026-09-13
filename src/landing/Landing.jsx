@@ -3,8 +3,16 @@
    ============================================================
 
    Lo primero que ve un dueño de comercio, casi siempre desde el celular.
-   Una promesa en una frase, las cards por rubro, y "Entrar" para los que
-   ya usan el sistema.
+   Tiene que convencer en una pantalla y llevar a una sola acción: elegir
+   el rubro. Todo lo demás —cómo funciona, qué incluye— está para el que
+   baja a leer, y remata en la misma acción.
+
+   POR QUÉ NO SE VE COMO EL SISTEMA
+   --------------------------------
+   Comparte los tokens de color (misma familia) pero no la densidad: el
+   sistema mete seis datos donde acá va una frase. Los títulos son
+   grandes, hay aire, y hay una sola cosa naranja por pantalla. El logo
+   es el de verdad (src/ui/Logo.jsx), no la palabra tipeada.
 
    LAS CARDS SON DATO
    ------------------
@@ -16,18 +24,33 @@
    ------------
    Igual que en la app del cliente: la pantalla es un estado. `?rubro=`
    en la dirección preselecciona una card, y al elegir se escribe en la
-   barra para que un refresco no la pierda. El paso siguiente —el alta
-   guiada— vive en su propio issue; hasta que exista, esta pantalla lo
-   dice con todas las letras en vez de fingir un formulario.
+   barra para que un refresco no la pierda. Los enlaces del menú son
+   anclas dentro de la misma página.
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
-import { ShoppingCart, UtensilsCrossed, CalendarDays, Store, Check, ArrowRight } from "lucide-react";
+import {
+  ShoppingCart, UtensilsCrossed, CalendarDays, Store, Check, ArrowRight, ArrowDown,
+  ScanBarcode, Wallet, Settings, Package, Boxes, Truck, ClipboardList, FileText, Users,
+  Ticket, Landmark, LayoutGrid, BarChart3, MessageCircle, Bell, ShieldCheck, Sparkles,
+  Smartphone, TrendingUp, Zap,
+} from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
-import { Tarjeta, Boton } from "../cliente/ui.jsx";
+import { MODULOS } from "../datos/modulos.js";
+import { ROTULO } from "../cliente/ui.jsx";
+import { LogoGenez } from "../ui/Logo.jsx";
 import Stepper from "./Stepper.jsx";
 
 const ICONOS = { carrito: ShoppingCart, cubiertos: UtensilsCrossed, agenda: CalendarDays, tienda: Store };
+
+/* Un ícono por módulo. Es una decisión de esta página y no del catálogo:
+   el catálogo es dato y no sabe de dibujos. */
+const ICONO_MODULO = {
+  cobro: ScanBarcode, caja: Wallet, ajustes: Settings, comandas: UtensilsCrossed, productos: Package,
+  stock: Boxes, compras: Truck, pedidos: ClipboardList, clientes: FileText, equipo: Users,
+  agenda: CalendarDays, ventas: Ticket, finanzas: Landmark, servicios: LayoutGrid, reportes: BarChart3,
+  informes: BarChart3, crm: MessageCircle, comunicaciones: Bell, permisos: ShieldCheck, asistente: Sparkles,
+};
 
 const OTRO = {
   clave: "otro",
@@ -37,12 +60,19 @@ const OTRO = {
     bajada: "Contanos qué hacés y vemos cómo se arma.",
     para: "Panaderías, casas de sanitarios, ferreterías, lo que sea",
     icono: "tienda",
-    destacados: [],
+    destacados: ["Cobro y caja desde el primer día", "Productos y stock", "Informes de qué deja plata"],
     preguntas: [],
   },
 };
 
-const ROTULO = "text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold";
+/* Botones de la página. No son los de la app del cliente (ocupan todo el
+   ancho, para el pulgar): acá van en línea, con el aire que pide DISENO.md:
+   12px arriba y abajo, 18px a los costados, esquina de 6px. */
+const BOTON = "inline-flex items-center justify-center gap-2 rounded-md text-[15px] px-[18px] py-3 transition-colors";
+const SOLIDO = `${BOTON} bg-acento hover:bg-acento-vivo text-sobre-acento font-bold`;
+const LINEA = `${BOTON} border border-borde-fuerte hover:border-texto-tenue text-texto font-semibold`;
+
+const SOMBRA_HOVER = "hover:shadow-[0_4px_14px_rgba(0,0,0,0.05)]";
 
 function rubroDeLaDireccion() {
   if (typeof window === "undefined") return null;
@@ -77,65 +107,87 @@ export default function Landing() {
   const volver = () => { setPaso("cards"); window.scrollTo(0, 0); };
 
   return (
-    <div className="max-w-5xl mx-auto px-5 pb-28">
-      <header className="flex items-center justify-between py-5">
-        <span className="f-d text-xl tracking-[0.18em]">GENEZ</span>
-        {/* Los comercios que ya usan el sistema entran por acá. Cuando el
-            sistema pase a app.genez.com.ar, este enlace cambia y nada más. */}
-        <a href="/" className="text-sm font-semibold text-texto-suave hover:text-texto border border-borde-fuerte rounded-md px-4 py-2">
-          Entrar
-        </a>
-      </header>
+    <div className="min-h-screen flex flex-col">
+      <Cabecera conMenu={paso === "cards"} />
 
-      {paso === "cards" ? (
-        <Cards rubros={todos} elegido={elegido} rubro={rubro} onElegir={elegir} onContinuar={continuar} />
-      ) : (
-        <Stepper key={rubro ? rubro.clave : "ninguno"} rubro={rubro} onVolver={volver} />
-      )}
+      <main className="flex-1">
+        {paso === "cards" ? (
+          <Portada rubros={todos} elegido={elegido} rubro={rubro} onElegir={elegir} onContinuar={continuar} />
+        ) : (
+          <div className="max-w-5xl mx-auto px-5 pb-20">
+            <Stepper key={rubro ? rubro.clave : "ninguno"} rubro={rubro} onVolver={volver} />
+          </div>
+        )}
+      </main>
 
-      <footer className="mt-16 pt-6 border-t border-borde text-xs text-texto-tenue">
-        Genez · un sistema de gestión para comercios, armado según tu negocio.
-      </footer>
+      <Pie />
     </div>
   );
 }
 
-function Cards({ rubros, elegido, rubro, onElegir, onContinuar }) {
+/* ------------------------------------------------------------
+   Cabecera · pegada arriba, con el logo de verdad
+
+   Los comercios que ya usan el sistema entran por "Entrar". Cuando el
+   sistema pase a app.genez.com.ar, ese enlace cambia y nada más.
+   ------------------------------------------------------------ */
+function Cabecera({ conMenu }) {
+  return (
+    <header className="sticky top-0 z-30 bg-fondo/90 backdrop-blur border-b border-borde">
+      <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
+        <a href="/landing" aria-label="Genez, inicio" className="shrink-0">
+          <LogoGenez size={34} conNombre />
+        </a>
+
+        {conMenu && (
+          <nav className="hidden md:flex items-center gap-7 text-sm font-semibold text-texto-suave">
+            <a href="#rubros" className="hover:text-texto">Rubros</a>
+            <a href="#como-funciona" className="hover:text-texto">Cómo funciona</a>
+            <a href="#incluye" className="hover:text-texto">Qué incluye</a>
+          </nav>
+        )}
+
+        <div className="flex items-center gap-2">
+          <a href="/" className={`${LINEA} !py-2 !px-4 text-sm`}>Entrar</a>
+          {conMenu && (
+            <a href="#rubros" className={`${SOLIDO} !py-2 !px-4 text-sm hidden sm:inline-flex`}>Empezar</a>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ------------------------------------------------------------
+   La portada: hero, por qué, las cards, cómo funciona, qué incluye,
+   y el remate. Todo lleva a #rubros.
+   ------------------------------------------------------------ */
+function Portada({ rubros, elegido, rubro, onElegir, onContinuar }) {
   return (
     <>
-      <section className="pt-6 pb-8 max-w-2xl">
-        <h1 className="f-d text-3xl sm:text-4xl leading-tight">
-          Un sistema de gestión que se arma según tu negocio.
-        </h1>
-        <p className="text-texto-suave mt-4 text-[17px] leading-relaxed">
-          Elegí tu rubro y en tres pasos sabés qué módulos necesitás, qué te hace falta de tu lado y cuánto pagás para empezar.
-        </p>
-      </section>
-
-      <section>
-        <h2 className={`${ROTULO} mb-3`}>¿Qué tipo de negocio tenés?</h2>
-        <div className="grid sm:grid-cols-2 gap-3">
-          {rubros.map((r) => (
-            <Card key={r.clave} rubro={r} activa={r.clave === elegido} onElegir={() => onElegir(r.clave)} />
-          ))}
-        </div>
-      </section>
+      <Hero />
+      <PorQue />
+      <Rubros rubros={rubros} elegido={elegido} onElegir={onElegir} />
+      <ComoFunciona />
+      <QueIncluye />
+      <Remate />
 
       {/* La barra de abajo aparece recién cuando hay algo elegido: antes no
           hay nada que continuar, y un botón apagado ocupando el pulgar es
           peor que ninguno. */}
       {rubro && (
-        <div className="fixed inset-x-0 bottom-0 bg-superficie/95 backdrop-blur border-t border-borde px-5 py-3">
-          <div className="max-w-5xl mx-auto flex items-center gap-3">
+        <div className="fixed inset-x-0 bottom-0 z-30 bg-superficie/95 backdrop-blur border-t border-borde px-5 py-3">
+          <div className="max-w-6xl mx-auto flex items-center gap-3">
+            <span className="hidden sm:flex w-10 h-10 rounded-lg bg-acento-suave text-acento items-center justify-center shrink-0">
+              <Check size={18} />
+            </span>
             <div className="min-w-0 flex-1">
               <div className={ROTULO}>Elegiste</div>
               <div className="font-semibold truncate">{rubro.presentacion.titulo}</div>
             </div>
-            <div className="w-44">
-              <Boton onClick={onContinuar}>
-                <span className="inline-flex items-center gap-2">Continuar <ArrowRight size={16} /></span>
-              </Boton>
-            </div>
+            <button type="button" onClick={onContinuar} className={SOLIDO}>
+              Continuar <ArrowRight size={16} />
+            </button>
           </div>
         </div>
       )}
@@ -143,34 +195,278 @@ function Cards({ rubros, elegido, rubro, onElegir, onContinuar }) {
   );
 }
 
+function Hero() {
+  return (
+    <section className="max-w-6xl mx-auto px-5 pt-10 sm:pt-16 pb-10 sm:pb-16 grid lg:grid-cols-[1.05fr_0.95fr] gap-10 lg:gap-16 items-center">
+      <div>
+        <div className={ROTULO}>Sistema de gestión para comercios</div>
+        <h1 className="f-d text-[38px] sm:text-5xl lg:text-[54px] leading-[1.05] mt-4">
+          El sistema de gestión que se arma <span className="text-acento">según tu rubro.</span>
+        </h1>
+        <p className="text-texto-suave mt-5 text-[17px] sm:text-lg leading-relaxed max-w-xl">
+          Cobro, stock, caja, turnos y clientes en un solo lugar. Elegí tu rubro y en tres pasos sabés
+          qué módulos necesitás, qué te hace falta de tu lado y cuánto pagás para empezar.
+        </p>
+        <div className="mt-8 flex flex-col sm:flex-row gap-3">
+          <a href="#rubros" className={SOLIDO}>Elegir mi rubro <ArrowDown size={16} /></a>
+          <a href="#como-funciona" className={LINEA}>Ver cómo funciona</a>
+        </div>
+        <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-texto-suave">
+          {["Sin tarjeta para ver tu estimado", "Precio claro antes de empezar", "Celular, tablet o computadora"].map((t) => (
+            <li key={t} className="flex items-center gap-2"><Check size={15} className="text-acento" /> {t}</li>
+          ))}
+        </ul>
+      </div>
+
+      <Escena />
+    </section>
+  );
+}
+
+/* El visual del hero. Son fragmentos de la interfaz —mismas tarjetas,
+   mismos colores— dibujados acá, no una captura: no envejecen cuando
+   cambia una pantalla y no muestran datos de nadie. Los números son de
+   ejemplo y se ven como tal. */
+function Escena() {
+  const barras = [38, 55, 47, 70, 62, 88, 76];
+  const dias = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+  return (
+    <div className="escena relative h-[400px] sm:h-[460px] select-none" aria-hidden="true">
+      <div className="absolute inset-x-2 inset-y-6 rounded-xl bg-acento-suave/70" />
+
+      <div className="escena-a absolute left-0 top-4 w-[62%] bg-superficie border border-borde rounded-xl p-4">
+        <div className={ROTULO}>Ventas de la semana</div>
+        <div className="f-d f-m text-2xl mt-1">$ 1.284.500</div>
+        <div className="text-xs text-bien mt-0.5 flex items-center gap-1 font-semibold">
+          <TrendingUp size={12} /> 12% más que la anterior
+        </div>
+        <div className="mt-4 flex items-end gap-1.5 h-20">
+          {barras.map((h, i) => (
+            <div key={i} className={`flex-1 rounded-sm ${i === 5 ? "bg-acento" : "bg-superficie-3"}`} style={{ height: `${h}%` }} />
+          ))}
+        </div>
+        <div className="mt-1.5 flex text-[10px] text-texto-tenue">
+          {dias.map((d) => <span key={d} className="flex-1 text-center">{d}</span>)}
+        </div>
+      </div>
+
+      <div className="escena-b absolute right-0 top-[20%] w-[58%] bg-superficie border border-borde rounded-xl p-4">
+        <div className="flex items-center justify-between">
+          <div className={ROTULO}>Cobro</div>
+          <span className="text-[10px] font-bold text-texto-tenue">Caja 1</span>
+        </div>
+        <ul className="mt-3 space-y-2 text-[13px]">
+          {[["Leche entera 1 L", "$ 1.450"], ["Pan lactal", "$ 2.900"], ["Queso cremoso · 0,350 kg", "$ 3.640"]].map(([n, p]) => (
+            <li key={n} className="flex justify-between gap-2">
+              <span className="truncate">{n}</span><span className="f-m whitespace-nowrap shrink-0">{p}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 pt-3 border-t border-borde flex items-center justify-between">
+          <span className="text-sm font-semibold">Total</span>
+          <span className="f-d f-m text-xl">$ 7.990</span>
+        </div>
+        <div className="mt-3 rounded-md bg-acento text-sobre-acento text-center text-sm font-bold py-2.5">Cobrar</div>
+      </div>
+
+      <div className="escena-c absolute left-[5%] bottom-0 w-[54%] bg-superficie border border-borde rounded-xl px-4 py-3 flex items-center gap-3">
+        <span className="w-9 h-9 rounded-lg bg-ojo-suave text-ojo flex items-center justify-center shrink-0"><Boxes size={18} /></span>
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold">Stock bajo</div>
+          <div className="text-xs text-texto-tenue truncate">3 productos para reponer hoy</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PorQue() {
+  const puntos = [
+    { I: Zap, t: "Cobrás en segundos", d: "Lector de códigos, vuelto y ticket. Sin vueltas en la cola." },
+    { I: TrendingUp, t: "Sabés qué deja plata", d: "Margen por producto y por rubro, todos los días." },
+    { I: Smartphone, t: "Tus clientes reservan solos", d: "Una app con tu marca para turnos y avisos por WhatsApp." },
+    { I: ShieldCheck, t: "Cada uno ve lo suyo", d: "Permisos por rol y registro de quién cambió qué." },
+  ];
+  return (
+    <section className="border-y border-borde bg-superficie">
+      <div className="max-w-6xl mx-auto px-5 py-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        {puntos.map(({ I, t, d }) => (
+          <div key={t} className="flex gap-4">
+            <span className="w-11 h-11 rounded-lg bg-acento-suave text-acento flex items-center justify-center shrink-0"><I size={20} /></span>
+            <div>
+              <h3 className="font-bold text-[16px] leading-snug">{t}</h3>
+              <p className="text-sm text-texto-suave mt-1 leading-relaxed">{d}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Rubros({ rubros, elegido, onElegir }) {
+  return (
+    <section id="rubros" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
+      <div className="max-w-2xl">
+        <div className={ROTULO}>Paso 1 de 3</div>
+        <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">¿Qué tipo de negocio tenés?</h2>
+        <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">
+          Elegí una card. Con eso armamos los módulos que te corresponden y te mostramos un estimado.
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4 mt-8">
+        {rubros.map((r) => (
+          <Card key={r.clave} rubro={r} activa={r.clave === elegido} onElegir={() => onElegir(r.clave)} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Card({ rubro, activa, onElegir }) {
   const p = rubro.presentacion;
   const Icono = ICONOS[p.icono] || Store;
   return (
-    <Tarjeta onClick={onElegir} className={activa ? "border-acento ring-1 ring-acento" : ""}>
-      <div className="flex items-start gap-4">
-        <span className={`shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${activa ? "bg-acento text-sobre-acento" : "bg-superficie-2 text-texto-suave"}`}>
-          <Icono size={22} />
+    /* `flex flex-col`: un <button> centra su contenido en vertical, y en
+       una grilla de cards de distinto largo la más corta quedaba con el
+       ícono flotando a mitad de altura. */
+    <button type="button" onClick={onElegir} aria-pressed={activa}
+      className={`w-full text-left flex flex-col bg-superficie rounded-xl p-5 sm:p-6 transition-all border ${SOMBRA_HOVER} ${
+        activa ? "border-acento ring-1 ring-acento" : "border-borde hover:border-borde-fuerte"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <span className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${
+          activa ? "bg-acento text-sobre-acento" : "bg-acento-suave text-acento"}`}>
+          <Icono size={24} />
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold text-[17px] leading-snug">{p.titulo}</h3>
-            {activa && <Check size={18} className="text-acento shrink-0 mt-0.5" />}
-          </div>
-          <p className="text-sm text-texto-suave mt-1 leading-relaxed">{p.bajada}</p>
-          <p className="text-xs text-texto-tenue mt-2">{p.para}</p>
-          {p.destacados.length > 0 && (
-            <ul className="mt-3 space-y-1">
-              {p.destacados.map((d) => (
-                <li key={d} className="text-sm text-texto flex items-center gap-2">
-                  <span className="w-1 h-1 rounded-full bg-texto-tenue shrink-0" />{d}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <span className={`text-xs font-bold rounded-md px-2.5 py-1 inline-flex items-center gap-1 ${
+          activa ? "bg-acento text-sobre-acento" : "border border-borde text-texto-tenue"}`}>
+          {activa ? <><Check size={13} /> Elegido</> : "Elegir"}
+        </span>
       </div>
-    </Tarjeta>
+
+      <h3 className="f-d text-xl mt-4 leading-snug">{p.titulo}</h3>
+      <p className="text-[15px] text-texto-suave mt-1.5 leading-relaxed">{p.bajada}</p>
+      <p className="text-xs text-texto-tenue mt-2">{p.para}</p>
+
+      {p.destacados.length > 0 && (
+        <ul className="mt-4 pt-4 border-t border-borde grid gap-2">
+          {p.destacados.map((d) => (
+            <li key={d} className="text-sm flex items-start gap-2 leading-snug">
+              <Check size={15} className="text-acento shrink-0 mt-0.5" />{d}
+            </li>
+          ))}
+        </ul>
+      )}
+    </button>
   );
 }
 
+function ComoFunciona() {
+  const pasos = [
+    { n: "01", t: "Elegí tu rubro", d: "Comercio, gastronomía, turnos… o contanos el tuyo. Con eso ya sabemos qué módulos van." },
+    { n: "02", t: "Contanos cómo trabajás", d: "Cuatro tildes: si vendés por peso, si facturás, si hacés delivery, si tenés equipo." },
+    { n: "03", t: "Mirá tu estimado", d: "Los módulos que te corresponden, lo que necesitás de tu lado y el precio por mes." },
+  ];
+  return (
+    <section id="como-funciona" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
+      <div className="max-w-2xl">
+        <div className={ROTULO}>Cómo funciona</div>
+        <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Tres pasos y sabés qué pagás.</h2>
+        <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">
+          Sin llamados ni presupuestos por mail. El estimado lo ves vos, en el momento.
+        </p>
+      </div>
+
+      <ol className="grid md:grid-cols-3 gap-4 mt-8">
+        {pasos.map((s) => (
+          <li key={s.n} className="bg-superficie border border-borde rounded-xl p-5 sm:p-6">
+            <div className="f-d f-m text-acento text-3xl">{s.n}</div>
+            <h3 className="font-bold text-[17px] mt-3">{s.t}</h3>
+            <p className="text-sm text-texto-suave mt-1.5 leading-relaxed">{s.d}</p>
+          </li>
+        ))}
+      </ol>
+
+      <p className="text-sm text-texto-tenue mt-5 max-w-2xl leading-relaxed">
+        Después creás tu cuenta y entrás al sistema con todo ya armado. Hasta ahí no te pedimos tarjeta.
+      </p>
+    </section>
+  );
+}
+
+function QueIncluye() {
+  /* Dos módulos se llaman "Informes" (uno mira márgenes, el otro
+     ocupación). Para el que lee de afuera es uno solo: se muestra una vez. */
+  const vistos = new Set();
+  const modulos = MODULOS.filter((m) => !vistos.has(m.n) && vistos.add(m.n));
+
+  return (
+    <section id="incluye" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-16 sm:pb-20">
+      <div className="max-w-2xl">
+        <div className={ROTULO}>Qué incluye</div>
+        <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Todo lo que un comercio necesita, por módulos.</h2>
+        <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">
+          Activás los que usás y pagás por esos. Cobro, caja y ajustes van siempre.
+        </p>
+      </div>
+
+      <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-8">
+        {modulos.map((m) => {
+          const I = ICONO_MODULO[m.k] || LayoutGrid;
+          return (
+            <li key={m.k} className="bg-superficie border border-borde rounded-xl px-4 py-3.5 flex items-center gap-3">
+              <span className="w-10 h-10 rounded-lg bg-superficie-2 text-texto-suave flex items-center justify-center shrink-0"><I size={19} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-[15px]">{m.n}</span>
+                  {m.base && <span className="text-[10px] uppercase tracking-wider font-bold text-acento bg-acento-suave rounded px-1.5 py-0.5">Base</span>}
+                </div>
+                <div className="text-xs text-texto-tenue mt-0.5 truncate">{m.d}</div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/* El remate: la misma acción del hero, en oscuro para cerrar. Es el único
+   fondo oscuro de la página, y por eso lleva la versión clara del logo. */
+function Remate() {
+  return (
+    <section className="bg-texto text-fondo">
+      <div className="max-w-6xl mx-auto px-5 py-14 sm:py-20 flex flex-col md:flex-row md:items-center gap-8">
+        <div className="flex-1">
+          <LogoGenez size={44} claro />
+          <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-5">Empezá hoy con un sistema hecho para tu rubro.</h2>
+          <p className="text-fondo/70 mt-3 text-[17px] leading-relaxed max-w-xl">
+            Elegí tu rubro, contanos cómo trabajás y mirá tu estimado. Tres pasos, sin compromiso.
+          </p>
+        </div>
+        <a href="#rubros" className={`${SOLIDO} shrink-0`}>Elegir mi rubro <ArrowRight size={16} /></a>
+      </div>
+    </section>
+  );
+}
+
+function Pie() {
+  return (
+    <footer className="border-t border-borde">
+      <div className="max-w-6xl mx-auto px-5 py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <LogoGenez size={28} conNombre />
+          <span className="text-xs text-texto-tenue hidden sm:inline">Sistema de gestión para comercios</span>
+        </div>
+        <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-texto-suave">
+          <a href="#rubros" className="hover:text-texto">Rubros</a>
+          <a href="#como-funciona" className="hover:text-texto">Cómo funciona</a>
+          <a href="#incluye" className="hover:text-texto">Qué incluye</a>
+          <a href="/" className="hover:text-texto">Entrar</a>
+        </nav>
+        <div className="text-xs text-texto-tenue">© {new Date().getFullYear()} Genez · Argentina</div>
+      </div>
+    </footer>
+  );
+}
