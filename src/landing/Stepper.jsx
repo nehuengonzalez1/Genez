@@ -234,10 +234,17 @@ function Nota({ children, className = "" }) {
 
 /* Una tarjeta con casilla: para los dolores, las preguntas del rubro y
    los módulos. Con `icono` lo muestra al lado de la casilla. */
+/* Un color por plan, el mismo en todos lados: verde Start, naranja Pro,
+   azul Empresa. Son los tonos de estado que ya existen en el sistema. */
 const TONO_NIVEL = {
-  start: "border-borde-fuerte text-texto-suave",
+  start: "border-bien text-bien",
   pro: "border-acento text-acento",
-  empresa: "border-reserva text-reserva",
+  empresa: "border-info text-info",
+};
+const FONDO_NIVEL = {
+  start: "bg-bien-suave text-bien",
+  pro: "bg-acento-suave text-acento",
+  empresa: "bg-info-suave text-info",
 };
 
 function TarjetaCasilla({ activa, fija, onClick, icono: I, titulo, detalle, motivo, etiqueta, compacta = false }) {
@@ -480,7 +487,7 @@ function TarjetaPlan({ opcion, tarifas, todos, onElegir }) {
           <div className="f-d text-xl leading-tight">{opcion.n}</div>
           <div className="text-xs text-texto-suave mt-0.5">{opcion.d}</div>
         </div>
-        <span className="w-10 h-10 rounded-lg bg-acento-suave text-acento flex items-center justify-center shrink-0"><I size={20} /></span>
+        <span className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${FONDO_NIVEL[opcion.k] || FONDO_NIVEL.pro}`}><I size={20} /></span>
       </div>
       <div className="mt-4">
         {calculando && <div className="text-texto-suave text-sm">Calculando…</div>}
