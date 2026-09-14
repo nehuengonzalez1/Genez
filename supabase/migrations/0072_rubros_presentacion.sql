@@ -22,7 +22,14 @@
 
    Cada pregunta del paso 2 dice qué módulos enciende y qué necesita el
    comercio de su lado para que eso sirva: es dato, así un rubro nuevo
-   trae sus preguntas sin tocar el stepper.
+   trae sus preguntas sin tocar el stepper. `nucleo` son los módulos que
+   un comercio del rubro usa sí o sí (la carta en un bar, la agenda en
+   un consultorio): van siempre, además de los base del catálogo. Lo
+   demás entra solo si una pregunta lo enciende o la persona lo suma a
+   mano de entre `modulos`. Por eso las preguntas cubren cada módulo
+   opcional del rubro: nada entra por defecto ni queda sin forma de
+   pedirlo. Así el presupuesto sale de lo que respondió y no del rubro
+   entero.
 
    EL RESPALDO DE FÁBRICA
    ----------------------
@@ -35,7 +42,7 @@ alter table rubros
   add column if not exists presentacion jsonb not null default '{}'::jsonb;
 
 comment on column rubros.presentacion is
-  'Cómo se presenta el rubro en la landing y en el alta guiada: titulo, bajada, para, icono, destacados[], preguntas[{k, n, modulos[], necesita[]}]. Vacío = no se muestra.';
+  'Cómo se presenta el rubro en la landing y en el alta guiada: titulo, bajada, para, icono, destacados[], nucleo[] (módulos que van siempre), preguntas[{k, n, modulos[], necesita[]}]. Vacío = no se muestra.';
 
 update rubros set presentacion = $json$
 {
@@ -44,11 +51,16 @@ update rubros set presentacion = $json$
   "para": "Almacenes, minimercados, kioscos, dietéticas",
   "icono": "carrito",
   "destacados": ["Cobro con lector de códigos", "Stock y vencimientos", "Compras y remitos por foto", "Caja e informes"],
+  "nucleo": ["productos", "reportes"],
   "preguntas": [
+    { "k": "stock", "n": "Controlo el stock y los vencimientos", "modulos": ["stock"], "necesita": [] },
+    { "k": "compras", "n": "Compro a proveedores con remito o factura", "modulos": ["compras"], "necesita": [] },
     { "k": "peso", "n": "Vendo por peso (fiambre, verdura, pan)", "modulos": [], "necesita": ["Balanza que imprima etiquetas con código de barras"] },
     { "k": "cajas", "n": "Tengo más de una caja", "modulos": [], "necesita": ["Una computadora o tablet por caja"] },
     { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": [] },
-    { "k": "pedidos", "n": "Tomo pedidos para preparar o enviar", "modulos": ["pedidos"], "necesita": [] }
+    { "k": "pedidos", "n": "Tomo pedidos para preparar o enviar", "modulos": ["pedidos"], "necesita": [] },
+    { "k": "equipo", "n": "Trabajan otras personas conmigo", "modulos": ["permisos"], "necesita": [] },
+    { "k": "asistente", "n": "Quiero que el sistema me diga qué mirar cada día", "modulos": ["asistente"], "necesita": [] }
   ]
 }
 $json$::jsonb where clave = 'minimercado';
@@ -60,11 +72,15 @@ update rubros set presentacion = $json$
   "para": "Bares, cafés, restaurantes, take away",
   "icono": "cubiertos",
   "destacados": ["Salón con plano de mesas", "Comandas y cocina", "Centro de pedidos y delivery", "Caja e informes"],
+  "nucleo": ["productos", "reportes"],
   "preguntas": [
     { "k": "mesas", "n": "Tengo salón con mesas", "modulos": ["comandas"], "necesita": [] },
-    { "k": "delivery", "n": "Hago delivery o take away", "modulos": ["comandas"], "necesita": ["Un teléfono con WhatsApp para los pedidos"] },
     { "k": "cocina", "n": "Tengo cocina aparte de la barra", "modulos": ["comandas"], "necesita": ["Una impresora de comandas en la cocina"] },
-    { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": [] }
+    { "k": "delivery", "n": "Hago delivery o take away", "modulos": ["comandas"], "necesita": ["Un teléfono con WhatsApp para los pedidos"] },
+    { "k": "stock", "n": "Controlo el stock de insumos", "modulos": ["stock"], "necesita": [] },
+    { "k": "compras", "n": "Compro a proveedores con remito o factura", "modulos": ["compras"], "necesita": [] },
+    { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": [] },
+    { "k": "equipo", "n": "Trabajan otras personas conmigo", "modulos": ["permisos"], "necesita": [] }
   ]
 }
 $json$::jsonb where clave = 'gastronomia';
@@ -76,11 +92,16 @@ update rubros set presentacion = $json$
   "para": "Estéticas, pilates, gimnasios, peluquerías, consultorios",
   "icono": "agenda",
   "destacados": ["Agenda con turnos y clases", "Abonos y packs", "Equipo y liquidaciones", "App del cliente con reservas", "Avisos por WhatsApp"],
+  "nucleo": ["servicios", "agenda", "informes"],
   "preguntas": [
-    { "k": "clases", "n": "Doy clases grupales con cupo", "modulos": ["agenda"], "necesita": [] },
+    { "k": "clases", "n": "Doy clases grupales con cupo", "modulos": [], "necesita": ["Los horarios y el cupo de cada clase"] },
     { "k": "abonos", "n": "Vendo packs o abonos", "modulos": ["ventas"], "necesita": [] },
-    { "k": "equipo", "n": "Trabajan otras personas conmigo", "modulos": ["equipo", "finanzas"], "necesita": [] },
-    { "k": "app", "n": "Quiero que reserven solos desde el celular", "modulos": ["agenda", "comunicaciones"], "necesita": ["Un nombre para tu dirección: <nombre>.genez.com.ar"] }
+    { "k": "equipo", "n": "Trabajan otras personas conmigo", "modulos": ["equipo", "permisos"], "necesita": [] },
+    { "k": "sueldos", "n": "Liquido sueldos o comisiones al equipo", "modulos": ["finanzas"], "necesita": [] },
+    { "k": "app", "n": "Quiero que reserven solos desde el celular", "modulos": ["comunicaciones"], "necesita": ["Un nombre para tu dirección: <nombre>.genez.com.ar"] },
+    { "k": "avisos", "n": "Quiero recordatorios de turno por WhatsApp", "modulos": ["comunicaciones"], "necesita": [] },
+    { "k": "volver", "n": "Quiero saber a quién escribirle para que vuelva", "modulos": ["crm"], "necesita": [] },
+    { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": [] }
   ]
 }
 $json$::jsonb where clave = 'servicios';
