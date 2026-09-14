@@ -43,3 +43,10 @@ html {
   html { scroll-behavior: auto; }
   .escena > * { transition: none; }
 }
+
+/* Imprimir o guardar en PDF el presupuesto: queda el contenido y se van
+   la cabecera, el pie y los botones, que en papel no hacen nada. */
+@media print {
+  header, footer, .no-imprimir { display: none !important; }
+  html, body { background: white; }
+}

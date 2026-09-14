@@ -10,7 +10,9 @@
    - los módulos salen de las respuestas, no del rubro entero;
    - la base no se puede sacar, lo demás sí, y se puede sumar del rubro;
    - un módulo que el catálogo no conoce no se propone;
-   - sin una tarifa, no hay total: se dice qué falta.
+   - sin una tarifa, no hay total: se dice qué falta;
+   - el pedido de presupuesto no sale sin nombre ni sin un WhatsApp que
+     parezca un WhatsApp, y viaja limpio.
 
    No hay base ni red.
 
@@ -20,6 +22,7 @@
 import { armarModulos, presupuestar, textoDelPresupuesto } from "../src/datos/presupuesto.js";
 import { RUBROS_DE_FABRICA } from "../src/datos/landing.js";
 import { MODULOS_BASE } from "../src/datos/modulos.js";
+import { validarPedido, armarPedido, normalizarTelefono } from "../src/datos/solicitudes.js";
 
 let fallas = 0;
 let total = 0;
@@ -116,6 +119,26 @@ const tarifas = { base: 20000, puestaEnMarcha: 50000, modulos: { productos: 5000
 {
   const p = presupuestar(null, ["cobro", "caja", "ajustes"]);
   decir(p.mensual === null && p.cantidad === 3, "sin tarifas (base sin contestar) no explota");
+}
+
+console.log("\nEl pedido\n");
+
+decir(validarPedido({ nombre: "", telefono: "1122334455" }) !== null, "sin nombre no se manda");
+decir(validarPedido({ nombre: "Ana", telefono: "12" }) !== null, "un teléfono de dos dígitos no es un WhatsApp");
+decir(validarPedido({ nombre: "Ana", telefono: "11 2233-4455", email: "ana@" }) !== null, "un email a medias tampoco");
+decir(validarPedido({ nombre: "Ana", telefono: "11 2233-4455", email: "" }) === null, "nombre y WhatsApp alcanzan");
+decir(normalizarTelefono("+54 9 11 2233-4455") === "5491122334455", "el teléfono se guarda solo con dígitos");
+
+{
+  const pedido = armarPedido({
+    negocio: "Almacén", rubro: "minimercado", escala: "2-3",
+    respuestas: [{ k: "factura", n: "Facturo A y B", modulos: ["clientes"] }],
+    modulos: ["cobro", "caja", "ajustes", "clientes"], mensual: null, puesta_en_marcha: 0,
+    nombre: " Ana ", telefono: "11 2233-4455", email: " ", mensaje: "",
+  });
+  decir(pedido.nombre === "Ana" && pedido.telefono === "1122334455", "el pedido va sin espacios de más");
+  decir(pedido.email === null && pedido.mensaje === null, "y sin vacíos disfrazados de texto");
+  decir(igual(pedido.respuestas, [{ k: "factura", n: "Facturo A y B" }]), "las respuestas guardan clave y texto, nada más");
 }
 
 console.log(`\n${total} verificaciones · ${fallas ? `${fallas} en rojo` : "todo en verde"}\n`);
