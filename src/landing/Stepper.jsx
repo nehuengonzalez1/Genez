@@ -1,77 +1,72 @@
 /* ============================================================
-   EL ALTA GUIADA · tres pasos y un estimado
+   EL ALTA GUIADA · tres pasos y un presupuesto
    ============================================================
 
    1. Tu rubro — ya viene elegido desde la card.
-   2. Qué hacés — tildes que salen de `presentacion.preguntas` del rubro.
-      Cada tilde enciende módulos y suma cosas que hay que tener.
-   3. Qué necesitás — los módulos propuestos: los del rubro más los que
-      encendieron las tildes. Se pueden sacar, salvo los base.
+   2. Cómo trabajás — tildes que salen de `presentacion.preguntas` del
+      rubro. Cada tilde enciende módulos y suma cosas que hay que tener.
+   3. Tus módulos — los que de verdad necesita: base + núcleo del rubro
+      + lo que encendieron las tildes. Cada uno dice por qué está, se
+      puede sacar (menos la base) y se puede sumar del rubro.
 
-   Y el estimado: módulos, qué te hace falta de tu lado, y el precio del
-   plan que los cubre. El precio sale de `planes` (lo edita la plataforma
-   desde su panel); sin planes, "a confirmar" y nunca un número inventado.
+   Y el presupuesto: base más un precio por módulo, la puesta en marcha
+   y qué necesita de su lado. Los precios salen de `tarifas` (la
+   plataforma los edita desde su panel); sin una tarifa, "a confirmar"
+   y nunca un número inventado. "Quiero empezar" manda el presupuesto
+   por WhatsApp al número que la plataforma cargó.
 
-   Nada de esto escribe en la base: el alta real es otro issue, y hasta
-   que exista la pantalla final lo dice con todas las letras.
+   La cabeza está en src/datos/presupuesto.js y se prueba sin
+   navegador; acá solo se dibuja. Nada de esto escribe en la base: el
+   alta con cuenta es otro issue.
    ============================================================ */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Lock } from "lucide-react";
-import { MODULOS, MODULOS_BASE, moduloPorClave } from "../datos/modulos.js";
-import { cargarPlanesPublicos, planParaModulos } from "../datos/planes.js";
+import { ArrowLeft, ArrowRight, Check, Lock, Plus, MessageCircle } from "lucide-react";
+import { MODULOS_BASE, moduloPorClave } from "../datos/modulos.js";
+import { armarModulos, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
+import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
 import { Tarjeta, Boton } from "../cliente/ui.jsx";
 
 const ROTULO = "text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold";
-const unicos = (xs) => Array.from(new Set(xs));
 const pesos = (n) => "$" + new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(Math.round(n));
 
-const PASOS = ["Tu rubro", "Qué hacés", "Qué necesitás"];
+const PASOS = ["Tu rubro", "Cómo trabajás", "Tus módulos"];
 
 export default function Stepper({ rubro, onVolver }) {
   const p = rubro.presentacion;
   const preguntas = p.preguntas || [];
-  const [paso, setPaso] = useState(preguntas.length ? 2 : 3);   // 2 | 3 | 4 (estimado)
-  const [tildes, setTildes] = useState({});
+  const [paso, setPaso] = useState(preguntas.length ? 2 : 3);   // 2 | 3 | 4 (presupuesto)
+  const [respuestas, setRespuestas] = useState({});
   const [sacados, setSacados] = useState([]);
-  const [planes, setPlanes] = useState(null);                    // null = todavía no se sabe
+  const [sumados, setSumados] = useState([]);
+  const [tarifas, setTarifas] = useState(null);                  // null = todavía no se sabe
 
   useEffect(() => {
     let vigente = true;
-    cargarPlanesPublicos()
-      .then((ps) => { if (vigente) setPlanes(ps); })
-      .catch(() => { if (vigente) setPlanes([]); });
+    cargarTarifasPublicas()
+      .then((t) => { if (vigente) setTarifas(t); })
+      .catch(() => { if (vigente) setTarifas(TARIFAS_VACIAS); });
     return () => { vigente = false; };
   }, []);
 
-  const activas = preguntas.filter((q) => tildes[q.k]);
-
-  /* Lo que el rubro trae más lo que encendieron las tildes. Los base van
-     siempre; el resto se puede sacar en el paso 3. */
-  const propuestos = useMemo(
-    () => unicos([...MODULOS_BASE, ...(rubro.modulos || []), ...activas.flatMap((q) => q.modulos || [])]),
-    [rubro, activas],
+  const armado = useMemo(
+    () => armarModulos({ rubro, respuestas, sacados, sumados }),
+    [rubro, respuestas, sacados, sumados],
   );
-  const elegidos = propuestos.filter((k) => MODULOS_BASE.includes(k) || !sacados.includes(k));
-
-  const necesita = useMemo(
-    () => unicos([
-      ...elegidos.flatMap((k) => (moduloPorClave(k) || {}).necesita || []),
-      ...activas.flatMap((q) => q.necesita || []),
-    ]),
-    [elegidos, activas],
+  const presupuesto = useMemo(
+    () => presupuestar(tarifas || TARIFAS_VACIAS, armado.elegidos),
+    [tarifas, armado],
   );
-
-  const estimado = planes ? planParaModulos(planes, elegidos, rubro.clave) : null;
 
   const arriba = () => window.scrollTo(0, 0);
   const ir = (n) => { setPaso(n); arriba(); };
+  const primero = paso === 2 || (paso === 3 && !preguntas.length);
 
   return (
     <section className="pt-4 max-w-2xl">
-      <button onClick={paso === 2 || (paso === 3 && !preguntas.length) ? onVolver : () => ir(paso === 4 ? 3 : 2)}
+      <button onClick={primero ? onVolver : () => ir(paso === 4 ? 3 : 2)}
         className="inline-flex items-center gap-1.5 text-sm text-texto-suave hover:text-texto mb-5">
-        <ArrowLeft size={16} /> {paso === 2 || (paso === 3 && !preguntas.length) ? "Elegir otro rubro" : "Volver"}
+        <ArrowLeft size={16} /> {primero ? "Elegir otro rubro" : "Volver"}
       </button>
 
       <Progreso actual={paso} />
@@ -82,17 +77,19 @@ export default function Stepper({ rubro, onVolver }) {
       </div>
 
       {paso === 2 && (
-        <QueHaces preguntas={preguntas} tildes={tildes} onTildar={(k) => setTildes((t) => ({ ...t, [k]: !t[k] }))} onSeguir={() => ir(3)} />
+        <ComoTrabajas preguntas={preguntas} respuestas={respuestas}
+          onTildar={(k) => setRespuestas((r) => ({ ...r, [k]: !r[k] }))} onSeguir={() => ir(3)} />
       )}
 
       {paso === 3 && (
-        <QueNecesitas propuestos={propuestos} sacados={sacados}
-          onAlternar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
+        <TusModulos armado={armado} sacados={sacados} sumados={sumados}
+          onSacar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
+          onSumar={(k) => setSumados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
           onSeguir={() => ir(4)} />
       )}
 
       {paso === 4 && (
-        <Estimado modulos={elegidos} necesita={necesita} estimado={estimado} planes={planes} />
+        <Presupuesto rubro={rubro} armado={armado} presupuesto={presupuesto} tarifas={tarifas} />
       )}
     </section>
   );
@@ -114,50 +111,88 @@ function Progreso({ actual }) {
   );
 }
 
-function QueHaces({ preguntas, tildes, onTildar, onSeguir }) {
+function ComoTrabajas({ preguntas, respuestas, onTildar, onSeguir }) {
+  const marcadas = preguntas.filter((q) => respuestas[q.k]).length;
   return (
     <div className="mt-6">
       <h1 className="f-d text-2xl leading-tight">¿Cómo trabajás?</h1>
-      <p className="text-texto-suave mt-2">Tildá lo que aplica. Con eso armamos lo que necesitás.</p>
+      <p className="text-texto-suave mt-2">Tildá lo que aplica. Cada tilde suma solo lo que hace falta para eso.</p>
       <div className="mt-5 space-y-2">
         {preguntas.map((q) => (
-          <Tilde key={q.k} activa={!!tildes[q.k]} onClick={() => onTildar(q.k)} titulo={q.n} />
+          <Tilde key={q.k} activa={!!respuestas[q.k]} onClick={() => onTildar(q.k)} titulo={q.n}
+            detalle={(q.modulos || []).map((k) => (moduloPorClave(k) || { n: k }).n).join(" · ") || null} />
         ))}
       </div>
       <div className="mt-6">
         <Boton onClick={onSeguir}>
-          <span className="inline-flex items-center gap-2">Seguir <ArrowRight size={16} /></span>
+          <span className="inline-flex items-center gap-2">
+            {marcadas ? `Ver mis módulos` : "Seguir sin marcar nada"} <ArrowRight size={16} />
+          </span>
         </Boton>
       </div>
     </div>
   );
 }
 
-function QueNecesitas({ propuestos, sacados, onAlternar, onSeguir }) {
+function TusModulos({ armado, sacados, sumados, onSacar, onSumar, onSeguir }) {
+  const { elegidos, motivos, propuestos, sumables } = armado;
+  const cuantosBase = elegidos.filter((k) => MODULOS_BASE.includes(k)).length;
+  const fila = (k) => moduloPorClave(k) || { n: k, d: "" };
+
   return (
     <div className="mt-6">
-      <h1 className="f-d text-2xl leading-tight">Esto es lo que necesitás</h1>
-      <p className="text-texto-suave mt-2">Lo armamos según tu rubro y lo que marcaste. Podés sacar lo que no quieras.</p>
+      <h1 className="f-d text-2xl leading-tight">Estos son tus módulos</h1>
+      <p className="text-texto-suave mt-2">
+        <strong className="text-texto">{elegidos.length} módulos</strong>, {cuantosBase} de ellos incluidos en la base.
+        Cada uno dice por qué está. Podés sacar lo que no quieras y sumar lo que te falte.
+      </p>
+
       <div className="mt-5 space-y-2">
         {propuestos.map((k) => {
-          const m = moduloPorClave(k) || { n: k, d: "" };
+          const m = fila(k);
           const base = MODULOS_BASE.includes(k);
           return (
-            <Tilde key={k} activa={base || !sacados.includes(k)} fija={base} onClick={() => !base && onAlternar(k)}
-              titulo={m.n} detalle={base ? "Siempre incluido" : m.d} />
+            <Tilde key={k} activa={base || !sacados.includes(k)} fija={base} onClick={() => !base && onSacar(k)}
+              titulo={m.n} detalle={m.d} motivo={motivos[k] || (base ? "Siempre incluido" : "")} />
           );
         })}
+        {sumados.filter((k) => elegidos.includes(k)).map((k) => {
+          const m = fila(k);
+          return <Tilde key={k} activa onClick={() => onSumar(k)} titulo={m.n} detalle={m.d} motivo="Lo sumaste vos" />;
+        })}
       </div>
+
+      {sumables.length > 0 && (
+        <div className="mt-6">
+          <div className={ROTULO}>¿Te falta algo? Sumalo</div>
+          <div className="mt-2 space-y-2">
+            {sumables.map((k) => {
+              const m = fila(k);
+              return (
+                <button key={k} type="button" onClick={() => onSumar(k)}
+                  className="w-full text-left flex items-center gap-3 rounded-xl border border-dashed border-borde-fuerte px-4 py-3 min-h-[52px] hover:border-texto-tenue">
+                  <span className="w-5 h-5 rounded border border-borde-fuerte flex items-center justify-center shrink-0 text-texto-tenue"><Plus size={13} /></span>
+                  <span className="min-w-0">
+                    <span className="block text-[15px] font-medium leading-snug">{m.n}</span>
+                    {m.d && <span className="block text-xs text-texto-tenue mt-0.5">{m.d}</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="mt-6">
         <Boton onClick={onSeguir}>
-          <span className="inline-flex items-center gap-2">Ver el estimado <ArrowRight size={16} /></span>
+          <span className="inline-flex items-center gap-2">Ver mi presupuesto <ArrowRight size={16} /></span>
         </Boton>
       </div>
     </div>
   );
 }
 
-function Tilde({ activa, fija, onClick, titulo, detalle }) {
+function Tilde({ activa, fija, onClick, titulo, detalle, motivo }) {
   return (
     <button type="button" onClick={onClick} disabled={fija}
       className={`w-full text-left flex items-center gap-3 rounded-xl border px-4 py-3.5 min-h-[56px] ${
@@ -166,47 +201,86 @@ function Tilde({ activa, fija, onClick, titulo, detalle }) {
         activa ? "bg-acento border-acento text-sobre-acento" : "border-borde-fuerte"}`}>
         {activa && (fija ? <Lock size={11} /> : <Check size={13} />)}
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-medium leading-snug">{titulo}</span>
         {detalle && <span className="block text-xs text-texto-tenue mt-0.5">{detalle}</span>}
       </span>
+      {motivo && <span className="hidden sm:block text-[11px] text-texto-tenue text-right max-w-[40%] leading-snug shrink-0">{motivo}</span>}
     </button>
   );
 }
 
-function Estimado({ modulos, necesita, estimado, planes }) {
-  const plan = estimado ? estimado.plan : null;
-  const faltan = estimado ? estimado.faltan : [];
-  const nombreDe = (k) => (moduloPorClave(k) || { n: k }).n;
+function Presupuesto({ rubro, armado, presupuesto, tarifas }) {
+  const { lineas, base, mensual, puestaEnMarcha, faltan, cantidad } = presupuesto;
+  const calculando = tarifas === null;
+  const nombresBase = lineas.filter((l) => l.base).map((l) => l.n).join(", ");
+  const opcionales = lineas.filter((l) => !l.base);
+
+  const whatsapp = (tarifas && tarifas.whatsapp) || "";
+  const enlace = whatsapp
+    ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(textoDelPresupuesto({ rubro, presupuesto, pesos }))}`
+    : null;
 
   return (
     <div className="mt-6">
-      <h1 className="f-d text-2xl leading-tight">Tu estimado</h1>
-      <p className="text-texto-suave mt-2">Lo que te corresponde, lo que necesitás de tu lado y lo que pagás para empezar.</p>
+      <h1 className="f-d text-2xl leading-tight">Tu presupuesto</h1>
+      <p className="text-texto-suave mt-2">
+        Con los {cantidad} módulos que elegiste. Si no cambiás nada, esto es lo que pagás: sin sorpresas.
+      </p>
 
-      <Tarjeta className="mt-5">
-        <div className={`${ROTULO} mb-3`}>Módulos ({modulos.length})</div>
-        <ul className="space-y-2">
-          {modulos.map((k) => {
-            const m = moduloPorClave(k) || { n: k, d: "" };
-            return (
-              <li key={k} className="flex items-start gap-3">
-                <Check size={16} className="text-bien shrink-0 mt-0.5" />
+      <Tarjeta className="mt-5 border-acento">
+        <div className={`${ROTULO} mb-2`}>Por mes</div>
+        {calculando && <p className="text-texto-suave text-[15px]">Calculando…</p>}
+        {!calculando && mensual != null && (
+          <div className="f-d f-m text-3xl">{pesos(mensual)} <span className="text-base text-texto-suave font-normal">por mes</span></div>
+        )}
+        {!calculando && mensual == null && (
+          <>
+            <div className="f-d text-2xl">Precio a confirmar</div>
+            <p className="text-[15px] text-texto-suave mt-1">
+              {faltan.includes("base")
+                ? `Te mandamos la propuesta con estos ${cantidad} módulos. El número que te digamos es el que pagás.`
+                : `Falta el precio de ${faltan.map((k) => (moduloPorClave(k) || { n: k }).n).join(", ")}: te lo cotizamos aparte.`}
+            </p>
+          </>
+        )}
+
+        {!calculando && (
+          <ul className="mt-4 pt-4 border-t border-borde space-y-2 text-[15px]">
+            <li className="flex items-start justify-between gap-3">
+              <span className="min-w-0">
+                <span className="font-medium">Base</span>
+                <span className="block text-xs text-texto-tenue">{nombresBase}</span>
+              </span>
+              <span className="f-m shrink-0">{base == null ? "a confirmar" : pesos(base)}</span>
+            </li>
+            {opcionales.map((l) => (
+              <li key={l.k} className="flex items-start justify-between gap-3">
                 <span className="min-w-0">
-                  <span className="text-[15px] font-medium">{m.n}</span>
-                  {m.d && <span className="block text-xs text-texto-tenue">{m.d}</span>}
+                  <span className="font-medium">{l.n}</span>
+                  {l.d && <span className="block text-xs text-texto-tenue">{l.d}</span>}
                 </span>
+                <span className="f-m shrink-0">{l.monto == null ? "a confirmar" : pesos(l.monto)}</span>
               </li>
-            );
-          })}
-        </ul>
+            ))}
+            {puestaEnMarcha > 0 && (
+              <li className="flex items-start justify-between gap-3 pt-2 border-t border-borde">
+                <span className="min-w-0">
+                  <span className="font-medium">Puesta en marcha</span>
+                  <span className="block text-xs text-texto-tenue">Una sola vez, al arrancar</span>
+                </span>
+                <span className="f-m shrink-0">{pesos(puestaEnMarcha)}</span>
+              </li>
+            )}
+          </ul>
+        )}
       </Tarjeta>
 
       <Tarjeta className="mt-3">
         <div className={`${ROTULO} mb-3`}>Qué necesitás de tu lado</div>
-        {necesita.length ? (
+        {armado.necesita.length ? (
           <ul className="space-y-2">
-            {necesita.map((n) => (
+            {armado.necesita.map((n) => (
               <li key={n} className="flex items-start gap-3 text-[15px]">
                 <span className="w-1.5 h-1.5 rounded-full bg-texto-tenue shrink-0 mt-2" />{n}
               </li>
@@ -217,40 +291,25 @@ function Estimado({ modulos, necesita, estimado, planes }) {
         )}
       </Tarjeta>
 
-      <Tarjeta className="mt-3 border-acento">
-        <div className={`${ROTULO} mb-2`}>Lo que pagás para empezar</div>
-        {planes === null && <p className="text-texto-suave text-[15px]">Calculando…</p>}
-        {planes !== null && plan && plan.precioMensual != null && (
-          <>
-            <div className="f-d text-3xl">{pesos(plan.precioMensual)} <span className="text-base text-texto-suave font-normal">por mes</span></div>
-            <div className="text-[15px] mt-1">Plan <strong>{plan.nombre}</strong>{plan.bajada ? ` · ${plan.bajada}` : ""}</div>
-            {plan.puestaEnMarcha > 0 && (
-              <div className="text-sm text-texto-suave mt-1">Más {pesos(plan.puestaEnMarcha)} por única vez para la puesta en marcha.</div>
-            )}
-            {faltan.length > 0 && (
-              <p className="text-sm text-texto-suave mt-3">
-                Este plan no incluye {faltan.map(nombreDe).join(", ")}: te lo cotizamos aparte.
-              </p>
-            )}
-          </>
-        )}
-        {planes !== null && (!plan || plan.precioMensual == null) && (
-          <>
-            <div className="f-d text-2xl">Precio a confirmar</div>
-            <p className="text-[15px] text-texto-suave mt-1">
-              Te mandamos la propuesta con estos {modulos.length} módulos. Sin sorpresas: el número que te digamos es el que pagás.
-            </p>
-          </>
-        )}
-      </Tarjeta>
-
-      {/* Honesto hasta que exista el alta real (issue aparte): se dice, no se simula. */}
-      <Tarjeta className="mt-3 border-dashed">
-        <div className={`${ROTULO} mb-2`}>Empezar</div>
-        <p className="text-[15px] leading-relaxed">
-          En breve vas a poder crear tu cuenta acá mismo y entrar al sistema con estos módulos ya armados.
-        </p>
-      </Tarjeta>
+      {/* El alta con cuenta es otro issue. Mientras tanto, el presupuesto
+          viaja por WhatsApp al número que la plataforma cargó; sin número,
+          se dice con todas las letras en vez de fingir un formulario. */}
+      {enlace ? (
+        <div className="mt-5">
+          <a href={enlace} target="_blank" rel="noopener noreferrer"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-[15px] bg-acento hover:bg-acento-vivo text-sobre-acento font-bold transition-colors">
+            <MessageCircle size={18} /> Quiero empezar
+          </a>
+          <p className="text-xs text-texto-tenue mt-2 text-center">Se abre WhatsApp con este presupuesto ya escrito. Te contestamos con los pasos para arrancar.</p>
+        </div>
+      ) : (
+        <Tarjeta className="mt-3 border-dashed">
+          <div className={`${ROTULO} mb-2`}>Empezar</div>
+          <p className="text-[15px] leading-relaxed">
+            En breve vas a poder crear tu cuenta acá mismo y entrar al sistema con estos {cantidad} módulos ya armados.
+          </p>
+        </Tarjeta>
+      )}
     </div>
   );
 }
