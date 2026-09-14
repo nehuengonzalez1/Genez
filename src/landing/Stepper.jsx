@@ -204,6 +204,8 @@ function Tilde({ activa, fija, onClick, titulo, detalle, motivo }) {
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-medium leading-snug">{titulo}</span>
         {detalle && <span className="block text-xs text-texto-tenue mt-0.5">{detalle}</span>}
+        {/* En el teléfono el motivo va debajo; con lugar, a la derecha. */}
+        {motivo && <span className="block sm:hidden text-[11px] text-acento mt-1">{motivo}</span>}
       </span>
       {motivo && <span className="hidden sm:block text-[11px] text-texto-tenue text-right max-w-[40%] leading-snug shrink-0">{motivo}</span>}
     </button>

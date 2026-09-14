@@ -52,16 +52,29 @@ const ICONO_MODULO = {
   informes: BarChart3, crm: MessageCircle, comunicaciones: Bell, permisos: ShieldCheck, asistente: Sparkles,
 };
 
+/* El rubro que no está. No tiene fila en la base porque no es un rubro:
+   es la puerta para el que no se reconoció en ninguna card. Sin
+   `modulos`, el alta guiada le deja sumar cualquiera del catálogo; las
+   preguntas son las que sirven a cualquier negocio. */
 const OTRO = {
   clave: "otro",
   nombre: "Otro",
+  modulos: [],
   presentacion: {
     titulo: "Otro tipo de negocio",
     bajada: "Contanos qué hacés y vemos cómo se arma.",
     para: "Panaderías, casas de sanitarios, ferreterías, lo que sea",
     icono: "tienda",
     destacados: ["Cobro y caja desde el primer día", "Productos y stock", "Informes de qué deja plata"],
-    preguntas: [],
+    nucleo: ["productos", "reportes"],
+    preguntas: [
+      { k: "stock", n: "Controlo el stock", modulos: ["stock"], necesita: [] },
+      { k: "compras", n: "Compro a proveedores con remito o factura", modulos: ["compras"], necesita: [] },
+      { k: "factura", n: "Facturo A y B", modulos: ["clientes"], necesita: [] },
+      { k: "pedidos", n: "Tomo pedidos para preparar o enviar", modulos: ["pedidos"], necesita: [] },
+      { k: "turnos", n: "Trabajo con turnos o agenda", modulos: ["agenda", "servicios"], necesita: [] },
+      { k: "equipo", n: "Trabajan otras personas conmigo", modulos: ["permisos"], necesita: [] },
+    ],
   },
 };
 
@@ -204,15 +217,15 @@ function Hero() {
           El sistema de gestión que se arma <span className="text-acento">según tu rubro.</span>
         </h1>
         <p className="text-texto-suave mt-5 text-[17px] sm:text-lg leading-relaxed max-w-xl">
-          Cobro, stock, caja, turnos y clientes en un solo lugar. Elegí tu rubro y en tres pasos sabés
-          qué módulos necesitás, qué te hace falta de tu lado y cuánto pagás para empezar.
+          Cobro, stock, caja, turnos y clientes en un solo lugar. Elegí tu rubro y en tres pasos tenés
+          tu presupuesto: solo los módulos que necesitás, qué te hace falta de tu lado y cuánto pagás por mes.
         </p>
         <div className="mt-8 flex flex-col sm:flex-row gap-3">
           <a href="#rubros" className={SOLIDO}>Elegir mi rubro <ArrowDown size={16} /></a>
           <a href="#como-funciona" className={LINEA}>Ver cómo funciona</a>
         </div>
         <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-texto-suave">
-          {["Sin tarjeta para ver tu estimado", "Precio claro antes de empezar", "Celular, tablet o computadora"].map((t) => (
+          {["Sin tarjeta para ver tu presupuesto", "Precio claro antes de empezar", "Celular, tablet o computadora"].map((t) => (
             <li key={t} className="flex items-center gap-2"><Check size={15} className="text-acento" /> {t}</li>
           ))}
         </ul>
@@ -311,7 +324,7 @@ function Rubros({ rubros, elegido, onElegir }) {
         <div className={ROTULO}>Paso 1 de 3</div>
         <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">¿Qué tipo de negocio tenés?</h2>
         <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">
-          Elegí una card. Con eso armamos los módulos que te corresponden y te mostramos un estimado.
+          Elegí una card. Con eso armamos los módulos que te corresponden y te mostramos el presupuesto.
         </p>
       </div>
 
@@ -365,8 +378,8 @@ function Card({ rubro, activa, onElegir }) {
 function ComoFunciona() {
   const pasos = [
     { n: "01", t: "Elegí tu rubro", d: "Comercio, gastronomía, turnos… o contanos el tuyo. Con eso ya sabemos qué módulos van." },
-    { n: "02", t: "Contanos cómo trabajás", d: "Cuatro tildes: si vendés por peso, si facturás, si hacés delivery, si tenés equipo." },
-    { n: "03", t: "Mirá tu estimado", d: "Los módulos que te corresponden, lo que necesitás de tu lado y el precio por mes." },
+    { n: "02", t: "Contanos cómo trabajás", d: "Unas tildes: si controlás stock, si facturás, si hacés delivery, si tenés equipo. Cada una suma solo lo que hace falta." },
+    { n: "03", t: "Mirá tu presupuesto", d: "Solo los módulos que necesitás, con el precio de cada uno, lo que va una sola vez y lo que necesitás de tu lado." },
   ];
   return (
     <section id="como-funciona" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
@@ -389,7 +402,7 @@ function ComoFunciona() {
       </ol>
 
       <p className="text-sm text-texto-tenue mt-5 max-w-2xl leading-relaxed">
-        Después creás tu cuenta y entrás al sistema con todo ya armado. Hasta ahí no te pedimos tarjeta.
+        Si te cierra, lo pedís por WhatsApp con el presupuesto ya escrito y te contestamos con los pasos para arrancar. Hasta ahí no te pedimos tarjeta.
       </p>
     </section>
   );
@@ -407,7 +420,7 @@ function QueIncluye() {
         <div className={ROTULO}>Qué incluye</div>
         <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Todo lo que un comercio necesita, por módulos.</h2>
         <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">
-          Activás los que usás y pagás por esos. Cobro, caja y ajustes van siempre.
+          Pagás una base que incluye cobro, caja y ajustes, más cada módulo que sumes. Nada más.
         </p>
       </div>
 
@@ -442,7 +455,7 @@ function Remate() {
           <LogoGenez size={44} claro />
           <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-5">Empezá hoy con un sistema hecho para tu rubro.</h2>
           <p className="text-fondo/70 mt-3 text-[17px] leading-relaxed max-w-xl">
-            Elegí tu rubro, contanos cómo trabajás y mirá tu estimado. Tres pasos, sin compromiso.
+            Elegí tu rubro, contanos cómo trabajás y mirá tu presupuesto. Tres pasos, sin compromiso.
           </p>
         </div>
         <a href="#rubros" className={`${SOLIDO} shrink-0`}>Elegir mi rubro <ArrowRight size={16} /></a>
