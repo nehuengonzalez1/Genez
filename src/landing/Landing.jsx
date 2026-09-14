@@ -42,10 +42,12 @@ import {
   ShoppingCart, UtensilsCrossed, CalendarDays, Store, ArrowRight, Plus, Minus, Sun, Moon,
   ScanBarcode, Wallet, Settings, Package, Boxes, Truck, ClipboardList, FileText, Users,
   Ticket, Landmark, LayoutGrid, BarChart3, MessageCircle, Bell, ShieldCheck, Sparkles,
-  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Leaf, Home, Calendar, Gift, User,
+  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Leaf, Home, Calendar, Gift, User, Check, Clock,
 } from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
-import { MODULOS } from "../datos/modulos.js";
+import { MODULOS, MODULOS_BASE, moduloPorClave } from "../datos/modulos.js";
+import { presupuestar } from "../datos/presupuesto.js";
+import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
 import { ROTULO } from "../cliente/ui.jsx";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { estaOscuro, fijarTema } from "./tema.js";
@@ -123,6 +125,49 @@ const OTRO = {
   },
 };
 
+/* Lo que le complica a un comerciante, en sus palabras. Cada problema
+   enciende módulos, igual que una pregunta del rubro: entra al alta
+   guiada ya marcado y con su motivo ("Porque marcaste…"). No es dato de
+   la base porque no depende del rubro: son los dolores de cualquiera. */
+const PROBLEMAS = [
+  { k: "p_stock", n: "Se me escapa el stock", modulos: ["stock"], I: Boxes },
+  { k: "p_plata", n: "No sé qué me deja plata", modulos: ["reportes"], I: TrendingUp },
+  { k: "p_caja", n: "La caja no me cierra", modulos: ["reportes"], I: Wallet },
+  { k: "p_factura", n: "Facturar me lleva horas", modulos: ["clientes"], I: FileText },
+  { k: "p_cola", n: "Tengo cola en el mostrador", modulos: ["productos"], I: Clock },
+  { k: "p_remitos", n: "Cargar remitos es un infierno", modulos: ["compras"], I: Truck },
+  { k: "p_turnos", n: "Pierdo turnos o se me olvidan", modulos: ["agenda", "comunicaciones"], I: CalendarDays },
+  { k: "p_volver", n: "No sé quién dejó de venir", modulos: ["crm"], I: MessageCircle },
+  { k: "p_equipo", n: "Cada empleado hace lo que quiere", modulos: ["permisos", "equipo"], I: Users },
+  { k: "p_reservas", n: "Mis clientes no pueden reservar solos", modulos: ["agenda", "comunicaciones"], I: Smartphone },
+];
+
+/* Tres presupuestos armados por rubro: para arrancar, el recomendado y el
+   completo. Son atajos: el precio sale de las mismas tarifas por módulo
+   que el alta guiada, y elegir uno entra al alta con esos módulos ya
+   sumados, donde se puede sacar o agregar lo que sea. Los base van
+   siempre y no se listan acá. */
+const PRESUPUESTOS = {
+  minimercado: [
+    { k: "arrancar", n: "Para arrancar", d: "Cobrás con lector y sabés qué vendiste.", modulos: ["productos", "reportes"] },
+    { k: "ordenar", n: "Para ordenar el stock", d: "Stock, compras y remitos por foto.", modulos: ["productos", "stock", "compras", "reportes"], recomendado: true },
+    { k: "completo", n: "Completo", d: "Factura, pedidos, permisos y asistente.", modulos: ["productos", "stock", "compras", "pedidos", "clientes", "reportes", "permisos", "asistente"] },
+  ],
+  gastronomia: [
+    { k: "mostrador", n: "Mostrador", d: "Cobrás y sabés qué vendiste.", modulos: ["productos", "reportes"] },
+    { k: "salon", n: "Salón", d: "Mesas, comandas y cocina.", modulos: ["productos", "comandas", "stock", "reportes"], recomendado: true },
+    { k: "completo", n: "Completo", d: "Compras, factura y permisos.", modulos: ["productos", "comandas", "stock", "compras", "clientes", "reportes", "permisos"] },
+  ],
+  servicios: [
+    { k: "agenda", n: "Agenda", d: "Turnos, clases y tu lista de servicios.", modulos: ["servicios", "agenda", "informes"] },
+    { k: "clientes", n: "Agenda y clientes", d: "Abonos y avisos por WhatsApp.", modulos: ["servicios", "agenda", "informes", "ventas", "comunicaciones"], recomendado: true },
+    { k: "completo", n: "Completo", d: "Equipo, liquidaciones y seguimiento.", modulos: ["servicios", "agenda", "informes", "ventas", "equipo", "finanzas", "crm", "comunicaciones", "clientes", "permisos"] },
+  ],
+};
+
+const unicos = (xs) => Array.from(new Set(xs));
+const pesos = (n) => "$" + new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(Math.round(n));
+
 /* Botones de la página. No son los de la app del cliente (ocupan todo el
    ancho, para el pulgar): acá van en línea, con el aire que pide DISENO.md:
    12px arriba y abajo, 18px a los costados, esquina de 6px. */
@@ -160,11 +205,24 @@ export default function Landing() {
   const [oscuro, setOscuro] = useState(estaOscuro());
   const alternarTema = () => { fijarTema(oscuro ? "claro" : "oscuro"); setOscuro(!oscuro); };
 
+  /* Lo que se elige en la portada antes de entrar al alta guiada: los
+     problemas marcados, lo que escribió, el presupuesto armado que tocó
+     (sus módulos) y el filtro de rubro, compartido por dos secciones. */
+  const [problemas, setProblemas] = useState([]);
+  const [mensaje, setMensaje] = useState("");
+  const [preset, setPreset] = useState([]);
+  const [filtro, setFiltro] = useState("todos");
+  const [tarifas, setTarifas] = useState(null);
+  const alternarProblema = (k) => setProblemas((xs) => (xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k]));
+
   useEffect(() => {
     let vigente = true;
     cargarRubrosPublicos()
       .then((rs) => { if (vigente && rs.length) setRubros(rs); })
       .catch(() => { /* se quedan las de fábrica, que son las mismas */ });
+    cargarTarifasPublicas()
+      .then((t) => { if (vigente) setTarifas(t); })
+      .catch(() => { if (vigente) setTarifas(TARIFAS_VACIAS); });
     return () => { vigente = false; };
   }, []);
 
@@ -173,8 +231,8 @@ export default function Landing() {
 
   /* Tocar un negocio elige y avanza en el mismo gesto: la card ya es la
      respuesta, y un "Continuar" aparte era un toque de más. */
-  const elegir = (clave, nombre) => {
-    setElegido(clave); setNegocio(nombre); escribirEnLaDireccion(clave, nombre);
+  const elegir = (clave, nombre, modulos = []) => {
+    setElegido(clave); setNegocio(nombre); setPreset(modulos); escribirEnLaDireccion(clave, nombre);
     setPaso("empezar"); window.scrollTo(0, 0);
   };
   const volver = () => { setPaso("cards"); window.scrollTo(0, 0); };
@@ -186,10 +244,13 @@ export default function Landing() {
 
         <main className="flex-1">
           {paso === "cards" || !rubro ? (
-            <Portada rubros={rubros} onElegir={elegir} />
+            <Portada rubros={rubros} onElegir={elegir} filtro={filtro} onFiltro={setFiltro}
+              problemas={problemas} onProblema={alternarProblema} mensaje={mensaje} onMensaje={setMensaje} tarifas={tarifas} />
           ) : (
             <div className="max-w-5xl mx-auto px-5 pb-20">
-              <Stepper key={`${rubro.clave}:${negocio || ""}`} rubro={rubro} negocio={negocio} onVolver={volver} />
+              <Stepper key={`${rubro.clave}:${negocio || ""}:${preset.join(",")}`} rubro={rubro} negocio={negocio}
+                problemas={PROBLEMAS.filter((q) => problemas.includes(q.k)).map(({ k, n, modulos }) => ({ k, n, modulos, necesita: [] }))}
+                sumadosIniciales={preset} mensajeInicial={mensaje} onVolver={volver} />
             </div>
           )}
         </main>
@@ -239,13 +300,15 @@ function Cabecera({ conMenu, onAlternarTema }) {
   );
 }
 
-function Portada({ rubros, onElegir }) {
+function Portada({ rubros, onElegir, filtro, onFiltro, problemas, onProblema, mensaje, onMensaje, tarifas }) {
   return (
     <>
       <Hero />
-      <Empecemos rubros={rubros} onElegir={onElegir} />
+      <Empecemos rubros={rubros} onElegir={onElegir} filtro={filtro} onFiltro={onFiltro} problemasMarcados={problemas.length} />
       <QueResuelve />
+      <Problemas elegidos={problemas} onAlternar={onProblema} mensaje={mensaje} onMensaje={onMensaje} />
       <QueIncluye />
+      <TresPresupuestos rubros={rubros} filtro={filtro} onFiltro={onFiltro} tarifas={tarifas} onElegir={onElegir} />
       <ComoFunciona />
       <Preguntas />
     </>
@@ -413,8 +476,7 @@ function Telefono() {
 /* ------------------------------------------------------------
    Empecemos · una fila por rubro, los negocios con foto
    ------------------------------------------------------------ */
-function Empecemos({ rubros, onElegir }) {
-  const [filtro, setFiltro] = useState("todos");
+function Empecemos({ rubros, onElegir, filtro, onFiltro, problemasMarcados = 0 }) {
   const visibles = rubros.filter((r) => filtro === "todos" || r.clave === filtro);
 
   return (
@@ -424,6 +486,11 @@ function Empecemos({ rubros, onElegir }) {
           <div className={ROTULO_ACENTO}>Empecemos</div>
           <h2 className="f-d text-4xl sm:text-5xl leading-tight mt-3">¿Qué <span className="text-acento">negocio</span> tenés?</h2>
           <p className="text-texto-suave mt-3 text-[17px]">Elegí el tuyo y armamos Genez con los módulos que necesitás.</p>
+          {problemasMarcados > 0 && (
+            <p className="text-sm font-semibold text-acento mt-2">
+              Marcaste {problemasMarcados} {problemasMarcados === 1 ? "problema" : "problemas"}: al tocar tu negocio los tomamos en cuenta.
+            </p>
+          )}
         </div>
         <div className="flex items-end gap-5">
           <div className="manuscrita hidden md:block text-[18px] leading-[1.05] text-texto-suave -rotate-6 text-right">
@@ -432,7 +499,7 @@ function Empecemos({ rubros, onElegir }) {
           </div>
           <div className="flex flex-wrap gap-2">
             {[{ clave: "todos", nombre: "Todos" }, ...rubros].map((r) => (
-              <button key={r.clave} type="button" onClick={() => setFiltro(r.clave)}
+              <button key={r.clave} type="button" onClick={() => onFiltro(r.clave)}
                 className={`text-sm font-semibold rounded-full border px-4 py-2 transition-colors ${
                   filtro === r.clave ? "pildora-activa" : "border-borde-fuerte bg-superficie text-texto-suave hover:text-texto"}`}>
                 {r.nombre}
@@ -656,6 +723,130 @@ function TelefonoModulos() {
         <span className="w-8 h-8 rounded-md bg-acento text-sobre-acento flex items-center justify-center"><BarChart3 size={16} /></span>
         <div className="f-d text-[15px] leading-tight mt-2">Sumá módulos y hacé crecer tu negocio.</div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   Contanos tus problemas · el sistema desde el dolor, no desde el catálogo
+   ------------------------------------------------------------ */
+function Problemas({ elegidos, onAlternar, mensaje, onMensaje }) {
+  const marcados = PROBLEMAS.filter((q) => elegidos.includes(q.k));
+  const modulos = unicos(marcados.flatMap((q) => q.modulos)).map((k) => (moduloPorClave(k) || { n: k }).n);
+  return (
+    <section id="problemas" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
+      <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-10 items-start">
+        <div>
+          <div className={ROTULO_ACENTO}>Contanos tus problemas</div>
+          <h2 className="f-d text-4xl sm:text-5xl leading-[1.05] mt-3">¿Qué te está <span className="text-acento">complicando</span> hoy?</h2>
+          <p className="text-texto-suave mt-4 text-[17px] leading-relaxed">
+            Marcá lo que te pasa. Con eso armamos el sistema desde tu problema, no desde un catálogo.
+          </p>
+          {marcados.length > 0 && (
+            <div className="mt-6 bg-superficie border border-acento rounded-xl p-4">
+              <div className={ROTULO}>Con esto te proponemos</div>
+              <div className="font-semibold mt-1 leading-snug">{modulos.join(" · ")}</div>
+              <a href="#empecemos" className={`${SOLIDO} mt-4`}>Elegir mi negocio y ver la solución <ArrowRight size={16} /></a>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="flex flex-wrap gap-2">
+            {PROBLEMAS.map(({ k, n, I }) => {
+              const activo = elegidos.includes(k);
+              return (
+                <button key={k} type="button" onClick={() => onAlternar(k)} aria-pressed={activo}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition-colors ${
+                    activo ? "border-acento bg-acento-suave/40 text-texto" : "border-borde-fuerte bg-superficie text-texto-suave hover:text-texto"}`}>
+                  {activo ? <Check size={15} className="text-acento" /> : <I size={15} className="text-texto-tenue" />} {n}
+                </button>
+              );
+            })}
+          </div>
+          <label className="block mt-5">
+            <span className="text-xs font-semibold text-texto-suave">Contanos con tus palabras <span className="font-normal text-texto-tenue">(opcional)</span></span>
+            <textarea value={mensaje} onChange={(e) => onMensaje(e.target.value)} rows={3}
+              placeholder="Ej.: tengo dos cajas y a fin de mes nunca sé cuánto gané"
+              className="mt-1 w-full border border-borde rounded-lg px-3 py-3 text-[15px] bg-superficie outline-none focus:border-acento" />
+          </label>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   Tenés tres presupuestos · atajos armados por rubro
+   ------------------------------------------------------------ */
+function TresPresupuestos({ rubros, filtro, onFiltro, tarifas, onElegir }) {
+  const conPresupuestos = rubros.filter((r) => PRESUPUESTOS[r.clave]);
+  const clave = PRESUPUESTOS[filtro] ? filtro : (conPresupuestos[0] || {}).clave;
+  const rubro = rubros.find((r) => r.clave === clave);
+  if (!rubro) return null;
+  const opciones = PRESUPUESTOS[clave];
+
+  return (
+    <section id="presupuestos" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <div className={ROTULO_ACENTO}>Tres presupuestos</div>
+          <h2 className="f-d text-4xl sm:text-5xl leading-tight mt-3">Tenés <span className="text-acento">tres presupuestos</span> para empezar.</h2>
+          <p className="text-texto-suave mt-3 text-[17px]">Todos incluyen cobro, caja y ajustes. Elegís uno, o armás el tuyo módulo por módulo.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {conPresupuestos.map((r) => (
+            <button key={r.clave} type="button" onClick={() => onFiltro(r.clave)}
+              className={`text-sm font-semibold rounded-full border px-4 py-2 transition-colors ${
+                clave === r.clave ? "pildora-activa" : "border-borde-fuerte bg-superficie text-texto-suave hover:text-texto"}`}>
+              {r.nombre}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8 grid md:grid-cols-3 gap-4">
+        {opciones.map((o) => <TarjetaPresupuesto key={o.k} opcion={o} tarifas={tarifas} onElegir={() => onElegir(rubro.clave, null, o.modulos)} />)}
+      </div>
+      <p className="text-sm text-texto-tenue mt-4">El precio final sale del alta guiada, con lo que respondas. Sin tarjeta, sin compromiso.</p>
+    </section>
+  );
+}
+
+function TarjetaPresupuesto({ opcion, tarifas, onElegir }) {
+  const modulos = unicos([...MODULOS_BASE, ...opcion.modulos]);
+  const pre = presupuestar(tarifas || TARIFAS_VACIAS, modulos);
+  const calculando = tarifas === null;
+  return (
+    <div className={`relative bg-superficie border rounded-xl p-5 sm:p-6 flex flex-col ${opcion.recomendado ? "border-acento ring-1 ring-acento" : "border-borde"}`}>
+      {opcion.recomendado && (
+        <span className="absolute -top-3 left-5 text-[10px] uppercase tracking-wider font-bold bg-acento text-sobre-acento rounded px-2 py-1">Recomendado</span>
+      )}
+      <div className="f-d text-xl">{opcion.n}</div>
+      <p className="text-sm text-texto-suave mt-1">{opcion.d}</p>
+
+      <div className="mt-4 pt-4 border-t border-borde">
+        {calculando && <div className="text-texto-suave text-[15px]">Calculando…</div>}
+        {!calculando && pre.mensual != null && (
+          <div className="f-d f-m text-3xl">{pesos(pre.mensual)} <span className="text-sm text-texto-suave font-normal">por mes</span></div>
+        )}
+        {!calculando && pre.mensual == null && (
+          <div className="f-d text-2xl">Precio a confirmar</div>
+        )}
+        <div className="text-xs text-texto-tenue mt-1">{pre.cantidad} módulos · cobro, caja y ajustes incluidos</div>
+      </div>
+
+      <ul className="mt-4 space-y-1.5 flex-1">
+        {opcion.modulos.map((k) => (
+          <li key={k} className="flex items-center gap-2 text-sm">
+            <Check size={14} className="text-acento shrink-0" /> {(moduloPorClave(k) || { n: k }).n}
+          </li>
+        ))}
+      </ul>
+
+      <button type="button" onClick={onElegir} className={`${opcion.recomendado ? SOLIDO : LINEA_ACENTO} mt-5 w-full`}>
+        Elegir este presupuesto <ArrowRight size={15} />
+      </button>
     </div>
   );
 }

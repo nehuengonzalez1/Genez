@@ -39,14 +39,23 @@ const nombreDe = (k) => (moduloPorClave(k) || { n: k }).n;
 
 const PASOS = ["Tu negocio", "Cómo trabajás", "Tus módulos", "Presupuesto"];
 
-export default function Stepper({ rubro, negocio, onVolver }) {
-  const p = rubro.presentacion;
+export default function Stepper({ rubro, negocio, problemas = [], sumadosIniciales = [], mensajeInicial = "", onVolver }) {
+  /* Lo que la persona marcó en la portada ("se me escapa el stock") entra
+     como preguntas ya contestadas, delante de las del rubro: encienden
+     módulos con su motivo y viajan en el pedido como cualquier respuesta.
+     `sumadosIniciales` son los módulos de un presupuesto armado que eligió
+     en la portada; `mensajeInicial`, lo que escribió con sus palabras. */
+  const rubroArmado = useMemo(
+    () => ({ ...rubro, presentacion: { ...rubro.presentacion, preguntas: [...problemas, ...(rubro.presentacion.preguntas || [])] } }),
+    [rubro, problemas],
+  );
+  const p = rubroArmado.presentacion;
   const preguntas = p.preguntas || [];
   const [paso, setPaso] = useState(2);                          // 2 | 3 | 4 (presupuesto)
   const [escala, setEscala] = useState("1");
-  const [respuestas, setRespuestas] = useState({});
+  const [respuestas, setRespuestas] = useState(() => Object.fromEntries(problemas.map((q) => [q.k, true])));
   const [sacados, setSacados] = useState([]);
-  const [sumados, setSumados] = useState([]);
+  const [sumados, setSumados] = useState(sumadosIniciales);
   const [tarifas, setTarifas] = useState(null);                  // null = todavía no se sabe
 
   useEffect(() => {
@@ -58,8 +67,8 @@ export default function Stepper({ rubro, negocio, onVolver }) {
   }, []);
 
   const armado = useMemo(
-    () => armarModulos({ rubro, respuestas, sacados, sumados, escala }),
-    [rubro, respuestas, sacados, sumados, escala],
+    () => armarModulos({ rubro: rubroArmado, respuestas, sacados, sumados, escala }),
+    [rubroArmado, respuestas, sacados, sumados, escala],
   );
   const presupuesto = useMemo(
     () => presupuestar(tarifas || TARIFAS_VACIAS, armado.elegidos),
@@ -91,7 +100,7 @@ export default function Stepper({ rubro, negocio, onVolver }) {
       </div>
 
       {paso === 2 && (
-        <ComoTrabajas preguntas={preguntas} respuestas={respuestas} escala={escala} onEscala={setEscala}
+        <ComoTrabajas problemas={problemas} preguntas={preguntas.slice(problemas.length)} respuestas={respuestas} escala={escala} onEscala={setEscala}
           onTildar={(k) => setRespuestas((r) => ({ ...r, [k]: !r[k] }))} onSeguir={() => ir(3)} />
       )}
 
@@ -103,8 +112,8 @@ export default function Stepper({ rubro, negocio, onVolver }) {
       )}
 
       {paso === 4 && (
-        <Presupuesto rubro={rubro} negocio={negocio} escala={escala} respuestas={respuestas}
-          armado={armado} presupuesto={presupuesto} tarifas={tarifas}
+        <Presupuesto rubro={rubroArmado} negocio={negocio} escala={escala} respuestas={respuestas}
+          armado={armado} presupuesto={presupuesto} tarifas={tarifas} mensajeInicial={mensajeInicial}
           onCambiarNegocio={onVolver} onEditar={() => ir(2)} onAjustar={() => ir(3)} />
       )}
     </section>
@@ -130,8 +139,8 @@ function Progreso({ actual }) {
   );
 }
 
-function ComoTrabajas({ preguntas, respuestas, escala, onEscala, onTildar, onSeguir }) {
-  const marcadas = preguntas.filter((q) => respuestas[q.k]).length;
+function ComoTrabajas({ problemas = [], preguntas, respuestas, escala, onEscala, onTildar, onSeguir }) {
+  const marcadas = [...problemas, ...preguntas].filter((q) => respuestas[q.k]).length;
   return (
     <div className="mt-6">
       <h1 className="f-d text-2xl leading-tight">¿Cómo trabajás?</h1>
@@ -148,6 +157,18 @@ function ComoTrabajas({ preguntas, respuestas, escala, onEscala, onTildar, onSeg
           </button>
         ))}
       </div>
+
+      {problemas.length > 0 && (
+        <>
+          <div className={`${ROTULO} mt-6`}>Lo que te complica</div>
+          <div className="mt-2 space-y-2">
+            {problemas.map((q) => (
+              <Tilde key={q.k} activa={!!respuestas[q.k]} onClick={() => onTildar(q.k)} titulo={q.n}
+                detalle={(q.modulos || []).map(nombreDe).join(" · ") || null} />
+            ))}
+          </div>
+        </>
+      )}
 
       {preguntas.length > 0 && (
         <>
@@ -261,7 +282,7 @@ function Tilde({ activa, fija, onClick, titulo, detalle, motivo }) {
 const ACCION = "inline-flex items-center justify-center gap-1.5 rounded-md border border-borde-fuerte hover:border-texto-tenue text-sm font-semibold px-2 py-2 transition-colors";
 const CAMPO = "mt-1 w-full border border-borde rounded-lg px-3 py-3 text-[15px] bg-superficie outline-none focus:border-acento";
 
-function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, tarifas, onCambiarNegocio, onEditar, onAjustar }) {
+function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, tarifas, mensajeInicial, onCambiarNegocio, onEditar, onAjustar }) {
   const p = rubro.presentacion;
   const { lineas, base, mensual, puestaEnMarcha, faltan, cantidad } = presupuesto;
   const calculando = tarifas === null;
@@ -294,7 +315,7 @@ function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, 
       <div className="mt-6 grid lg:grid-cols-[minmax(0,1fr)_340px] gap-4 lg:gap-8 items-start">
         <div className="lg:order-2 lg:sticky lg:top-24 no-imprimir">
           <Resumen calculando={calculando} sinPrecios={sinPrecios} mensual={mensual} puestaEnMarcha={puestaEnMarcha}
-            faltan={faltan} cantidad={cantidad} texto={texto} whatsapp={whatsapp} pedido={pedido} />
+            faltan={faltan} cantidad={cantidad} texto={texto} whatsapp={whatsapp} pedido={pedido} mensajeInicial={mensajeInicial} />
         </div>
 
         <div className="lg:order-1 space-y-3">
@@ -405,7 +426,7 @@ function Linea({ nombre, detalle, motivo, precio }) {
 
 /* El resumen con la acción. Tres estados: ver, pedir (el formulario en
    el mismo lugar, sin ventana encima) y listo. */
-function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cantidad, texto, whatsapp, pedido }) {
+function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cantidad, texto, whatsapp, pedido, mensajeInicial }) {
   const [modo, setModo] = useState("ver");     // ver | pedir | listo
   const [hecho, setHecho] = useState(null);     // { nombre, telefono }
   const [copiado, setCopiado] = useState(false);
@@ -422,7 +443,7 @@ function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cant
   if (modo === "pedir") {
     return (
       <Tarjeta className="border-acento">
-        <Pedido pedido={pedido} sinPrecio={mensual == null} onListo={(d) => { setHecho(d); setModo("listo"); }} onCancelar={() => setModo("ver")} />
+        <Pedido pedido={pedido} sinPrecio={mensual == null} mensajeInicial={mensajeInicial} onListo={(d) => { setHecho(d); setModo("listo"); }} onCancelar={() => setModo("ver")} />
       </Tarjeta>
     );
   }
@@ -496,8 +517,8 @@ function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cant
   );
 }
 
-function Pedido({ pedido, sinPrecio, onListo, onCancelar }) {
-  const [d, setD] = useState({ nombre: "", telefono: "", email: "", mensaje: "" });
+function Pedido({ pedido, sinPrecio, mensajeInicial = "", onListo, onCancelar }) {
+  const [d, setD] = useState({ nombre: "", telefono: "", email: "", mensaje: mensajeInicial });
   const [error, setError] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const set = (k) => (e) => setD((x) => ({ ...x, [k]: e.target.value }));
