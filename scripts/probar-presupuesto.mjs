@@ -10,16 +10,19 @@
    - los módulos salen de las respuestas, no del rubro entero;
    - la base no se puede sacar, lo demás sí, y se puede sumar del rubro;
    - un módulo que el catálogo no conoce no se propone;
-   - sin una tarifa, no hay total: se dice qué falta.
+   - sin una tarifa, no hay total: se dice qué falta;
+   - el pedido de presupuesto no sale sin nombre ni sin un WhatsApp que
+     parezca un WhatsApp, y viaja limpio.
 
    No hay base ni red.
 
      node scripts/probar-presupuesto.mjs
    ============================================================ */
 
-import { armarModulos, presupuestar, textoDelPresupuesto } from "../src/datos/presupuesto.js";
+import { armarModulos, presupuestar, textoDelPresupuesto, DOLORES, GENERALES, conDolores, planes } from "../src/datos/presupuesto.js";
 import { RUBROS_DE_FABRICA } from "../src/datos/landing.js";
 import { MODULOS_BASE } from "../src/datos/modulos.js";
+import { validarPedido, armarPedido, normalizarTelefono } from "../src/datos/solicitudes.js";
 
 let fallas = 0;
 let total = 0;
@@ -85,6 +88,31 @@ console.log("\nSacar y sumar a mano\n");
   decir(elegidos.includes("equipo") && elegidos.includes("permisos"), "'trabajan otras personas' enciende Equipo y Permisos");
 }
 
+console.log("\nLos dolores y las tres variantes\n");
+
+{
+  const r = conDolores(mini);
+  decir(r.presentacion.preguntas.length === mini.presentacion.preguntas.length + DOLORES.length + GENERALES.length, "los dolores y las preguntas generales entran como preguntas más del rubro");
+  decir(DOLORES.every((d) => d.modulos.every((k) => armarModulos({ rubro: r, respuestas: { [d.k]: true } }).elegidos.includes(k))), "cada dolor enciende módulos que el catálogo conoce");
+  const { elegidos, motivos, necesita } = armarModulos({ rubro: r, respuestas: { d_clientes: true, g_sucursales: true } });
+  decir(elegidos.includes("crm") && /información clara de mis clientes/.test(motivos.crm), "'No tengo información clara de mis clientes' enciende Seguimiento con su motivo");
+  decir(elegidos.includes("permisos") && necesita.includes("Una computadora o tablet por sucursal"), "'Tengo varias sucursales' enciende Permisos y pide un equipo por sucursal");
+}
+
+{
+  const r = conDolores(mini);
+  const [start, pro, empresa] = planes({ rubro: r, respuestas: { d_stock: true, factura: true } });
+  decir(igual(start.armado.elegidos, ["cobro", "caja", "ajustes", "productos", "reportes"]), "Start es la base más lo esencial del rubro");
+  decir(start.armado.elegidos.every((k) => pro.armado.elegidos.includes(k)) && pro.armado.elegidos.every((k) => empresa.armado.elegidos.includes(k)), "cada plan contiene al anterior");
+  decir(pro.armado.elegidos.includes("stock") && pro.armado.elegidos.includes("clientes") && !pro.armado.elegidos.includes("permisos"), "Pro suma stock y factura, pero no lo de Empresa");
+  decir(empresa.armado.elegidos.includes("permisos") && empresa.armado.elegidos.includes("asistente") && !empresa.armado.elegidos.includes("cocina"), "Empresa tiene todo lo del rubro que el catálogo conoce");
+  decir(pro.recomendado && !start.recomendado && !empresa.recomendado, "con stock y factura, el recomendado es Pro");
+  decir(igual(start.faltan, ["stock", "clientes"]), "y Start dice qué le falta de lo que necesita");
+  decir(/Incluido en Pro/.test(pro.armado.motivos.compras) && /control claro del stock/.test(pro.armado.motivos.stock), "cada módulo del plan sabe si vino de una respuesta o del plan");
+  const conEquipo = planes({ rubro: r, respuestas: { equipo: true } });
+  decir(conEquipo.find((p) => p.k === "empresa").recomendado, "si necesita Permisos, el recomendado es Empresa");
+}
+
 console.log("\nEl precio\n");
 
 const tarifas = { base: 20000, puestaEnMarcha: 50000, modulos: { productos: 5000, reportes: 4000, clientes: 8000, stock: 6000 }, whatsapp: "5491100000000" };
@@ -116,6 +144,26 @@ const tarifas = { base: 20000, puestaEnMarcha: 50000, modulos: { productos: 5000
 {
   const p = presupuestar(null, ["cobro", "caja", "ajustes"]);
   decir(p.mensual === null && p.cantidad === 3, "sin tarifas (base sin contestar) no explota");
+}
+
+console.log("\nEl pedido\n");
+
+decir(validarPedido({ nombre: "", telefono: "1122334455" }) !== null, "sin nombre no se manda");
+decir(validarPedido({ nombre: "Ana", telefono: "12" }) !== null, "un teléfono de dos dígitos no es un WhatsApp");
+decir(validarPedido({ nombre: "Ana", telefono: "11 2233-4455", email: "ana@" }) !== null, "un email a medias tampoco");
+decir(validarPedido({ nombre: "Ana", telefono: "11 2233-4455", email: "" }) === null, "nombre y WhatsApp alcanzan");
+decir(normalizarTelefono("+54 9 11 2233-4455") === "5491122334455", "el teléfono se guarda solo con dígitos");
+
+{
+  const pedido = armarPedido({
+    negocio: "Almacén", rubro: "minimercado", escala: "2-3",
+    respuestas: [{ k: "factura", n: "Facturo A y B", modulos: ["clientes"] }],
+    modulos: ["cobro", "caja", "ajustes", "clientes"], mensual: null, puesta_en_marcha: 0,
+    nombre: " Ana ", telefono: "11 2233-4455", email: " ", mensaje: "",
+  });
+  decir(pedido.nombre === "Ana" && pedido.telefono === "1122334455", "el pedido va sin espacios de más");
+  decir(pedido.email === null && pedido.mensaje === null, "y sin vacíos disfrazados de texto");
+  decir(igual(pedido.respuestas, [{ k: "factura", n: "Facturo A y B" }]), "las respuestas guardan clave y texto, nada más");
 }
 
 console.log(`\n${total} verificaciones · ${fallas ? `${fallas} en rojo` : "todo en verde"}\n`);

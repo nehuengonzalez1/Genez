@@ -13,11 +13,17 @@
    presupuesto lo dice; nunca se inventa un número.
    ============================================================ */
 
+/* El WhatsApp al que llega el presupuesto mientras la plataforma no cargue
+   uno desde su panel. Es lo único de acá que no es un precio: sin un
+   número, el que llega al final no tiene con quién hablar. Vacío = no se
+   ofrece el botón. Lo que se cargue en `tarifas` lo pisa. */
+export const CONTACTO_DE_FABRICA = Object.freeze({ whatsapp: "" });
+
 export const TARIFAS_VACIAS = Object.freeze({
   base: null,
   puestaEnMarcha: null,
   modulos: {},
-  whatsapp: "",
+  whatsapp: CONTACTO_DE_FABRICA.whatsapp,
 });
 
 const numero = (v) => (v == null || v === "" ? null : Number(v));
@@ -27,7 +33,7 @@ export function armarTarifas(filas) {
   for (const f of filas || []) {
     if (f.clave === "base") t.base = numero(f.monto);
     else if (f.clave === "puesta_en_marcha") t.puestaEnMarcha = numero(f.monto);
-    else if (f.clave === "whatsapp") t.whatsapp = (f.texto || "").trim();
+    else if (f.clave === "whatsapp") t.whatsapp = (f.texto || "").trim() || CONTACTO_DE_FABRICA.whatsapp;
     else if (f.clave.startsWith("modulo:")) t.modulos[f.clave.slice("modulo:".length)] = numero(f.monto);
   }
   return t;

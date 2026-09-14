@@ -14,7 +14,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Check } from "lucide-react";
-import { MODULOS, MODULOS_BASE } from "../datos/modulos.js";
+import { MODULOS, MODULOS_BASE, nivelDe } from "../datos/modulos.js";
 import { cargarTarifas, guardarTarifas, TARIFAS_VACIAS } from "../datos/tarifas.js";
 import { money } from "../utils/helpers.js";
 import { Boton } from "../ui/Base.jsx";
@@ -101,6 +101,7 @@ export function PreciosPanel() {
                 <label key={m.k} className="px-4 py-2.5 flex items-center gap-3">
                   <span className="min-w-0 flex-1">
                     <span className="text-sm font-medium">{m.n}</span>
+                    <span className="ml-2 text-[10px] uppercase tracking-wider font-bold text-texto-tenue">{nivelDe(m.k).n}</span>
                     <span className="block text-[11px] text-texto-tenue truncate">{m.d}</span>
                   </span>
                   <span className="text-xs text-texto-tenue">$</span>
