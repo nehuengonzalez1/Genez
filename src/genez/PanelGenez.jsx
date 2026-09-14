@@ -29,7 +29,7 @@ import { calcular, insights } from "../utils/diagnostico.js";
 import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apagado, Tabs } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
-import { PlanesPanel } from "./PlanesPanel.jsx";
+import { PreciosPanel } from "./PreciosPanel.jsx";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
@@ -353,7 +353,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
               ))}
             </div>
 
-            <PlanesPanel />
+            <PreciosPanel />
 
             <section className="mt-8">
               <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold mb-2">Imagen del login</h2>
