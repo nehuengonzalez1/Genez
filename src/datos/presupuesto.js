@@ -35,7 +35,16 @@ import { MODULOS, MODULOS_BASE, moduloPorClave } from "./modulos.js";
 const unicos = (xs) => Array.from(new Set(xs));
 const conocido = (k) => !!moduloPorClave(k);
 
-export function armarModulos({ rubro, respuestas = {}, sacados = [], sumados = [] }) {
+/* Cuántos puestos de venta o atención. No es una pregunta del rubro sino
+   de cualquier negocio, por eso es fija y no vive en `presentacion`. Lo
+   que cambia es lo que hay que tener: un equipo por puesto. */
+export const ESCALAS = [
+  { k: "1", n: "1 puesto", d: "Una caja o una persona atendiendo" },
+  { k: "2-3", n: "2 a 3", d: "Varias cajas o varias personas" },
+  { k: "4+", n: "4 o más", d: "Varios locales o un salón grande" },
+];
+
+export function armarModulos({ rubro, respuestas = {}, sacados = [], sumados = [], escala = "1" }) {
   const p = (rubro && rubro.presentacion) || {};
   const preguntas = (p.preguntas || []).filter((q) => respuestas[q.k]);
   const nucleo = (p.nucleo || []).filter(conocido);
@@ -73,6 +82,7 @@ export function armarModulos({ rubro, respuestas = {}, sacados = [], sumados = [
   const necesita = unicos([
     ...elegidos.flatMap((k) => moduloPorClave(k).necesita || []),
     ...preguntas.flatMap((q) => q.necesita || []),
+    ...(escala && escala !== "1" ? ["Una computadora o tablet por puesto"] : []),
   ]);
 
   /* Dos módulos del catálogo se llaman "Informes" (uno mira márgenes,
@@ -128,11 +138,19 @@ export function presupuestar(tarifas, elegidos) {
 /* El texto que viaja por WhatsApp cuando la persona toca "Quiero
    empezar": lo que eligió, con números si los hay. Es texto plano a
    propósito: se lee en un teléfono y se contesta a mano. */
-export function textoDelPresupuesto({ rubro, presupuesto, pesos }) {
+export function textoDelPresupuesto({ rubro, negocio, escala, presupuesto, pesos }) {
   const titulo = (rubro && rubro.presentacion && rubro.presentacion.titulo) || (rubro && rubro.nombre) || "";
+  const que = negocio && negocio !== titulo ? `${negocio} (${titulo})` : titulo;
+  const puestos = (ESCALAS.find((e) => e.k === escala) || {}).n;
   const modulos = presupuesto.lineas.map((l) => l.n).join(", ");
   const precio = presupuesto.mensual == null
     ? "Precio: a confirmar"
     : `Precio: ${pesos(presupuesto.mensual)} por mes${presupuesto.puestaEnMarcha > 0 ? ` + ${pesos(presupuesto.puestaEnMarcha)} de puesta en marcha` : ""}`;
-  return `Hola, quiero empezar con Genez.\nRubro: ${titulo}\nMódulos (${presupuesto.cantidad}): ${modulos}\n${precio}`;
+  return [
+    "Hola, quiero empezar con Genez.",
+    `Negocio: ${que}`,
+    puestos ? `Puestos: ${puestos}` : null,
+    `Módulos (${presupuesto.cantidad}): ${modulos}`,
+    precio,
+  ].filter(Boolean).join("\n");
 }
