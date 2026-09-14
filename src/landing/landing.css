@@ -151,3 +151,15 @@ html {
   border-top: 1px solid rgb(var(--borde));
   border-bottom: 1px solid rgb(var(--borde));
 }
+
+/* Imprimir o guardar en PDF el presupuesto: queda el contenido y se van
+   la cabecera, el pie y los botones, que en papel no hacen nada. */
+@media print {
+  header, footer, .no-imprimir { display: none !important; }
+  html, body { background: white; }
+}
+
+/* El tilde grande de "¡Listo!": un resplandor naranja detrás. */
+.brillo {
+  background: radial-gradient(circle, rgb(var(--acento) / 0.35) 0%, rgb(var(--acento) / 0.08) 55%, transparent 72%);
+}

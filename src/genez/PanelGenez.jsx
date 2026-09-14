@@ -30,6 +30,7 @@ import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apag
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
 import { PreciosPanel } from "./PreciosPanel.jsx";
+import { SolicitudesPanel } from "./SolicitudesPanel.jsx";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
@@ -355,6 +356,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
               ))}
             </div>
 
+            <SolicitudesPanel />
             <PreciosPanel />
 
             <section className="mt-8">
