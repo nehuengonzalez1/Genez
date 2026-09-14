@@ -332,7 +332,7 @@ function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, 
             </ul>
             {sinPrecios && (
               <p className="text-sm text-texto-suave mt-3 pt-3 border-t border-borde">
-                Todavía no publicamos precios: pedí el presupuesto y te lo mandamos con estos {cantidad} módulos, sin sorpresas.
+                Todavía no publicamos precios. Dejanos tu WhatsApp y nos ponemos en contacto con el precio de estos {cantidad} módulos, sin sorpresas.
               </p>
             )}
           </Tarjeta>
@@ -356,7 +356,7 @@ function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, 
             <div className={`${ROTULO} mb-3`}>Qué pasa después</div>
             <ol className="space-y-3">
               {[
-                ["Te contestamos por WhatsApp", "Con el presupuesto confirmado y las dudas que tengas."],
+                ["Nos ponemos en contacto por WhatsApp", "Te escribimos con el presupuesto confirmado y contestamos tus dudas."],
                 ["Puesta en marcha", "Cargamos tu catálogo y dejamos los módulos configurados para tu negocio."],
                 ["Una capacitación corta y arrancás", "La primera venta la hacés con nosotros al lado."],
               ].map(([t, d], i) => (
@@ -422,7 +422,7 @@ function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cant
   if (modo === "pedir") {
     return (
       <Tarjeta className="border-acento">
-        <Pedido pedido={pedido} onListo={(d) => { setHecho(d); setModo("listo"); }} onCancelar={() => setModo("ver")} />
+        <Pedido pedido={pedido} sinPrecio={mensual == null} onListo={(d) => { setHecho(d); setModo("listo"); }} onCancelar={() => setModo("ver")} />
       </Tarjeta>
     );
   }
@@ -433,11 +433,12 @@ function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cant
         <span className="w-10 h-10 rounded-full bg-bien-suave text-bien flex items-center justify-center"><Check size={20} /></span>
         <h2 className="f-d text-xl mt-3">Listo, {hecho.nombre}.</h2>
         <p className="text-[15px] text-texto-suave mt-1 leading-relaxed">
-          Guardamos tu pedido con estos {cantidad} módulos. Te escribimos al {hecho.telefono} para confirmarlo.
+          Guardamos tu pedido con estos {cantidad} módulos. <strong className="text-texto">Nos ponemos en contacto con vos por WhatsApp al {hecho.telefono}</strong>
+          {mensual == null ? " con el precio y los pasos para arrancar." : " para confirmarlo y contarte los pasos para arrancar."}
         </p>
         {enlaceWa && (
-          <a href={enlaceWa} target="_blank" rel="noopener noreferrer" className={`${ACCION} w-full mt-4`}>
-            <MessageCircle size={15} /> ¿Querés adelantarlo? Escribinos ahora
+          <a href={enlaceWa} target="_blank" rel="noopener noreferrer" className={`${ACCION} w-full mt-4 !py-3`}>
+            <MessageCircle size={16} className="text-acento" /> ¿Querés adelantarlo? Escribinos ahora
           </a>
         )}
       </Tarjeta>
@@ -453,11 +454,11 @@ function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cant
       )}
       {!calculando && mensual == null && (
         <>
-          <div className="f-d text-2xl mt-1">A confirmar</div>
+          <div className="f-d text-2xl mt-1">Precio a confirmar</div>
           <p className="text-sm text-texto-suave mt-1 leading-relaxed">
             {sinPrecios
-              ? `Todavía no publicamos precios. Pedilo y te lo mandamos con estos ${cantidad} módulos.`
-              : `Falta el precio de ${faltan.map(nombreDe).join(", ")}: te lo cotizamos aparte.`}
+              ? `Nos ponemos en contacto con vos por WhatsApp y te pasamos el precio de estos ${cantidad} módulos. Sin compromiso.`
+              : `Falta el precio de ${faltan.map(nombreDe).join(", ")}: nos ponemos en contacto y te lo confirmamos.`}
           </p>
         </>
       )}
@@ -471,24 +472,31 @@ function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cant
 
       <div className="mt-4">
         <Boton onClick={() => setModo("pedir")}>
-          <span className="inline-flex items-center gap-2">Pedir este presupuesto <ArrowRight size={16} /></span>
+          <span className="inline-flex items-center gap-2">
+            {mensual == null ? "Quiero que me contacten" : "Pedir este presupuesto"} <ArrowRight size={16} />
+          </span>
         </Boton>
       </div>
-      <div className={`mt-2 grid gap-2 ${enlaceWa ? "grid-cols-3" : "grid-cols-2"}`}>
-        {enlaceWa && (
-          <a href={enlaceWa} target="_blank" rel="noopener noreferrer" className={ACCION}><MessageCircle size={15} /> WhatsApp</a>
-        )}
+      {/* El WhatsApp ahí nomás, y grande: el que prefiere hablar antes que
+          llenar un formulario no tiene que buscarlo. */}
+      {enlaceWa && (
+        <a href={enlaceWa} target="_blank" rel="noopener noreferrer"
+          className="mt-2 w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-[15px] font-semibold border border-borde-fuerte hover:border-texto-tenue transition-colors">
+          <MessageCircle size={17} className="text-acento" /> Escribinos por WhatsApp ahora
+        </a>
+      )}
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <button type="button" onClick={copiar} className={ACCION}><Copy size={15} /> {copiado ? "Copiado" : "Copiar"}</button>
         <button type="button" onClick={() => window.print()} className={ACCION}><Printer size={15} /> Imprimir</button>
       </div>
       <p className="text-[11px] text-texto-tenue mt-3 text-center leading-snug">
-        Sin tarjeta, sin compromiso. El número que te confirmemos es el que pagás.
+        Sin tarjeta, sin compromiso. {mensual == null ? "Te contactamos nosotros." : "El número que te confirmemos es el que pagás."}
       </p>
     </Tarjeta>
   );
 }
 
-function Pedido({ pedido, onListo, onCancelar }) {
+function Pedido({ pedido, sinPrecio, onListo, onCancelar }) {
   const [d, setD] = useState({ nombre: "", telefono: "", email: "", mensaje: "" });
   const [error, setError] = useState(null);
   const [enviando, setEnviando] = useState(false);
@@ -510,8 +518,12 @@ function Pedido({ pedido, onListo, onCancelar }) {
 
   return (
     <form onSubmit={enviar}>
-      <div className={ROTULO}>Pedir este presupuesto</div>
-      <p className="text-sm text-texto-suave mt-1 leading-relaxed">Te escribimos por WhatsApp para confirmarlo. Sin tarjeta.</p>
+      <div className={ROTULO}>{sinPrecio ? "Dejanos tu WhatsApp" : "Pedir este presupuesto"}</div>
+      <p className="text-sm text-texto-suave mt-1 leading-relaxed">
+        {sinPrecio
+          ? "Nos ponemos en contacto con vos por WhatsApp con el precio y los pasos para arrancar. Sin tarjeta, sin compromiso."
+          : "Nos ponemos en contacto con vos por WhatsApp para confirmarlo. Sin tarjeta, sin compromiso."}
+      </p>
 
       <label className="block mt-4">
         <span className="text-xs font-semibold text-texto-suave">Tu nombre</span>
