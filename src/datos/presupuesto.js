@@ -30,7 +30,7 @@
    tiene nombre.
    ============================================================ */
 
-import { MODULOS, MODULOS_BASE, moduloPorClave } from "./modulos.js";
+import { MODULOS, MODULOS_BASE, NIVELES, moduloPorClave } from "./modulos.js";
 
 const unicos = (xs) => Array.from(new Set(xs));
 const conocido = (k) => !!moduloPorClave(k);
@@ -97,6 +97,87 @@ export function armarModulos({ rubro, respuestas = {}, sacados = [], sumados = [
 }
 
 /* ------------------------------------------------------------
+   Los dolores
+
+   Lo que le complica a un comerciante, en sus palabras. Cada dolor
+   enciende módulos igual que una pregunta del rubro: entra al alta
+   guiada como una pregunta más, con su motivo ("Porque marcaste…") y
+   viaja en el pedido como cualquier respuesta. No es dato de la base
+   porque no depende del rubro: son los dolores de cualquiera.
+   ------------------------------------------------------------ */
+
+export const DOLORES = [
+  { k: "d_stock", n: "No tengo un control claro del stock", d: "No sé qué tengo, qué falta o cuándo reponer.", modulos: ["stock"], necesita: [] },
+  { k: "d_faltantes", n: "Pierdo ventas por falta de stock", d: "Se me van productos y pierdo plata.", modulos: ["stock", "compras"], necesita: [] },
+  { k: "d_precios", n: "Los precios y vencimientos se me desordenan", d: "Se me pasan fechas o cambio mal los precios.", modulos: ["productos", "stock"], necesita: [] },
+  { k: "d_caja", n: "Me lleva mucho tiempo hacer la caja", d: "Cierro el día y no tengo un resumen claro.", modulos: ["reportes"], necesita: [] },
+  { k: "d_atencion", n: "La atención es lenta", d: "Se forman filas y pierdo clientes.", modulos: ["productos"], necesita: ["Lector de códigos de barras (o la cámara del celular)"] },
+  { k: "d_proveedores", n: "No tengo un registro ordenado de proveedores", d: "Remitos, facturas y pagos dispersos.", modulos: ["compras"], necesita: [] },
+  { k: "d_sucursales", n: "Necesito manejar varias sucursales", d: "Quiero ver todo en un solo lugar.", modulos: ["permisos"], necesita: ["Una computadora o tablet por sucursal"] },
+  { k: "d_clientes", n: "No tengo información clara de mis clientes", d: "No sé quién compra, ni con qué frecuencia.", modulos: ["crm"], necesita: [] },
+  { k: "d_otro", n: "Otro problema", d: "Contanos cuál.", modulos: [], necesita: [], otro: true },
+  { k: "d_ganancia", n: "Me resulta difícil entender cuánto gano", d: "Vendo, pero no veo reportes claros.", modulos: ["reportes"], necesita: [] },
+];
+
+/* Dos preguntas que no son del rubro ni un dolor: por dónde vende y si
+   tiene sucursales. Van como preguntas generales para que enciendan
+   módulos con su motivo y viajen en el pedido como las demás. */
+export const GENERALES = [
+  { k: "g_online", n: "Vendo online, además del local", modulos: ["pedidos"], necesita: [] },
+  { k: "g_sucursales", n: "Tengo varias sucursales", modulos: ["permisos"], necesita: ["Una computadora o tablet por sucursal"] },
+];
+
+/* El rubro con los dolores y las preguntas generales como preguntas más,
+   después de las suyas. */
+export function conDolores(rubro) {
+  const p = (rubro && rubro.presentacion) || {};
+  return { ...rubro, presentacion: { ...p, preguntas: [...(p.preguntas || []), ...DOLORES, ...GENERALES] } };
+}
+
+/* ------------------------------------------------------------
+   Los tres planes
+
+   Start, Pro y Empresa son fijos: cada módulo del catálogo tiene un
+   `nivel`, y el plan de un rubro es lo que el rubro puede usar
+   filtrado por ese nivel (más los base, que van siempre). Cada plan
+   contiene al anterior. El recomendado es el más chico que cubre todo
+   lo que la persona necesita según sus respuestas; los que no lo
+   cubren dicen qué les falta, para que elegir uno más chico sea una
+   decisión y no una trampa.
+
+   Por qué no "a tu medida": con un plan armado con lo que uno elige,
+   alguien marcaba todo y pagaba Pro por lo mismo que Empresa. Los
+   planes fijos sacan esa puerta.
+   ------------------------------------------------------------ */
+
+export function planes({ rubro, respuestas = {}, sacados = [], sumados = [], escala = "1" }) {
+  const necesidad = armarModulos({ rubro, respuestas, sacados, sumados, escala });
+  const universo = unicos([...necesidad.propuestos, ...necesidad.elegidos, ...necesidad.sumables]);
+  const orden = (k) => MODULOS.findIndex((m) => m.k === k);
+  const rango = Object.fromEntries(NIVELES.map((n, i) => [n.k, i]));
+  const nivelDelModulo = (k) => rango[(moduloPorClave(k) || {}).nivel] ?? rango.empresa;
+
+  const lista = NIVELES.map((nivel) => {
+    const conjunto = universo
+      .filter((k) => MODULOS_BASE.includes(k) || nivelDelModulo(k) <= rango[nivel.k])
+      .sort((a, b) => orden(a) - orden(b));
+    const armado = armarModulos({
+      rubro, respuestas, escala,
+      sacados: necesidad.propuestos.filter((k) => !conjunto.includes(k)),
+      sumados: conjunto,
+    });
+    /* Lo que no vino de una respuesta está porque el plan lo trae. */
+    const motivos = { ...armado.motivos };
+    for (const k of armado.elegidos) if (!necesidad.propuestos.includes(k)) motivos[k] = `Incluido en ${nivel.n}`;
+    const faltan = necesidad.elegidos.filter((k) => !armado.elegidos.includes(k));
+    return { ...nivel, armado: { ...armado, motivos }, faltan };
+  });
+
+  const recomendado = lista.find((p) => p.faltan.length === 0) || lista[lista.length - 1];
+  return lista.map((p) => ({ ...p, recomendado: p.k === recomendado.k }));
+}
+
+/* ------------------------------------------------------------
    El presupuesto
 
    Base más un precio por cada módulo que no es base. Si falta algún
@@ -138,7 +219,7 @@ export function presupuestar(tarifas, elegidos) {
 /* El texto que viaja por WhatsApp cuando la persona toca "Quiero
    empezar": lo que eligió, con números si los hay. Es texto plano a
    propósito: se lee en un teléfono y se contesta a mano. */
-export function textoDelPresupuesto({ rubro, negocio, escala, presupuesto, pesos }) {
+export function textoDelPresupuesto({ rubro, negocio, escala, opcion, presupuesto, pesos }) {
   const titulo = (rubro && rubro.presentacion && rubro.presentacion.titulo) || (rubro && rubro.nombre) || "";
   const que = negocio && negocio !== titulo ? `${negocio} (${titulo})` : titulo;
   const puestos = (ESCALAS.find((e) => e.k === escala) || {}).n;
@@ -150,6 +231,7 @@ export function textoDelPresupuesto({ rubro, negocio, escala, presupuesto, pesos
     "Hola, quiero empezar con Genez.",
     `Negocio: ${que}`,
     puestos ? `Puestos: ${puestos}` : null,
+    opcion ? `Presupuesto: ${opcion}` : null,
     `Módulos (${presupuesto.cantidad}): ${modulos}`,
     precio,
   ].filter(Boolean).join("\n");

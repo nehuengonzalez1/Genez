@@ -1,0 +1,165 @@
+/* Tipografía propia de la landing. El sistema no carga fuentes (usa la del
+   equipo, que en un mostrador es lo correcto); una página que tiene que
+   convencer sí. `f-d` y `f-m` existen como clases en todo el repo pero no
+   estaban definidas: acá, y solo acá, significan algo. */
+
+body {
+  font-family: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.f-d {
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.f-m {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Las anotaciones a mano de la maqueta ("Todo tu negocio en un solo
+   lugar", con su flecha). Es la única otra tipografía de la página. */
+.manuscrita {
+  font-family: "Caveat", "Segoe Script", cursive;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* Los enlaces del menú son anclas: que el salto se vea como un
+   desplazamiento y no como un cambio de página. */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ------------------------------------------------------------
+   Los aparatos del hero, dibujados con CSS
+
+   La maqueta muestra una laptop con el sistema y un teléfono con la app
+   del cliente. Son marcos: adentro va interfaz real con los mismos
+   tokens, no una captura, así no envejece cuando cambie una pantalla.
+   ------------------------------------------------------------ */
+.laptop-pantalla {
+  background: #111;
+  border-radius: 14px 14px 4px 4px;
+  padding: 10px 10px 12px;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.35);
+}
+
+.laptop-base {
+  height: 12px;
+  margin: 0 -4%;
+  background: linear-gradient(#e6e6e6, #bdbdbd);
+  border-radius: 0 0 12px 12px;
+}
+
+.tema-noche .laptop-base {
+  background: linear-gradient(#3a3a3a, #1f1f1f);
+}
+
+.telefono {
+  background: #111;
+  border-radius: 30px;
+  padding: 8px;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.45);
+}
+
+.telefono-pantalla {
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------
+   El ticket y el papel de "qué resuelve"
+
+   Papel es papel en los dos temas: blanco, con el borde de abajo
+   dentado como el que sale de la impresora térmica.
+   ------------------------------------------------------------ */
+.ticket {
+  position: relative;
+  background: #fff;
+  color: #1c1917;
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.35);
+}
+
+.ticket::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 8px;
+  background:
+    linear-gradient(-45deg, transparent 75%, #fff 75%) 0 0 / 12px 12px,
+    linear-gradient(45deg, transparent 75%, #fff 75%) 0 0 / 12px 12px;
+}
+
+.papel {
+  background: #f7f3ec;
+  color: #1c1917;
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.4);
+}
+
+/* Cada tema muestra su versión de la escena, como en la maqueta: en
+   claro el ticket, en oscuro el papel con las preguntas sin respuesta. */
+.solo-oscuro { display: none; }
+.tema-noche .solo-oscuro { display: block; }
+.tema-noche .solo-claro { display: none; }
+
+/* Las filas de negocios se deslizan a lo ancho en el teléfono. */
+.fila-negocios {
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.fila-negocios::-webkit-scrollbar { display: none; }
+.fila-negocios > * { scroll-snap-align: start; }
+
+/* El visual viejo del hero ya no existe, pero la clase queda por si
+   alguien la busca en el historial. */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* Imprimir o guardar en PDF el presupuesto: queda el contenido y se van
+   la cabecera, el pie y los botones, que en papel no hacen nada. */
+@media print {
+  header, footer, .no-imprimir { display: none !important; }
+  html, body { background: white; }
+}
+
+/* Las píldoras del filtro de rubros: la activa es negra en claro y
+   naranja en oscuro, como en la maqueta. */
+.pildora-activa {
+  background: rgb(var(--texto));
+  color: rgb(var(--fondo));
+  border-color: rgb(var(--texto));
+}
+.tema-noche .pildora-activa {
+  background: rgb(var(--acento));
+  color: rgb(var(--sobre-acento));
+  border-color: rgb(var(--acento));
+}
+
+/* La banda de "cómo funciona": oscura sobre el claro; sobre el oscuro,
+   una superficie apenas más clara que el fondo. */
+.banda {
+  background: rgb(28 25 23);
+  color: rgb(250 247 242);
+}
+.tema-noche .banda {
+  background: rgb(var(--superficie));
+  color: rgb(var(--texto));
+  border-top: 1px solid rgb(var(--borde));
+  border-bottom: 1px solid rgb(var(--borde));
+}
+
+/* Imprimir o guardar en PDF el presupuesto: queda el contenido y se van
+   la cabecera, el pie y los botones, que en papel no hacen nada. */
+@media print {
+  header, footer, .no-imprimir { display: none !important; }
+  html, body { background: white; }
+}
+
+/* El tilde grande de "¡Listo!": un resplandor naranja detrás. */
+.brillo {
+  background: radial-gradient(circle, rgb(var(--acento) / 0.35) 0%, rgb(var(--acento) / 0.08) 55%, transparent 72%);
+}
