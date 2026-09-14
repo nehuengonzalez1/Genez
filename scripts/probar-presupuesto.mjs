@@ -19,7 +19,7 @@
      node scripts/probar-presupuesto.mjs
    ============================================================ */
 
-import { armarModulos, presupuestar, textoDelPresupuesto, DOLORES, GENERALES, conDolores, variantes } from "../src/datos/presupuesto.js";
+import { armarModulos, presupuestar, textoDelPresupuesto, DOLORES, GENERALES, conDolores, planes } from "../src/datos/presupuesto.js";
 import { RUBROS_DE_FABRICA } from "../src/datos/landing.js";
 import { MODULOS_BASE } from "../src/datos/modulos.js";
 import { validarPedido, armarPedido, normalizarTelefono } from "../src/datos/solicitudes.js";
@@ -101,12 +101,16 @@ console.log("\nLos dolores y las tres variantes\n");
 
 {
   const r = conDolores(mini);
-  const [arrancar, medida, completo] = variantes({ rubro: r, respuestas: { d_stock: true, factura: true }, sumados: ["pedidos"] });
-  decir(igual(arrancar.armado.elegidos, [...MODULOS_BASE, ...mini.presentacion.nucleo].sort((a, b) => arrancar.armado.elegidos.indexOf(a) - arrancar.armado.elegidos.indexOf(b))), "'Para arrancar' es base más núcleo, nada más");
-  decir(medida.armado.elegidos.includes("stock") && medida.armado.elegidos.includes("clientes") && medida.armado.elegidos.includes("pedidos"), "'A tu medida' es lo que salió de las respuestas y lo sumado");
-  decir(medida.armado.elegidos.every((k) => completo.armado.elegidos.includes(k)) && completo.armado.elegidos.length > medida.armado.elegidos.length, "'Completo' contiene a la medida y suma el resto del rubro");
-  decir(!completo.armado.elegidos.includes("cocina"), "y tampoco propone lo que el catálogo no conoce");
-  decir(medida.recomendado === true, "la recomendada es la de las respuestas");
+  const [start, pro, empresa] = planes({ rubro: r, respuestas: { d_stock: true, factura: true } });
+  decir(igual(start.armado.elegidos, ["cobro", "caja", "ajustes", "productos", "reportes"]), "Start es la base más lo esencial del rubro");
+  decir(start.armado.elegidos.every((k) => pro.armado.elegidos.includes(k)) && pro.armado.elegidos.every((k) => empresa.armado.elegidos.includes(k)), "cada plan contiene al anterior");
+  decir(pro.armado.elegidos.includes("stock") && pro.armado.elegidos.includes("clientes") && !pro.armado.elegidos.includes("permisos"), "Pro suma stock y factura, pero no lo de Empresa");
+  decir(empresa.armado.elegidos.includes("permisos") && empresa.armado.elegidos.includes("asistente") && !empresa.armado.elegidos.includes("cocina"), "Empresa tiene todo lo del rubro que el catálogo conoce");
+  decir(pro.recomendado && !start.recomendado && !empresa.recomendado, "con stock y factura, el recomendado es Pro");
+  decir(igual(start.faltan, ["stock", "clientes"]), "y Start dice qué le falta de lo que necesita");
+  decir(/Incluido en Pro/.test(pro.armado.motivos.compras) && /control claro del stock/.test(pro.armado.motivos.stock), "cada módulo del plan sabe si vino de una respuesta o del plan");
+  const conEquipo = planes({ rubro: r, respuestas: { equipo: true } });
+  decir(conEquipo.find((p) => p.k === "empresa").recomendado, "si necesita Permisos, el recomendado es Empresa");
 }
 
 console.log("\nEl precio\n");

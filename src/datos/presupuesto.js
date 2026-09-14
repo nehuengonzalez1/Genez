@@ -30,7 +30,7 @@
    tiene nombre.
    ============================================================ */
 
-import { MODULOS, MODULOS_BASE, moduloPorClave } from "./modulos.js";
+import { MODULOS, MODULOS_BASE, NIVELES, moduloPorClave } from "./modulos.js";
 
 const unicos = (xs) => Array.from(new Set(xs));
 const conocido = (k) => !!moduloPorClave(k);
@@ -135,33 +135,46 @@ export function conDolores(rubro) {
 }
 
 /* ------------------------------------------------------------
-   Las tres variantes
+   Los tres planes
 
-   Al final se eligen entre tres presupuestos: lo mínimo del rubro
-   ("Start"), lo que salió de las respuestas ("Pro", que es el
-   recomendado) y todo lo que el rubro puede usar ("Empresa").
-   Las tres salen de la misma cabeza con distintos sacados/sumados, así
-   que comparten motivos, necesidades y precio por módulo.
+   Start, Pro y Empresa son fijos: cada módulo del catálogo tiene un
+   `nivel`, y el plan de un rubro es lo que el rubro puede usar
+   filtrado por ese nivel (más los base, que van siempre). Cada plan
+   contiene al anterior. El recomendado es el más chico que cubre todo
+   lo que la persona necesita según sus respuestas; los que no lo
+   cubren dicen qué les falta, para que elegir uno más chico sea una
+   decisión y no una trampa.
+
+   Por qué no "a tu medida": con un plan armado con lo que uno elige,
+   alguien marcaba todo y pagaba Pro por lo mismo que Empresa. Los
+   planes fijos sacan esa puerta.
    ------------------------------------------------------------ */
 
-export function variantes({ rubro, respuestas = {}, sacados = [], sumados = [], escala = "1" }) {
-  const medida = armarModulos({ rubro, respuestas, sacados, sumados, escala });
-  const nucleo = (rubro && rubro.presentacion && rubro.presentacion.nucleo) || [];
-  const arrancar = armarModulos({
-    rubro, respuestas, escala, sumados: [],
-    sacados: medida.propuestos.filter((k) => !MODULOS_BASE.includes(k) && !nucleo.includes(k)),
+export function planes({ rubro, respuestas = {}, sacados = [], sumados = [], escala = "1" }) {
+  const necesidad = armarModulos({ rubro, respuestas, sacados, sumados, escala });
+  const universo = unicos([...necesidad.propuestos, ...necesidad.elegidos, ...necesidad.sumables]);
+  const orden = (k) => MODULOS.findIndex((m) => m.k === k);
+  const rango = Object.fromEntries(NIVELES.map((n, i) => [n.k, i]));
+  const nivelDelModulo = (k) => rango[(moduloPorClave(k) || {}).nivel] ?? rango.empresa;
+
+  const lista = NIVELES.map((nivel) => {
+    const conjunto = universo
+      .filter((k) => MODULOS_BASE.includes(k) || nivelDelModulo(k) <= rango[nivel.k])
+      .sort((a, b) => orden(a) - orden(b));
+    const armado = armarModulos({
+      rubro, respuestas, escala,
+      sacados: necesidad.propuestos.filter((k) => !conjunto.includes(k)),
+      sumados: conjunto,
+    });
+    /* Lo que no vino de una respuesta está porque el plan lo trae. */
+    const motivos = { ...armado.motivos };
+    for (const k of armado.elegidos) if (!necesidad.propuestos.includes(k)) motivos[k] = `Incluido en ${nivel.n}`;
+    const faltan = necesidad.elegidos.filter((k) => !armado.elegidos.includes(k));
+    return { ...nivel, armado: { ...armado, motivos }, faltan };
   });
-  const completo = armarModulos({
-    rubro, respuestas, escala, sacados: [],
-    sumados: [...medida.elegidos, ...medida.sumables],
-  });
-  /* Se llaman Start, Pro y Empresa (y no "base", que acá ya es otra
-     cosa: los tres módulos que van siempre). */
-  return [
-    { k: "arrancar", n: "Start", d: "Lo esencial para empezar.", lema: "Ideal para negocios que recién empiezan.", armado: arrancar },
-    { k: "medida", n: "Pro", d: "Más control, más posibilidades.", lema: "El plan ideal para hacer crecer tu negocio.", armado: medida, recomendado: true },
-    { k: "completo", n: "Empresa", d: "Todo lo que tu negocio necesita.", lema: "La solución completa, sin límites.", armado: completo },
-  ];
+
+  const recomendado = lista.find((p) => p.faltan.length === 0) || lista[lista.length - 1];
+  return lista.map((p) => ({ ...p, recomendado: p.k === recomendado.k }));
 }
 
 /* ------------------------------------------------------------

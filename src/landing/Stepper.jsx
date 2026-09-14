@@ -35,8 +35,8 @@ import {
   ArrowLeft, ArrowRight, Check, Lock, Search, Lightbulb, Sparkles, User, Users, Building2, Store, Laptop, Layers,
   Sprout, Crown, BarChart3, CreditCard, Headphones, RefreshCw, LayoutGrid, MessageCircle, Copy, Printer, Pencil,
 } from "lucide-react";
-import { MODULOS_BASE, moduloPorClave } from "../datos/modulos.js";
-import { ESCALAS, DOLORES, GENERALES, conDolores, variantes, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
+import { MODULOS_BASE, moduloPorClave, nivelDe } from "../datos/modulos.js";
+import { ESCALAS, DOLORES, GENERALES, conDolores, armarModulos, planes, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
 import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
 import { pedirPresupuesto, validarPedido } from "../datos/solicitudes.js";
 import { Tarjeta, Boton } from "../cliente/ui.jsx";
@@ -60,7 +60,7 @@ const CANALES = [
   { k: "ambos", n: "Ambos", I: Layers },
 ];
 const ICONO_ESCALA = { "1": User, "2-3": Users, "4+": Building2 };
-const ICONO_PLAN = { arrancar: Sprout, medida: Crown, completo: BarChart3 };
+const ICONO_PLAN = { start: Sprout, pro: Crown, empresa: BarChart3 };
 
 export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, onVolver }) {
   const [paso, setPaso] = useState(2);            // 2 problemas · 3 cómo trabajás · 4 módulos · 5 plan · 6 listo
@@ -71,7 +71,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
   const [mensaje, setMensaje] = useState("");
   const [sacados, setSacados] = useState([]);
   const [sumados, setSumados] = useState([]);
-  const [opcion, setOpcion] = useState("medida");  // arrancar | medida | completo
+  const [opcion, setOpcion] = useState(null);      // start | pro | empresa; null = el recomendado
   const [tarifas, setTarifas] = useState(null);    // null = todavía no se sabe
 
   useEffect(() => {
@@ -90,12 +90,18 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     () => ({ ...respuestas, g_online: canal !== "local", g_sucursales: sucursales }),
     [respuestas, canal, sucursales],
   );
-  const opciones = useMemo(
-    () => (rubroArmado ? variantes({ rubro: rubroArmado, respuestas: respuestasTotales, sacados, sumados, escala }) : []),
+  /* Lo que necesita según sus respuestas (para el paso 3 y para
+     recomendar), y los tres planes fijos con el recomendado marcado. */
+  const necesidad = useMemo(
+    () => (rubroArmado ? armarModulos({ rubro: rubroArmado, respuestas: respuestasTotales, sacados, sumados, escala }) : null),
     [rubroArmado, respuestasTotales, sacados, sumados, escala],
   );
-  const medida = opciones.find((o) => o.k === "medida");
-  const elegida = opciones.find((o) => o.k === opcion) || medida;
+  const opciones = useMemo(
+    () => (rubroArmado ? planes({ rubro: rubroArmado, respuestas: respuestasTotales, sacados, sumados, escala }) : []),
+    [rubroArmado, respuestasTotales, sacados, sumados, escala],
+  );
+  const recomendada = opciones.find((o) => o.recomendado);
+  const elegida = opciones.find((o) => o.k === opcion) || recomendada;
   const presupuesto = useMemo(
     () => (elegida ? presupuestar(tarifas || TARIFAS_VACIAS, elegida.armado.elegidos) : null),
     [tarifas, elegida],
@@ -125,15 +131,15 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
   }
   if (paso === 4) {
     return (
-      <Modulos armado={medida.armado} sacados={sacados} sumados={sumados}
+      <Modulos armado={necesidad} recomendada={recomendada} sacados={sacados} sumados={sumados}
         onSacar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
         onSumar={(k) => setSumados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
-        onVolver={() => ir(3)} onSeguir={() => { setOpcion("medida"); ir(5); }} />
+        onVolver={() => ir(3)} onSeguir={() => { setOpcion(null); ir(5); }} />
     );
   }
   if (paso === 5) {
     return (
-      <Plan opciones={opciones} tarifas={tarifas} todos={opciones.find((o) => o.k === "completo").armado.elegidos}
+      <Plan opciones={opciones} tarifas={tarifas} todos={opciones[opciones.length - 1].armado.elegidos}
         onElegir={(k) => { setOpcion(k); ir(6); }} onVolver={() => ir(4)} />
     );
   }
@@ -141,7 +147,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     <Listo rubro={rubroArmado} negocio={negocio} escala={escala} canal={canal} sucursales={sucursales}
       respuestas={respuestasTotales} mensaje={mensaje} elegida={elegida} presupuesto={presupuesto} tarifas={tarifas}
       onVolver={() => ir(5)} onCambiarNegocio={onVolver} onEditarProblemas={() => ir(2)} onEditarTrabajo={() => ir(3)}
-      onAjustar={() => { setOpcion("medida"); ir(4); }} onCambiarPlan={() => ir(5)} />
+      onAjustar={() => { setOpcion(null); ir(4); }} onCambiarPlan={() => ir(5)} />
   );
 }
 
@@ -228,7 +234,13 @@ function Nota({ children, className = "" }) {
 
 /* Una tarjeta con casilla: para los dolores, las preguntas del rubro y
    los módulos. Con `icono` lo muestra al lado de la casilla. */
-function TarjetaCasilla({ activa, fija, onClick, icono: I, titulo, detalle, motivo, compacta = false }) {
+const TONO_NIVEL = {
+  start: "border-borde-fuerte text-texto-suave",
+  pro: "border-acento text-acento",
+  empresa: "border-reserva text-reserva",
+};
+
+function TarjetaCasilla({ activa, fija, onClick, icono: I, titulo, detalle, motivo, etiqueta, compacta = false }) {
   return (
     <button type="button" onClick={onClick} disabled={fija} aria-pressed={activa}
       className={`text-left flex items-start gap-3 rounded-xl border transition-colors ${compacta ? "p-3" : "p-4"} ${
@@ -243,11 +255,14 @@ function TarjetaCasilla({ activa, fija, onClick, icono: I, titulo, detalle, moti
           <I size={compacta ? 16 : 18} />
         </span>
       )}
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className={`block font-semibold leading-snug ${compacta ? "text-[14px]" : "text-[15px]"}`}>{titulo}</span>
         {detalle && <span className="block text-xs text-texto-tenue mt-0.5 leading-snug">{detalle}</span>}
         {motivo && <span className="block text-[11px] text-acento mt-1 leading-snug">{motivo}</span>}
       </span>
+      {etiqueta && (
+        <span className={`shrink-0 text-[9px] uppercase tracking-wider font-bold rounded border px-1.5 py-0.5 ${TONO_NIVEL[etiqueta.k] || TONO_NIVEL.empresa}`}>{etiqueta.n}</span>
+      )}
     </button>
   );
 }
@@ -398,7 +413,7 @@ function ComoTrabajas({ preguntas, respuestas, onTildar, escala, onEscala, canal
 /* ------------------------------------------------------------
    3 · Tus módulos
    ------------------------------------------------------------ */
-function Modulos({ armado, sacados, sumados, onSacar, onSumar, onVolver, onSeguir }) {
+function Modulos({ armado, recomendada, sacados, sumados, onSacar, onSumar, onVolver, onSeguir }) {
   const { elegidos, motivos, propuestos, sumables } = armado;
   const principales = [...propuestos, ...sumados.filter((k) => elegidos.includes(k) && !propuestos.includes(k)), ...sumables];
   return (
@@ -411,14 +426,21 @@ function Modulos({ armado, sacados, sumados, onSacar, onSumar, onVolver, onSegui
           <Sparkles size={13} /> Según tus respuestas
         </span>
       </div>
-      <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Cada módulo dice en qué plan entra: así nadie se lleva una
+          sorpresa al elegir el plan, ni puede armarse Empresa pagando Pro. */}
+      {recomendada && (
+        <p className="text-sm text-texto-suave mt-2">
+          Cada módulo dice en qué plan entra. Con lo que elegiste te corresponde el plan <strong className="text-acento">{recomendada.n}</strong>.
+        </p>
+      )}
+      <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {principales.map((k) => {
           const m = moduloPorClave(k) || { n: k, d: "" };
           const base = MODULOS_BASE.includes(k);
           const activa = elegidos.includes(k);
           return (
             <TarjetaCasilla key={k} compacta activa={activa} fija={base} icono={ICONO_MODULO[k] || LayoutGrid} titulo={m.n} detalle={m.d}
-              motivo={activa ? (motivos[k] || (base ? "Siempre incluido" : "")) : null}
+              etiqueta={nivelDe(k)} motivo={activa ? (motivos[k] || (base ? "Siempre incluido" : "")) : null}
               onClick={() => { if (base) return; if (propuestos.includes(k)) onSacar(k); else onSumar(k); }} />
           );
         })}
@@ -484,6 +506,9 @@ function TarjetaPlan({ opcion, tarifas, todos, onElegir }) {
           );
         })}
       </ul>
+      {opcion.faltan && opcion.faltan.length > 0 && (
+        <p className="text-xs text-ojo mt-3">No incluye lo que marcaste: {opcion.faltan.map(nombreDe).join(", ")}.</p>
+      )}
       <p className="text-xs text-texto-suave mt-4 pt-3 border-t border-borde">{opcion.lema}</p>
     </div>
   );
