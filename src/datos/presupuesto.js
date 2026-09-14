@@ -129,8 +129,8 @@ export function conDolores(rubro) {
    Las tres variantes
 
    Al final se eligen entre tres presupuestos: lo mínimo del rubro
-   ("Para arrancar"), lo que salió de las respuestas ("A tu medida", que
-   es el recomendado) y todo lo que el rubro puede usar ("Completo").
+   ("Start"), lo que salió de las respuestas ("Pro", que es el
+   recomendado) y todo lo que el rubro puede usar ("Empresa").
    Las tres salen de la misma cabeza con distintos sacados/sumados, así
    que comparten motivos, necesidades y precio por módulo.
    ------------------------------------------------------------ */
@@ -146,10 +146,12 @@ export function variantes({ rubro, respuestas = {}, sacados = [], sumados = [], 
     rubro, respuestas, escala, sacados: [],
     sumados: [...medida.elegidos, ...medida.sumables],
   });
+  /* Se llaman Start, Pro y Empresa (y no "base", que acá ya es otra
+     cosa: los tres módulos que van siempre). */
   return [
-    { k: "arrancar", n: "Para arrancar", d: "Lo mínimo para tu rubro.", armado: arrancar },
-    { k: "medida", n: "A tu medida", d: "Con lo que respondiste.", armado: medida, recomendado: true },
-    { k: "completo", n: "Completo", d: "Todo lo que tu rubro puede usar.", armado: completo },
+    { k: "arrancar", n: "Start", d: "Lo mínimo para tu rubro.", armado: arrancar },
+    { k: "medida", n: "Pro", d: "Con lo que respondiste.", armado: medida, recomendado: true },
+    { k: "completo", n: "Empresa", d: "Todo lo que tu rubro puede usar.", armado: completo },
   ];
 }
 

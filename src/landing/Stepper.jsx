@@ -12,9 +12,10 @@
    4. Tus módulos — los que de verdad necesita: base + núcleo del rubro
       + lo que encendieron tildes y dolores. Cada uno dice por qué está,
       se puede sacar (menos la base) y se puede sumar del rubro.
-   5. El presupuesto — tres para elegir: "Para arrancar" (lo mínimo del
-      rubro), "A tu medida" (lo que salió de sus respuestas, el
-      recomendado) y "Completo" (todo lo que el rubro puede usar). El
+   5. El presupuesto — tres para elegir: "Start" (lo mínimo del rubro),
+      "Pro" (lo que salió de sus respuestas, el recomendado) y "Empresa"
+      (todo lo que el rubro puede usar). Las tres tarjetas listan los
+      mismos módulos, con tilde naranja en los que incluyen. El
       elegido se abre abajo como un documento: resumen con el total y la
       acción, lo que eligió (editable), los módulos con su motivo y su
       precio, qué necesita de su lado y qué pasa después.
@@ -364,9 +365,13 @@ function Presupuesto({ rubro, negocio, escala, respuestas, mensaje, opciones, op
         El recomendado sale de lo que respondiste. Los otros dos, por si querés arrancar más chico o llevarte todo. Elegí uno y abajo tenés el detalle.
       </p>
 
+      {/* Las tres tarjetas listan los mismos módulos (los de "Empresa", que
+          es la que tiene todos): así se compara de un vistazo qué incluye
+          cada una. */}
       <div className="mt-6 grid md:grid-cols-3 gap-3">
         {opciones.map((o) => (
-          <Opcion key={o.k} opcion={o} activa={o.k === opcion} tarifas={tarifas} onElegir={() => onOpcion(o.k)} />
+          <Opcion key={o.k} opcion={o} activa={o.k === opcion} tarifas={tarifas}
+            todos={opciones.find((x) => x.k === "completo").armado.elegidos} onElegir={() => onOpcion(o.k)} />
         ))}
       </div>
 
@@ -461,11 +466,13 @@ function Presupuesto({ rubro, negocio, escala, respuestas, mensaje, opciones, op
   );
 }
 
-/* Una de las tres opciones: nombre, precio, cuántos módulos y cuáles. */
-function Opcion({ opcion, activa, tarifas, onElegir }) {
+/* Una de las tres opciones: nombre, precio y la misma lista de módulos
+   que las otras dos, con tilde naranja y letra fuerte en los que
+   incluye y gris clarito en los que no. */
+function Opcion({ opcion, activa, tarifas, todos, onElegir }) {
   const pre = presupuestar(tarifas || TARIFAS_VACIAS, opcion.armado.elegidos);
   const calculando = tarifas === null;
-  const extras = opcion.armado.elegidos.filter((k) => !MODULOS_BASE.includes(k));
+  const incluye = (k) => opcion.armado.elegidos.includes(k);
   return (
     <button type="button" onClick={onElegir} aria-pressed={activa}
       className={`relative text-left bg-superficie rounded-xl p-4 sm:p-5 border transition-colors flex flex-col ${
@@ -491,9 +498,19 @@ function Opcion({ opcion, activa, tarifas, onElegir }) {
         {!calculando && pre.mensual == null && <div className="f-d text-lg">Precio a confirmar</div>}
         <div className="text-[11px] text-texto-tenue mt-0.5">{pre.cantidad} módulos · cobro, caja y ajustes incluidos</div>
       </div>
-      <div className="mt-3 text-xs text-texto-suave leading-relaxed flex-1">
-        {extras.length ? extras.map(nombreDe).join(" · ") : "Solo lo que viene con tu rubro"}
-      </div>
+      <ul className="mt-3 space-y-1.5 flex-1">
+        {todos.map((k) => {
+          const si = incluye(k);
+          return (
+            <li key={k} className={`flex items-center gap-2 text-sm ${si ? "text-texto font-semibold" : "text-texto-tenue"}`}>
+              {si
+                ? <span className="w-4 h-4 rounded-full bg-acento text-sobre-acento flex items-center justify-center shrink-0"><Check size={11} /></span>
+                : <span className="w-4 h-4 rounded-full border border-borde-fuerte shrink-0" />}
+              {nombreDe(k)}
+            </li>
+          );
+        })}
+      </ul>
     </button>
   );
 }
