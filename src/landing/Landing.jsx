@@ -49,18 +49,10 @@ import { MODULOS } from "../datos/modulos.js";
 import { ROTULO } from "../cliente/ui.jsx";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { estaOscuro, fijarTema } from "./tema.js";
+import { ICONO_RUBRO, ICONO_MODULO, foto, Flecha } from "./comun.jsx";
 import Stepper from "./Stepper.jsx";
 
-const ICONOS = { carrito: ShoppingCart, cubiertos: UtensilsCrossed, agenda: CalendarDays, tienda: Store };
-
-/* Un ícono por módulo. Es una decisión de esta página y no del catálogo:
-   el catálogo es dato y no sabe de dibujos. */
-const ICONO_MODULO = {
-  cobro: ScanBarcode, caja: Wallet, ajustes: Settings, comandas: UtensilsCrossed, productos: Package,
-  stock: Boxes, compras: Truck, pedidos: ClipboardList, clientes: FileText, equipo: Users,
-  agenda: CalendarDays, ventas: Ticket, finanzas: Landmark, servicios: LayoutGrid, reportes: BarChart3,
-  informes: BarChart3, crm: MessageCircle, comunicaciones: Bell, permisos: ShieldCheck, asistente: Sparkles,
-};
+const ICONOS = ICONO_RUBRO;
 
 /* La frase corta de cada rubro en su fila, como en la maqueta. Un rubro
    nuevo sin frase usa su bajada. */
@@ -69,32 +61,6 @@ const FRASE_RUBRO = {
   gastronomia: "Para que tu cocina también rinda.",
   servicios: "Para gestionar tu tiempo y el de tus clientes.",
 };
-
-/* Una foto por negocio (identificador de Unsplash). Sin foto, el ícono. */
-const FOTOS = {
-  "Almacén": "photo-1583258292688-d0213dc5a3a8",
-  "Minimercado": "photo-1604719312566-8912e9227c6a",
-  "Kiosco": "photo-1595263431959-23ccced5e5b5",
-  "Dietética": "photo-1542990253-a781e04c0082",
-  "Verdulería": "photo-1550989460-0adf9ea622e2",
-  "Panadería": "photo-1608198093002-ad4e005484ec",
-  "Ferretería": "photo-1519520104014-df63821cb6f9",
-  "Casa de sanitarios": "photo-1542855368-ca6ea825bca2",
-  "Bar": "photo-1566417713940-fe7c737a9ef2",
-  "Café": "photo-1533776992670-a72f4c28235e",
-  "Restaurante": "photo-1414235077428-338989a2e8c0",
-  "Cervecería": "photo-1567696911980-2eed69a46042",
-  "Rotisería": "photo-1606728035253-49e8a23146de",
-  "Take away": "photo-1616429368325-d5d7542b0ec3",
-  "Estética": "photo-1540555700478-4be289fbecef",
-  "Peluquería": "photo-1553521041-d168abd31de3",
-  "Barbería": "photo-1585747860715-2ba37e788b70",
-  "Pilates": "photo-1747239069226-55382c570116",
-  "Gimnasio": "photo-1534438327276-14e5300c3a48",
-  "Consultorio": "photo-1710074213379-2a9c2653046a",
-  "Spa": "photo-1630595271375-5073a6c0638b",
-};
-const foto = (nombre) => (FOTOS[nombre] ? `https://images.unsplash.com/${FOTOS[nombre]}?auto=format&fit=crop&w=320&h=200&q=70` : null);
 
 /* El rubro que no está. No tiene fila en la base porque no es un rubro:
    es la puerta para el que no se reconoció en ninguna card. Sin
@@ -177,24 +143,31 @@ export default function Landing() {
     setElegido(clave); setNegocio(nombre); escribirEnLaDireccion(clave, nombre);
     setPaso("empezar"); window.scrollTo(0, 0);
   };
+  /* "Armar mi sistema" entra al alta guiada por su paso 1 (elegir el
+     negocio); tocar una card de la portada lo saltea. */
+  const empezar = () => {
+    setElegido(null); setNegocio(null); escribirEnLaDireccion(null, null);
+    setPaso("empezar"); window.scrollTo(0, 0);
+  };
   const volver = () => { setPaso("cards"); window.scrollTo(0, 0); };
 
   return (
     <TemaCtx.Provider value={oscuro}>
       <div className="min-h-screen flex flex-col">
-        <Cabecera conMenu={paso === "cards"} onAlternarTema={alternarTema} />
+        <Cabecera conMenu={paso === "cards"} onAlternarTema={alternarTema} onEmpezar={empezar} />
 
         <main className="flex-1">
-          {paso === "cards" || !rubro ? (
-            <Portada rubros={rubros} onElegir={elegir} />
+          {paso === "cards" ? (
+            <Portada rubros={rubros} onElegir={elegir} onEmpezar={empezar} />
           ) : (
             <div className="max-w-5xl mx-auto px-5 pb-20">
-              <Stepper key={`${rubro.clave}:${negocio || ""}`} rubro={rubro} negocio={negocio} onVolver={volver} />
+              <Stepper key={rubro ? `${rubro.clave}:${negocio || ""}` : "ninguno"} rubro={rubro} rubros={todos} negocio={negocio}
+                onElegirNegocio={elegir} onVolver={volver} />
             </div>
           )}
         </main>
 
-        <Pie />
+        <Pie onEmpezar={empezar} />
       </div>
     </TemaCtx.Provider>
   );
@@ -206,7 +179,7 @@ export default function Landing() {
    Los comercios que ya usan el sistema entran por "Entrar". Cuando el
    sistema pase a app.genez.com.ar, ese enlace cambia y nada más.
    ------------------------------------------------------------ */
-function Cabecera({ conMenu, onAlternarTema }) {
+function Cabecera({ conMenu, onAlternarTema, onEmpezar }) {
   const oscuro = useOscuro();
   return (
     <header className="sticky top-0 z-30 bg-fondo/90 backdrop-blur border-b border-borde">
@@ -231,7 +204,7 @@ function Cabecera({ conMenu, onAlternarTema }) {
           </button>
           <a href="/" className={`${LINEA} !py-2 !px-4 text-sm`}>Entrar</a>
           {conMenu && (
-            <a href="#empecemos" className={`${SOLIDO} !py-2 !px-4 text-sm hidden sm:inline-flex`}>{CTA} <ArrowRight size={15} /></a>
+            <button type="button" onClick={onEmpezar} className={`${SOLIDO} !py-2 !px-4 text-sm hidden sm:inline-flex`}>{CTA} <ArrowRight size={15} /></button>
           )}
         </div>
       </div>
@@ -239,30 +212,20 @@ function Cabecera({ conMenu, onAlternarTema }) {
   );
 }
 
-function Portada({ rubros, onElegir }) {
+function Portada({ rubros, onElegir, onEmpezar }) {
   return (
     <>
-      <Hero />
+      <Hero onEmpezar={onEmpezar} />
       <Empecemos rubros={rubros} onElegir={onElegir} />
       <QueResuelve />
       <QueIncluye />
-      <ComoFunciona />
+      <ComoFunciona onEmpezar={onEmpezar} />
       <Preguntas />
     </>
   );
 }
 
-/* Una flecha dibujada a mano, para las anotaciones de la maqueta. */
-function Flecha({ className = "" }) {
-  return (
-    <svg viewBox="0 0 64 44" className={className} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 5c12 24 28 32 52 26" />
-      <path d="M46 24l11 7-5 9" />
-    </svg>
-  );
-}
-
-function Hero() {
+function Hero({ onEmpezar }) {
   return (
     <section className="max-w-6xl mx-auto px-5 pt-10 sm:pt-14 pb-10 sm:pb-14 grid lg:grid-cols-[0.8fr_1.2fr] gap-10 lg:gap-8 items-center">
       <div>
@@ -273,7 +236,7 @@ function Hero() {
         <p className="text-texto-suave mt-5 text-[17px] leading-relaxed max-w-md">
           Ventas, stock, turnos, clientes, finanzas y más. Solo los módulos que necesitás, con un precio claro desde el primer día.
         </p>
-        <a href="#empecemos" className={`${SOLIDO} mt-7`}>{CTA} <ArrowRight size={16} /></a>
+        <button type="button" onClick={onEmpezar} className={`${SOLIDO} mt-7`}>{CTA} <ArrowRight size={16} /></button>
         <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-texto-suave">
           {[[MapPin, "Hecho en Argentina"], [CreditCard, "Sin tarjeta"], [Unlock, "Cancelás cuando quieras"]].map(([I, t]) => (
             <li key={t} className="inline-flex items-center gap-1.5"><I size={14} className="text-texto-tenue" /> {t}</li>
@@ -663,7 +626,7 @@ function TelefonoModulos() {
 /* ------------------------------------------------------------
    Cómo funciona · la banda con los tres pasos
    ------------------------------------------------------------ */
-function ComoFunciona() {
+function ComoFunciona({ onEmpezar }) {
   const pasos = [
     { n: "1", t: "Tocá tu negocio.", d: "Con eso ya sabemos con qué arranca un comercio como el tuyo." },
     { n: "2", t: "Contanos cómo trabajás.", d: "Cuántos puestos tenés y unas tildes: stock, factura, delivery, equipo. Cada una suma solo lo que hace falta." },
@@ -678,7 +641,7 @@ function ComoFunciona() {
           <p className="opacity-70 mt-4 text-[17px] leading-relaxed">
             Sin llamados de venta ni presupuestos por mail. Lo ves vos, en el momento, y hasta ahí no te pedimos tarjeta.
           </p>
-          <a href="#empecemos" className={`${SOLIDO} mt-8`}>{CTA} <ArrowRight size={16} /></a>
+          <button type="button" onClick={onEmpezar} className={`${SOLIDO} mt-8`}>{CTA} <ArrowRight size={16} /></button>
         </div>
         <ol className="space-y-6">
           {pasos.map((s) => (
@@ -734,7 +697,7 @@ function Preguntas() {
 
 /* El pie de la maqueta: marca, tres datos ciertos y la acción de nuevo.
    Los números son los de verdad: cuántos negocios y rubros hay hoy. */
-function Pie() {
+function Pie({ onEmpezar }) {
   const oscuro = useOscuro();
   const negocios = RUBROS_DE_FABRICA.reduce((n, r) => n + (r.presentacion.negocios || []).length, 0);
   const datos = [
@@ -757,7 +720,7 @@ function Pie() {
             </li>
           ))}
         </ul>
-        <a href="#empecemos" className={`${SOLIDO} shrink-0`}>{CTA} <ArrowRight size={16} /></a>
+        <button type="button" onClick={onEmpezar} className={`${SOLIDO} shrink-0`}>{CTA} <ArrowRight size={16} /></button>
       </div>
       <div className="border-t border-borde">
         <div className="max-w-6xl mx-auto px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

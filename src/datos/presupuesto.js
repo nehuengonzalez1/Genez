@@ -107,22 +107,31 @@ export function armarModulos({ rubro, respuestas = {}, sacados = [], sumados = [
    ------------------------------------------------------------ */
 
 export const DOLORES = [
-  { k: "d_stock", n: "Se me escapa el stock", modulos: ["stock"], necesita: [] },
-  { k: "d_plata", n: "No sé qué me deja plata", modulos: ["reportes"], necesita: [] },
-  { k: "d_caja", n: "La caja no me cierra", modulos: ["reportes"], necesita: [] },
-  { k: "d_factura", n: "Facturar me lleva horas", modulos: ["clientes"], necesita: [] },
-  { k: "d_cola", n: "Tengo cola en el mostrador", modulos: ["productos"], necesita: [] },
-  { k: "d_remitos", n: "Cargar remitos es un infierno", modulos: ["compras"], necesita: [] },
-  { k: "d_turnos", n: "Pierdo turnos o se me olvidan", modulos: ["agenda", "comunicaciones"], necesita: [] },
-  { k: "d_volver", n: "No sé quién dejó de venir", modulos: ["crm"], necesita: [] },
-  { k: "d_equipo", n: "Cada empleado hace lo que quiere", modulos: ["permisos", "equipo"], necesita: [] },
-  { k: "d_reservas", n: "Mis clientes no pueden reservar solos", modulos: ["agenda", "comunicaciones"], necesita: [] },
+  { k: "d_stock", n: "No tengo un control claro del stock", d: "No sé qué tengo, qué falta o cuándo reponer.", modulos: ["stock"], necesita: [] },
+  { k: "d_faltantes", n: "Pierdo ventas por falta de stock", d: "Se me van productos y pierdo plata.", modulos: ["stock", "compras"], necesita: [] },
+  { k: "d_precios", n: "Los precios y vencimientos se me desordenan", d: "Se me pasan fechas o cambio mal los precios.", modulos: ["productos", "stock"], necesita: [] },
+  { k: "d_caja", n: "Me lleva mucho tiempo hacer la caja", d: "Cierro el día y no tengo un resumen claro.", modulos: ["reportes"], necesita: [] },
+  { k: "d_atencion", n: "La atención es lenta", d: "Se forman filas y pierdo clientes.", modulos: ["productos"], necesita: ["Lector de códigos de barras (o la cámara del celular)"] },
+  { k: "d_proveedores", n: "No tengo un registro ordenado de proveedores", d: "Remitos, facturas y pagos dispersos.", modulos: ["compras"], necesita: [] },
+  { k: "d_sucursales", n: "Necesito manejar varias sucursales", d: "Quiero ver todo en un solo lugar.", modulos: ["permisos"], necesita: ["Una computadora o tablet por sucursal"] },
+  { k: "d_clientes", n: "No tengo información clara de mis clientes", d: "No sé quién compra, ni con qué frecuencia.", modulos: ["crm"], necesita: [] },
+  { k: "d_otro", n: "Otro problema", d: "Contanos cuál.", modulos: [], necesita: [], otro: true },
+  { k: "d_ganancia", n: "Me resulta difícil entender cuánto gano", d: "Vendo, pero no veo reportes claros.", modulos: ["reportes"], necesita: [] },
 ];
 
-/* El rubro con los dolores como preguntas más, después de las suyas. */
+/* Dos preguntas que no son del rubro ni un dolor: por dónde vende y si
+   tiene sucursales. Van como preguntas generales para que enciendan
+   módulos con su motivo y viajen en el pedido como las demás. */
+export const GENERALES = [
+  { k: "g_online", n: "Vendo online, además del local", modulos: ["pedidos"], necesita: [] },
+  { k: "g_sucursales", n: "Tengo varias sucursales", modulos: ["permisos"], necesita: ["Una computadora o tablet por sucursal"] },
+];
+
+/* El rubro con los dolores y las preguntas generales como preguntas más,
+   después de las suyas. */
 export function conDolores(rubro) {
   const p = (rubro && rubro.presentacion) || {};
-  return { ...rubro, presentacion: { ...p, preguntas: [...(p.preguntas || []), ...DOLORES] } };
+  return { ...rubro, presentacion: { ...p, preguntas: [...(p.preguntas || []), ...DOLORES, ...GENERALES] } };
 }
 
 /* ------------------------------------------------------------
@@ -149,9 +158,9 @@ export function variantes({ rubro, respuestas = {}, sacados = [], sumados = [], 
   /* Se llaman Start, Pro y Empresa (y no "base", que acá ya es otra
      cosa: los tres módulos que van siempre). */
   return [
-    { k: "arrancar", n: "Start", d: "Lo mínimo para tu rubro.", armado: arrancar },
-    { k: "medida", n: "Pro", d: "Con lo que respondiste.", armado: medida, recomendado: true },
-    { k: "completo", n: "Empresa", d: "Todo lo que tu rubro puede usar.", armado: completo },
+    { k: "arrancar", n: "Start", d: "Lo esencial para empezar.", lema: "Ideal para negocios que recién empiezan.", armado: arrancar },
+    { k: "medida", n: "Pro", d: "Más control, más posibilidades.", lema: "El plan ideal para hacer crecer tu negocio.", armado: medida, recomendado: true },
+    { k: "completo", n: "Empresa", d: "Todo lo que tu negocio necesita.", lema: "La solución completa, sin límites.", armado: completo },
   ];
 }
 
