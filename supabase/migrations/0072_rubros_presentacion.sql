@@ -24,7 +24,10 @@
    comercio de su lado para que eso sirva: es dato, así un rubro nuevo
    trae sus preguntas sin tocar el stepper. `nucleo` son los módulos que
    un comercio del rubro usa sí o sí (la carta en un bar, la agenda en
-   un consultorio): van siempre, además de los base del catálogo. Lo
+   un consultorio): van siempre, además de los base del catálogo.
+   `negocios` son los negocios concretos que entran en el rubro
+   (Almacén, Kiosco, Café…): es lo que la persona toca en la portada,
+   porque uno se reconoce en "Kiosco" y no en "Comercio y minimercado". Lo
    demás entra solo si una pregunta lo enciende o la persona lo suma a
    mano de entre `modulos`. Por eso las preguntas cubren cada módulo
    opcional del rubro: nada entra por defecto ni queda sin forma de
@@ -42,7 +45,7 @@ alter table rubros
   add column if not exists presentacion jsonb not null default '{}'::jsonb;
 
 comment on column rubros.presentacion is
-  'Cómo se presenta el rubro en la landing y en el alta guiada: titulo, bajada, para, icono, destacados[], nucleo[] (módulos que van siempre), preguntas[{k, n, modulos[], necesita[]}]. Vacío = no se muestra.';
+  'Cómo se presenta el rubro en la landing y en el alta guiada: titulo, bajada, para, icono, destacados[], negocios[] (los negocios concretos del rubro, lo que se toca en la portada), nucleo[] (módulos que van siempre), preguntas[{k, n, modulos[], necesita[]}]. Vacío = no se muestra.';
 
 update rubros set presentacion = $json$
 {
@@ -51,12 +54,12 @@ update rubros set presentacion = $json$
   "para": "Almacenes, minimercados, kioscos, dietéticas",
   "icono": "carrito",
   "destacados": ["Cobro con lector de códigos", "Stock y vencimientos", "Compras y remitos por foto", "Caja e informes"],
+  "negocios": ["Almacén", "Minimercado", "Kiosco", "Dietética", "Verdulería", "Panadería", "Ferretería", "Casa de sanitarios"],
   "nucleo": ["productos", "reportes"],
   "preguntas": [
     { "k": "stock", "n": "Controlo el stock y los vencimientos", "modulos": ["stock"], "necesita": [] },
     { "k": "compras", "n": "Compro a proveedores con remito o factura", "modulos": ["compras"], "necesita": [] },
     { "k": "peso", "n": "Vendo por peso (fiambre, verdura, pan)", "modulos": [], "necesita": ["Balanza que imprima etiquetas con código de barras"] },
-    { "k": "cajas", "n": "Tengo más de una caja", "modulos": [], "necesita": ["Una computadora o tablet por caja"] },
     { "k": "factura", "n": "Facturo A y B", "modulos": ["clientes"], "necesita": [] },
     { "k": "pedidos", "n": "Tomo pedidos para preparar o enviar", "modulos": ["pedidos"], "necesita": [] },
     { "k": "equipo", "n": "Trabajan otras personas conmigo", "modulos": ["permisos"], "necesita": [] },
@@ -72,6 +75,7 @@ update rubros set presentacion = $json$
   "para": "Bares, cafés, restaurantes, take away",
   "icono": "cubiertos",
   "destacados": ["Salón con plano de mesas", "Comandas y cocina", "Centro de pedidos y delivery", "Caja e informes"],
+  "negocios": ["Bar", "Café", "Restaurante", "Cervecería", "Rotisería", "Take away"],
   "nucleo": ["productos", "reportes"],
   "preguntas": [
     { "k": "mesas", "n": "Tengo salón con mesas", "modulos": ["comandas"], "necesita": [] },
@@ -92,6 +96,7 @@ update rubros set presentacion = $json$
   "para": "Estéticas, pilates, gimnasios, peluquerías, consultorios",
   "icono": "agenda",
   "destacados": ["Agenda con turnos y clases", "Abonos y packs", "Equipo y liquidaciones", "App del cliente con reservas", "Avisos por WhatsApp"],
+  "negocios": ["Estética", "Peluquería", "Barbería", "Pilates", "Gimnasio", "Consultorio", "Spa"],
   "nucleo": ["servicios", "agenda", "informes"],
   "preguntas": [
     { "k": "clases", "n": "Doy clases grupales con cupo", "modulos": [], "necesita": ["Los horarios y el cupo de cada clase"] },
