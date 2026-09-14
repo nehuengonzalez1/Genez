@@ -3,8 +3,9 @@
    ============================================================
 
    1. Tu rubro — ya viene elegido desde la card.
-   2. Cómo trabajás — tildes que salen de `presentacion.preguntas` del
-      rubro. Cada tilde enciende módulos y suma cosas que hay que tener.
+   2. Cómo trabajás — cuántos puestos tiene (fijo, de cualquier negocio)
+      y tildes que salen de `presentacion.preguntas` del rubro. Cada
+      tilde enciende módulos y suma cosas que hay que tener.
    3. Tus módulos — los que de verdad necesita: base + núcleo del rubro
       + lo que encendieron las tildes. Cada uno dice por qué está, se
       puede sacar (menos la base) y se puede sumar del rubro.
@@ -23,7 +24,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Lock, Plus, MessageCircle } from "lucide-react";
 import { MODULOS_BASE, moduloPorClave } from "../datos/modulos.js";
-import { armarModulos, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
+import { ESCALAS, armarModulos, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
 import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
 import { Tarjeta, Boton } from "../cliente/ui.jsx";
 
@@ -32,10 +33,11 @@ const pesos = (n) => "$" + new Intl.NumberFormat("es-AR", { maximumFractionDigit
 
 const PASOS = ["Tu rubro", "Cómo trabajás", "Tus módulos"];
 
-export default function Stepper({ rubro, onVolver }) {
+export default function Stepper({ rubro, negocio, onVolver }) {
   const p = rubro.presentacion;
   const preguntas = p.preguntas || [];
-  const [paso, setPaso] = useState(preguntas.length ? 2 : 3);   // 2 | 3 | 4 (presupuesto)
+  const [paso, setPaso] = useState(2);                          // 2 | 3 | 4 (presupuesto)
+  const [escala, setEscala] = useState("1");
   const [respuestas, setRespuestas] = useState({});
   const [sacados, setSacados] = useState([]);
   const [sumados, setSumados] = useState([]);
@@ -50,8 +52,8 @@ export default function Stepper({ rubro, onVolver }) {
   }, []);
 
   const armado = useMemo(
-    () => armarModulos({ rubro, respuestas, sacados, sumados }),
-    [rubro, respuestas, sacados, sumados],
+    () => armarModulos({ rubro, respuestas, sacados, sumados, escala }),
+    [rubro, respuestas, sacados, sumados, escala],
   );
   const presupuesto = useMemo(
     () => presupuestar(tarifas || TARIFAS_VACIAS, armado.elegidos),
@@ -60,24 +62,28 @@ export default function Stepper({ rubro, onVolver }) {
 
   const arriba = () => window.scrollTo(0, 0);
   const ir = (n) => { setPaso(n); arriba(); };
-  const primero = paso === 2 || (paso === 3 && !preguntas.length);
+  const primero = paso === 2;
 
   return (
     <section className="pt-4 max-w-2xl">
       <button onClick={primero ? onVolver : () => ir(paso === 4 ? 3 : 2)}
         className="inline-flex items-center gap-1.5 text-sm text-texto-suave hover:text-texto mb-5">
-        <ArrowLeft size={16} /> {primero ? "Elegir otro rubro" : "Volver"}
+        <ArrowLeft size={16} /> {primero ? "Cambiar de negocio" : "Volver"}
       </button>
 
       <Progreso actual={paso} />
 
       <div className="mt-6">
-        <div className={ROTULO}>Tu rubro</div>
-        <div className="font-semibold text-[17px]">{p.titulo}</div>
+        <div className={ROTULO}>Tu negocio</div>
+        <div className="font-semibold text-[17px]">
+          {negocio && negocio !== p.titulo
+            ? <>{negocio} <span className="text-texto-tenue font-normal">· {p.titulo}</span></>
+            : p.titulo}
+        </div>
       </div>
 
       {paso === 2 && (
-        <ComoTrabajas preguntas={preguntas} respuestas={respuestas}
+        <ComoTrabajas preguntas={preguntas} respuestas={respuestas} escala={escala} onEscala={setEscala}
           onTildar={(k) => setRespuestas((r) => ({ ...r, [k]: !r[k] }))} onSeguir={() => ir(3)} />
       )}
 
@@ -89,7 +95,7 @@ export default function Stepper({ rubro, onVolver }) {
       )}
 
       {paso === 4 && (
-        <Presupuesto rubro={rubro} armado={armado} presupuesto={presupuesto} tarifas={tarifas} />
+        <Presupuesto rubro={rubro} negocio={negocio} escala={escala} armado={armado} presupuesto={presupuesto} tarifas={tarifas} />
       )}
     </section>
   );
@@ -111,18 +117,36 @@ function Progreso({ actual }) {
   );
 }
 
-function ComoTrabajas({ preguntas, respuestas, onTildar, onSeguir }) {
+function ComoTrabajas({ preguntas, respuestas, escala, onEscala, onTildar, onSeguir }) {
   const marcadas = preguntas.filter((q) => respuestas[q.k]).length;
   return (
     <div className="mt-6">
       <h1 className="f-d text-2xl leading-tight">¿Cómo trabajás?</h1>
-      <p className="text-texto-suave mt-2">Tildá lo que aplica. Cada tilde suma solo lo que hace falta para eso.</p>
-      <div className="mt-5 space-y-2">
-        {preguntas.map((q) => (
-          <Tilde key={q.k} activa={!!respuestas[q.k]} onClick={() => onTildar(q.k)} titulo={q.n}
-            detalle={(q.modulos || []).map((k) => (moduloPorClave(k) || { n: k }).n).join(" · ") || null} />
+      <p className="text-texto-suave mt-2">Cuántos puestos tenés y qué hacés. Cada respuesta suma solo lo que hace falta.</p>
+
+      <div className={`${ROTULO} mt-6`}>¿Cuántos puestos de venta o atención?</div>
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        {ESCALAS.map((e) => (
+          <button key={e.k} type="button" onClick={() => onEscala(e.k)} aria-pressed={escala === e.k}
+            className={`rounded-xl border px-2 py-3 text-center min-h-[72px] ${
+              escala === e.k ? "border-acento bg-acento-suave/30" : "border-borde bg-superficie"}`}>
+            <span className="block f-d text-lg leading-tight">{e.n}</span>
+            <span className="block text-[11px] text-texto-tenue mt-1 leading-snug">{e.d}</span>
+          </button>
         ))}
       </div>
+
+      {preguntas.length > 0 && (
+        <>
+          <div className={`${ROTULO} mt-6`}>¿Algo de esto?</div>
+          <div className="mt-2 space-y-2">
+            {preguntas.map((q) => (
+              <Tilde key={q.k} activa={!!respuestas[q.k]} onClick={() => onTildar(q.k)} titulo={q.n}
+                detalle={(q.modulos || []).map((k) => (moduloPorClave(k) || { n: k }).n).join(" · ") || null} />
+            ))}
+          </div>
+        </>
+      )}
       <div className="mt-6">
         <Boton onClick={onSeguir}>
           <span className="inline-flex items-center gap-2">
@@ -210,7 +234,7 @@ function Tilde({ activa, fija, onClick, titulo, detalle, motivo }) {
   );
 }
 
-function Presupuesto({ rubro, armado, presupuesto, tarifas }) {
+function Presupuesto({ rubro, negocio, escala, armado, presupuesto, tarifas }) {
   const { lineas, base, mensual, puestaEnMarcha, faltan, cantidad } = presupuesto;
   const calculando = tarifas === null;
   const nombresBase = lineas.filter((l) => l.base).map((l) => l.n).join(", ");
@@ -218,7 +242,7 @@ function Presupuesto({ rubro, armado, presupuesto, tarifas }) {
 
   const whatsapp = (tarifas && tarifas.whatsapp) || "";
   const enlace = whatsapp
-    ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(textoDelPresupuesto({ rubro, presupuesto, pesos }))}`
+    ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(textoDelPresupuesto({ rubro, negocio, escala, presupuesto, pesos }))}`
     : null;
 
   return (

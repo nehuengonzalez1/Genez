@@ -11,6 +11,9 @@
    QUÉ HAY EN `presentacion`
    -------------------------
    titulo, bajada, para, icono, destacados: la card de la landing.
+   negocios: los negocios concretos que entran en el rubro (Almacén,
+     Kiosco, Café…). Es lo que la persona toca en la portada: uno se
+     reconoce en "Kiosco", no en "Comercio y minimercado".
    nucleo: los módulos que un comercio del rubro usa sí o sí (la carta
      en un bar, la agenda en un consultorio). Van siempre, además de los
      base del catálogo.
@@ -45,12 +48,12 @@ export const RUBROS_DE_FABRICA = [
       para: "Almacenes, minimercados, kioscos, dietéticas",
       icono: "carrito",
       destacados: ["Cobro con lector de códigos", "Stock y vencimientos", "Compras y remitos por foto", "Caja e informes"],
+      negocios: ["Almacén", "Minimercado", "Kiosco", "Dietética", "Verdulería", "Panadería", "Ferretería", "Casa de sanitarios"],
       nucleo: ["productos", "reportes"],
       preguntas: [
         { k: "stock", n: "Controlo el stock y los vencimientos", modulos: ["stock"], necesita: [] },
         { k: "compras", n: "Compro a proveedores con remito o factura", modulos: ["compras"], necesita: [] },
         { k: "peso", n: "Vendo por peso (fiambre, verdura, pan)", modulos: [], necesita: ["Balanza que imprima etiquetas con código de barras"] },
-        { k: "cajas", n: "Tengo más de una caja", modulos: [], necesita: ["Una computadora o tablet por caja"] },
         { k: "factura", n: "Facturo A y B", modulos: ["clientes"], necesita: [] },
         { k: "pedidos", n: "Tomo pedidos para preparar o enviar", modulos: ["pedidos"], necesita: [] },
         { k: "equipo", n: "Trabajan otras personas conmigo", modulos: ["permisos"], necesita: [] },
@@ -68,6 +71,7 @@ export const RUBROS_DE_FABRICA = [
       para: "Bares, cafés, restaurantes, take away",
       icono: "cubiertos",
       destacados: ["Salón con plano de mesas", "Comandas y cocina", "Centro de pedidos y delivery", "Caja e informes"],
+      negocios: ["Bar", "Café", "Restaurante", "Cervecería", "Rotisería", "Take away"],
       nucleo: ["productos", "reportes"],
       preguntas: [
         { k: "mesas", n: "Tengo salón con mesas", modulos: ["comandas"], necesita: [] },
@@ -90,6 +94,7 @@ export const RUBROS_DE_FABRICA = [
       para: "Estéticas, pilates, gimnasios, peluquerías, consultorios",
       icono: "agenda",
       destacados: ["Agenda con turnos y clases", "Abonos y packs", "Equipo y liquidaciones", "App del cliente con reservas", "Avisos por WhatsApp"],
+      negocios: ["Estética", "Peluquería", "Barbería", "Pilates", "Gimnasio", "Consultorio", "Spa"],
       nucleo: ["servicios", "agenda", "informes"],
       preguntas: [
         { k: "clases", n: "Doy clases grupales con cupo", modulos: [], necesita: ["Los horarios y el cupo de cada clase"] },
