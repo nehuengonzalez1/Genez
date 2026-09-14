@@ -1,34 +1,42 @@
 /* ============================================================
-   EL ALTA GUIADA · tres pasos y un presupuesto
+   EL ALTA GUIADA · cuatro pasos y tres presupuestos
    ============================================================
 
    1. Tu negocio — ya viene elegido desde la card de la portada.
    2. Cómo trabajás — cuántos puestos tiene (fijo, de cualquier negocio)
       y tildes que salen de `presentacion.preguntas` del rubro. Cada
       tilde enciende módulos y suma cosas que hay que tener.
-   3. Tus módulos — los que de verdad necesita: base + núcleo del rubro
-      + lo que encendieron las tildes. Cada uno dice por qué está, se
-      puede sacar (menos la base) y se puede sumar del rubro.
-   4. El presupuesto — un documento, no una lista: resumen con el total
-      y la acción, lo que eligió (editable, vuelve al paso que
-      corresponde), los módulos con su motivo y su precio, qué necesita
-      de su lado y qué pasa después.
+   3. Qué te complica — los dolores, en sus palabras ("se me escapa el
+      stock"), y un campo libre. Cada dolor enciende módulos igual que
+      una tilde; el texto libre viaja con el pedido.
+   4. Tus módulos — los que de verdad necesita: base + núcleo del rubro
+      + lo que encendieron tildes y dolores. Cada uno dice por qué está,
+      se puede sacar (menos la base) y se puede sumar del rubro.
+   5. El presupuesto — tres para elegir: "Para arrancar" (lo mínimo del
+      rubro), "A tu medida" (lo que salió de sus respuestas, el
+      recomendado) y "Completo" (todo lo que el rubro puede usar). El
+      elegido se abre abajo como un documento: resumen con el total y la
+      acción, lo que eligió (editable), los módulos con su motivo y su
+      precio, qué necesita de su lado y qué pasa después.
 
    Los precios salen de `tarifas` (la plataforma los edita desde su
    panel). Sin precios publicados no se dibuja columna de precio: se
-   dice una sola vez que el número llega con el pedido, y nunca se
-   inventa. "Pedir este presupuesto" guarda una solicitud (0074) con lo
-   que eligió y su WhatsApp; la plataforma la ve en su panel. Si además
-   hay un WhatsApp cargado, se puede mandar directo.
+   dice una sola vez que nos ponemos en contacto, y nunca se inventa.
+   "Pedir este presupuesto" guarda una solicitud (0074) con lo que eligió
+   y su WhatsApp; la plataforma la ve en su panel. Si además hay un
+   WhatsApp cargado, se puede mandar directo.
 
    La cabeza está en src/datos/presupuesto.js y se prueba sin
    navegador; acá solo se dibuja.
    ============================================================ */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Lock, Plus, MessageCircle, Copy, Printer, Pencil } from "lucide-react";
+import {
+  ArrowLeft, ArrowRight, Check, Lock, Plus, MessageCircle, Copy, Printer, Pencil,
+  Boxes, TrendingUp, Wallet, FileText, Clock, Truck, CalendarDays, Users, Smartphone,
+} from "lucide-react";
 import { MODULOS_BASE, moduloPorClave } from "../datos/modulos.js";
-import { ESCALAS, armarModulos, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
+import { ESCALAS, DOLORES, conDolores, variantes, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
 import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
 import { pedirPresupuesto, validarPedido } from "../datos/solicitudes.js";
 import { Tarjeta, Boton } from "../cliente/ui.jsx";
@@ -36,26 +44,29 @@ import { Tarjeta, Boton } from "../cliente/ui.jsx";
 const ROTULO = "text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold";
 const pesos = (n) => "$" + new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(Math.round(n));
 const nombreDe = (k) => (moduloPorClave(k) || { n: k }).n;
+const esDolor = (k) => DOLORES.some((d) => d.k === k);
 
-const PASOS = ["Tu negocio", "Cómo trabajás", "Tus módulos", "Presupuesto"];
+/* Un ícono por dolor. Es una decisión de esta pantalla, no del dato. */
+const ICONO_DOLOR = {
+  d_stock: Boxes, d_plata: TrendingUp, d_caja: Wallet, d_factura: FileText, d_cola: Clock,
+  d_remitos: Truck, d_turnos: CalendarDays, d_volver: MessageCircle, d_equipo: Users, d_reservas: Smartphone,
+};
 
-export default function Stepper({ rubro, negocio, problemas = [], sumadosIniciales = [], mensajeInicial = "", onVolver }) {
-  /* Lo que la persona marcó en la portada ("se me escapa el stock") entra
-     como preguntas ya contestadas, delante de las del rubro: encienden
-     módulos con su motivo y viajan en el pedido como cualquier respuesta.
-     `sumadosIniciales` son los módulos de un presupuesto armado que eligió
-     en la portada; `mensajeInicial`, lo que escribió con sus palabras. */
-  const rubroArmado = useMemo(
-    () => ({ ...rubro, presentacion: { ...rubro.presentacion, preguntas: [...problemas, ...(rubro.presentacion.preguntas || [])] } }),
-    [rubro, problemas],
-  );
+const PASOS = ["Tu negocio", "Cómo trabajás", "Qué te complica", "Tus módulos", "Presupuesto"];
+
+export default function Stepper({ rubro, negocio, onVolver }) {
+  /* Los dolores entran como preguntas más del rubro: encienden módulos
+     con su motivo y viajan en el pedido como cualquier respuesta. */
+  const rubroArmado = useMemo(() => conDolores(rubro), [rubro]);
   const p = rubroArmado.presentacion;
-  const preguntas = p.preguntas || [];
-  const [paso, setPaso] = useState(2);                          // 2 | 3 | 4 (presupuesto)
+  const preguntasRubro = rubro.presentacion.preguntas || [];
+  const [paso, setPaso] = useState(2);                          // 2 | 3 | 4 | 5 (presupuesto)
   const [escala, setEscala] = useState("1");
-  const [respuestas, setRespuestas] = useState(() => Object.fromEntries(problemas.map((q) => [q.k, true])));
+  const [respuestas, setRespuestas] = useState({});
+  const [mensaje, setMensaje] = useState("");
   const [sacados, setSacados] = useState([]);
-  const [sumados, setSumados] = useState(sumadosIniciales);
+  const [sumados, setSumados] = useState([]);
+  const [opcion, setOpcion] = useState("medida");                // arrancar | medida | completo
   const [tarifas, setTarifas] = useState(null);                  // null = todavía no se sabe
 
   useEffect(() => {
@@ -66,21 +77,24 @@ export default function Stepper({ rubro, negocio, problemas = [], sumadosInicial
     return () => { vigente = false; };
   }, []);
 
-  const armado = useMemo(
-    () => armarModulos({ rubro: rubroArmado, respuestas, sacados, sumados, escala }),
+  const opciones = useMemo(
+    () => variantes({ rubro: rubroArmado, respuestas, sacados, sumados, escala }),
     [rubroArmado, respuestas, sacados, sumados, escala],
   );
+  const medida = opciones.find((o) => o.k === "medida");
+  const elegida = opciones.find((o) => o.k === opcion) || medida;
   const presupuesto = useMemo(
-    () => presupuestar(tarifas || TARIFAS_VACIAS, armado.elegidos),
-    [tarifas, armado],
+    () => presupuestar(tarifas || TARIFAS_VACIAS, elegida.armado.elegidos),
+    [tarifas, elegida],
   );
 
   const arriba = () => window.scrollTo(0, 0);
   const ir = (n) => { setPaso(n); arriba(); };
   const primero = paso === 2;
+  const tildar = (k) => setRespuestas((r) => ({ ...r, [k]: !r[k] }));
 
   return (
-    <section className={`pt-4 ${paso === 4 ? "" : "max-w-2xl"}`}>
+    <section className={`pt-4 ${paso === 5 ? "" : "max-w-2xl"}`}>
       <div className="no-imprimir">
         <button onClick={primero ? onVolver : () => ir(paso - 1)}
           className="inline-flex items-center gap-1.5 text-sm text-texto-suave hover:text-texto mb-5">
@@ -100,21 +114,25 @@ export default function Stepper({ rubro, negocio, problemas = [], sumadosInicial
       </div>
 
       {paso === 2 && (
-        <ComoTrabajas problemas={problemas} preguntas={preguntas.slice(problemas.length)} respuestas={respuestas} escala={escala} onEscala={setEscala}
-          onTildar={(k) => setRespuestas((r) => ({ ...r, [k]: !r[k] }))} onSeguir={() => ir(3)} />
+        <ComoTrabajas preguntas={preguntasRubro} respuestas={respuestas} escala={escala} onEscala={setEscala}
+          onTildar={tildar} onSeguir={() => ir(3)} />
       )}
 
       {paso === 3 && (
-        <TusModulos armado={armado} sacados={sacados} sumados={sumados}
-          onSacar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
-          onSumar={(k) => setSumados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
-          onSeguir={() => ir(4)} />
+        <QueTeComplica respuestas={respuestas} onTildar={tildar} mensaje={mensaje} onMensaje={setMensaje} onSeguir={() => ir(4)} />
       )}
 
       {paso === 4 && (
-        <Presupuesto rubro={rubroArmado} negocio={negocio} escala={escala} respuestas={respuestas}
-          armado={armado} presupuesto={presupuesto} tarifas={tarifas} mensajeInicial={mensajeInicial}
-          onCambiarNegocio={onVolver} onEditar={() => ir(2)} onAjustar={() => ir(3)} />
+        <TusModulos armado={medida.armado} sacados={sacados} sumados={sumados}
+          onSacar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
+          onSumar={(k) => setSumados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
+          onSeguir={() => { setOpcion("medida"); ir(5); }} />
+      )}
+
+      {paso === 5 && (
+        <Presupuesto rubro={rubroArmado} negocio={negocio} escala={escala} respuestas={respuestas} mensaje={mensaje}
+          opciones={opciones} opcion={elegida.k} onOpcion={setOpcion} tarifas={tarifas} presupuesto={presupuesto}
+          onCambiarNegocio={onVolver} onEditar={() => ir(2)} onEditarDolores={() => ir(3)} onAjustar={() => { setOpcion("medida"); ir(4); }} />
       )}
     </section>
   );
@@ -123,7 +141,7 @@ export default function Stepper({ rubro, negocio, problemas = [], sumadosInicial
 function Progreso({ actual }) {
   /* El paso 1 (el negocio) ya está hecho cuando se llega acá. */
   return (
-    <ol className="grid grid-cols-4 gap-2">
+    <ol className="grid grid-cols-5 gap-1.5 sm:gap-2">
       {PASOS.map((n, i) => {
         const num = i + 1;
         const hecho = num < actual;
@@ -131,7 +149,7 @@ function Progreso({ actual }) {
         return (
           <li key={n}>
             <div className={`h-1 rounded-full ${hecho || enCurso ? "bg-acento" : "bg-superficie-3"}`} />
-            <div className={`mt-1.5 text-[11px] font-semibold ${enCurso ? "text-texto" : "text-texto-tenue"}`}>{n}</div>
+            <div className={`mt-1.5 text-[10px] sm:text-[11px] font-semibold leading-tight ${enCurso ? "text-texto" : "text-texto-tenue"}`}>{n}</div>
           </li>
         );
       })}
@@ -139,8 +157,7 @@ function Progreso({ actual }) {
   );
 }
 
-function ComoTrabajas({ problemas = [], preguntas, respuestas, escala, onEscala, onTildar, onSeguir }) {
-  const marcadas = [...problemas, ...preguntas].filter((q) => respuestas[q.k]).length;
+function ComoTrabajas({ preguntas, respuestas, escala, onEscala, onTildar, onSeguir }) {
   return (
     <div className="mt-6">
       <h1 className="f-d text-2xl leading-tight">¿Cómo trabajás?</h1>
@@ -158,18 +175,6 @@ function ComoTrabajas({ problemas = [], preguntas, respuestas, escala, onEscala,
         ))}
       </div>
 
-      {problemas.length > 0 && (
-        <>
-          <div className={`${ROTULO} mt-6`}>Lo que te complica</div>
-          <div className="mt-2 space-y-2">
-            {problemas.map((q) => (
-              <Tilde key={q.k} activa={!!respuestas[q.k]} onClick={() => onTildar(q.k)} titulo={q.n}
-                detalle={(q.modulos || []).map(nombreDe).join(" · ") || null} />
-            ))}
-          </div>
-        </>
-      )}
-
       {preguntas.length > 0 && (
         <>
           <div className={`${ROTULO} mt-6`}>¿Algo de esto?</div>
@@ -183,9 +188,51 @@ function ComoTrabajas({ problemas = [], preguntas, respuestas, escala, onEscala,
       )}
       <div className="mt-6">
         <Boton onClick={onSeguir}>
-          <span className="inline-flex items-center gap-2">
-            {marcadas ? `Ver mis módulos` : "Seguir sin marcar nada"} <ArrowRight size={16} />
-          </span>
+          <span className="inline-flex items-center gap-2">Seguir <ArrowRight size={16} /></span>
+        </Boton>
+      </div>
+    </div>
+  );
+}
+
+/* Los dolores, en sus palabras. Son tildes como las del rubro, pero se
+   dibujan como chips: se leen de un vistazo y se marcan varios. */
+function QueTeComplica({ respuestas, onTildar, mensaje, onMensaje, onSeguir }) {
+  const marcados = DOLORES.filter((d) => respuestas[d.k]);
+  const modulos = Array.from(new Set(marcados.flatMap((d) => d.modulos))).map(nombreDe);
+  return (
+    <div className="mt-6">
+      <h1 className="f-d text-2xl leading-tight">¿Qué te complica hoy?</h1>
+      <p className="text-texto-suave mt-2">Marcá lo que te pasa. Con eso armamos el sistema desde tu problema, no desde un catálogo.</p>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {DOLORES.map((d) => {
+          const I = ICONO_DOLOR[d.k] || Check;
+          const activo = !!respuestas[d.k];
+          return (
+            <button key={d.k} type="button" onClick={() => onTildar(d.k)} aria-pressed={activo}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition-colors ${
+                activo ? "border-acento bg-acento-suave/40 text-texto" : "border-borde-fuerte bg-superficie text-texto-suave hover:text-texto"}`}>
+              {activo ? <Check size={15} className="text-acento" /> : <I size={15} className="text-texto-tenue" />} {d.n}
+            </button>
+          );
+        })}
+      </div>
+
+      {marcados.length > 0 && (
+        <p className="text-sm mt-4"><span className="text-texto-suave">Con esto te proponemos:</span> <strong>{modulos.join(" · ")}</strong></p>
+      )}
+
+      <label className="block mt-5">
+        <span className="text-xs font-semibold text-texto-suave">Contanos con tus palabras <span className="font-normal text-texto-tenue">(opcional)</span></span>
+        <textarea value={mensaje} onChange={(e) => onMensaje(e.target.value)} rows={3}
+          placeholder="Ej.: tengo dos cajas y a fin de mes nunca sé cuánto gané"
+          className="mt-1 w-full border border-borde rounded-lg px-3 py-3 text-[15px] bg-superficie outline-none focus:border-acento" />
+      </label>
+
+      <div className="mt-6">
+        <Boton onClick={onSeguir}>
+          <span className="inline-flex items-center gap-2">{marcados.length ? "Ver mis módulos" : "Seguir sin marcar nada"} <ArrowRight size={16} /></span>
         </Boton>
       </div>
     </div>
@@ -243,7 +290,7 @@ function TusModulos({ armado, sacados, sumados, onSacar, onSumar, onSeguir }) {
 
       <div className="mt-6">
         <Boton onClick={onSeguir}>
-          <span className="inline-flex items-center gap-2">Ver mi presupuesto <ArrowRight size={16} /></span>
+          <span className="inline-flex items-center gap-2">Ver mis presupuestos <ArrowRight size={16} /></span>
         </Boton>
       </div>
     </div>
@@ -273,25 +320,30 @@ function Tilde({ activa, fija, onClick, titulo, detalle, motivo }) {
 /* ------------------------------------------------------------
    El presupuesto
 
-   Dos columnas en escritorio: a la izquierda el detalle (lo que
-   eligió, los módulos, qué necesita, qué pasa después) y a la derecha,
-   fijo, el resumen con el total y la acción. En el teléfono el resumen
-   va primero: el total y el botón tienen que verse sin bajar.
+   Arriba, las tres opciones para elegir. Abajo, la elegida como
+   documento: dos columnas en escritorio (el detalle a la izquierda y,
+   fijo a la derecha, el resumen con el total y la acción). En el
+   teléfono el resumen va primero: el total y el botón tienen que verse
+   sin bajar.
    ------------------------------------------------------------ */
 
 const ACCION = "inline-flex items-center justify-center gap-1.5 rounded-md border border-borde-fuerte hover:border-texto-tenue text-sm font-semibold px-2 py-2 transition-colors";
 const CAMPO = "mt-1 w-full border border-borde rounded-lg px-3 py-3 text-[15px] bg-superficie outline-none focus:border-acento";
 
-function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, tarifas, mensajeInicial, onCambiarNegocio, onEditar, onAjustar }) {
+function Presupuesto({ rubro, negocio, escala, respuestas, mensaje, opciones, opcion, onOpcion, tarifas, presupuesto, onCambiarNegocio, onEditar, onEditarDolores, onAjustar }) {
   const p = rubro.presentacion;
+  const elegida = opciones.find((o) => o.k === opcion);
+  const armado = elegida.armado;
   const { lineas, base, mensual, puestaEnMarcha, faltan, cantidad } = presupuesto;
   const calculando = tarifas === null;
   const sinPrecios = !calculando && base == null;      // no hay precios publicados: ni columna de precio
   const opcionales = lineas.filter((l) => !l.base);
   const nombresBase = lineas.filter((l) => l.base).map((l) => l.n).join(", ");
   const marcadas = (p.preguntas || []).filter((q) => respuestas[q.k]);
+  const tildes = marcadas.filter((q) => !esDolor(q.k));
+  const dolores = marcadas.filter((q) => esDolor(q.k));
   const puestos = ESCALAS.find((e) => e.k === escala) || ESCALAS[0];
-  const texto = textoDelPresupuesto({ rubro, negocio, escala, presupuesto, pesos });
+  const texto = textoDelPresupuesto({ rubro, negocio, escala, opcion: elegida.n, presupuesto, pesos });
   const whatsapp = (tarifas && tarifas.whatsapp) || "";
 
   /* Lo que se guarda si pide el presupuesto: tal cual lo vio. */
@@ -299,7 +351,7 @@ function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, 
     negocio: negocio || p.titulo,
     rubro: rubro.clave,
     escala,
-    respuestas: marcadas.map((q) => ({ k: q.k, n: q.n })),
+    respuestas: [...marcadas.map((q) => ({ k: q.k, n: q.n })), { k: "presupuesto", n: `Presupuesto «${elegida.n}»` }],
     modulos: armado.elegidos,
     mensual,
     puesta_en_marcha: puestaEnMarcha,
@@ -307,15 +359,26 @@ function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, 
 
   return (
     <div className="mt-6">
-      <h1 className="f-d text-2xl sm:text-3xl leading-tight">Tu presupuesto</h1>
+      <h1 className="f-d text-2xl sm:text-3xl leading-tight">Tus tres presupuestos</h1>
       <p className="text-texto-suave mt-2 max-w-2xl">
-        Armado con lo que respondiste: {cantidad} módulos para {negocio || p.titulo}. Podés cambiar lo que quieras antes de pedirlo.
+        El recomendado sale de lo que respondiste. Los otros dos, por si querés arrancar más chico o llevarte todo. Elegí uno y abajo tenés el detalle.
       </p>
 
-      <div className="mt-6 grid lg:grid-cols-[minmax(0,1fr)_340px] gap-4 lg:gap-8 items-start">
+      <div className="mt-6 grid md:grid-cols-3 gap-3">
+        {opciones.map((o) => (
+          <Opcion key={o.k} opcion={o} activa={o.k === opcion} tarifas={tarifas} onElegir={() => onOpcion(o.k)} />
+        ))}
+      </div>
+
+      <div className="mt-8 flex items-baseline justify-between gap-3">
+        <h2 className="f-d text-xl">Presupuesto «{elegida.n}»</h2>
+        <span className="text-sm text-texto-tenue">{cantidad} módulos</span>
+      </div>
+
+      <div className="mt-4 grid lg:grid-cols-[minmax(0,1fr)_340px] gap-4 lg:gap-8 items-start">
         <div className="lg:order-2 lg:sticky lg:top-24 no-imprimir">
-          <Resumen calculando={calculando} sinPrecios={sinPrecios} mensual={mensual} puestaEnMarcha={puestaEnMarcha}
-            faltan={faltan} cantidad={cantidad} texto={texto} whatsapp={whatsapp} pedido={pedido} mensajeInicial={mensajeInicial} />
+          <Resumen key={elegida.k} calculando={calculando} sinPrecios={sinPrecios} mensual={mensual} puestaEnMarcha={puestaEnMarcha}
+            faltan={faltan} cantidad={cantidad} texto={texto} whatsapp={whatsapp} pedido={pedido} mensajeInicial={mensaje} />
         </div>
 
         <div className="lg:order-1 space-y-3">
@@ -324,7 +387,8 @@ function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, 
             <dl className="divide-y divide-borde">
               <Eleccion rotulo="Negocio" valor={negocio && negocio !== p.titulo ? `${negocio} · ${p.titulo}` : p.titulo} accion="Cambiar" onClick={onCambiarNegocio} />
               <Eleccion rotulo="Puestos" valor={`${puestos.n} · ${puestos.d}`} accion="Cambiar" onClick={onEditar} />
-              <Eleccion rotulo="Marcaste" valor={marcadas.length ? marcadas.map((q) => q.n).join(" · ") : "Nada: solo lo que viene con tu rubro"} accion="Editar" onClick={onEditar} />
+              <Eleccion rotulo="Marcaste" valor={tildes.length ? tildes.map((q) => q.n).join(" · ") : "Nada: solo lo que viene con tu rubro"} accion="Editar" onClick={onEditar} />
+              <Eleccion rotulo="Te complica" valor={dolores.length ? dolores.map((q) => q.n).join(" · ") : "No marcaste nada"} accion="Editar" onClick={onEditarDolores} />
             </dl>
           </Tarjeta>
 
@@ -394,6 +458,43 @@ function Presupuesto({ rubro, negocio, escala, respuestas, armado, presupuesto, 
         </div>
       </div>
     </div>
+  );
+}
+
+/* Una de las tres opciones: nombre, precio, cuántos módulos y cuáles. */
+function Opcion({ opcion, activa, tarifas, onElegir }) {
+  const pre = presupuestar(tarifas || TARIFAS_VACIAS, opcion.armado.elegidos);
+  const calculando = tarifas === null;
+  const extras = opcion.armado.elegidos.filter((k) => !MODULOS_BASE.includes(k));
+  return (
+    <button type="button" onClick={onElegir} aria-pressed={activa}
+      className={`relative text-left bg-superficie rounded-xl p-4 sm:p-5 border transition-colors flex flex-col ${
+        activa ? "border-acento ring-1 ring-acento" : "border-borde hover:border-borde-fuerte"}`}>
+      {opcion.recomendado && (
+        <span className="absolute -top-3 left-4 text-[10px] uppercase tracking-wider font-bold bg-acento text-sobre-acento rounded px-2 py-1">Recomendado</span>
+      )}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="f-d text-lg leading-tight">{opcion.n}</div>
+          <div className="text-xs text-texto-suave mt-0.5">{opcion.d}</div>
+        </div>
+        <span className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${
+          activa ? "bg-acento border-acento text-sobre-acento" : "border-borde-fuerte"}`}>
+          {activa && <Check size={14} />}
+        </span>
+      </div>
+      <div className="mt-3 pt-3 border-t border-borde">
+        {calculando && <div className="text-texto-suave text-sm">Calculando…</div>}
+        {!calculando && pre.mensual != null && (
+          <div className="f-d f-m text-2xl">{pesos(pre.mensual)} <span className="text-xs text-texto-suave font-normal">por mes</span></div>
+        )}
+        {!calculando && pre.mensual == null && <div className="f-d text-lg">Precio a confirmar</div>}
+        <div className="text-[11px] text-texto-tenue mt-0.5">{pre.cantidad} módulos · cobro, caja y ajustes incluidos</div>
+      </div>
+      <div className="mt-3 text-xs text-texto-suave leading-relaxed flex-1">
+        {extras.length ? extras.map(nombreDe).join(" · ") : "Solo lo que viene con tu rubro"}
+      </div>
+    </button>
   );
 }
 

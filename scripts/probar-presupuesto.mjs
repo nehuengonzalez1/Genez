@@ -19,7 +19,7 @@
      node scripts/probar-presupuesto.mjs
    ============================================================ */
 
-import { armarModulos, presupuestar, textoDelPresupuesto } from "../src/datos/presupuesto.js";
+import { armarModulos, presupuestar, textoDelPresupuesto, DOLORES, conDolores, variantes } from "../src/datos/presupuesto.js";
 import { RUBROS_DE_FABRICA } from "../src/datos/landing.js";
 import { MODULOS_BASE } from "../src/datos/modulos.js";
 import { validarPedido, armarPedido, normalizarTelefono } from "../src/datos/solicitudes.js";
@@ -86,6 +86,26 @@ console.log("\nSacar y sumar a mano\n");
   const { elegidos } = armarModulos({ rubro: turnos, respuestas: { equipo: true } });
   decir(elegidos.includes("agenda") && elegidos.includes("servicios"), "turnos: agenda y servicios son el núcleo");
   decir(elegidos.includes("equipo") && elegidos.includes("permisos"), "'trabajan otras personas' enciende Equipo y Permisos");
+}
+
+console.log("\nLos dolores y las tres variantes\n");
+
+{
+  const r = conDolores(mini);
+  decir(r.presentacion.preguntas.length === mini.presentacion.preguntas.length + DOLORES.length, "los dolores entran como preguntas más del rubro");
+  decir(DOLORES.every((d) => d.modulos.every((k) => armarModulos({ rubro: r, respuestas: { [d.k]: true } }).elegidos.includes(k))), "cada dolor enciende módulos que el catálogo conoce");
+  const { elegidos, motivos } = armarModulos({ rubro: r, respuestas: { d_factura: true } });
+  decir(elegidos.includes("clientes") && /Facturar me lleva horas/.test(motivos.clientes), "'Facturar me lleva horas' enciende Clientes con su motivo");
+}
+
+{
+  const r = conDolores(mini);
+  const [arrancar, medida, completo] = variantes({ rubro: r, respuestas: { d_stock: true, factura: true }, sumados: ["pedidos"] });
+  decir(igual(arrancar.armado.elegidos, [...MODULOS_BASE, ...mini.presentacion.nucleo].sort((a, b) => arrancar.armado.elegidos.indexOf(a) - arrancar.armado.elegidos.indexOf(b))), "'Para arrancar' es base más núcleo, nada más");
+  decir(medida.armado.elegidos.includes("stock") && medida.armado.elegidos.includes("clientes") && medida.armado.elegidos.includes("pedidos"), "'A tu medida' es lo que salió de las respuestas y lo sumado");
+  decir(medida.armado.elegidos.every((k) => completo.armado.elegidos.includes(k)) && completo.armado.elegidos.length > medida.armado.elegidos.length, "'Completo' contiene a la medida y suma el resto del rubro");
+  decir(!completo.armado.elegidos.includes("cocina"), "y tampoco propone lo que el catálogo no conoce");
+  decir(medida.recomendado === true, "la recomendada es la de las respuestas");
 }
 
 console.log("\nEl precio\n");

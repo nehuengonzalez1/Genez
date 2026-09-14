@@ -97,6 +97,63 @@ export function armarModulos({ rubro, respuestas = {}, sacados = [], sumados = [
 }
 
 /* ------------------------------------------------------------
+   Los dolores
+
+   Lo que le complica a un comerciante, en sus palabras. Cada dolor
+   enciende módulos igual que una pregunta del rubro: entra al alta
+   guiada como una pregunta más, con su motivo ("Porque marcaste…") y
+   viaja en el pedido como cualquier respuesta. No es dato de la base
+   porque no depende del rubro: son los dolores de cualquiera.
+   ------------------------------------------------------------ */
+
+export const DOLORES = [
+  { k: "d_stock", n: "Se me escapa el stock", modulos: ["stock"], necesita: [] },
+  { k: "d_plata", n: "No sé qué me deja plata", modulos: ["reportes"], necesita: [] },
+  { k: "d_caja", n: "La caja no me cierra", modulos: ["reportes"], necesita: [] },
+  { k: "d_factura", n: "Facturar me lleva horas", modulos: ["clientes"], necesita: [] },
+  { k: "d_cola", n: "Tengo cola en el mostrador", modulos: ["productos"], necesita: [] },
+  { k: "d_remitos", n: "Cargar remitos es un infierno", modulos: ["compras"], necesita: [] },
+  { k: "d_turnos", n: "Pierdo turnos o se me olvidan", modulos: ["agenda", "comunicaciones"], necesita: [] },
+  { k: "d_volver", n: "No sé quién dejó de venir", modulos: ["crm"], necesita: [] },
+  { k: "d_equipo", n: "Cada empleado hace lo que quiere", modulos: ["permisos", "equipo"], necesita: [] },
+  { k: "d_reservas", n: "Mis clientes no pueden reservar solos", modulos: ["agenda", "comunicaciones"], necesita: [] },
+];
+
+/* El rubro con los dolores como preguntas más, después de las suyas. */
+export function conDolores(rubro) {
+  const p = (rubro && rubro.presentacion) || {};
+  return { ...rubro, presentacion: { ...p, preguntas: [...(p.preguntas || []), ...DOLORES] } };
+}
+
+/* ------------------------------------------------------------
+   Las tres variantes
+
+   Al final se eligen entre tres presupuestos: lo mínimo del rubro
+   ("Para arrancar"), lo que salió de las respuestas ("A tu medida", que
+   es el recomendado) y todo lo que el rubro puede usar ("Completo").
+   Las tres salen de la misma cabeza con distintos sacados/sumados, así
+   que comparten motivos, necesidades y precio por módulo.
+   ------------------------------------------------------------ */
+
+export function variantes({ rubro, respuestas = {}, sacados = [], sumados = [], escala = "1" }) {
+  const medida = armarModulos({ rubro, respuestas, sacados, sumados, escala });
+  const nucleo = (rubro && rubro.presentacion && rubro.presentacion.nucleo) || [];
+  const arrancar = armarModulos({
+    rubro, respuestas, escala, sumados: [],
+    sacados: medida.propuestos.filter((k) => !MODULOS_BASE.includes(k) && !nucleo.includes(k)),
+  });
+  const completo = armarModulos({
+    rubro, respuestas, escala, sacados: [],
+    sumados: [...medida.elegidos, ...medida.sumables],
+  });
+  return [
+    { k: "arrancar", n: "Para arrancar", d: "Lo mínimo para tu rubro.", armado: arrancar },
+    { k: "medida", n: "A tu medida", d: "Con lo que respondiste.", armado: medida, recomendado: true },
+    { k: "completo", n: "Completo", d: "Todo lo que tu rubro puede usar.", armado: completo },
+  ];
+}
+
+/* ------------------------------------------------------------
    El presupuesto
 
    Base más un precio por cada módulo que no es base. Si falta algún
@@ -138,7 +195,7 @@ export function presupuestar(tarifas, elegidos) {
 /* El texto que viaja por WhatsApp cuando la persona toca "Quiero
    empezar": lo que eligió, con números si los hay. Es texto plano a
    propósito: se lee en un teléfono y se contesta a mano. */
-export function textoDelPresupuesto({ rubro, negocio, escala, presupuesto, pesos }) {
+export function textoDelPresupuesto({ rubro, negocio, escala, opcion, presupuesto, pesos }) {
   const titulo = (rubro && rubro.presentacion && rubro.presentacion.titulo) || (rubro && rubro.nombre) || "";
   const que = negocio && negocio !== titulo ? `${negocio} (${titulo})` : titulo;
   const puestos = (ESCALAS.find((e) => e.k === escala) || {}).n;
@@ -150,6 +207,7 @@ export function textoDelPresupuesto({ rubro, negocio, escala, presupuesto, pesos
     "Hola, quiero empezar con Genez.",
     `Negocio: ${que}`,
     puestos ? `Puestos: ${puestos}` : null,
+    opcion ? `Presupuesto: ${opcion}` : null,
     `Módulos (${presupuesto.cantidad}): ${modulos}`,
     precio,
   ].filter(Boolean).join("\n");
