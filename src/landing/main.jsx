@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import Landing from "./Landing.jsx";
-import { aplicarTema } from "../cliente/tema.js";
+import { iniciarTema } from "./tema.js";
 import "../index.css";
 import "./landing.css";
 
@@ -10,11 +10,8 @@ import "./landing.css";
    de 13.5 que usa el sistema de gestión (ver src/cliente/main.jsx). */
 document.documentElement.style.fontSize = "16px";
 
-/* Claro, siempre. El sistema es oscuro porque vive en una cocina de
-   noche; la landing es la cara de la marca y se lee de día, y una marca
-   se muestra de una sola manera. Es la misma decisión que toma un
-   comercio que fija el tema de su app (tema.js): acá la marca es Genez. */
-aplicarTema({ tema: "claro" });
+/* Claro u oscuro según el teléfono, con un botón para fijarlo (tema.js). */
+iniciarTema();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

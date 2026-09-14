@@ -1,34 +1,33 @@
 /* ============================================================
-   LA LANDING · el negocio se reconoce en una card
+   LA LANDING · la maqueta, en claro y en oscuro
    ============================================================
 
    Lo primero que ve un dueño de comercio, casi siempre desde el celular.
-   Tiene que convencer en una pantalla y llevar a una sola acción: tocar
-   su negocio. Por eso la portada ES el configurador: arriba de todo, la
-   pregunta y la grilla. Todo lo demás —qué resuelve, cómo funciona, qué
-   incluye, preguntas— está para el que baja a leer, y remata en la
-   misma acción.
+   Sigue una maqueta concreta (la de septiembre 2026) y la misma en los
+   dos temas: hero con el sistema en una laptop y la app del cliente en
+   un teléfono, "¿Qué negocio tenés?" con una fila por rubro y los
+   negocios concretos con foto, "qué resuelve" con el ticket, "qué
+   incluye" con los módulos, y un pie con la acción de nuevo.
 
    NEGOCIOS Y NO RUBROS
    --------------------
-   Uno se reconoce en "Kiosco", no en "Comercio y minimercado". La
-   grilla muestra los negocios concretos de cada rubro
+   Uno se reconoce en "Kiosco", no en "Comercio y minimercado". Cada
+   fila muestra los negocios concretos de su rubro
    (`presentacion.negocios`) y tocar uno elige el rubro que lo contiene;
    el nombre que tocó lo acompaña hasta el WhatsApp.
 
-   POR QUÉ NO SE VE COMO EL SISTEMA
-   --------------------------------
-   Comparte los tokens de color (misma familia) pero no la densidad: el
-   sistema mete seis datos donde acá va una frase. Los títulos son
-   grandes, hay aire, y hay una sola cosa naranja por pantalla. El logo
-   es el de verdad (src/ui/Logo.jsx), no la palabra tipeada.
+   LAS FOTOS
+   ---------
+   Las de la maqueta son generadas. Acá van fotos libres de Unsplash,
+   una por negocio, en `FOTOS`: cambiar una es cambiar un identificador.
+   Un negocio sin foto muestra su ícono, así un rubro nuevo no rompe
+   nada.
 
-   LAS CARDS SON DATO
-   ------------------
-   Salen de `rubros_publicos()`. Mientras la base contesta se dibujan las
-   de fábrica —son las mismas tres— y se reemplazan sin que se note; si la
-   base no contesta, se quedan. Agregar un negocio a esta página es
-   agregarlo a la lista de su rubro.
+   LOS APARATOS SON INTERFAZ, NO CAPTURAS
+   --------------------------------------
+   La laptop y el teléfono se dibujan con CSS y adentro va interfaz con
+   los mismos tokens: no envejece cuando cambia una pantalla y no muestra
+   datos de nadie. Los números son de ejemplo y se ven como tal.
 
    NO HAY RUTAS
    ------------
@@ -38,17 +37,18 @@
    son anclas dentro de la misma página.
    ============================================================ */
 
-import React, { useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import {
-  ShoppingCart, UtensilsCrossed, CalendarDays, Store, ArrowRight, Plus, Minus,
+  ShoppingCart, UtensilsCrossed, CalendarDays, Store, ArrowRight, Plus, Minus, Sun, Moon,
   ScanBarcode, Wallet, Settings, Package, Boxes, Truck, ClipboardList, FileText, Users,
   Ticket, Landmark, LayoutGrid, BarChart3, MessageCircle, Bell, ShieldCheck, Sparkles,
-  Smartphone, TrendingUp, Zap, WifiOff, PackageCheck,
+  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Leaf, Home, Calendar, Gift, User,
 } from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
 import { MODULOS } from "../datos/modulos.js";
 import { ROTULO } from "../cliente/ui.jsx";
 import { LogoGenez } from "../ui/Logo.jsx";
+import { estaOscuro, fijarTema } from "./tema.js";
 import Stepper from "./Stepper.jsx";
 
 const ICONOS = { carrito: ShoppingCart, cubiertos: UtensilsCrossed, agenda: CalendarDays, tienda: Store };
@@ -61,6 +61,40 @@ const ICONO_MODULO = {
   agenda: CalendarDays, ventas: Ticket, finanzas: Landmark, servicios: LayoutGrid, reportes: BarChart3,
   informes: BarChart3, crm: MessageCircle, comunicaciones: Bell, permisos: ShieldCheck, asistente: Sparkles,
 };
+
+/* La frase corta de cada rubro en su fila, como en la maqueta. Un rubro
+   nuevo sin frase usa su bajada. */
+const FRASE_RUBRO = {
+  minimercado: "Para vender más y tener todo en orden.",
+  gastronomia: "Para que tu cocina también rinda.",
+  servicios: "Para gestionar tu tiempo y el de tus clientes.",
+};
+
+/* Una foto por negocio (identificador de Unsplash). Sin foto, el ícono. */
+const FOTOS = {
+  "Almacén": "photo-1583258292688-d0213dc5a3a8",
+  "Minimercado": "photo-1604719312566-8912e9227c6a",
+  "Kiosco": "photo-1595263431959-23ccced5e5b5",
+  "Dietética": "photo-1542990253-a781e04c0082",
+  "Verdulería": "photo-1550989460-0adf9ea622e2",
+  "Panadería": "photo-1608198093002-ad4e005484ec",
+  "Ferretería": "photo-1519520104014-df63821cb6f9",
+  "Casa de sanitarios": "photo-1542855368-ca6ea825bca2",
+  "Bar": "photo-1566417713940-fe7c737a9ef2",
+  "Café": "photo-1533776992670-a72f4c28235e",
+  "Restaurante": "photo-1414235077428-338989a2e8c0",
+  "Cervecería": "photo-1567696911980-2eed69a46042",
+  "Rotisería": "photo-1606728035253-49e8a23146de",
+  "Take away": "photo-1616429368325-d5d7542b0ec3",
+  "Estética": "photo-1540555700478-4be289fbecef",
+  "Peluquería": "photo-1553521041-d168abd31de3",
+  "Barbería": "photo-1585747860715-2ba37e788b70",
+  "Pilates": "photo-1747239069226-55382c570116",
+  "Gimnasio": "photo-1534438327276-14e5300c3a48",
+  "Consultorio": "photo-1710074213379-2a9c2653046a",
+  "Spa": "photo-1630595271375-5073a6c0638b",
+};
+const foto = (nombre) => (FOTOS[nombre] ? `https://images.unsplash.com/${FOTOS[nombre]}?auto=format&fit=crop&w=320&h=200&q=70` : null);
 
 /* El rubro que no está. No tiene fila en la base porque no es un rubro:
    es la puerta para el que no se reconoció en ninguna card. Sin
@@ -95,11 +129,14 @@ const OTRO = {
 const BOTON = "inline-flex items-center justify-center gap-2 rounded-md text-[15px] px-[18px] py-3 transition-colors";
 const SOLIDO = `${BOTON} bg-acento hover:bg-acento-vivo text-sobre-acento font-bold`;
 const LINEA = `${BOTON} border border-borde-fuerte hover:border-texto-tenue text-texto font-semibold`;
+const LINEA_ACENTO = `${BOTON} border border-acento text-acento hover:bg-acento-suave/40 font-semibold`;
 
-/* El rótulo sin color, para pintarlo distinto sobre la banda oscura. */
-const ROTULO_SIN_COLOR = "text-[11px] uppercase tracking-[0.1em] font-bold";
-const SOMBRA_HOVER = "hover:shadow-[0_4px_14px_rgba(0,0,0,0.05)]";
+const ROTULO_ACENTO = "text-[11px] uppercase tracking-[0.14em] font-bold text-acento";
 
+/* Si la página está en oscuro. Lo leen el logo (que tiene una versión
+   por fondo) y los aparatos; cambia con el botón de la cabecera. */
+const TemaCtx = createContext(false);
+const useOscuro = () => useContext(TemaCtx);
 const CTA = "Armar mi sistema";
 
 function deLaDireccion(clave) {
@@ -120,6 +157,8 @@ export default function Landing() {
   const [elegido, setElegido] = useState(deLaDireccion("rubro"));
   const [negocio, setNegocio] = useState(deLaDireccion("negocio"));
   const [paso, setPaso] = useState(deLaDireccion("rubro") ? "empezar" : "cards");
+  const [oscuro, setOscuro] = useState(estaOscuro());
+  const alternarTema = () => { fijarTema(oscuro ? "claro" : "oscuro"); setOscuro(!oscuro); };
 
   useEffect(() => {
     let vigente = true;
@@ -141,36 +180,39 @@ export default function Landing() {
   const volver = () => { setPaso("cards"); window.scrollTo(0, 0); };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Cabecera conMenu={paso === "cards"} />
+    <TemaCtx.Provider value={oscuro}>
+      <div className="min-h-screen flex flex-col">
+        <Cabecera conMenu={paso === "cards"} onAlternarTema={alternarTema} />
 
-      <main className="flex-1">
-        {paso === "cards" || !rubro ? (
-          <Portada rubros={todos} elegido={elegido} negocio={negocio} onElegir={elegir} />
-        ) : (
-          <div className="max-w-5xl mx-auto px-5 pb-20">
-            <Stepper key={`${rubro.clave}:${negocio || ""}`} rubro={rubro} negocio={negocio} onVolver={volver} />
-          </div>
-        )}
-      </main>
+        <main className="flex-1">
+          {paso === "cards" || !rubro ? (
+            <Portada rubros={rubros} onElegir={elegir} />
+          ) : (
+            <div className="max-w-5xl mx-auto px-5 pb-20">
+              <Stepper key={`${rubro.clave}:${negocio || ""}`} rubro={rubro} negocio={negocio} onVolver={volver} />
+            </div>
+          )}
+        </main>
 
-      <Pie />
-    </div>
+        <Pie />
+      </div>
+    </TemaCtx.Provider>
   );
 }
 
 /* ------------------------------------------------------------
-   Cabecera · pegada arriba, con el logo de verdad
+   Cabecera · pegada arriba, con el logo de verdad y el tema
 
    Los comercios que ya usan el sistema entran por "Entrar". Cuando el
    sistema pase a app.genez.com.ar, ese enlace cambia y nada más.
    ------------------------------------------------------------ */
-function Cabecera({ conMenu }) {
+function Cabecera({ conMenu, onAlternarTema }) {
+  const oscuro = useOscuro();
   return (
     <header className="sticky top-0 z-30 bg-fondo/90 backdrop-blur border-b border-borde">
       <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
         <a href="/landing" aria-label="Genez, inicio" className="shrink-0">
-          <LogoGenez size={34} conNombre />
+          <LogoGenez size={34} conNombre claro={oscuro} />
         </a>
 
         {conMenu && (
@@ -183,9 +225,13 @@ function Cabecera({ conMenu }) {
         )}
 
         <div className="flex items-center gap-2">
+          <button type="button" onClick={onAlternarTema} aria-label={oscuro ? "Ver en claro" : "Ver en oscuro"} title={oscuro ? "Ver en claro" : "Ver en oscuro"}
+            className="w-10 h-10 rounded-md border border-borde-fuerte text-texto-suave hover:text-texto flex items-center justify-center">
+            {oscuro ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
           <a href="/" className={`${LINEA} !py-2 !px-4 text-sm`}>Entrar</a>
           {conMenu && (
-            <a href="#configurador" className={`${SOLIDO} !py-2 !px-4 text-sm hidden sm:inline-flex`}>{CTA}</a>
+            <a href="#empecemos" className={`${SOLIDO} !py-2 !px-4 text-sm hidden sm:inline-flex`}>{CTA} <ArrowRight size={15} /></a>
           )}
         </div>
       </div>
@@ -193,211 +239,446 @@ function Cabecera({ conMenu }) {
   );
 }
 
-/* ------------------------------------------------------------
-   La portada: el configurador arriba de todo, y después lo que se lee.
-   Todo lleva de vuelta a #configurador.
-   ------------------------------------------------------------ */
-function Portada({ rubros, elegido, negocio, onElegir }) {
+function Portada({ rubros, onElegir }) {
   return (
     <>
-      <Configurador rubros={rubros} elegido={elegido} negocio={negocio} onElegir={onElegir} />
-      <Confianza />
+      <Hero />
+      <Empecemos rubros={rubros} onElegir={onElegir} />
       <QueResuelve />
-      <ComoFunciona />
       <QueIncluye />
+      <ComoFunciona />
       <Preguntas />
-      <Cierre />
     </>
   );
 }
 
-function Configurador({ rubros, elegido, negocio, onElegir }) {
-  const negocios = rubros.flatMap((r) => (r.presentacion.negocios || [r.presentacion.titulo]).map((n) => ({ n, rubro: r })));
+/* Una flecha dibujada a mano, para las anotaciones de la maqueta. */
+function Flecha({ className = "" }) {
   return (
-    <section id="configurador" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-10 sm:pt-16 pb-12 sm:pb-16">
-      <div className="max-w-3xl mx-auto text-center">
-        <div className={`${ROTULO_SIN_COLOR} text-acento`}>Armá tu Genez · 3 pasos · sin tarjeta</div>
-        <h1 className="f-d text-[40px] sm:text-5xl lg:text-[60px] leading-[1.05] mt-4">
-          ¿Qué <span className="text-acento">negocio</span> tenés?
+    <svg viewBox="0 0 64 44" className={className} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 5c12 24 28 32 52 26" />
+      <path d="M46 24l11 7-5 9" />
+    </svg>
+  );
+}
+
+function Hero() {
+  return (
+    <section className="max-w-6xl mx-auto px-5 pt-10 sm:pt-14 pb-10 sm:pb-14 grid lg:grid-cols-[0.8fr_1.2fr] gap-10 lg:gap-8 items-center">
+      <div>
+        <div className={ROTULO_ACENTO}>Tu negocio, en orden</div>
+        <h1 className="f-d text-[44px] sm:text-6xl lg:text-[64px] leading-[1.0] mt-4">
+          Un sistema<br />que se adapta<br /><span className="text-acento">a vos.</span>
         </h1>
-        <p className="text-texto-suave mt-4 text-[17px] sm:text-lg leading-relaxed">
-          Tocá el tuyo y armamos el sistema para vos: solo los módulos que necesitás, con su precio, en tres pasos.
+        <p className="text-texto-suave mt-5 text-[17px] leading-relaxed max-w-md">
+          Ventas, stock, turnos, clientes, finanzas y más. Solo los módulos que necesitás, con un precio claro desde el primer día.
         </p>
-        <ul className="mt-5 flex flex-wrap justify-center gap-2">
-          {["Hecho en Argentina", "Precio claro antes de empezar", "Celular, tablet o computadora"].map((t) => (
-            <li key={t} className="text-[11px] uppercase tracking-[0.08em] font-bold text-texto-suave bg-superficie border border-borde rounded-md px-2.5 py-1">{t}</li>
+        <a href="#empecemos" className={`${SOLIDO} mt-7`}>{CTA} <ArrowRight size={16} /></a>
+        <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-texto-suave">
+          {[[MapPin, "Hecho en Argentina"], [CreditCard, "Sin tarjeta"], [Unlock, "Cancelás cuando quieras"]].map(([I, t]) => (
+            <li key={t} className="inline-flex items-center gap-1.5"><I size={14} className="text-texto-tenue" /> {t}</li>
           ))}
         </ul>
       </div>
 
-      <div className="mt-8 sm:mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {negocios.map(({ n, rubro }) => (
-          <Negocio key={`${rubro.clave}:${n}`} nombre={n} rubro={rubro}
-            activa={rubro.clave === elegido && (negocio === n || !negocio)} onElegir={() => onElegir(rubro.clave, n)} />
-        ))}
-      </div>
+      <Aparatos />
     </section>
   );
 }
 
-/* Una card por negocio concreto. El rubro va como rótulo chico: es lo
-   que el sistema entiende, y el nombre grande es lo que la persona
-   entiende. "Otro" se dibuja con borde punteado: es la salida, no una
-   opción más. */
-function Negocio({ nombre, rubro, activa, onElegir }) {
-  const otro = rubro.clave === "otro";
-  const Icono = ICONOS[rubro.presentacion.icono] || Store;
+/* La laptop con el sistema y el teléfono con la app del cliente, con las
+   anotaciones a mano de la maqueta. */
+function Aparatos() {
   return (
-    <button type="button" onClick={onElegir} aria-pressed={activa}
-      className={`text-left flex flex-col justify-between bg-superficie rounded-xl p-4 min-h-[104px] transition-all border ${SOMBRA_HOVER} ${
-        activa ? "border-acento ring-1 ring-acento" : otro ? "border-dashed border-borde-fuerte hover:border-texto-tenue" : "border-borde hover:border-borde-fuerte"}`}>
-      <span className={`w-8 h-8 rounded-md flex items-center justify-center ${
-        activa ? "bg-acento text-sobre-acento" : otro ? "bg-superficie-2 text-texto-suave" : "bg-acento-suave text-acento"}`}>
-        <Icono size={16} />
-      </span>
-      <span className="mt-3 block">
-        <span className="block font-bold text-[15px] leading-snug">{nombre}</span>
-        <span className={`block ${ROTULO} mt-1 truncate`}>{rubro.nombre}</span>
-      </span>
-    </button>
-  );
-}
+    <div className="relative select-none pt-6 lg:pt-16 pb-4" aria-hidden="true">
+      <div className="absolute inset-x-6 inset-y-10 rounded-[40px] bg-acento-suave/60 blur-2xl" />
 
-/* Lo que se puede prometer porque el sistema ya lo hace. Nada de acá es
-   un plan: el cobro con lector está en Cobro, la factura en Clientes,
-   la venta sin internet en la cola de ventas (src/datos/cola.js). */
-function Confianza() {
-  const puntos = [
-    { I: ScanBarcode, t: "Cobro con lector de códigos" },
-    { I: FileText, t: "Factura A, B y C" },
-    { I: WifiOff, t: "Seguís cobrando sin internet" },
-    { I: Smartphone, t: "Celular, tablet o computadora" },
-    { I: PackageCheck, t: "Arrancás con tu catálogo cargado" },
-  ];
-  return (
-    <section className="border-y border-borde bg-superficie">
-      <ul className="max-w-6xl mx-auto px-5 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm font-semibold text-texto-suave">
-        {puntos.map(({ I, t }) => (
-          <li key={t} className="inline-flex items-center gap-2"><I size={16} className="text-acento" /> {t}</li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function QueResuelve() {
-  const puntos = [
-    { I: Zap, t: "Cobrás en segundos", d: "Lector de códigos, vuelto y ticket. Sin vueltas en la cola." },
-    { I: Boxes, t: "El stock baja solo al vender", d: "Alertas de faltante y vencimientos antes de que el cliente pregunte." },
-    { I: Truck, t: "Compras con la foto del remito", d: "Costos y proveedores al día sin tipear la lista." },
-    { I: TrendingUp, t: "Sabés qué deja plata", d: "Margen por producto y por rubro, todos los días." },
-    { I: CalendarDays, t: "Turnos y una app para tus clientes", d: "Reservan solos desde el celular y reciben el aviso por WhatsApp." },
-    { I: ShieldCheck, t: "Cada uno ve lo suyo", d: "Permisos por rol y registro de quién cambió qué." },
-  ];
-  return (
-    <section id="resuelve" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
-      <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-        <div>
-          <div className={ROTULO}>Qué resuelve</div>
-          <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Si vendés todos los días, cada vuelta cuesta plata.</h2>
-          <p className="text-texto-suave mt-4 text-[17px] leading-relaxed">
-            Llevar el negocio a mano hace que se te escape el stock, que no sepas qué te deja más ganancia y que a fin
-            de mes la caja no cierre. Genez ordena ventas, stock, compras y caja en un solo lugar y te lo muestra en
-            números, sin que tengas que entender de computación.
-          </p>
-        </div>
-        <Escena />
+      {/* Las dos anotaciones van fuera del camino de los aparatos: la de la
+          izquierda a media altura, la de la derecha arriba del teléfono. */}
+      <div className="manuscrita hidden lg:block absolute left-0 top-[58%] w-32 text-[19px] leading-[1.05] text-texto -rotate-6">
+        Todo tu negocio en un solo lugar
+        <Flecha className="w-14 mt-1 ml-14 text-texto-suave" />
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-10">
-        {puntos.map(({ I, t, d }) => (
-          <div key={t} className="bg-superficie border border-borde rounded-xl p-5">
-            <span className="w-10 h-10 rounded-lg bg-acento-suave text-acento flex items-center justify-center"><I size={19} /></span>
-            <h3 className="font-bold text-[16px] leading-snug mt-4">{t}</h3>
-            <p className="text-sm text-texto-suave mt-1.5 leading-relaxed">{d}</p>
-          </div>
-        ))}
+      <div className="manuscrita hidden lg:block absolute right-0 top-0 w-44 text-[19px] leading-[1.05] text-texto rotate-3 text-right">
+        Tu negocio también puede tener su propia app
+        <Flecha className="w-10 mt-0.5 ml-auto mr-6 text-texto-suave -scale-x-100 rotate-12" />
       </div>
-    </section>
+
+      <div className="relative lg:ml-24 lg:mr-28">
+        <Laptop />
+      </div>
+      <div className="absolute right-0 lg:right-2 bottom-0 w-[32%] max-w-[150px]">
+        <Telefono />
+      </div>
+    </div>
   );
 }
 
-/* El visual del producto. Son fragmentos de la interfaz —mismas
-   tarjetas, mismos colores— dibujados acá, no una captura: no envejecen
-   cuando cambia una pantalla y no muestran datos de nadie. Los números
-   son de ejemplo y se ven como tal. */
-function Escena() {
+function Kpi({ t, v, d, ojo }) {
+  return (
+    <div className="bg-superficie border border-borde rounded p-1.5 min-w-0">
+      <div className="text-[6px] text-texto-tenue uppercase tracking-wider font-bold truncate">{t}</div>
+      <div className="f-d f-m text-[11px] leading-tight mt-0.5">{v}</div>
+      <div className={`text-[6px] font-semibold mt-0.5 ${ojo ? "text-acento" : "text-bien"}`}>{d}</div>
+    </div>
+  );
+}
+
+function Laptop() {
+  const menu = ["Inicio", "Ventas", "Caja", "Productos", "Clientes", "Equipo", "Finanzas", "Informes", "Ajustes"];
   const barras = [38, 55, 47, 70, 62, 88, 76];
   const dias = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+  const oscuro = useOscuro();
   return (
-    <div className="escena relative h-[400px] sm:h-[460px] select-none" aria-hidden="true">
-      <div className="absolute inset-x-2 inset-y-6 rounded-xl bg-acento-suave/70" />
-
-      <div className="escena-a absolute left-0 top-4 w-[62%] bg-superficie border border-borde rounded-xl p-4">
-        <div className={ROTULO}>Ventas de la semana</div>
-        <div className="f-d f-m text-2xl mt-1">$ 1.284.500</div>
-        <div className="text-xs text-bien mt-0.5 flex items-center gap-1 font-semibold">
-          <TrendingUp size={12} /> 12% más que la anterior
-        </div>
-        <div className="mt-4 flex items-end gap-1.5 h-20">
-          {barras.map((h, i) => (
-            <div key={i} className={`flex-1 rounded-sm ${i === 5 ? "bg-acento" : "bg-superficie-3"}`} style={{ height: `${h}%` }} />
-          ))}
-        </div>
-        <div className="mt-1.5 flex text-[10px] text-texto-tenue">
-          {dias.map((d) => <span key={d} className="flex-1 text-center">{d}</span>)}
+    <div>
+      <div className="laptop-pantalla">
+        <div className="rounded-lg overflow-hidden bg-fondo text-texto flex" style={{ aspectRatio: "16 / 10" }}>
+          <aside className="w-[24%] bg-superficie border-r border-borde p-2 min-w-0">
+            <div className="scale-75 origin-top-left"><LogoGenez size={18} conNombre claro={oscuro} /></div>
+            <ul className="mt-2 space-y-[2px] text-[7px] font-semibold text-texto-suave">
+              {menu.map((n, i) => (
+                <li key={n} className={`px-1.5 py-[3px] rounded ${i === 0 ? "bg-superficie-2 text-texto" : ""}`}>{n}</li>
+              ))}
+            </ul>
+          </aside>
+          <div className="flex-1 p-2 min-w-0">
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <div className="text-[10px] font-bold leading-tight">Hola, Nehuen</div>
+                <div className="text-[6px] text-texto-tenue">Acá tenés un resumen de tu negocio.</div>
+              </div>
+              <div className="text-[6px] text-texto-tenue whitespace-nowrap">Hoy, 13 de septiembre</div>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 mt-2">
+              <Kpi t="Ventas hoy" v="$ 284.500" d="▲ 12%" />
+              <Kpi t="Turnos hoy" v="24" d="▲ 3%" />
+              <Kpi t="Stock bajo" v="7" d="Ver productos" ojo />
+            </div>
+            <div className="grid grid-cols-[1fr_1.7fr] gap-1.5 mt-1.5">
+              <Kpi t="Clientes" v="156" d="▲ 8%" />
+              <div className="bg-superficie border border-borde rounded p-1.5 min-w-0">
+                <div className="text-[6px] text-texto-tenue uppercase tracking-wider font-bold">Ventas de la semana</div>
+                <div className="flex items-end gap-[3px] h-7 mt-1">
+                  {barras.map((h, i) => <div key={i} className={`flex-1 rounded-[1px] ${i === 5 ? "bg-acento" : "bg-superficie-3"}`} style={{ height: `${h}%` }} />)}
+                </div>
+                <div className="flex text-[5px] text-texto-tenue mt-0.5">{dias.map((d) => <span key={d} className="flex-1 text-center">{d}</span>)}</div>
+              </div>
+            </div>
+            <div className="text-[6px] text-texto-tenue uppercase tracking-wider font-bold mt-2">Accesos rápidos</div>
+            <div className="grid grid-cols-4 gap-1.5 mt-1">
+              {[[ShoppingCart, "Nueva venta"], [CalendarDays, "Nuevo turno"], [Package, "Producto"], [User, "Cliente"]].map(([I, t]) => (
+                <div key={t} className="bg-superficie border border-borde rounded p-1 flex flex-col items-center gap-0.5">
+                  <I size={9} className="text-acento" /><span className="text-[5px] font-semibold text-texto-suave">{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
+      <div className="laptop-base" />
+    </div>
+  );
+}
 
-      <div className="escena-b absolute right-0 top-[20%] w-[58%] bg-superficie border border-borde rounded-xl p-4">
-        <div className="flex items-center justify-between">
-          <div className={ROTULO}>Cobro</div>
-          <span className="text-[10px] font-bold text-texto-tenue">Caja 1</span>
+/* La app del cliente de un comercio real (Almha): siempre en su propio
+   oscuro cálido, sea cual sea el tema de la página, porque es otra app. */
+function Telefono() {
+  return (
+    <div className="telefono">
+      <div className="telefono-pantalla relative bg-[#1a1715] text-[#f7f3ed]" style={{ aspectRatio: "9 / 19" }}>
+        <div className="pt-5 text-center">
+          <div className="f-d text-[17px] leading-none">almha</div>
+          <div className="text-[5px] tracking-[0.25em] uppercase text-[#b7afa5] mt-1">by Genez</div>
         </div>
-        <ul className="mt-3 space-y-2 text-[13px]">
-          {[["Leche entera 1 L", "$ 1.450"], ["Pan lactal", "$ 2.900"], ["Queso cremoso · 0,350 kg", "$ 3.640"]].map(([n, p]) => (
-            <li key={n} className="flex justify-between gap-2">
-              <span className="truncate">{n}</span><span className="f-m whitespace-nowrap shrink-0">{p}</span>
-            </li>
+        <div className="px-2.5 mt-3">
+          <div className="rounded-lg bg-[#2a2320] p-2">
+            <div className="text-[8px] font-bold leading-snug">Tu espacio.<br />Tu bienestar.<br />Tu tiempo.</div>
+            <div className="mt-2 h-10 rounded-md bg-gradient-to-br from-[#3a2f28] to-[#221b18] flex items-end justify-end p-1">
+              <Leaf size={12} className="text-[#8fbf85]" />
+            </div>
+          </div>
+          <div className="mt-2 rounded-md bg-acento text-sobre-acento text-center text-[7px] font-bold py-1.5">Reservá tu turno</div>
+        </div>
+        <div className="absolute bottom-0 inset-x-0 flex justify-around text-[4.5px] text-[#87786f] py-1.5 border-t border-[#38322d]">
+          {[[Home, "Inicio"], [Calendar, "Turnos"], [Ticket, "Mi plan"], [Gift, "Beneficios"], [User, "Cuenta"]].map(([I, t], i) => (
+            <span key={t} className={`flex flex-col items-center gap-0.5 ${i === 0 ? "text-acento" : ""}`}><I size={7} />{t}</span>
           ))}
-        </ul>
-        <div className="mt-3 pt-3 border-t border-borde flex items-center justify-between">
-          <span className="text-sm font-semibold">Total</span>
-          <span className="f-d f-m text-xl">$ 7.990</span>
-        </div>
-        <div className="mt-3 rounded-md bg-acento text-sobre-acento text-center text-sm font-bold py-2.5">Cobrar</div>
-      </div>
-
-      <div className="escena-c absolute left-[5%] bottom-0 w-[54%] bg-superficie border border-borde rounded-xl px-4 py-3 flex items-center gap-3">
-        <span className="w-9 h-9 rounded-lg bg-ojo-suave text-ojo flex items-center justify-center shrink-0"><Boxes size={18} /></span>
-        <div className="min-w-0">
-          <div className="text-[13px] font-semibold">Stock bajo</div>
-          <div className="text-xs text-texto-tenue truncate">3 productos para reponer hoy</div>
         </div>
       </div>
     </div>
   );
 }
 
-/* La única banda oscura de la página, y por eso lleva el remate: los
-   tres pasos y el botón. Sobre oscuro, el naranja del botón es lo único
-   que se toca. */
+/* ------------------------------------------------------------
+   Empecemos · una fila por rubro, los negocios con foto
+   ------------------------------------------------------------ */
+function Empecemos({ rubros, onElegir }) {
+  const [filtro, setFiltro] = useState("todos");
+  const visibles = rubros.filter((r) => filtro === "todos" || r.clave === filtro);
+
+  return (
+    <section id="empecemos" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <div className={ROTULO_ACENTO}>Empecemos</div>
+          <h2 className="f-d text-4xl sm:text-5xl leading-tight mt-3">¿Qué <span className="text-acento">negocio</span> tenés?</h2>
+          <p className="text-texto-suave mt-3 text-[17px]">Elegí el tuyo y armamos Genez con los módulos que necesitás.</p>
+        </div>
+        <div className="flex items-end gap-5">
+          <div className="manuscrita hidden md:block text-[18px] leading-[1.05] text-texto-suave -rotate-6 text-right">
+            Seleccioná tu rubro<br />y visualizá tu sistema
+            <Flecha className="w-10 ml-auto mt-1" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[{ clave: "todos", nombre: "Todos" }, ...rubros].map((r) => (
+              <button key={r.clave} type="button" onClick={() => setFiltro(r.clave)}
+                className={`text-sm font-semibold rounded-full border px-4 py-2 transition-colors ${
+                  filtro === r.clave ? "pildora-activa" : "border-borde-fuerte bg-superficie text-texto-suave hover:text-texto"}`}>
+                {r.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 space-y-4">
+        {visibles.map((r) => <FilaRubro key={r.clave} rubro={r} onElegir={onElegir} />)}
+      </div>
+
+      <p className="text-sm text-texto-tenue mt-5">
+        ¿No ves el tuyo?{" "}
+        <button type="button" onClick={() => onElegir("otro", "Otro negocio")} className="text-acento font-semibold hover:text-acento-vivo">
+          Contanos qué hacés →
+        </button>
+      </p>
+    </section>
+  );
+}
+
+function FilaRubro({ rubro, onElegir }) {
+  const p = rubro.presentacion;
+  const Icono = ICONOS[p.icono] || Store;
+  const negocios = p.negocios || [p.titulo];
+  return (
+    <div className="bg-superficie border border-borde rounded-xl p-3 sm:p-4 grid md:grid-cols-[190px_minmax(0,1fr)] gap-4 items-center">
+      <div className="flex md:block items-center gap-3 md:pl-1">
+        <span className="w-11 h-11 rounded-full bg-acento text-sobre-acento flex items-center justify-center shrink-0"><Icono size={20} /></span>
+        <div className="md:mt-3 min-w-0">
+          <div className="font-bold text-[17px] leading-tight">{rubro.nombre}</div>
+          <div className="text-[13px] text-texto-suave mt-1 leading-snug">{FRASE_RUBRO[rubro.clave] || p.bajada}</div>
+          <button type="button" onClick={() => onElegir(rubro.clave, null)}
+            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-acento border border-acento/60 rounded-md px-3 py-1.5 hover:bg-acento-suave/40">
+            Elegir este rubro <ArrowRight size={13} />
+          </button>
+        </div>
+      </div>
+
+      <div className="fila-negocios flex gap-3 overflow-x-auto pb-1">
+        {negocios.map((n) => <TarjetaNegocio key={n} nombre={n} rubro={rubro} onElegir={() => onElegir(rubro.clave, n)} />)}
+      </div>
+    </div>
+  );
+}
+
+function TarjetaNegocio({ nombre, rubro, onElegir }) {
+  const Icono = ICONOS[rubro.presentacion.icono] || Store;
+  const src = foto(nombre);
+  return (
+    <button type="button" onClick={onElegir}
+      className="shrink-0 w-[124px] text-left bg-superficie border border-borde rounded-xl p-2 hover:border-acento transition-colors">
+      <div className="h-[66px] rounded-lg overflow-hidden bg-superficie-2 flex items-center justify-center text-texto-tenue">
+        {src ? <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" /> : <Icono size={22} />}
+      </div>
+      <div className="mt-2 flex items-start gap-1.5 text-[13px] font-semibold leading-tight min-h-[32px]">
+        <Icono size={12} className="text-acento shrink-0 mt-[2px]" /><span>{nombre}</span>
+      </div>
+      <ArrowRight size={14} className="text-acento mt-0.5" />
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------
+   Qué resuelve · el ticket en claro, el papel de preguntas en oscuro
+   ------------------------------------------------------------ */
+function QueResuelve() {
+  const puntos = [
+    [Boxes, "Controlá tu stock en tiempo real"],
+    [TrendingUp, "Sabé qué productos dan más ganancia"],
+    [Bell, "Evitá faltantes y vencimientos"],
+    [BarChart3, "Tené tus números siempre claros"],
+    [Smartphone, "Todo desde el celu, la compu o la tablet."],
+  ];
+  return (
+    <section id="resuelve" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6 grid lg:grid-cols-[0.9fr_1.1fr] gap-10 items-center">
+      <div>
+        <div className={ROTULO_ACENTO}>Qué resuelve</div>
+        <h2 className="f-d text-4xl sm:text-5xl leading-[1.05] mt-3">
+          Si vendés todos los días, <span className="text-acento">cada uno cuesta plata.</span>
+        </h2>
+        <p className="text-texto-suave mt-4 text-[17px] leading-relaxed">
+          Llevar el negocio a mano hace que se te escape el stock, que no sepas qué te deja más ganancia y que a fin de mes la caja no
+          cierre. Genez ordena ventas, stock, compras y caja en un solo lugar, y te lo muestra en números, sin que tengas que entender
+          de computación.
+        </p>
+        <a href="#como-funciona" className={`${SOLIDO} mt-7`}>Conocé cómo funciona <ArrowRight size={16} /></a>
+      </div>
+
+      <div className="grid sm:grid-cols-[1fr_1.05fr] gap-8 items-center pt-12">
+        <div>
+          <div className="solo-claro"><TicketGenez /></div>
+          <div className="solo-oscuro"><PapelSinGenez /></div>
+        </div>
+        <div className="relative">
+          <div className="manuscrita hidden sm:block absolute -top-16 right-2 text-[18px] leading-[1.05] text-texto-suave -rotate-3 text-right">
+            Simple.<br />Rápido.<br />Sin vueltas.
+            <Flecha className="w-10 ml-auto -mt-1 -scale-x-100" />
+          </div>
+          <ul className="bg-superficie border border-borde rounded-xl p-5 space-y-3.5">
+            {puntos.map(([I, t]) => (
+              <li key={t} className="flex items-center gap-3 text-[15px] font-medium">
+                <span className="w-8 h-8 rounded-md bg-acento-suave text-acento flex items-center justify-center shrink-0"><I size={16} /></span>{t}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TicketGenez() {
+  const lineas = [["Leche entera 1 L", "$ 1.450"], ["Pan lactal", "$ 2.900"], ["Queso cremoso 0,350 kg", "$ 3.640"], ["Café molido 250 g", "$ 4.200"]];
+  return (
+    <div className="ticket rounded-t-lg p-5 -rotate-3 max-w-[290px] mx-auto">
+      <div className="flex justify-center"><LogoGenez size={22} conNombre /></div>
+      <ul className="mt-4 space-y-2 text-[13px]">
+        {lineas.map(([n, p]) => <li key={n} className="flex justify-between gap-3"><span>{n}</span><span className="f-m">{p}</span></li>)}
+      </ul>
+      <div className="mt-3 pt-3 border-t border-dashed border-[#d6d3d1] flex justify-between font-bold text-[15px]">
+        <span>Total</span><span className="f-m">$ 12.190</span>
+      </div>
+      <div className="mt-4 text-center">
+        <span className="manuscrita inline-block text-acento text-[18px] leading-[1.05] border-2 border-acento rounded-[50%] px-4 py-2 -rotate-3">
+          Cada venta cuenta<br />(sin perder plata)
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PapelSinGenez() {
+  const preguntas = ["Ventas del día", "Stock", "Cuentas por pagar", "Ganancia real", "Clientes que vuelven"];
+  return (
+    <div className="papel rounded-md p-5 rotate-3 max-w-[290px] mx-auto">
+      <div className="text-[12px] font-bold tracking-[0.2em] text-center">SIN GENEZ</div>
+      <ul className="manuscrita mt-3 space-y-2 text-[20px] leading-none">
+        {preguntas.map((t) => <li key={t} className="flex justify-between border-b border-dotted border-[#a8a29e] pb-1"><span>{t}:</span><span>?</span></li>)}
+      </ul>
+      <div className="manuscrita text-[18px] mt-4 text-center text-[#57534e]">Demasiadas preguntas</div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   Qué incluye · los módulos del catálogo, con el teléfono al costado
+   ------------------------------------------------------------ */
+function QueIncluye() {
+  const [todos, setTodos] = useState(false);
+  /* Dos módulos se llaman "Informes" (uno mira márgenes, el otro
+     ocupación). Para el que lee de afuera es uno solo: se muestra una vez. */
+  const vistos = new Set();
+  const modulos = MODULOS.filter((m) => !vistos.has(m.n) && vistos.add(m.n));
+  const lista = todos ? modulos : modulos.slice(0, 12);
+
+  return (
+    <section id="incluye" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-10 grid lg:grid-cols-[0.62fr_1.38fr] gap-10 items-start">
+      <div>
+        <div className={ROTULO_ACENTO}>Qué incluye</div>
+        <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Todo lo que un comercio necesita, <span className="text-acento">por módulos.</span></h2>
+        <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">
+          Pagás una base que incluye cobro, caja y ajustes, más cada módulo que sumes. Nada más.
+        </p>
+        <button type="button" onClick={() => setTodos(!todos)} className={`${LINEA_ACENTO} mt-6`}>
+          {todos ? "Ver menos" : "Ver todos los módulos"} <ArrowRight size={15} />
+        </button>
+      </div>
+
+      <div className="relative">
+        <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:pr-24">
+          {lista.map((m) => {
+            const I = ICONO_MODULO[m.k] || LayoutGrid;
+            return (
+              <li key={m.k} className="bg-superficie border border-borde rounded-xl px-3 py-2.5 flex items-center gap-2.5">
+                <span className="w-9 h-9 rounded-lg bg-superficie-2 text-texto flex items-center justify-center shrink-0"><I size={17} /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-[14px]">{m.n}</span>
+                    {m.base && <span className="text-[9px] uppercase tracking-wider font-bold text-acento bg-acento-suave rounded px-1.5 py-0.5">Base</span>}
+                  </div>
+                  <div className="text-[11px] text-texto-tenue mt-0.5 truncate">{m.d}</div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="hidden lg:block absolute right-0 bottom-0 w-[150px]" aria-hidden="true">
+          <TelefonoModulos />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TelefonoModulos() {
+  const barras = [30, 48, 42, 66, 58, 84, 72];
+  const oscuro = useOscuro();
+  return (
+    <div className="relative">
+      <div className="telefono">
+        <div className="telefono-pantalla relative bg-fondo text-texto" style={{ aspectRatio: "9 / 16" }}>
+          <div className="p-2.5">
+            <div className="scale-75 origin-top-left"><LogoGenez size={16} conNombre claro={oscuro} /></div>
+            <div className="mt-2 bg-superficie border border-borde rounded p-1.5">
+              <div className="text-[5px] text-texto-tenue uppercase tracking-wider font-bold">Ventas de la semana</div>
+              <div className="flex items-end gap-[2px] h-8 mt-1">
+                {barras.map((h, i) => <div key={i} className={`flex-1 rounded-[1px] ${i === 5 ? "bg-acento" : "bg-superficie-3"}`} style={{ height: `${h}%` }} />)}
+              </div>
+            </div>
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+              <div className="bg-superficie border border-borde rounded p-1.5"><div className="text-[5px] text-texto-tenue uppercase font-bold">Stock bajo</div><div className="f-d text-[10px]">7</div></div>
+              <div className="bg-superficie border border-borde rounded p-1.5"><div className="text-[5px] text-texto-tenue uppercase font-bold">Turnos</div><div className="f-d text-[10px]">24</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="absolute -left-20 bottom-6 w-[150px] bg-superficie border border-borde rounded-xl p-3 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.35)]">
+        <span className="w-8 h-8 rounded-md bg-acento text-sobre-acento flex items-center justify-center"><BarChart3 size={16} /></span>
+        <div className="f-d text-[15px] leading-tight mt-2">Sumá módulos y hacé crecer tu negocio.</div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   Cómo funciona · la banda con los tres pasos
+   ------------------------------------------------------------ */
 function ComoFunciona() {
   const pasos = [
     { n: "1", t: "Tocá tu negocio.", d: "Con eso ya sabemos con qué arranca un comercio como el tuyo." },
     { n: "2", t: "Contanos cómo trabajás.", d: "Cuántos puestos tenés y unas tildes: stock, factura, delivery, equipo. Cada una suma solo lo que hace falta." },
-    { n: "3", t: "Mirá tu presupuesto.", d: "Base más cada módulo, con su precio. Si te cierra, lo pedís por WhatsApp con todo ya escrito." },
+    { n: "3", t: "Mirá tu presupuesto.", d: "Base más cada módulo, con su precio. Si te cierra, lo pedís y nos ponemos en contacto por WhatsApp." },
   ];
   return (
-    <section id="como-funciona" className="scroll-mt-20 mt-14 sm:mt-20 bg-texto text-fondo">
+    <section id="como-funciona" className="scroll-mt-20 mt-10 sm:mt-14 banda">
       <div className="max-w-6xl mx-auto px-5 py-14 sm:py-20 grid lg:grid-cols-[0.9fr_1.1fr] gap-10 lg:gap-16 items-center">
         <div>
-          <div className={`${ROTULO_SIN_COLOR} text-fondo/60`}>Cómo funciona</div>
+          <div className={ROTULO_ACENTO}>Cómo funciona</div>
           <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Tres pasos y sabés qué pagás.</h2>
-          <p className="text-fondo/70 mt-4 text-[17px] leading-relaxed">
+          <p className="opacity-70 mt-4 text-[17px] leading-relaxed">
             Sin llamados de venta ni presupuestos por mail. Lo ves vos, en el momento, y hasta ahí no te pedimos tarjeta.
           </p>
-          <a href="#configurador" className={`${SOLIDO} mt-8`}>{CTA} <ArrowRight size={16} /></a>
+          <a href="#empecemos" className={`${SOLIDO} mt-8`}>{CTA} <ArrowRight size={16} /></a>
         </div>
         <ol className="space-y-6">
           {pasos.map((s) => (
@@ -405,49 +686,12 @@ function ComoFunciona() {
               <span className="w-9 h-9 rounded-full bg-acento text-sobre-acento f-d text-[15px] flex items-center justify-center shrink-0">{s.n}</span>
               <div>
                 <div className="font-bold text-[17px] leading-snug">{s.t}</div>
-                <div className="text-fondo/70 mt-1 leading-relaxed">{s.d}</div>
+                <div className="opacity-70 mt-1 leading-relaxed">{s.d}</div>
               </div>
             </li>
           ))}
         </ol>
       </div>
-    </section>
-  );
-}
-
-function QueIncluye() {
-  /* Dos módulos se llaman "Informes" (uno mira márgenes, el otro
-     ocupación). Para el que lee de afuera es uno solo: se muestra una vez. */
-  const vistos = new Set();
-  const modulos = MODULOS.filter((m) => !vistos.has(m.n) && vistos.add(m.n));
-
-  return (
-    <section id="incluye" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
-      <div className="max-w-2xl">
-        <div className={ROTULO}>Qué incluye</div>
-        <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Todo lo que un comercio necesita, por módulos.</h2>
-        <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">
-          Pagás una base que incluye cobro, caja y ajustes, más cada módulo que sumes. Nada más.
-        </p>
-      </div>
-
-      <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-8">
-        {modulos.map((m) => {
-          const I = ICONO_MODULO[m.k] || LayoutGrid;
-          return (
-            <li key={m.k} className="bg-superficie border border-borde rounded-xl px-4 py-3.5 flex items-center gap-3">
-              <span className="w-10 h-10 rounded-lg bg-superficie-2 text-texto-suave flex items-center justify-center shrink-0"><I size={19} /></span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[15px]">{m.n}</span>
-                  {m.base && <span className="text-[10px] uppercase tracking-wider font-bold text-acento bg-acento-suave rounded px-1.5 py-0.5">Base</span>}
-                </div>
-                <div className="text-xs text-texto-tenue mt-0.5 truncate">{m.d}</div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
     </section>
   );
 }
@@ -462,13 +706,13 @@ function Preguntas() {
     ["¿Qué pasa si se corta internet?", "Seguís cobrando. La venta se guarda en el equipo y se manda sola cuando vuelve la conexión."],
     ["¿Puedo facturar?", "Sí: el módulo Clientes emite facturas A, B y C. Necesitás tu CUIT y tu condición frente al IVA."],
     ["¿Y si después necesito otro módulo?", "Se suma cuando quieras, y también se puede sacar. Pagás por los que usás."],
-    ["¿Cómo empiezo?", "Tocá tu negocio, contestá unas tildes y mirá tu presupuesto. Si te cierra, lo mandás por WhatsApp con todo ya escrito y te contestamos con los pasos para arrancar."],
+    ["¿Cómo empiezo?", "Tocá tu negocio, contestá unas tildes y mirá tu presupuesto. Si te cierra, lo pedís y nos ponemos en contacto con vos por WhatsApp con los pasos para arrancar."],
   ];
   return (
-    <section id="preguntas" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
+    <section id="preguntas" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-16 sm:pb-20">
       <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-8 lg:gap-16">
         <div>
-          <div className={ROTULO}>Preguntas frecuentes</div>
+          <div className={ROTULO_ACENTO}>Preguntas frecuentes</div>
           <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Lo que preguntan antes de empezar.</h2>
         </div>
         <div className="border-t border-borde">
@@ -488,32 +732,44 @@ function Preguntas() {
   );
 }
 
-function Cierre() {
-  return (
-    <section className="max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-16 sm:pb-20 text-center">
-      <h2 className="f-d text-3xl sm:text-4xl leading-tight">¿Listo? Tocá tu negocio.</h2>
-      <p className="text-texto-suave mt-3 text-[17px]">Tres pasos, sin tarjeta, y un presupuesto que se entiende.</p>
-      <a href="#configurador" className={`${SOLIDO} mt-6`}>{CTA} <ArrowRight size={16} /></a>
-    </section>
-  );
-}
-
+/* El pie de la maqueta: marca, tres datos ciertos y la acción de nuevo.
+   Los números son los de verdad: cuántos negocios y rubros hay hoy. */
 function Pie() {
+  const oscuro = useOscuro();
+  const negocios = RUBROS_DE_FABRICA.reduce((n, r) => n + (r.presentacion.negocios || []).length, 0);
+  const datos = [
+    [Store, `${negocios} negocios`, `en ${RUBROS_DE_FABRICA.length} rubros, y sumando`],
+    [Unlock, "Sin permanencia", "Cancelás cuando quieras"],
+    [MapPin, "Hecho en Argentina", "Pensado para el mostrador de acá"],
+  ];
   return (
     <footer className="border-t border-borde">
-      <div className="max-w-6xl mx-auto px-5 py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <LogoGenez size={28} conNombre />
-          <span className="text-xs text-texto-tenue hidden sm:inline">Sistema de gestión para comercios, armado según tu negocio</span>
+      <div className="max-w-6xl mx-auto px-5 py-8 flex flex-col lg:flex-row lg:items-center gap-6">
+        <div className="flex items-center gap-3 lg:w-[36%]">
+          <span className="shrink-0"><LogoGenez size={30} conNombre claro={oscuro} /></span>
+          <span className="text-xs text-texto-tenue leading-snug max-w-[200px]">Sistema de gestión para comercios, armado según tu negocio.</span>
         </div>
-        <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-texto-suave">
-          <a href="#configurador" className="hover:text-texto">Armar mi sistema</a>
-          <a href="#como-funciona" className="hover:text-texto">Cómo funciona</a>
-          <a href="#incluye" className="hover:text-texto">Qué incluye</a>
-          <a href="#preguntas" className="hover:text-texto">Preguntas</a>
-          <a href="/" className="hover:text-texto">Entrar</a>
-        </nav>
-        <div className="text-xs text-texto-tenue">© {new Date().getFullYear()} Genez · Argentina</div>
+        <ul className="flex flex-wrap gap-x-7 gap-y-3 flex-1">
+          {datos.map(([I, t, d]) => (
+            <li key={t} className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-full border border-acento text-acento flex items-center justify-center shrink-0"><I size={15} /></span>
+              <span><span className="block text-sm font-bold leading-tight">{t}</span><span className="block text-[11px] text-texto-tenue">{d}</span></span>
+            </li>
+          ))}
+        </ul>
+        <a href="#empecemos" className={`${SOLIDO} shrink-0`}>{CTA} <ArrowRight size={16} /></a>
+      </div>
+      <div className="border-t border-borde">
+        <div className="max-w-6xl mx-auto px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-texto-suave">
+            <a href="#empecemos" className="hover:text-texto">Armar mi sistema</a>
+            <a href="#como-funciona" className="hover:text-texto">Cómo funciona</a>
+            <a href="#incluye" className="hover:text-texto">Qué incluye</a>
+            <a href="#preguntas" className="hover:text-texto">Preguntas</a>
+            <a href="/" className="hover:text-texto">Entrar</a>
+          </nav>
+          <div className="text-xs text-texto-tenue">© {new Date().getFullYear()} Genez · Argentina</div>
+        </div>
       </div>
     </footer>
   );
