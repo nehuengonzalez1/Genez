@@ -43,10 +43,11 @@ console.log("\nLos módulos salen de las respuestas\n");
 }
 
 {
-  const { elegidos, motivos, necesita } = armarModulos({ rubro: mini, respuestas: { factura: true, cajas: true } });
+  const { elegidos, motivos, necesita } = armarModulos({ rubro: mini, respuestas: { factura: true }, escala: "2-3" });
   decir(elegidos.includes("clientes"), "marcar 'Facturo A y B' enciende Clientes");
   decir(/Facturo A y B/.test(motivos.clientes), "y el motivo lo dice con la pregunta");
-  decir(necesita.includes("Una computadora o tablet por caja"), "'más de una caja' suma lo que hay que tener");
+  decir(necesita.includes("Una computadora o tablet por puesto"), "con 2 a 3 puestos hace falta un equipo por puesto");
+  decir(!armarModulos({ rubro: mini, escala: "1" }).necesita.includes("Una computadora o tablet por puesto"), "con un puesto, no");
   decir(necesita.some((n) => /CUIT/.test(n)), "y facturar pide el CUIT (viene del módulo)");
 }
 
@@ -95,8 +96,9 @@ const tarifas = { base: 20000, puestaEnMarcha: 50000, modulos: { productos: 5000
   decir(p.mensual === 20000 + 5000 + 4000 + 8000, `suma base más módulos: ${p.mensual}`);
   decir(p.lineas.find((l) => l.k === "cobro").base && p.lineas.find((l) => l.k === "cobro").monto === 0, "los base van a cero, incluidos en la base");
   decir(p.puestaEnMarcha === 50000 && p.faltan.length === 0, "trae la puesta en marcha y no falta nada");
-  const texto = textoDelPresupuesto({ rubro: mini, presupuesto: p, pesos: (n) => `$${n}` });
-  decir(/Rubro: Comercio y minimercado/.test(texto) && /\$37000 por mes/.test(texto) && /\$50000 de puesta/.test(texto), "el texto para WhatsApp dice rubro, módulos y precio");
+  const texto = textoDelPresupuesto({ rubro: mini, negocio: "Almacén", escala: "2-3", presupuesto: p, pesos: (n) => `$${n}` });
+  decir(/Negocio: Almacén \(Comercio y minimercado\)/.test(texto) && /Puestos: 2 a 3/.test(texto), "el texto para WhatsApp dice el negocio concreto y los puestos");
+  decir(/\$37000 por mes/.test(texto) && /\$50000 de puesta/.test(texto) && /Módulos \(6\)/.test(texto), "y los módulos y el precio");
 }
 
 {
