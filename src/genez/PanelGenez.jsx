@@ -1938,7 +1938,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "ventas" && <Ventas empresaId={empresaId} sucursalId={null} clientes={clientes} ajustes={ajustes} caja={caja} permisos={permisos} toast={toast} ir={ir} />}
           {tab === "productos" && (cargandoProductos
             ? <Vacio>Cargando catálogo…</Vacio>
-            : <Productos key={foco || "todos"} productos={productos}
+            : <Productos key={foco || "todos"} productos={productos} empresaId={empresaId}
                 actualizarProducto={actualizarProducto} agregarProducto={agregarProducto}
                 toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes} />)}
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}

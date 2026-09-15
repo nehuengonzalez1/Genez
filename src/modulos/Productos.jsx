@@ -3,15 +3,16 @@
    ============================================================ */
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode } from "lucide-react";
+import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode, Trash2, ChefHat } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { fdate, fdatel } from "../datos/generador.js";
-import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto } from "../utils/helpers.js";
+import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } from "../ui/Base.jsx";
-import { NumeroDiferido } from "../ui/Campos.jsx";
+import { NumeroDiferido, Campo, inputCls } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
+import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../datos/recetas.js";
 
-export function Productos({ productos, actualizarProducto, agregarProducto, toast, focoInicial, provs, ajustes }) {
+export function Productos({ productos, actualizarProducto, agregarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
   const [alta, setAlta] = useState(null);
   const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
   const [modoPrecios, setModoPrecios] = useState(false);
@@ -281,7 +282,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         )}
       </Card>
 
-      <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} />
+      <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} productos={productos} empresaId={empresaId} toast={toast} />
 
       <ImportarPlanilla resumen={planilla} listas={ajustes.listas || []} onCerrar={() => setPlanilla(null)}
         onAplicar={async () => {
@@ -441,9 +442,10 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
   );
 }
 
-function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
+function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, empresaId, toast }) {
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
+  const [receta, setReceta] = useState(false);
   useEffect(() => { if (p) { setPrecio(String(p.precio)); setCosto(String(p.costo)); } }, [p && p.id]);
   if (!p) return null;
 
@@ -461,10 +463,16 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
           <div className="f-m text-[11px] text-texto-tenue mt-0.5">{p.sku} · {p.barcode} · {p.proveedor}</div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Boton size="sm" variant="ghost" onClick={() => setReceta(true)}>Receta</Boton>
           {editar && <Boton size="sm" variant="ghost" onClick={() => editar(p)}>Editar ficha</Boton>}
           <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
         </div>
       </div>
+
+      {receta && (
+        <RecetaModal producto={p} productos={productos} empresaId={empresaId} toast={toast}
+          onClose={() => setReceta(false)} />
+      )}
 
       <div className="p-5 space-y-5">
         {faltantesProducto(p).length > 0 && (
@@ -600,6 +608,184 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
           </div>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------
+   RECETA · costo por lote y producción
+   ------------------------------------------------------------
+   El costo se muestra calculado en el momento con el costo que cada
+   insumo ya tiene en `productos` — no hace falta guardar la receta para
+   ver cuánto va a salir. Recién al producir se le pregunta a la base
+   (`producir_lote`), que es quien de verdad mueve stock y promedia el
+   costo del producto final; acá nunca se calcula ese promedio, para no
+   tener dos lugares que puedan decir un número distinto. */
+function RecetaModal({ producto, productos, empresaId, toast, onClose }) {
+  const [cargando, setCargando] = useState(true);
+  const [recetaId, setRecetaId] = useState(null);
+  const [tamanoLote, setTamanoLote] = useState("1");
+  const [insumos, setInsumos] = useState([]);
+  const [buscar, setBuscar] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [lotes, setLotes] = useState("1");
+  const [produciendo, setProduciendo] = useState(false);
+
+  useEffect(() => {
+    let vigente = true;
+    (async () => {
+      try {
+        const todas = await cargarRecetas(empresaId);
+        const mia = todas.find((r) => r.itemId === producto.id && r.activa);
+        if (mia) {
+          const detalle = await cargarReceta(mia.id);
+          if (!vigente) return;
+          setRecetaId(detalle.id);
+          setTamanoLote(String(detalle.tamanoLote));
+          setInsumos(detalle.insumos.map((i) => ({ itemId: i.itemId, nombre: i.nombre, cantidad: String(i.cantidad), unidad: i.unidad })));
+        }
+      } catch (e) {
+        toast(e.message || "No pudimos cargar la receta.", "mal");
+      } finally {
+        if (vigente) setCargando(false);
+      }
+    })();
+    return () => { vigente = false; };
+  }, [producto.id, empresaId]);
+
+  const candidatos = useMemo(() => {
+    if (buscar.trim().length < 2) return [];
+    const t = buscar.trim().toLowerCase();
+    return productos
+      .filter((p) => p.id !== producto.id && !insumos.some((i) => i.itemId === p.id) && p.nombre.toLowerCase().includes(t))
+      .slice(0, 6);
+  }, [buscar, productos, insumos, producto.id]);
+
+  const agregarInsumo = (p) => {
+    setInsumos((ls) => [...ls, { itemId: p.id, nombre: p.nombre, cantidad: "1", unidad: p.unidad }]);
+    setBuscar("");
+  };
+  const quitarInsumo = (itemId) => setInsumos((ls) => ls.filter((i) => i.itemId !== itemId));
+  const setCantidad = (itemId, v) => setInsumos((ls) => ls.map((i) => (i.itemId === itemId ? { ...i, cantidad: v } : i)));
+
+  const costoLote = insumos.reduce((s, i) => {
+    const prod = productos.find((p) => p.id === i.itemId);
+    return s + (Number(i.cantidad) || 0) * (prod ? prod.costo : 0);
+  }, 0);
+  const costoUnidad = Number(tamanoLote) > 0 ? costoLote / Number(tamanoLote) : 0;
+  const margenConEsteCosto = producto.precio > 0 ? (producto.precio - costoUnidad) / producto.precio : null;
+
+  async function guardar() {
+    setGuardando(true);
+    try {
+      const id = await guardarReceta({
+        id: recetaId, empresaId, itemId: producto.id,
+        nombre: `Receta de ${producto.nombre}`,
+        tamanoLote: Number(tamanoLote) || 1,
+        insumos: insumos.map((i) => ({ itemId: i.itemId, cantidad: Number(i.cantidad) || 0 })),
+      });
+      setRecetaId(id);
+      toast("Receta guardada.");
+    } catch (e) {
+      toast(e.message || "No se pudo guardar la receta.", "mal");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function producir() {
+    setProduciendo(true);
+    try {
+      await producirLote(recetaId, null, Number(lotes) || 1);
+      toast(`Producidos ${lotes} lote(s) de ${producto.nombre}. Stock y costo actualizados.`);
+      onClose();
+    } catch (e) {
+      toast(e.message || "No se pudo producir.", "mal");
+    } finally {
+      setProduciendo(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} ancho="max-w-lg">
+      <div className="sticky top-0 bg-superficie border-b border-borde px-5 py-3.5 flex items-center justify-between">
+        <h3 className="f-d text-lg flex items-center gap-2"><ChefHat size={18} className="text-acento" /> Receta de {producto.nombre}</h3>
+        <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
+      </div>
+
+      {cargando ? (
+        <div className="p-5 text-sm text-texto-suave">Cargando…</div>
+      ) : (
+        <div className="p-5 space-y-4">
+          <Campo label={`De un lote salen (en ${nombreUnidad(producto.unidad).toLowerCase()}s)`}>
+            <input value={tamanoLote} onChange={(e) => setTamanoLote(e.target.value.replace(/[^\d.]/g, ""))} className={inputCls} />
+          </Campo>
+
+          <div>
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Insumos por lote</div>
+            {insumos.length === 0 && <p className="text-sm text-texto-tenue">Todavía no agregaste ningún insumo.</p>}
+            <ul className="space-y-2">
+              {insumos.map((i) => (
+                <li key={i.itemId} className="flex items-center gap-2">
+                  <span className="text-sm flex-1 min-w-0 truncate">{i.nombre}</span>
+                  <input value={i.cantidad} onChange={(e) => setCantidad(i.itemId, e.target.value.replace(/[^\d.]/g, ""))}
+                    className={`${inputCls} !w-20 text-right`} />
+                  <span className="text-xs text-texto-tenue w-6">{i.unidad}</span>
+                  <button onClick={() => quitarInsumo(i.itemId)} className="text-texto-tenue hover:text-mal shrink-0"><Trash2 size={14} /></button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="relative mt-2">
+              <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar un producto para sumarlo como insumo…"
+                className={inputCls} />
+              {candidatos.length > 0 && (
+                <ul className="absolute z-10 left-0 right-0 mt-1 bg-superficie border border-borde rounded-xl shadow-sm overflow-hidden">
+                  {candidatos.map((p) => (
+                    <li key={p.id}>
+                      <button onClick={() => agregarInsumo(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-superficie-2 flex justify-between">
+                        <span>{p.nombre}</span><span className="text-texto-tenue">{money(p.costo)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-superficie-2 rounded-xl p-3.5 grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Costo del lote</div>
+              <div className="f-m text-lg mt-0.5">{money(costoLote)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Costo por unidad</div>
+              <div className="f-m text-lg mt-0.5">{money(costoUnidad)}</div>
+              {margenConEsteCosto != null && (
+                <div className={`text-[11px] mt-0.5 ${margenConEsteCosto < 0.15 ? "text-mal" : "text-texto-tenue"}`}>
+                  margen {pct(margenConEsteCosto, 0)} contra el precio de venta actual
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Boton className="w-full" disabled={guardando || !insumos.length} onClick={guardar}>
+            {guardando ? "Guardando…" : recetaId ? "Guardar cambios" : "Guardar receta"}
+          </Boton>
+
+          {recetaId && (
+            <div className="border-t border-borde pt-4 flex items-end gap-2">
+              <Campo label="Producir">
+                <input value={lotes} onChange={(e) => setLotes(e.target.value.replace(/[^\d.]/g, ""))} className={`${inputCls} !w-24`} />
+              </Campo>
+              <span className="text-sm text-texto-suave pb-2">lote(s) — consume los insumos y da de alta {(Number(lotes) || 0) * (Number(tamanoLote) || 0)} {producto.nombre}</span>
+              <Boton variant="ghost" disabled={produciendo} onClick={producir} className="ml-auto shrink-0">
+                {produciendo ? "Produciendo…" : "Producir"}
+              </Boton>
+            </div>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }
