@@ -22,6 +22,8 @@ env:
   LIST_SPRINT5: 6aa6ba883f736f1a40ed47b0
   LIST_SPRINT6: 6aa6ba882acebf0c32eaa95e
   LIST_SPRINT7: 6aa490ec5278c503b1432596
+  LIST_SPRINT8: 6aa6d39247ceab7978a97a31
+  LIST_SPRINT9: 6aa8b29da64b710868f524b1
   LIST_HECHO: 6aa486a676d9ee97048fa72c
   LABEL_CRITICA: 6aa4811ea3c3ffb09cedcbd4
   LABEL_ALTA: 6aa4811ea3c3ffb09cedcbd3
@@ -55,6 +57,8 @@ jobs:
             "Sprint 5 — Listos para testear: supermercado") LIST_ID="$LIST_SPRINT5" ;;
             "Sprint 6 — Listos para testear: casa de sanitarios") LIST_ID="$LIST_SPRINT6" ;;
             "Sprint 7 — Heurísticas y UI/UX") LIST_ID="$LIST_SPRINT7" ;;
+            "Sprint 8 — Landing y alta guiada") LIST_ID="$LIST_SPRINT8" ;;
+            "Sprint 9 — Nuevos módulos comerciales") LIST_ID="$LIST_SPRINT9" ;;
             *) LIST_ID="$LIST_BACKLOG" ;;
           esac
 
