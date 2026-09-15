@@ -26,6 +26,14 @@ import { crearProducto } from "../datos/items.js";
 // Camera importada como Cam para los usos que la usan con ese nombre
 const Cam = Camera;
 
+/* Mismo cálculo que el modo "ppp" de registrarCompra(), para que la
+   actualización optimista de la UI muestre el mismo costo que va a
+   quedar guardado, sin esperar a releer. */
+const ppp = (stockPrevio, costoPrevio, cantidad, costoNuevo) => {
+  const total = stockPrevio + cantidad;
+  return total > 0 ? Math.round(((stockPrevio * costoPrevio + cantidad * costoNuevo) / total) * 100) / 100 : costoNuevo;
+};
+
 export function CargarCompra({ empresaId, productos, setProductos, movCaja, toast, provs, setProvs }) {
   const [lineas, setLineas] = useState([]);
   const [prov, setProv] = useState(Object.keys(provs)[0]);
@@ -169,7 +177,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
           descripcion: l.pid ? l.nombre : l.crear.nombre,
           cantidad: l.cant,
           costoUnitario: l.costo,
-          actualizarCosto: true,
+          actualizarCosto: "ppp",
         })),
       });
     } catch (e) {
@@ -182,12 +190,14 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
       return acc.map((p) => {
         const l = validas.find((x) => (x.pid || creados[x.uid]?.id) === p.id);
         if (!l) return p;
-        const costo = Number(l.costo) || p.costo;
+        const costo = ppp(p.stock, p.costo, Number(l.cant), Number(l.costo));
         const precio = Number(l.pid ? l.precio : l.crear.precio) || p.precio;
         return {
           ...p,
           stock: +(p.stock + Number(l.cant)).toFixed(3),
           costo, precio,
+          costoReposicion: Number(l.costo),
+          costoReposicionFecha: new Date(),
           historial: costo !== p.costo ? [...p.historial, { fecha: HOY, costo }] : p.historial,
         };
       });
@@ -486,7 +496,7 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
           descripcion: productos.find((p) => p.id === l.pid)?.nombre || l.pid,
           cantidad: l.cant,
           costoUnitario: l.costo,
-          actualizarCosto: true,
+          actualizarCosto: "ppp",
         })),
       });
     } catch (e) {
@@ -497,9 +507,12 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
     setProductos((ps) => ps.map((p) => {
       const l = lineasRec.find((x) => x.pid === p.id);
       if (!l) return p;
-      const nuevoCosto = Number(l.costo) || p.costo;
+      const nuevoCosto = ppp(p.stock, p.costo, Number(l.cant), Number(l.costo));
       const hist = nuevoCosto !== p.costo ? [...p.historial, { fecha: HOY, costo: nuevoCosto }] : p.historial;
-      return { ...p, stock: +(p.stock + Number(l.cant)).toFixed(2), costo: nuevoCosto, historial: hist };
+      return {
+        ...p, stock: +(p.stock + Number(l.cant)).toFixed(2), costo: nuevoCosto, historial: hist,
+        costoReposicion: Number(l.costo), costoReposicionFecha: new Date(),
+      };
     }));
     const total = lineasRec.reduce((s, l) => s + Number(l.cant) * Number(l.costo), 0);
     const contado = (provs[ped.prov] || {}).pago === "Contado";

@@ -41,6 +41,8 @@ function aProducto(f, historial) {
     unidad: f.unidad || "un",
     costo: n(f.costo),
     costoPrev: n(f.costo_prev),
+    costoReposicion: n(f.costo_reposicion) || n(f.costo),
+    costoReposicionFecha: fecha(f.costo_reposicion_fecha),
     precio: n(f.precio),
     precioPrev: n(f.precio_prev),
     precios: f.precios || {},

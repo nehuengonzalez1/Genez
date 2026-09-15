@@ -22,6 +22,7 @@ const DE_FABRICA = {
   ancho: 58,
   sonido: true,
   desc2: 10,
+  margenMinimo: 15,
   cocinaEnPantalla: false,
   destinos: ["cocina"],
 };

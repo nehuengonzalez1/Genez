@@ -24,6 +24,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
   const [pag, setPag] = useState(0);
   const [abierto, setAbierto] = useState(null);
   const [filtro, setFiltro] = useState(focoInicial || "todos");
+  const margenMinimo = (ajustes?.margenMinimo ?? 15) / 100;
 
   useScanHandler((cod) => {
     const p = productos.find((x) => x.barcode === cod);
@@ -38,7 +39,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
     let l = productos;
     if (cat !== "Todas") l = l.filter((p) => p.categoria === cat);
     if (filtro === "margen") l = l.filter((p) => p.costo > p.costoPrev * 1.005);
-    if (filtro === "flaco") l = l.filter((p) => (p.precio - p.costo) / p.precio < 0.15 && p.u30 >= 4);
+    if (filtro === "flaco") l = l.filter((p) => (p.precio - p.costo) / p.precio < margenMinimo && p.u30 >= 4);
     if (filtro === "incompletos") l = l.filter((p) => faltantesProducto(p).length);
     if (q.trim().length >= 2) {
       const t = norm(q.trim());
@@ -51,7 +52,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
       stock: (a, b) => a.stock / (a.vel || 0.01) - b.stock / (b.vel || 0.01),
     }[orden];
     return [...l].sort(cmp);
-  }, [productos, cat, q, orden, filtro]);
+  }, [productos, cat, q, orden, filtro, margenMinimo]);
 
   const porPagina = 40;
   const paginas = Math.max(1, Math.ceil(lista.length / porPagina));
@@ -480,15 +481,31 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, emp
             Ficha incompleta. Falta: <strong>{faltantesProducto(p).join(", ")}</strong>.
           </div>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[["Costo", money(p.costo)], ["Lista 1", money(p.precio)],
-            ["Otras listas", Object.keys(p.precios || {}).length || "—"], ["Margen", pct(m)]].map(([l, v]) => (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[["Costo (PPP)", money(p.costo)],
+            ["Costo reposición", money(p.costoReposicion), p.costoReposicion > p.costo ? "text-ojo" : ""],
+            ["Lista 1", money(p.precio)],
+            ["Otras listas", Object.keys(p.precios || {}).length || "—"],
+            ["Margen", pct(m), p.precio < p.costoReposicion ? "text-mal" : ""]].map(([l, v, tono]) => (
             <div key={l} className="bg-superficie-2 rounded-xl p-3">
               <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">{l}</div>
-              <div className="f-m text-lg mt-0.5">{v}</div>
+              <div className={`f-m text-lg mt-0.5 ${tono || ""}`}>{v}</div>
             </div>
           ))}
         </div>
+
+        {p.precio > 0 && p.precio < p.costoReposicion && (
+          <div className="border border-mal bg-mal-suave rounded-xl p-4">
+            <p className="font-semibold text-mal">
+              Vendés por debajo de lo que cuesta reponer este producto hoy.
+            </p>
+            <p className="text-sm text-mal mt-1">
+              Precio {money(p.precio)} contra {money(p.costoReposicion)} de la última compra
+              {p.costoReposicionFecha ? ` (${fdate(p.costoReposicionFecha)})` : ""}. Cada unidad vendida deja
+              {" " + money(p.precio - p.costoReposicion)} de pérdida si tenés que reponer a ese costo.
+            </p>
+          </div>
+        )}
 
         {subio && (
           <div className="border border-ojo bg-ojo-suave rounded-xl p-4">
