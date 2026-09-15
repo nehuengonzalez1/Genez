@@ -10,7 +10,7 @@ import {
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
   Heart, MessageSquare
 } from "lucide-react";
-import { mulberry32, uid, HOY, DATA, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
+import { mulberry32, uid, HOY, PEDIDOS_INICIALES, PROV_INFO, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios } from "../datos/sesion.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { consultarCobros } from "../datos/mercadopago.js";
@@ -18,7 +18,7 @@ import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, nu
 import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
 import { cargarTablero, tableroVacio } from "../datos/tablero.js";
-import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia } from "../datos/ventas.js";
+import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia, cargarSerieDiaria } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
 import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
 import {
@@ -1077,6 +1077,23 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     return () => { vigente = false; };
   }, [empresaId]);
 
+  /* La serie diaria de ventas también viene de la base (0071). Si falla
+     —o la función todavía no está aplicada en esa base— queda vacía: los
+     indicadores muestran cero y los gráficos, nada. Antes eran noventa
+     días inventados, y un cero honesto vale más que una curva de mentira. */
+  const [serieDiaria, setSerieDiaria] = useState([]);
+  useEffect(() => {
+    let vigente = true;
+    cargarSerieDiaria(empresaId)
+      .then((s) => { if (vigente) setSerieDiaria(s); })
+      .catch((e) => {
+        if (!vigente) return;
+        setSerieDiaria([]);
+        console.error("No se pudo cargar la serie diaria de ventas:", e);
+      });
+    return () => { vigente = false; };
+  }, [empresaId]);
+
   /* El tablero se pide una sola vez y solo donde se usa: el de comercio se
      calcula en el navegador sobre el catálogo y no necesita nada de esto.
 
@@ -1193,7 +1210,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   }, [empresaId]);
 
-  const k = useMemo(() => calcular(productos, DATA.diario, ajustes.cobertura), [productos, ajustes.cobertura]);
+  const k = useMemo(() => calcular(productos, serieDiaria, ajustes.cobertura), [productos, serieDiaria, ajustes.cobertura]);
   const ins = useMemo(() => insights(k), [k]);
 
   /* Hay dos caminos a propósito y no se pueden unificar.
