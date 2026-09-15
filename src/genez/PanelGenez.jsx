@@ -1942,7 +1942,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 actualizarProducto={actualizarProducto} agregarProducto={agregarProducto}
                 toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes} />)}
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
-          {tab === "compras" && <Compras productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
+          {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (
             <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes}
               abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
