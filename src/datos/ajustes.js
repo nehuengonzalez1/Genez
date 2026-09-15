@@ -12,7 +12,7 @@
    ============================================================ */
 
 import { supabase } from "./supabase.js";
-import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, BALANZA_INICIAL } from "../utils/helpers.js";
+import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, BALANZA_INICIAL, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
 
 /* Lo que no depende del rubro ni del comercio y sirve igual para todos.
    Son puntos de partida razonables, no datos de nadie. */
@@ -27,6 +27,17 @@ const DE_FABRICA = {
   destinos: ["cocina"],
 };
 
+/* Un comercio que ya tenía sus medios guardados de antes de que existiera
+   cuenta corriente (#30) se queda con ese array tal cual, sin el nuevo:
+   el fallback a MEDIOS_INICIALES solo pasa cuando el array está vacío.
+   Sumarlo acá, una sola vez, evita tener que migrar el config de cada
+   empresa existente a mano. */
+function agregarMedioSiFalta(medios, clave) {
+  if (medios.some((m) => m.k === clave)) return medios;
+  const de_fabrica = MEDIOS_INICIALES.find((m) => m.k === clave);
+  return de_fabrica ? [...medios, de_fabrica] : medios;
+}
+
 /* El nombre sale de `empresas.nombre` y no de la config: es el mismo con
    el que la plataforma lo factura, y tener dos nombres para lo mismo
    termina siempre en que uno queda viejo. */
@@ -38,7 +49,7 @@ export function ajustesDe(comercio) {
     negocio: (comercio && comercio.nombre) || "",
     fiscal: { ...FISCAL_INICIAL, ...(c.fiscal || {}) },
     balanza: { ...BALANZA_INICIAL, ...(c.balanza || {}) },
-    medios: c.medios && c.medios.length ? c.medios : MEDIOS_INICIALES,
+    medios: agregarMedioSiFalta(c.medios && c.medios.length ? c.medios : MEDIOS_INICIALES, MEDIO_CUENTA_CORRIENTE),
     listas: c.listas && c.listas.length ? c.listas : LISTAS_INICIALES,
     cuit: (c.fiscal && c.fiscal.cuit) || "",
   };

@@ -1361,9 +1361,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       items, sub, desc, recargo: recargo || 0, total,
       pagos: ps, medio: ps[0].medio,
       fiscal: esFiscal,
-      /* El cliente todavía vive en memoria y su id no es un uuid: mandarlo
-         como cliente_id haría fallar la venta entera. Viaja en el
-         comprobante hasta que Clientes se migre. */
+      cliente,
       comprobante: { fiscal: esFiscal, cae, cliente: cliente ? { nombre: cliente.razonSocial, doc: cliente.doc } : null },
     });
 
