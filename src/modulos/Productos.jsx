@@ -672,9 +672,10 @@ function RecetaModal({ producto, productos, empresaId, toast, onClose }) {
 
   const candidatos = useMemo(() => {
     if (buscar.trim().length < 2) return [];
-    const t = buscar.trim().toLowerCase();
+    const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const t = norm(buscar.trim());
     return productos
-      .filter((p) => p.id !== producto.id && !insumos.some((i) => i.itemId === p.id) && p.nombre.toLowerCase().includes(t))
+      .filter((p) => p.id !== producto.id && !insumos.some((i) => i.itemId === p.id) && norm(p.nombre).includes(t))
       .slice(0, 6);
   }, [buscar, productos, insumos, producto.id]);
 
