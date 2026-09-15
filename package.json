@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@afipsdk/afip.js": "^1.2.3",
     "@supabase/supabase-js": "^2.112.3",
     "@vercel/functions": "^3.9.5",
     "lucide-react": "0.383.0",
