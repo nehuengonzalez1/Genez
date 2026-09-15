@@ -12,7 +12,8 @@ import { HOY } from "../datos/generador.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   letraComprobante, conRecargo, mediosDe, medioPorK, FISCAL_INICIAL,
-  condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo
+  condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
+  leerCodigoBalanza
 } from "../utils/helpers.js";
 import {
   beep, useScanHandler, imprimirComandera, ticketVenta,
@@ -511,6 +512,20 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   };
 
   useScanHandler((cod) => {
+    /* Balanza antes que código de barras normal: un código de balanza
+       tiene la misma forma (todo dígitos) y si se buscara tal cual nunca
+       va a matchear ningún producto — hay que desarmarlo primero. */
+    const bal = leerCodigoBalanza(cod, ajustes.balanza);
+    if (bal) {
+      const p = productos.find((x) => x.barcode === bal.codigo);
+      if (p) {
+        const cantidad = bal.peso != null ? bal.peso : +(bal.importe / p.precio).toFixed(3);
+        add(p, cantidad);
+        return beep(true, ajustes.sonido);
+      }
+      beep(false, ajustes.sonido);
+      return toast(`Balanza: no hay ningún producto con el código ${bal.codigo}.`, "mal");
+    }
     const p = productos.find((x) => x.barcode === cod);
     if (p) { add(p); beep(true, ajustes.sonido); }
     else { beep(false, ajustes.sonido); setAlta({ barcode: cod }); }

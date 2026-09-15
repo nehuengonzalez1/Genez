@@ -12,7 +12,7 @@
    ============================================================ */
 
 import { supabase } from "./supabase.js";
-import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES } from "../utils/helpers.js";
+import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, BALANZA_INICIAL } from "../utils/helpers.js";
 
 /* Lo que no depende del rubro ni del comercio y sirve igual para todos.
    Son puntos de partida razonables, no datos de nadie. */
@@ -36,6 +36,7 @@ export function ajustesDe(comercio) {
     ...c,
     negocio: (comercio && comercio.nombre) || "",
     fiscal: { ...FISCAL_INICIAL, ...(c.fiscal || {}) },
+    balanza: { ...BALANZA_INICIAL, ...(c.balanza || {}) },
     medios: c.medios && c.medios.length ? c.medios : MEDIOS_INICIALES,
     listas: c.listas && c.listas.length ? c.listas : LISTAS_INICIALES,
     cuit: (c.fiscal && c.fiscal.cuit) || "",

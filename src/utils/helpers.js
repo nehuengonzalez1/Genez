@@ -191,6 +191,32 @@ export const MEDIOS_INICIALES = [
   { k: "transferencia", n: "Transferencia", tasa: 0, recargo: false, activo: true },
 ];
 
+/* --- Códigos de balanza -------------------------------------------------
+   Las balanzas de fiambrería/verdulería imprimen un EAN-13 con el peso o
+   el precio del artículo adentro del código, no un código de barras real:
+   por eso el prefijo va del 20 al 29 (rango que GS1 reserva para "uso
+   interno", nunca para un producto de fábrica). No hay un único formato
+   —cada balanza se configura distinto—, así que el prefijo y cuántos
+   dígitos son código y cuántos son peso o precio se guardan en Ajustes,
+   no van fijos en el código. */
+export const BALANZA_INICIAL = { activo: false, prefijo: "2", digitosCodigo: 6, digitosValor: 5, modo: "peso" };
+
+/* Devuelve `{ codigo, peso }` o `{ codigo, importe }` según `modo`, o
+   `null` si el código no tiene la forma esperada (longitud o prefijo) —
+   en ese caso quien llama sigue con la búsqueda normal por código de
+   barras, como si esto no existiera. */
+export function leerCodigoBalanza(cod, cfg) {
+  if (!cfg || !cfg.activo) return null;
+  const total = cfg.prefijo.length + cfg.digitosCodigo + cfg.digitosValor + 1;
+  if (cod.length !== total || !cod.startsWith(cfg.prefijo)) return null;
+
+  const desde = cfg.prefijo.length;
+  const codigo = cod.slice(desde, desde + cfg.digitosCodigo);
+  const valor = Number(cod.slice(desde + cfg.digitosCodigo, desde + cfg.digitosCodigo + cfg.digitosValor));
+
+  return cfg.modo === "peso" ? { codigo, peso: valor / 1000 } : { codigo, importe: valor };
+}
+
 /* --- Régimen fiscal ----------------------------------------------------
    Qué comprobante se puede emitir no lo decide el cajero: lo determina la
    condición del que vende cruzada con la del que compra.
