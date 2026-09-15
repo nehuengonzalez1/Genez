@@ -6,7 +6,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { fdate, fdatel } from "../datos/generador.js";
-import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta } from "../utils/helpers.js";
+import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } from "../ui/Base.jsx";
 import { NumeroDiferido } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
@@ -141,7 +141,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px]">
-                    <span className="f-m text-texto-suave">Stock <span className={cob < 4 ? "text-mal font-semibold" : "text-texto"}>{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span></span>
+                    <span className="f-m text-texto-suave">Stock <span className={cob < 4 ? "text-mal font-semibold" : "text-texto"}>{formatoCantidad(p.unidad, p.stock)}</span></span>
                     <span className="f-m text-texto-suave">Costo {money(p.costo)}</span>
                     {p.precio > 0 && <span className={`f-m ${m < 0.14 ? "text-mal" : m < 0.22 ? "text-ojo" : "text-bien"}`}>{pct(m, 0)}</span>}
                     <span className="f-m text-texto-tenue">{nf.format(p.u30)} u/mes</span>
@@ -244,7 +244,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                     <td className="px-2 py-2.5 text-texto-suave text-xs">{p.categoria}</td>
                     <td className="px-2 py-2.5 text-right f-m">
                       <span className={cob < 4 ? "text-mal font-semibold" : cob < 8 ? "text-ojo" : "text-texto"}>
-                        {p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}
+                        {formatoCantidad(p.unidad, p.stock)}
                       </span>
                       <div className="text-[10px] text-texto-tenue">{cob > 90 ? "+90 d" : `${Math.round(cob)} d`}</div>
                     </td>
@@ -319,7 +319,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
             await agregarProducto({
               nombre: f.nombre, barcode: String(f.codigo || "").replace(/\D/g, ""),
               categoria: f.rubro, marca: f.marca, proveedor: f.proveedor,
-              unidad: f.unidad === "kg" ? "kg" : "un", iva: num(f.iva) || 21, bulto: num(f.bulto) || 1,
+              unidad: unidadDesdeTexto(f.unidad), iva: num(f.iva) || 21, bulto: num(f.bulto) || 1,
               stock: num(f.stock) || 0, stockMin: num(f.stock_minimo) || 0,
               costo: num(f.costo) || 0, precio: num(f.precio) || 0, precios: preciosDe(f, {}),
             }, null);

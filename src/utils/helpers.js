@@ -6,6 +6,34 @@ import { HOY, dayMs, addDays } from "../datos/generador.js";
 
 export const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
 export const nf2 = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/* Antes esto era `unidad === "kg" ? A : B` repetido en cada pantalla que
+   toca una cantidad — el paso del +/-, cuántos decimales mostrar. Sumar
+   "por metro" (caños, para sanitarios) hubiera significado un tercer
+   caso pegado en cada uno de esos lugares. Ahora es una tabla: sumar una
+   unidad nueva es una fila acá, no un cambio en diez archivos. */
+export const UNIDADES_VENTA = {
+  un: { n: "Unidad", paso: 1, decimales: 0 },
+  kg: { n: "Kilo", paso: 0.25, decimales: 2 },
+  m: { n: "Metro", paso: 0.5, decimales: 2 },
+};
+export const pasoDe = (unidad) => (UNIDADES_VENTA[unidad] || UNIDADES_VENTA.un).paso;
+export const nombreUnidad = (unidad) => (UNIDADES_VENTA[unidad] || UNIDADES_VENTA.un).n;
+export const formatoCantidad = (unidad, valor) => {
+  const { decimales } = UNIDADES_VENTA[unidad] || UNIDADES_VENTA.un;
+  return decimales ? valor.toFixed(decimales) : nf.format(valor);
+};
+
+/* La planilla de un proveedor real no va a escribir "kg" o "m" tal cual
+   —"KG.", "Mts", "metro"—, y antes cualquier cosa que no fuera "kg" a la
+   letra se guardaba como "un" en silencio: un caño importado así se
+   vendía de a uno entero, no por metro. */
+export const unidadDesdeTexto = (t) => {
+  const s = String(t || "").trim().toLowerCase();
+  if (/^kg/.test(s) || s === "kilo" || s === "kilos") return "kg";
+  if (/^m(t|ts)?\.?$/.test(s) || s.startsWith("metro")) return "m";
+  return "un";
+};
 export const money = (v) => "$" + nf.format(Math.round(v || 0));
 export const moneyk = (v) => {
   const a = Math.abs(v || 0);
