@@ -13,7 +13,7 @@ import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   letraComprobante, conRecargo, mediosDe, medioPorK, FISCAL_INICIAL,
   condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
-  leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad
+  leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE
 } from "../utils/helpers.js";
 import {
   beep, useScanHandler, imprimirComandera, ticketVenta,
@@ -623,6 +623,16 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   };
 
   const finalizar = (k, recibido, listaPagos, vueltoDado) => {
+    /* A cuenta corriente es una deuda de alguien puntual: sin saber de
+       quién, no hay a quién cobrarle después. Se frena acá, el único
+       lugar por el que pasan las tres formas de cobrar (un solo medio,
+       con vuelto, o combinado). */
+    const esCC = (p) => p.medio === MEDIO_CUENTA_CORRIENTE;
+    if ((k === MEDIO_CUENTA_CORRIENTE || (listaPagos || []).some(esCC)) && !cliente) {
+      beep(false, ajustes.sonido);
+      toast("Elegí un cliente antes de cobrar a cuenta corriente.", "mal");
+      return setBuscarCliente(true);
+    }
     const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre }));
     const m = medioPorK(ajustes, k);
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
