@@ -11,7 +11,7 @@ import { uid, HOY } from "../datos/generador.js";
 import {
   FISCAL_INICIAL, CONDICIONES, letraComprobante, discriminaIVA,
   condicionNombre, mediosDe, conRecargo, money, nf, nf2, pct, hora,
-  MEDIOS_INICIALES, LISTAS_INICIALES, condicionLegal
+  MEDIOS_INICIALES, LISTAS_INICIALES, condicionLegal, BALANZA_INICIAL
 } from "../utils/helpers.js";
 import { Card, Boton, Modal, Kpi, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
@@ -24,6 +24,8 @@ const Vol2 = Volume2;
 export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro }) {
   const f = ajustes.fiscal || FISCAL_INICIAL;
   const setFiscal = (cambios) => setAjustes({ ...ajustes, fiscal: { ...f, ...cambios } });
+  const bal = ajustes.balanza || BALANZA_INICIAL;
+  const setBalanza = (cambios) => setAjustes({ ...ajustes, balanza: { ...bal, ...cambios } });
   return (
     <div className="max-w-2xl space-y-4">
       <Card className="p-5">
@@ -243,6 +245,54 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
             La API de Mercado Pago no tiene costo. El token nunca llega al navegador: se usa del lado del servidor.
           </p>
         </details>
+      </Card>
+
+      <Card className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="f-d text-lg">Balanza con código de barras</h3>
+            <p className="text-sm text-texto-suave mt-1">
+              Para las balanzas de fiambrería o verdulería que imprimen una etiqueta con el peso o el precio
+              adentro del código. Cada balanza se configura distinto — pedile estos datos a quien la instaló.
+            </p>
+          </div>
+          <button onClick={() => setBalanza({ activo: !bal.activo })}
+            className={`shrink-0 flex items-center gap-2 text-sm font-semibold ${bal.activo ? "text-bien" : "text-texto-tenue"}`}>
+            <ScanLine size={16} />
+            {bal.activo ? "Activa" : "Apagada"}
+          </button>
+        </div>
+
+        {bal.activo && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+            <Campo label="Prefijo">
+              <input value={bal.prefijo} onChange={(e) => setBalanza({ prefijo: e.target.value.replace(/\D/g, "") })}
+                className={inputCls} maxLength={2} />
+            </Campo>
+            <Campo label="Dígitos de código">
+              <input type="number" value={bal.digitosCodigo} onChange={(e) => setBalanza({ digitosCodigo: Number(e.target.value) || 0 })}
+                className={inputCls} />
+            </Campo>
+            <Campo label={bal.modo === "peso" ? "Dígitos de peso" : "Dígitos de precio"}>
+              <input type="number" value={bal.digitosValor} onChange={(e) => setBalanza({ digitosValor: Number(e.target.value) || 0 })}
+                className={inputCls} />
+            </Campo>
+            <Campo label="El código trae">
+              <select value={bal.modo} onChange={(e) => setBalanza({ modo: e.target.value })} className={inputCls}>
+                <option value="peso">Peso (en gramos)</option>
+                <option value="precio">Precio ya calculado</option>
+              </select>
+            </Campo>
+          </div>
+        )}
+
+        {bal.activo && (
+          <p className="text-xs text-texto-tenue mt-3">
+            Con esta configuración, un código de {bal.prefijo.length + bal.digitosCodigo + bal.digitosValor + 1} dígitos
+            que empiece con {bal.prefijo} se lee como balanza. El código interno del producto (los {bal.digitosCodigo} dígitos
+            del medio) tiene que estar cargado como código de barras de ese producto.
+          </p>
+        )}
       </Card>
 
       <Card className="p-5">
