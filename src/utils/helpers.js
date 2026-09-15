@@ -27,8 +27,13 @@ export const hora = (f, conSegundos = false) => {
     hour12: false,
   });
 };
-export const diasDesde = (d) => Math.floor((HOY - d) / dayMs);
-export const diasHasta = (d) => Math.ceil((d - HOY) / dayMs);
+/* Con la fecha real y no con el HOY congelado del prototipo: la última
+   venta y los vencimientos ya vienen de la base. Los dos lados se cortan a
+   medianoche para contar días enteros, que es lo que lee la pantalla. */
+const medianoche = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const hoy = () => medianoche(new Date());
+export const diasDesde = (d) => Math.floor((hoy() - medianoche(d)) / dayMs);
+export const diasHasta = (d) => Math.ceil((medianoche(d) - hoy()) / dayMs);
 
 /* Los dos valores los define index.html. El respaldo es para cuando este
    módulo corre fuera del navegador, y tiene que decir lo mismo que ahí:
@@ -168,9 +173,9 @@ export function productoNuevo(datos) {
     unidad: datos.unidad || "un",
     proveedor: datos.proveedor || "",
     vel: 0, u30: 0, u30p: 0,
-    ultimaVenta: HOY, vence: null,
-    historial: costo ? [{ fecha: HOY, costo }] : [],
-    activo: true, nuevo: true, creado: HOY,
+    ultimaVenta: hoy(), vence: null,
+    historial: costo ? [{ fecha: hoy(), costo }] : [],
+    activo: true, nuevo: true, creado: hoy(),
   };
 }
 
