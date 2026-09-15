@@ -3,6 +3,11 @@ name: Backfill puntual de Trello (Sprint 8/9 + En develop)
 # Uso único: arregla las tarjetas que quedaron mal ubicadas porque el
 # workflow trello-sync.yml no conocía Sprint 8 ni Sprint 9 (issue #59).
 # Se dispara a mano (workflow_dispatch) y se borra después de correrlo.
+#
+# Con jq y no con Python embebido: un bloque de Python sin indentar
+# dentro de un `run: |` corta el bloque y GitHub rechaza el archivo
+# entero (el mismo bug que ya tuvo trello-sync.yml una vez). jq en una
+# sola línea no tiene ese riesgo.
 
 on:
   workflow_dispatch: {}
@@ -21,20 +26,9 @@ jobs:
           BOARD_ID=6aa4811ea3c3ffb09cedcaa5
 
           LISTS_JSON=$(curl -sf "https://api.trello.com/1/boards/${BOARD_ID}/lists?${AUTH}")
-          echo "$LISTS_JSON" | python3 -c 'import json,sys
-for l in json.load(sys.stdin):
-    print(l["id"], "|", l["name"])'
+          echo "$LISTS_JSON" | jq -r '.[] | "\(.id) | \(.name)"'
 
-          find_list() {
-            echo "$LISTS_JSON" | python3 -c "
-import json,sys
-name_part = sys.argv[1]
-for l in json.load(sys.stdin):
-    if name_part in l['name']:
-        print(l['id'])
-        break
-" "$1"
-          }
+          find_list() { echo "$LISTS_JSON" | jq -r --arg n "$1" '[.[] | select(.name | contains($n))][0].id // empty'; }
 
           SPRINT8_ID=$(find_list "Sprint 8")
           DEVELOP_ID=$(find_list "En develop")
@@ -43,8 +37,8 @@ for l in json.load(sys.stdin):
           echo "Antes: Sprint8=$SPRINT8_ID Develop=$DEVELOP_ID Sprint9=$SPRINT9_ID"
 
           if [ -z "$SPRINT9_ID" ]; then
-            NAME_ENC=$(python3 -c 'import urllib.parse;print(urllib.parse.quote("Sprint 9 — Nuevos módulos comerciales"))')
-            SPRINT9_ID=$(curl -sf -X POST "https://api.trello.com/1/lists?name=${NAME_ENC}&idBoard=${BOARD_ID}&pos=bottom&${AUTH}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+            NAME_ENC=$(jq -rn --arg n "Sprint 9 — Nuevos módulos comerciales" '$n|@uri')
+            SPRINT9_ID=$(curl -sf -X POST "https://api.trello.com/1/lists?name=${NAME_ENC}&idBoard=${BOARD_ID}&pos=bottom&${AUTH}" | jq -r '.id')
             echo "Creada lista Sprint 9: $SPRINT9_ID"
           fi
 
@@ -53,20 +47,9 @@ for l in json.load(sys.stdin):
           CARDS_JSON=$(curl -sf "https://api.trello.com/1/boards/${BOARD_ID}/cards?fields=name,id,idList&${AUTH}")
 
           move_issue() {
-            local num="$1" target="$2"
-            local cid
-            cid=$(echo "$CARDS_JSON" | python3 -c "
-import json,sys
-prefix = '#'+sys.argv[1]+' '
-for c in json.load(sys.stdin):
-    if c['name'].startswith(prefix):
-        print(c['id'])
-        break
-" "$num")
-            if [ -z "$cid" ]; then
-              echo "#$num: tarjeta no encontrada"
-              return
-            fi
+            local num="$1" target="$2" cid
+            cid=$(echo "$CARDS_JSON" | jq -r --arg p "#$num " '[.[] | select(.name | startswith($p))][0].id // empty')
+            if [ -z "$cid" ]; then echo "#$num: tarjeta no encontrada"; return; fi
             curl -sf -X PUT "https://api.trello.com/1/cards/${cid}?idList=${target}&${AUTH}" > /dev/null
             echo "#$num -> lista $target (card $cid) OK"
           }
