@@ -217,7 +217,13 @@ export const MEDIOS_INICIALES = [
   { k: "credito", n: "Crédito", tasa: 3.1, recargo: false, activo: true },
   { k: "mp", n: "QR / Mercado Pago", tasa: 0.8, recargo: false, activo: true },
   { k: "transferencia", n: "Transferencia", tasa: 0, recargo: false, activo: true },
+  { k: "cuenta_corriente", n: "Cuenta corriente", tasa: 0, recargo: false, activo: true },
 ];
+
+/* No es un medio como los demás: no entra plata a la caja, entra una
+   deuda del cliente. `confirmar_operacion` lo excluye del ingreso de
+   caja por su clave — cambiarla acá también hay que cambiarla ahí. */
+export const MEDIO_CUENTA_CORRIENTE = "cuenta_corriente";
 
 /* --- Códigos de balanza -------------------------------------------------
    Las balanzas de fiambrería/verdulería imprimen un EAN-13 con el peso o

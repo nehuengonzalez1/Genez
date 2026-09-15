@@ -173,7 +173,7 @@ export async function cargarClientesConCuentas(empresaId) {
 export async function cargarFicha(empresaId, clienteId) {
   if (!empresaId || !clienteId) throw new Error("cargarFicha necesita el comercio y el cliente.");
 
-  const [cli, turnos, abonos, ventas, notas] = await Promise.all([
+  const [cli, turnos, abonos, ventas, notas, saldo, movCC] = await Promise.all([
     supabase.from("clientes_vista").select("*").eq("empresa_id", empresaId).eq("id", clienteId).maybeSingle(),
 
     supabase.from("agenda_vista")
@@ -194,9 +194,16 @@ export async function cargarFicha(empresaId, clienteId) {
       .select("id, texto, destacada, creada_en")
       .eq("empresa_id", empresaId).eq("cliente_id", clienteId)
       .order("creada_en", { ascending: false }).limit(100),
+
+    supabase.rpc("saldo_cliente", { p_cliente: clienteId }),
+
+    supabase.from("cuenta_corriente_pagos")
+      .select("id, monto, medio, notas, fecha")
+      .eq("empresa_id", empresaId).eq("cliente_id", clienteId)
+      .order("fecha", { ascending: false }).limit(100),
   ]);
 
-  for (const r of [cli, turnos, abonos, ventas, notas]) if (r.error) throw r.error;
+  for (const r of [cli, turnos, abonos, ventas, notas, saldo, movCC]) if (r.error) throw r.error;
   if (!cli.data) throw new Error("No encontramos ese cliente.");
 
   return {
@@ -243,7 +250,24 @@ export async function cargarFicha(empresaId, clienteId) {
       destacada: x.destacada,
       fecha: new Date(x.creada_en),
     })),
+
+    saldoCC: num(saldo.data),
+    pagosCC: (movCC.data || []).map((p) => ({
+      id: p.id, monto: num(p.monto), medio: p.medio, notas: p.notas || "",
+      fecha: new Date(p.fecha),
+    })),
   };
+}
+
+/* Cobra la cuenta corriente sin vender nada: por eso pide una caja
+   abierta, igual que una venta — es plata real entrando al mismo cajón. */
+export async function registrarPagoCC(clienteId, sesionId, monto, medio = "efectivo", notas = null) {
+  if (!sesionId) throw new Error("Abrí la caja antes de registrar un pago de cuenta corriente.");
+  const { data, error } = await supabase.rpc("registrar_pago_cuenta_corriente", {
+    p_cliente: clienteId, p_sesion: sesionId, p_monto: monto, p_medio: medio, p_notas: notas,
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function anotarEnFicha(empresaId, clienteId, texto, destacada = false) {

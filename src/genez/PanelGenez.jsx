@@ -1925,7 +1925,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}
           {tab === "clientes" && (
             <Clientes clientes={clientes} guardarCliente={guardarClienteEn} tickets={tickets}
-              ajustes={ajustes} empresaId={empresaId} permisos={permisos} toast={toast} />
+              ajustes={ajustes} empresaId={empresaId} permisos={permisos} toast={toast} sesionId={caja.sesionId} />
           )}
           {tab === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
           {tab === "agenda" && <Agenda empresaId={empresaId} sucursalId={null} permisos={permisos} clientes={clientes} toast={toast} ir={ir} />}
