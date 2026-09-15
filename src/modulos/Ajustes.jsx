@@ -382,6 +382,16 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
       </Card>
 
       <Card className="p-5">
+        <h3 className="f-d text-lg">Margen mínimo</h3>
+        <p className="text-sm text-texto-suave mt-1">Por debajo de este margen, Productos lo marca como "Margen bajo" y avisa si el precio no alcanza para reponer.</p>
+        <div className="flex items-center gap-4 mt-3">
+          <input type="range" min="5" max="50" value={ajustes.margenMinimo} onChange={(e) => setAjustes({ ...ajustes, margenMinimo: Number(e.target.value) })}
+            className="flex-1 accent-orange-500" />
+          <span className="f-m text-lg w-16 text-right">{ajustes.margenMinimo}%</span>
+        </div>
+      </Card>
+
+      <Card className="p-5">
         <h3 className="f-d text-lg">Datos de la demo</h3>
         <ul className="text-sm text-texto-suave mt-2 space-y-1">
           <li>{nf.format(productos.length)} productos con costo, precio, stock, proveedor y vencimiento</li>
