@@ -8,7 +8,7 @@ import {
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
-  Heart, MessageSquare
+  Heart, MessageSquare, FileText
 } from "lucide-react";
 import { mulberry32, uid, HOY, PEDIDOS_INICIALES, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios } from "../datos/sesion.js";
@@ -39,6 +39,7 @@ import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
 import { Clientes } from "../modulos/Clientes.jsx";
+import { Presupuestos } from "../modulos/Presupuestos.jsx";
 import { Equipo } from "../modulos/Equipo.jsx";
 import { Agenda } from "../modulos/Agenda.jsx";
 import { Ventas } from "../modulos/Ventas.jsx";
@@ -880,6 +881,7 @@ const ICONOS = {
   barras: BarChart3, chispas: Sparkles, tuerca: Settings,
   cubiertos: UtensilsCrossed, cocina: ChefHat, agenda: CalendarDays,
   barcode: Barcode, bolsa: ShoppingBag, corazon: Heart, mensaje: MessageSquare,
+  presupuesto: FileText,
 };
 const iconoDe = (n) => ICONOS[n] || Store;
 
@@ -907,6 +909,7 @@ const MENU_POR_DEFECTO = [{
     { k: "cocina", n: "Cocina", i: "cocina", d: "Lo que hay que preparar, en el orden en que se pidió" },
     { k: "pedidos", n: "Pedidos", i: "planilla", d: "Preparación con pistola y control de faltantes" },
     { k: "clientes", n: "Clientes", i: "gente", d: "Para emitir facturas A, B o C según corresponda" },
+    { k: "presupuestos", n: "Presupuestos", i: "presupuesto", d: "Cotizar sin vender, convertir cuando el cliente confirma" },
     { k: "productos", n: "Productos", i: "caja", d: "Costos, precios y margen de todo tu catálogo" },
     { k: "stock", n: "Stock", i: "cajas", d: "Qué reponer, qué vence y qué no se mueve" },
     { k: "compras", n: "Compras", i: "camion", d: "Cargar remitos, pedidos sugeridos y proveedores" },
@@ -1924,6 +1927,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "clientes" && (
             <Clientes clientes={clientes} guardarCliente={guardarClienteEn} tickets={tickets}
               ajustes={ajustes} empresaId={empresaId} permisos={permisos} toast={toast} sesionId={caja.sesionId} />
+          )}
+          {tab === "presupuestos" && (
+            <Presupuestos empresaId={empresaId} sucursalId={null} productos={productos} setProductos={setProductos}
+              clientes={clientes} guardarCliente={guardarClienteEn} ajustes={ajustes} toast={toast} sesionId={caja.sesionId} />
           )}
           {tab === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
           {tab === "agenda" && <Agenda empresaId={empresaId} sucursalId={null} permisos={permisos} clientes={clientes} toast={toast} ir={ir} />}
