@@ -1,0 +1,30 @@
+name: Trello - mover 29 a En develop (una vez)
+
+on:
+  workflow_dispatch:
+
+env:
+  TRELLO_BOARD_ID: 6aa4811ea3c3ffb09cedcaa5
+
+jobs:
+  mover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mover la tarjeta de #29 a la lista En develop
+        env:
+          TRELLO_KEY: ${{ secrets.TRELLO_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+        run: |
+          set -e
+          AUTH="key=${TRELLO_KEY}&token=${TRELLO_TOKEN}"
+          LISTS_JSON=$(curl -sf "https://api.trello.com/1/boards/${TRELLO_BOARD_ID}/lists?fields=id,name&${AUTH}")
+          LIST_ID=$(echo "$LISTS_JSON" | jq -r '.[] | select(.name | startswith("En develop")) | .id')
+          echo "Lista destino: $LIST_ID"
+          CARDS_JSON=$(curl -sf "https://api.trello.com/1/boards/${TRELLO_BOARD_ID}/cards?fields=name,id&${AUTH}")
+          CARD_ID=$(echo "$CARDS_JSON" | jq -r --arg p "#29 " '.[] | select(.name | startswith($p)) | .id')
+          if [ -z "$CARD_ID" ]; then
+            echo "No se encontro tarjeta para #29"
+            exit 0
+          fi
+          curl -sf -X PUT "https://api.trello.com/1/cards/${CARD_ID}?idList=${LIST_ID}&${AUTH}" > /dev/null
+          echo "Tarjeta de #29 ($CARD_ID) movida a $LIST_ID"
