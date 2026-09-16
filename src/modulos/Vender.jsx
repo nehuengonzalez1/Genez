@@ -407,7 +407,7 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
   );
 }
 
-function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
+export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
   const [q, setQ] = useState("");
   const [nuevo, setNuevo] = useState(false);
   const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
