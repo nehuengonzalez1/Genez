@@ -1,0 +1,40 @@
+name: Trello - sincronizar tarjetas en develop (una vez)
+
+on:
+  workflow_dispatch:
+
+env:
+  TRELLO_BOARD_ID: 6aa4811ea3c3ffb09cedcaa5
+  ISSUES_EN_DEVELOP: "27 30 74 75 29"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mover a En develop las tarjetas de issues ya mergeados
+        env:
+          TRELLO_KEY: ${{ secrets.TRELLO_KEY }}
+          TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+        run: |
+          set -e
+          AUTH="key=${TRELLO_KEY}&token=${TRELLO_TOKEN}"
+          LISTS_JSON=$(curl -sf "https://api.trello.com/1/boards/${TRELLO_BOARD_ID}/lists?fields=id,name&${AUTH}")
+          LIST_ID=$(echo "$LISTS_JSON" | jq -r '.[] | select(.name | startswith("En develop")) | .id')
+          echo "Lista destino (En develop): $LIST_ID"
+          echo "$LISTS_JSON" | jq -r '.[] | "  lista: \(.name) (\(.id))"'
+          CARDS_JSON=$(curl -sf "https://api.trello.com/1/boards/${TRELLO_BOARD_ID}/cards?fields=name,id,idList&${AUTH}")
+          for N in $ISSUES_EN_DEVELOP; do
+            CARD=$(echo "$CARDS_JSON" | jq -r --arg p "#$N " '[.[] | select(.name | startswith($p))][0]')
+            if [ "$CARD" = "null" ] || [ -z "$CARD" ]; then
+              echo "#$N: no se encontro tarjeta"
+              continue
+            fi
+            CARD_ID=$(echo "$CARD" | jq -r '.id')
+            CURRENT_LIST=$(echo "$CARD" | jq -r '.idList')
+            if [ "$CURRENT_LIST" = "$LIST_ID" ]; then
+              echo "#$N: ya esta en En develop, no se toca"
+              continue
+            fi
+            curl -sf -X PUT "https://api.trello.com/1/cards/${CARD_ID}?idList=${LIST_ID}&${AUTH}" > /dev/null
+            echo "#$N: movida de $CURRENT_LIST a En develop ($CARD_ID)"
+          done
