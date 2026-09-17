@@ -28,10 +28,11 @@ export const MODULOS = [
   { k: "compras", n: "Compras", d: "Remitos, costos y proveedores", nivel: "pro", necesita: [] },
   { k: "pedidos", n: "Pedidos", d: "Preparación con pistola", nivel: "pro", necesita: [] },
   { k: "clientes", n: "Clientes", d: "Facturación A, B y C", nivel: "pro", necesita: ["CUIT y condición frente al IVA si vas a facturar"] },
-  { k: "equipo", n: "Equipo y RR. HH.", d: "Quién trabaja, horarios y liquidaciones", nivel: "empresa", necesita: [] },
+  { k: "presupuestos", n: "Presupuestos", d: "Cotizar sin vender, convertir cuando el cliente confirma", nivel: "pro", necesita: [] },
+  { k: "equipo", n: "Equipo y RR. HH.", d: "Quién trabaja, horarios y cuánto se le paga a cada uno", nivel: "empresa", necesita: [] },
   { k: "agenda", n: "Agenda", d: "Turnos, clases y disponibilidad", nivel: "start", necesita: ["Los horarios de cada persona y de cada sala"] },
   { k: "ventas", n: "Ventas", d: "Abonos, packs y planes", nivel: "pro", necesita: [] },
-  { k: "finanzas", n: "Finanzas", d: "Caja, ingresos, egresos y sueldos", nivel: "empresa", necesita: [] },
+  { k: "finanzas", n: "Finanzas", d: "Caja, ingresos y egresos del negocio", nivel: "empresa", necesita: [] },
   { k: "servicios", n: "Servicios y recursos", d: "Qué se ofrece y dónde se hace", nivel: "start", necesita: ["Tu lista de servicios con duración y precio"] },
   { k: "reportes", n: "Informes", d: "Ventas, márgenes y rubros", nivel: "start", necesita: [] },
   /* Dos informes y no uno con un `if` adentro: el del comercio mira
