@@ -607,8 +607,8 @@ function FondoHexagonal({ imagen }) {
           <stop offset="0%" stopColor="#1A1A1A" /><stop offset="100%" stopColor="#121212" />
         </linearGradient>
         <radialGradient id="halo" cx={centro.x / 760} cy={centro.y / 1080} r="0.4">
-          <stop offset="0%" stopColor="#FF6B00" stopOpacity="0.34" />
-          <stop offset="60%" stopColor="#FF6B00" stopOpacity="0.07" />
+          <stop offset="0%" stopColor="#FF6B00" stopOpacity="0.22" />
+          <stop offset="60%" stopColor="#FF6B00" stopOpacity="0.045" />
           <stop offset="100%" stopColor="#FF6B00" stopOpacity="0" />
         </radialGradient>
         <filter id="difuso" x="-60%" y="-60%" width="220%" height="220%">
@@ -633,10 +633,10 @@ function FondoHexagonal({ imagen }) {
           {h.luz > 0.02 && (
             <>
               <polygon points={puntos(h.x, h.y, h.esc)} fill="none" stroke="#FF6B00"
-                strokeOpacity={Math.min(1, 0.2 + h.luz * 1.9)} strokeWidth={h.luz > 0.45 ? 2.6 : 1.7} />
+                strokeOpacity={Math.min(1, 0.14 + h.luz * 1.3)} strokeWidth={h.luz > 0.45 ? 2.6 : 1.7} />
               {h.luz > 0.3 && (
                 <polygon points={puntos(h.x, h.y, h.esc)} fill="none" stroke="#FFA24D"
-                  strokeOpacity={h.luz} strokeWidth="3.5" filter="url(#difuso)" />
+                  strokeOpacity={h.luz * 0.65} strokeWidth="3.5" filter="url(#difuso)" />
               )}
             </>
           )}
