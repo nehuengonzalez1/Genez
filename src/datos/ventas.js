@@ -12,6 +12,7 @@
    ============================================================ */
 
 import { supabase } from "./supabase.js";
+import { fdate } from "./generador.js";
 
 /* ------------------------------------------------------------
    NUMERACIÓN
@@ -142,6 +143,30 @@ export async function resumenDelDia(empresaId) {
     total: (data || []).reduce((s, v) => s + Number(v.total || 0), 0),
     tickets: (data || []).length,
   };
+}
+
+/* La serie de los últimos días para los indicadores y los gráficos:
+   ventas, costo y tickets por día, continua y en la zona horaria del
+   comercio (migración 0071). Reemplaza a los noventa días inventados del
+   generador, y se devuelve con la misma forma que tenía aquella serie
+   —fecha, label, ventas, costo, tickets— para que `calcular()` y las
+   pantallas no cambien. La fecha se arma al mediodía para que "2026-09-13"
+   no se corra de día al pasar por la zona horaria del navegador. */
+export async function cargarSerieDiaria(empresaId, dias = 90) {
+  if (!empresaId) throw new Error("cargarSerieDiaria necesita la empresa.");
+
+  const { data, error } = await supabase.rpc("ventas_diarias", { p_empresa: empresaId, p_dias: dias });
+  if (error) throw error;
+
+  return (data || []).map((d) => {
+    const fecha = new Date(`${d.fecha}T12:00:00`);
+    return {
+      fecha, label: fdate(fecha),
+      ventas: Number(d.ventas) || 0,
+      costo: Number(d.costo) || 0,
+      tickets: Number(d.tickets) || 0,
+    };
+  });
 }
 
 /* El historial de ventas del día. El POS no lo necesita para cobrar,

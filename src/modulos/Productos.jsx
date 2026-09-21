@@ -3,15 +3,16 @@
    ============================================================ */
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode } from "lucide-react";
+import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode, Trash2, ChefHat } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { fdate, fdatel } from "../datos/generador.js";
-import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta } from "../utils/helpers.js";
+import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } from "../ui/Base.jsx";
-import { NumeroDiferido } from "../ui/Campos.jsx";
+import { NumeroDiferido, Campo, inputCls } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
+import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../datos/recetas.js";
 
-export function Productos({ productos, actualizarProducto, agregarProducto, toast, focoInicial, provs, ajustes }) {
+export function Productos({ productos, actualizarProducto, agregarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
   const [alta, setAlta] = useState(null);
   const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
   const [modoPrecios, setModoPrecios] = useState(false);
@@ -23,6 +24,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
   const [pag, setPag] = useState(0);
   const [abierto, setAbierto] = useState(null);
   const [filtro, setFiltro] = useState(focoInicial || "todos");
+  const margenMinimo = (ajustes?.margenMinimo ?? 15) / 100;
 
   useScanHandler((cod) => {
     const p = productos.find((x) => x.barcode === cod);
@@ -37,7 +39,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
     let l = productos;
     if (cat !== "Todas") l = l.filter((p) => p.categoria === cat);
     if (filtro === "margen") l = l.filter((p) => p.costo > p.costoPrev * 1.005);
-    if (filtro === "flaco") l = l.filter((p) => (p.precio - p.costo) / p.precio < 0.15 && p.u30 >= 4);
+    if (filtro === "flaco") l = l.filter((p) => (p.precio - p.costo) / p.precio < margenMinimo && p.u30 >= 4);
     if (filtro === "incompletos") l = l.filter((p) => faltantesProducto(p).length);
     if (q.trim().length >= 2) {
       const t = norm(q.trim());
@@ -50,7 +52,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
       stock: (a, b) => a.stock / (a.vel || 0.01) - b.stock / (b.vel || 0.01),
     }[orden];
     return [...l].sort(cmp);
-  }, [productos, cat, q, orden, filtro]);
+  }, [productos, cat, q, orden, filtro, margenMinimo]);
 
   const porPagina = 40;
   const paginas = Math.max(1, Math.ceil(lista.length / porPagina));
@@ -141,7 +143,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px]">
-                    <span className="f-m text-texto-suave">Stock <span className={cob < 4 ? "text-mal font-semibold" : "text-texto"}>{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span></span>
+                    <span className="f-m text-texto-suave">Stock <span className={cob < 4 ? "text-mal font-semibold" : "text-texto"}>{formatoCantidad(p.unidad, p.stock)}</span></span>
                     <span className="f-m text-texto-suave">Costo {money(p.costo)}</span>
                     {p.precio > 0 && <span className={`f-m ${m < 0.14 ? "text-mal" : m < 0.22 ? "text-ojo" : "text-bien"}`}>{pct(m, 0)}</span>}
                     <span className="f-m text-texto-tenue">{nf.format(p.u30)} u/mes</span>
@@ -244,7 +246,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                     <td className="px-2 py-2.5 text-texto-suave text-xs">{p.categoria}</td>
                     <td className="px-2 py-2.5 text-right f-m">
                       <span className={cob < 4 ? "text-mal font-semibold" : cob < 8 ? "text-ojo" : "text-texto"}>
-                        {p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}
+                        {formatoCantidad(p.unidad, p.stock)}
                       </span>
                       <div className="text-[10px] text-texto-tenue">{cob > 90 ? "+90 d" : `${Math.round(cob)} d`}</div>
                     </td>
@@ -281,7 +283,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         )}
       </Card>
 
-      <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} />
+      <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} productos={productos} empresaId={empresaId} toast={toast} />
 
       <ImportarPlanilla resumen={planilla} listas={ajustes.listas || []} onCerrar={() => setPlanilla(null)}
         onAplicar={async () => {
@@ -319,7 +321,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
             await agregarProducto({
               nombre: f.nombre, barcode: String(f.codigo || "").replace(/\D/g, ""),
               categoria: f.rubro, marca: f.marca, proveedor: f.proveedor,
-              unidad: f.unidad === "kg" ? "kg" : "un", iva: num(f.iva) || 21, bulto: num(f.bulto) || 1,
+              unidad: unidadDesdeTexto(f.unidad), iva: num(f.iva) || 21, bulto: num(f.bulto) || 1,
               stock: num(f.stock) || 0, stockMin: num(f.stock_minimo) || 0,
               costo: num(f.costo) || 0, precio: num(f.precio) || 0, precios: preciosDe(f, {}),
             }, null);
@@ -441,9 +443,10 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
   );
 }
 
-function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
+function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, empresaId, toast }) {
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
+  const [receta, setReceta] = useState(false);
   useEffect(() => { if (p) { setPrecio(String(p.precio)); setCosto(String(p.costo)); } }, [p && p.id]);
   if (!p) return null;
 
@@ -461,10 +464,16 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
           <div className="f-m text-[11px] text-texto-tenue mt-0.5">{p.sku} · {p.barcode} · {p.proveedor}</div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Boton size="sm" variant="ghost" onClick={() => setReceta(true)}>Receta</Boton>
           {editar && <Boton size="sm" variant="ghost" onClick={() => editar(p)}>Editar ficha</Boton>}
           <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
         </div>
       </div>
+
+      {receta && (
+        <RecetaModal producto={p} productos={productos} empresaId={empresaId} toast={toast}
+          onClose={() => setReceta(false)} />
+      )}
 
       <div className="p-5 space-y-5">
         {faltantesProducto(p).length > 0 && (
@@ -472,15 +481,31 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
             Ficha incompleta. Falta: <strong>{faltantesProducto(p).join(", ")}</strong>.
           </div>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[["Costo", money(p.costo)], ["Lista 1", money(p.precio)],
-            ["Otras listas", Object.keys(p.precios || {}).length || "—"], ["Margen", pct(m)]].map(([l, v]) => (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[["Costo (PPP)", money(p.costo)],
+            ["Costo reposición", money(p.costoReposicion), p.costoReposicion > p.costo ? "text-ojo" : ""],
+            ["Lista 1", money(p.precio)],
+            ["Otras listas", Object.keys(p.precios || {}).length || "—"],
+            ["Margen", pct(m), p.precio < p.costoReposicion ? "text-mal" : ""]].map(([l, v, tono]) => (
             <div key={l} className="bg-superficie-2 rounded-xl p-3">
               <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">{l}</div>
-              <div className="f-m text-lg mt-0.5">{v}</div>
+              <div className={`f-m text-lg mt-0.5 ${tono || ""}`}>{v}</div>
             </div>
           ))}
         </div>
+
+        {p.precio > 0 && p.precio < p.costoReposicion && (
+          <div className="border border-mal bg-mal-suave rounded-xl p-4">
+            <p className="font-semibold text-mal">
+              Vendés por debajo de lo que cuesta reponer este producto hoy.
+            </p>
+            <p className="text-sm text-mal mt-1">
+              Precio {money(p.precio)} contra {money(p.costoReposicion)} de la última compra
+              {p.costoReposicionFecha ? ` (${fdate(p.costoReposicionFecha)})` : ""}. Cada unidad vendida deja
+              {" " + money(p.precio - p.costoReposicion)} de pérdida si tenés que reponer a ese costo.
+            </p>
+          </div>
+        )}
 
         {subio && (
           <div className="border border-ojo bg-ojo-suave rounded-xl p-4">
@@ -600,6 +625,185 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes }) {
           </div>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------
+   RECETA · costo por lote y producción
+   ------------------------------------------------------------
+   El costo se muestra calculado en el momento con el costo que cada
+   insumo ya tiene en `productos` — no hace falta guardar la receta para
+   ver cuánto va a salir. Recién al producir se le pregunta a la base
+   (`producir_lote`), que es quien de verdad mueve stock y promedia el
+   costo del producto final; acá nunca se calcula ese promedio, para no
+   tener dos lugares que puedan decir un número distinto. */
+function RecetaModal({ producto, productos, empresaId, toast, onClose }) {
+  const [cargando, setCargando] = useState(true);
+  const [recetaId, setRecetaId] = useState(null);
+  const [tamanoLote, setTamanoLote] = useState("1");
+  const [insumos, setInsumos] = useState([]);
+  const [buscar, setBuscar] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [lotes, setLotes] = useState("1");
+  const [produciendo, setProduciendo] = useState(false);
+
+  useEffect(() => {
+    let vigente = true;
+    (async () => {
+      try {
+        const todas = await cargarRecetas(empresaId);
+        const mia = todas.find((r) => r.itemId === producto.id && r.activa);
+        if (mia) {
+          const detalle = await cargarReceta(mia.id);
+          if (!vigente) return;
+          setRecetaId(detalle.id);
+          setTamanoLote(String(detalle.tamanoLote));
+          setInsumos(detalle.insumos.map((i) => ({ itemId: i.itemId, nombre: i.nombre, cantidad: String(i.cantidad), unidad: i.unidad })));
+        }
+      } catch (e) {
+        toast(e.message || "No pudimos cargar la receta.", "mal");
+      } finally {
+        if (vigente) setCargando(false);
+      }
+    })();
+    return () => { vigente = false; };
+  }, [producto.id, empresaId]);
+
+  const candidatos = useMemo(() => {
+    if (buscar.trim().length < 2) return [];
+    const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const t = norm(buscar.trim());
+    return productos
+      .filter((p) => p.id !== producto.id && !insumos.some((i) => i.itemId === p.id) && norm(p.nombre).includes(t))
+      .slice(0, 6);
+  }, [buscar, productos, insumos, producto.id]);
+
+  const agregarInsumo = (p) => {
+    setInsumos((ls) => [...ls, { itemId: p.id, nombre: p.nombre, cantidad: "1", unidad: p.unidad }]);
+    setBuscar("");
+  };
+  const quitarInsumo = (itemId) => setInsumos((ls) => ls.filter((i) => i.itemId !== itemId));
+  const setCantidad = (itemId, v) => setInsumos((ls) => ls.map((i) => (i.itemId === itemId ? { ...i, cantidad: v } : i)));
+
+  const costoLote = insumos.reduce((s, i) => {
+    const prod = productos.find((p) => p.id === i.itemId);
+    return s + (Number(i.cantidad) || 0) * (prod ? prod.costo : 0);
+  }, 0);
+  const costoUnidad = Number(tamanoLote) > 0 ? costoLote / Number(tamanoLote) : 0;
+  const margenConEsteCosto = producto.precio > 0 ? (producto.precio - costoUnidad) / producto.precio : null;
+
+  async function guardar() {
+    setGuardando(true);
+    try {
+      const id = await guardarReceta({
+        id: recetaId, empresaId, itemId: producto.id,
+        nombre: `Receta de ${producto.nombre}`,
+        tamanoLote: Number(tamanoLote) || 1,
+        insumos: insumos.map((i) => ({ itemId: i.itemId, cantidad: Number(i.cantidad) || 0 })),
+      });
+      setRecetaId(id);
+      toast("Receta guardada.");
+    } catch (e) {
+      toast(e.message || "No se pudo guardar la receta.", "mal");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function producir() {
+    setProduciendo(true);
+    try {
+      await producirLote(recetaId, null, Number(lotes) || 1);
+      toast(`Producidos ${lotes} lote(s) de ${producto.nombre}. Stock y costo actualizados.`);
+      onClose();
+    } catch (e) {
+      toast(e.message || "No se pudo producir.", "mal");
+    } finally {
+      setProduciendo(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} ancho="max-w-lg">
+      <div className="sticky top-0 bg-superficie border-b border-borde px-5 py-3.5 flex items-center justify-between">
+        <h3 className="f-d text-lg flex items-center gap-2"><ChefHat size={18} className="text-acento" /> Receta de {producto.nombre}</h3>
+        <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
+      </div>
+
+      {cargando ? (
+        <div className="p-5 text-sm text-texto-suave">Cargando…</div>
+      ) : (
+        <div className="p-5 space-y-4">
+          <Campo label={`De un lote salen (en ${nombreUnidad(producto.unidad).toLowerCase()}s)`}>
+            <input value={tamanoLote} onChange={(e) => setTamanoLote(e.target.value.replace(/[^\d.]/g, ""))} className={inputCls} />
+          </Campo>
+
+          <div>
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Insumos por lote</div>
+            {insumos.length === 0 && <p className="text-sm text-texto-tenue">Todavía no agregaste ningún insumo.</p>}
+            <ul className="space-y-2">
+              {insumos.map((i) => (
+                <li key={i.itemId} className="flex items-center gap-2">
+                  <span className="text-sm flex-1 min-w-0 truncate">{i.nombre}</span>
+                  <input value={i.cantidad} onChange={(e) => setCantidad(i.itemId, e.target.value.replace(/[^\d.]/g, ""))}
+                    className={`${inputCls} !w-20 text-right`} />
+                  <span className="text-xs text-texto-tenue w-6">{i.unidad}</span>
+                  <button onClick={() => quitarInsumo(i.itemId)} className="text-texto-tenue hover:text-mal shrink-0"><Trash2 size={14} /></button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="relative mt-2">
+              <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar un producto para sumarlo como insumo…"
+                className={inputCls} />
+              {candidatos.length > 0 && (
+                <ul className="absolute z-10 left-0 right-0 mt-1 bg-superficie border border-borde rounded-xl shadow-sm overflow-hidden">
+                  {candidatos.map((p) => (
+                    <li key={p.id}>
+                      <button onClick={() => agregarInsumo(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-superficie-2 flex justify-between">
+                        <span>{p.nombre}</span><span className="text-texto-tenue">{money(p.costo)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-superficie-2 rounded-xl p-3.5 grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Costo del lote</div>
+              <div className="f-m text-lg mt-0.5">{money(costoLote)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Costo por unidad</div>
+              <div className="f-m text-lg mt-0.5">{money(costoUnidad)}</div>
+              {margenConEsteCosto != null && (
+                <div className={`text-[11px] mt-0.5 ${margenConEsteCosto < 0.15 ? "text-mal" : "text-texto-tenue"}`}>
+                  margen {pct(margenConEsteCosto, 0)} contra el precio de venta actual
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Boton className="w-full" disabled={guardando || !insumos.length} onClick={guardar}>
+            {guardando ? "Guardando…" : recetaId ? "Guardar cambios" : "Guardar receta"}
+          </Boton>
+
+          {recetaId && (
+            <div className="border-t border-borde pt-4 flex items-end gap-2">
+              <Campo label="Producir">
+                <input value={lotes} onChange={(e) => setLotes(e.target.value.replace(/[^\d.]/g, ""))} className={`${inputCls} !w-24`} />
+              </Campo>
+              <span className="text-sm text-texto-suave pb-2">lote(s) — consume los insumos y da de alta {(Number(lotes) || 0) * (Number(tamanoLote) || 0)} {producto.nombre}</span>
+              <Boton variant="ghost" disabled={produciendo} onClick={producir} className="ml-auto shrink-0">
+                {produciendo ? "Produciendo…" : "Producir"}
+              </Boton>
+            </div>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }

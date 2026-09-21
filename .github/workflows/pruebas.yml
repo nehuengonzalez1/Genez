@@ -1,0 +1,28 @@
+name: Pruebas
+
+# Corre en cada PR y en cada push a develop o main lo que se puede probar
+# sin la base: qué aplicación sirve middleware.js para cada host y la
+# cabeza del alta guiada (módulos y presupuesto), que es pura. Las
+# demás pruebas (scripts/probar-*.mjs) corren contra una base real y
+# entran acá el día que haya un proyecto de Supabase de prueba con su
+# SUPABASE_DB_URL como secret; nunca contra el de producción.
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Qué app sirve cada host (middleware.js)
+        run: node scripts/probar-dominio.mjs
+      - name: El presupuesto del alta guiada (src/datos/presupuesto.js)
+        run: node scripts/probar-presupuesto.mjs

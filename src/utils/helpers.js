@@ -6,6 +6,34 @@ import { HOY, dayMs, addDays } from "../datos/generador.js";
 
 export const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
 export const nf2 = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/* Antes esto era `unidad === "kg" ? A : B` repetido en cada pantalla que
+   toca una cantidad — el paso del +/-, cuántos decimales mostrar. Sumar
+   "por metro" (caños, para sanitarios) hubiera significado un tercer
+   caso pegado en cada uno de esos lugares. Ahora es una tabla: sumar una
+   unidad nueva es una fila acá, no un cambio en diez archivos. */
+export const UNIDADES_VENTA = {
+  un: { n: "Unidad", paso: 1, decimales: 0 },
+  kg: { n: "Kilo", paso: 0.25, decimales: 2 },
+  m: { n: "Metro", paso: 0.5, decimales: 2 },
+};
+export const pasoDe = (unidad) => (UNIDADES_VENTA[unidad] || UNIDADES_VENTA.un).paso;
+export const nombreUnidad = (unidad) => (UNIDADES_VENTA[unidad] || UNIDADES_VENTA.un).n;
+export const formatoCantidad = (unidad, valor) => {
+  const { decimales } = UNIDADES_VENTA[unidad] || UNIDADES_VENTA.un;
+  return decimales ? valor.toFixed(decimales) : nf.format(valor);
+};
+
+/* La planilla de un proveedor real no va a escribir "kg" o "m" tal cual
+   —"KG.", "Mts", "metro"—, y antes cualquier cosa que no fuera "kg" a la
+   letra se guardaba como "un" en silencio: un caño importado así se
+   vendía de a uno entero, no por metro. */
+export const unidadDesdeTexto = (t) => {
+  const s = String(t || "").trim().toLowerCase();
+  if (/^kg/.test(s) || s === "kilo" || s === "kilos") return "kg";
+  if (/^m(t|ts)?\.?$/.test(s) || s.startsWith("metro")) return "m";
+  return "un";
+};
 export const money = (v) => "$" + nf.format(Math.round(v || 0));
 export const moneyk = (v) => {
   const a = Math.abs(v || 0);
@@ -27,8 +55,13 @@ export const hora = (f, conSegundos = false) => {
     hour12: false,
   });
 };
-export const diasDesde = (d) => Math.floor((HOY - d) / dayMs);
-export const diasHasta = (d) => Math.ceil((d - HOY) / dayMs);
+/* Con la fecha real y no con el HOY congelado del prototipo: la última
+   venta y los vencimientos ya vienen de la base. Los dos lados se cortan a
+   medianoche para contar días enteros, que es lo que lee la pantalla. */
+const medianoche = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const hoy = () => medianoche(new Date());
+export const diasDesde = (d) => Math.floor((hoy() - medianoche(d)) / dayMs);
+export const diasHasta = (d) => Math.ceil((medianoche(d) - hoy()) / dayMs);
 
 /* Los dos valores los define index.html. El respaldo es para cuando este
    módulo corre fuera del navegador, y tiene que decir lo mismo que ahí:
@@ -168,9 +201,9 @@ export function productoNuevo(datos) {
     unidad: datos.unidad || "un",
     proveedor: datos.proveedor || "",
     vel: 0, u30: 0, u30p: 0,
-    ultimaVenta: HOY, vence: null,
-    historial: costo ? [{ fecha: HOY, costo }] : [],
-    activo: true, nuevo: true, creado: HOY,
+    ultimaVenta: hoy(), vence: null,
+    historial: costo ? [{ fecha: hoy(), costo }] : [],
+    activo: true, nuevo: true, creado: hoy(),
   };
 }
 
@@ -184,7 +217,39 @@ export const MEDIOS_INICIALES = [
   { k: "credito", n: "Crédito", tasa: 3.1, recargo: false, activo: true },
   { k: "mp", n: "QR / Mercado Pago", tasa: 0.8, recargo: false, activo: true },
   { k: "transferencia", n: "Transferencia", tasa: 0, recargo: false, activo: true },
+  { k: "cuenta_corriente", n: "Cuenta corriente", tasa: 0, recargo: false, activo: true },
 ];
+
+/* No es un medio como los demás: no entra plata a la caja, entra una
+   deuda del cliente. `confirmar_operacion` lo excluye del ingreso de
+   caja por su clave — cambiarla acá también hay que cambiarla ahí. */
+export const MEDIO_CUENTA_CORRIENTE = "cuenta_corriente";
+
+/* --- Códigos de balanza -------------------------------------------------
+   Las balanzas de fiambrería/verdulería imprimen un EAN-13 con el peso o
+   el precio del artículo adentro del código, no un código de barras real:
+   por eso el prefijo va del 20 al 29 (rango que GS1 reserva para "uso
+   interno", nunca para un producto de fábrica). No hay un único formato
+   —cada balanza se configura distinto—, así que el prefijo y cuántos
+   dígitos son código y cuántos son peso o precio se guardan en Ajustes,
+   no van fijos en el código. */
+export const BALANZA_INICIAL = { activo: false, prefijo: "2", digitosCodigo: 6, digitosValor: 5, modo: "peso" };
+
+/* Devuelve `{ codigo, peso }` o `{ codigo, importe }` según `modo`, o
+   `null` si el código no tiene la forma esperada (longitud o prefijo) —
+   en ese caso quien llama sigue con la búsqueda normal por código de
+   barras, como si esto no existiera. */
+export function leerCodigoBalanza(cod, cfg) {
+  if (!cfg || !cfg.activo) return null;
+  const total = cfg.prefijo.length + cfg.digitosCodigo + cfg.digitosValor + 1;
+  if (cod.length !== total || !cod.startsWith(cfg.prefijo)) return null;
+
+  const desde = cfg.prefijo.length;
+  const codigo = cod.slice(desde, desde + cfg.digitosCodigo);
+  const valor = Number(cod.slice(desde + cfg.digitosCodigo, desde + cfg.digitosCodigo + cfg.digitosValor));
+
+  return cfg.modo === "peso" ? { codigo, peso: valor / 1000 } : { codigo, importe: valor };
+}
 
 /* --- Régimen fiscal ----------------------------------------------------
    Qué comprobante se puede emitir no lo decide el cajero: lo determina la

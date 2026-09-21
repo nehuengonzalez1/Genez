@@ -20,7 +20,7 @@ import {
   ChevronLeft, Plus, AlertTriangle, Trash2, Calendar, Ticket,
   Receipt, StickyNote, Phone, Mail, MapPin, Smartphone,
 } from "lucide-react";
-import { cargarFicha, anotarEnFicha, borrarNota, invitarALaApp, quitarLaApp } from "../datos/clientes.js";
+import { cargarFicha, anotarEnFicha, borrarNota, invitarALaApp, quitarLaApp, registrarPagoCC } from "../datos/clientes.js";
 import { estadoDe } from "../datos/agenda.js";
 import { estadoAbono } from "../datos/abonos.js";
 import { money, nf, pct, linkWhatsapp } from "../utils/helpers.js";
@@ -194,13 +194,16 @@ function AccesoApp({ cliente, onInvitar, onQuitar, puede, toast }) {
 }
 
 
-export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permisos, toast }) {
+export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permisos, toast, sesionId }) {
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [pestana, setPestana] = useState("historial");
   const [nota, setNota] = useState("");
   const [alerta, setAlerta] = useState(false);
+  const [montoCC, setMontoCC] = useState("");
+  const [medioCC, setMedioCC] = useState("efectivo");
+  const [guardandoCC, setGuardandoCC] = useState(false);
 
   const releer = useCallback(async () => {
     const d = await cargarFicha(empresaId, clienteId);
@@ -234,6 +237,22 @@ export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permiso
       await releer();
     } catch (e) {
       toast(e.message || "No se pudo anotar.", "mal");
+    }
+  }
+
+  async function pagarCC() {
+    const monto = Number(montoCC);
+    if (!monto || monto <= 0) return;
+    setGuardandoCC(true);
+    try {
+      await registrarPagoCC(clienteId, sesionId, monto, medioCC);
+      setMontoCC("");
+      toast(`${money(monto)} registrado en la cuenta corriente.`);
+      await releer();
+    } catch (e) {
+      toast(e.message || "No se pudo registrar el pago.", "mal");
+    } finally {
+      setGuardandoCC(false);
     }
   }
 
@@ -322,6 +341,7 @@ export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permiso
         { k: "historial", n: "Historial", badge: turnos.length || null },
         { k: "abonos", n: "Abonos", badge: abonos.length || null },
         { k: "pagos", n: "Pagos", badge: ventas.length || null },
+        { k: "cc", n: "Cuenta corriente", badge: datos.saldoCC > 0 ? "!" : null },
         { k: "notas", n: "Notas", badge: notas.length || null },
       ]} />
 
@@ -398,6 +418,52 @@ export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permiso
               ))}
             </ul>
           )
+        )}
+
+        {/* ---------- Cuenta corriente ---------- */}
+        {pestana === "cc" && (
+          <div className="p-4 space-y-4">
+            <div className={`rounded-xl p-3.5 border ${datos.saldoCC > 0 ? "bg-mal-suave border-mal" : "bg-superficie-2 border-borde"}`}>
+              <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Saldo</div>
+              <div className={`f-d text-2xl ${datos.saldoCC > 0 ? "text-mal" : "text-texto"}`}>{money(datos.saldoCC)}</div>
+              <p className="text-xs text-texto-suave mt-1">
+                {datos.saldoCC > 0 ? "Es lo que debe hoy: ventas a cuenta corriente menos lo que ya pagó." : "Sin deuda pendiente."}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-[140px]">
+                <label className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Registrar un pago</label>
+                <input value={montoCC} onChange={(e) => setMontoCC(e.target.value.replace(/[^\d]/g, ""))}
+                  placeholder="Monto" className={`${inputCls} mt-1`} />
+              </div>
+              <select value={medioCC} onChange={(e) => setMedioCC(e.target.value)} className={`${inputCls} w-40`}>
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="debito">Débito</option>
+                <option value="credito">Crédito</option>
+                <option value="mp">QR / Mercado Pago</option>
+              </select>
+              <Boton disabled={!montoCC || guardandoCC} onClick={pagarCC}>
+                {guardandoCC ? "Guardando…" : "Registrar"}
+              </Boton>
+            </div>
+            {!sesionId && <p className="text-xs text-ojo">Abrí la caja para poder registrar un pago.</p>}
+
+            {datos.pagosCC.length === 0 ? (
+              <Vacio>Todavía no pagó nada de su cuenta corriente.</Vacio>
+            ) : (
+              <ul className="divide-y divide-borde border border-borde rounded-xl overflow-hidden">
+                {datos.pagosCC.map((p) => (
+                  <li key={p.id} className="px-4 py-3 flex flex-wrap items-center gap-3">
+                    <span className="f-m text-xs text-texto-tenue w-20 shrink-0">{fecha(p.fecha)}</span>
+                    <div className="min-w-0 flex-1 text-sm text-texto-suave capitalize">{p.medio.replace("_", " ")}</div>
+                    <span className="f-m text-sm text-bien font-semibold shrink-0">{money(p.monto)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {/* ---------- Notas ---------- */}

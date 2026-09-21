@@ -20,15 +20,26 @@ import {
 import { preguntarAlModelo } from "../datos/modelo.js";
 import { EscanerCamara, TicketModal, FormProveedor } from "./Vender.jsx";
 import { palabras, emparejar } from "./Stock.jsx";
+import { registrarCompra } from "../datos/compras.js";
+import { crearProducto } from "../datos/items.js";
 
 // Camera importada como Cam para los usos que la usan con ese nombre
 const Cam = Camera;
 
-export function CargarCompra({ productos, setProductos, movCaja, toast, provs, setProvs }) {
+/* Mismo cálculo que el modo "ppp" de registrarCompra(), para que la
+   actualización optimista de la UI muestre el mismo costo que va a
+   quedar guardado, sin esperar a releer. */
+const ppp = (stockPrevio, costoPrevio, cantidad, costoNuevo) => {
+  const total = stockPrevio + cantidad;
+  return total > 0 ? Math.round(((stockPrevio * costoPrevio + cantidad * costoNuevo) / total) * 100) / 100 : costoNuevo;
+};
+
+export function CargarCompra({ empresaId, productos, setProductos, movCaja, toast, provs, setProvs }) {
   const [lineas, setLineas] = useState([]);
   const [prov, setProv] = useState(Object.keys(provs)[0]);
   const [comprobante, setComprobante] = useState("");
   const [pagado, setPagado] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [leyendo, setLeyendo] = useState(false);
   const [errorFoto, setErrorFoto] = useState(null);
   const [buscando, setBuscando] = useState(null);
@@ -138,31 +149,55 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
     setLeyendo(false);
   };
 
-  const confirmar = () => {
+  /* Antes esto solo tocaba el estado de React: la mercadería "entraba" en
+     pantalla y se perdía al refrescar. Ahora primero se da de alta lo que
+     hacía falta y se registra la compra de verdad (0001 ya admite
+     `operaciones.tipo = 'compra'`, no hizo falta una tabla nueva) — recién
+     con eso confirmado se actualiza la pantalla, igual que antes. */
+  const confirmar = async () => {
     const validas = lineas.filter((l) => (l.pid || l.crear) && Number(l.cant) > 0);
     if (!validas.length) return;
     const altas = validas.filter((l) => !l.pid && l.crear);
 
-    setProductos((ps) => {
-      let acc = [...ps];
-      const mapa = {};
+    setGuardando(true);
+    let creados = {};
+    try {
       for (const l of altas) {
-        const p = productoNuevo({
+        creados[l.uid] = await crearProducto(empresaId, {
           nombre: l.crear.nombre, costo: l.costo, precio: l.crear.precio,
-          categoria: l.crear.categoria, barcode: l.crear.barcode, proveedor: prov, bulto: 1,
+          categoria: l.crear.categoria, barcode: l.crear.barcode, proveedor: prov, bulto: 1, stock: 0,
         });
-        acc = [...acc, p];
-        mapa[l.uid] = p.id;
       }
+
+      const proveedorId = (provs[prov] || {}).id || null;
+      await registrarCompra({
+        empresaId, proveedorId, comprobante,
+        lineas: validas.map((l) => ({
+          itemId: l.pid || creados[l.uid].id,
+          descripcion: l.pid ? l.nombre : l.crear.nombre,
+          cantidad: l.cant,
+          costoUnitario: l.costo,
+          actualizarCosto: "ppp",
+        })),
+      });
+    } catch (e) {
+      setGuardando(false);
+      return toast(e.message || "No se pudo registrar la compra.", "mal");
+    }
+
+    setProductos((ps) => {
+      const acc = [...ps, ...Object.values(creados)];
       return acc.map((p) => {
-        const l = validas.find((x) => (x.pid || mapa[x.uid]) === p.id);
+        const l = validas.find((x) => (x.pid || creados[x.uid]?.id) === p.id);
         if (!l) return p;
-        const costo = Number(l.costo) || p.costo;
+        const costo = ppp(p.stock, p.costo, Number(l.cant), Number(l.costo));
         const precio = Number(l.pid ? l.precio : l.crear.precio) || p.precio;
         return {
           ...p,
           stock: +(p.stock + Number(l.cant)).toFixed(3),
           costo, precio,
+          costoReposicion: Number(l.costo),
+          costoReposicionFecha: new Date(),
           historial: costo !== p.costo ? [...p.historial, { fecha: HOY, costo }] : p.historial,
         };
       });
@@ -174,6 +209,7 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
     if (altas.length) partes.push(`${altas.length} dados de alta`);
     if (incompletas) partes.push(`${incompletas} sin precio de venta`);
     toast(partes.join(" · ") + ".", incompletas ? "mal" : "ok");
+    setGuardando(false);
     setLineas([]); setComprobante(""); setPagado(false); setAvisoProv(null);
   };
 
@@ -358,7 +394,9 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
             </label>
             <div className="flex items-center gap-3">
               <div className="text-right"><div className="text-[11px] text-texto-tenue">Total de la compra</div><div className="f-d text-xl">{money(total)}</div></div>
-              <Boton onClick={confirmar} disabled={!lineas.some((l) => l.pid || l.crear)}><Check size={16} /> Confirmar compra</Boton>
+              <Boton onClick={confirmar} disabled={guardando || !lineas.some((l) => l.pid || l.crear)}>
+                {guardando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} {guardando ? "Guardando…" : "Confirmar compra"}
+              </Boton>
             </div>
           </div>
         </>
@@ -397,11 +435,12 @@ export function CargarCompra({ productos, setProductos, movCaja, toast, provs, s
   );
 }
 
-export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCaja, toast, cobertura, provs, setProvs }) {
+export function Compras({ empresaId, productos, setProductos, k, pedidos, setPedidos, movCaja, toast, cobertura, provs, setProvs }) {
   const [altaProv, setAltaProv] = useState(null);
   const [prov, setProv] = useState(Object.keys(provs)[0]);
   const [sel, setSel] = useState({});
   const [recibiendo, setRecibiendo] = useState(null);
+  const [recibiendoGuarda, setRecibiendoGuarda] = useState(false);
   const [tab, setTab] = useState("cargar");
 
   const sugeridos = useMemo(() => k.sugeridos.filter((s) => s.p.proveedor === prov), [k.sugeridos, prov]);
@@ -445,18 +484,41 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
     toast(`Pedido ${ped.nro} generado para ${prov}.`);
   };
 
-  const recibir = (ped, lineasRec) => {
+  const recibir = async (ped, lineasRec) => {
+    setRecibiendoGuarda(true);
+    try {
+      await registrarCompra({
+        empresaId,
+        proveedorId: (provs[ped.prov] || {}).id || null,
+        comprobante: ped.nro,
+        lineas: lineasRec.map((l) => ({
+          itemId: l.pid,
+          descripcion: productos.find((p) => p.id === l.pid)?.nombre || l.pid,
+          cantidad: l.cant,
+          costoUnitario: l.costo,
+          actualizarCosto: "ppp",
+        })),
+      });
+    } catch (e) {
+      setRecibiendoGuarda(false);
+      return toast(e.message || "No se pudo registrar la recepción.", "mal");
+    }
+
     setProductos((ps) => ps.map((p) => {
       const l = lineasRec.find((x) => x.pid === p.id);
       if (!l) return p;
-      const nuevoCosto = Number(l.costo) || p.costo;
+      const nuevoCosto = ppp(p.stock, p.costo, Number(l.cant), Number(l.costo));
       const hist = nuevoCosto !== p.costo ? [...p.historial, { fecha: HOY, costo: nuevoCosto }] : p.historial;
-      return { ...p, stock: +(p.stock + Number(l.cant)).toFixed(2), costo: nuevoCosto, historial: hist };
+      return {
+        ...p, stock: +(p.stock + Number(l.cant)).toFixed(2), costo: nuevoCosto, historial: hist,
+        costoReposicion: Number(l.costo), costoReposicionFecha: new Date(),
+      };
     }));
     const total = lineasRec.reduce((s, l) => s + Number(l.cant) * Number(l.costo), 0);
     const contado = (provs[ped.prov] || {}).pago === "Contado";
     if (contado) movCaja({ tipo: "egreso", medio: "efectivo", monto: total, detalle: `Compra ${ped.nro} · ${ped.prov}` });
     setPedidos((ps) => ps.map((x) => (x.id === ped.id ? { ...x, estado: "recibido", total } : x)));
+    setRecibiendoGuarda(false);
     setRecibiendo(null);
     toast(contado ? `Mercadería recibida y ${money(total)} pagados de caja.` : `Mercadería recibida. ${money(total)} quedan en cuenta corriente.`);
   };
@@ -468,7 +530,7 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
           <Tabs items={[{ k: "cargar", n: "Cargar compra" }, { k: "sugerido", n: "Pedido sugerido" }, { k: "pedidos", n: "Órdenes de compra", badge: pedidos.length }, { k: "prov", n: "Proveedores" }]} value={tab} onChange={setTab} />
         </div>
 
-        {tab === "cargar" && <CargarCompra productos={productos} setProductos={setProductos} movCaja={movCaja} toast={toast} provs={provs} setProvs={setProvs} />}
+        {tab === "cargar" && <CargarCompra empresaId={empresaId} productos={productos} setProductos={setProductos} movCaja={movCaja} toast={toast} provs={provs} setProvs={setProvs} />}
 
         {tab === "sugerido" && (
           <div>
@@ -615,12 +677,12 @@ export function Compras({ productos, setProductos, k, pedidos, setPedidos, movCa
           toast(f.length ? `${nombre} guardado. Falta ${f.join(", ")}.` : `${nombre} guardado.`);
         }} />
 
-      {recibiendo && <RecepcionModal ped={recibiendo} onClose={() => setRecibiendo(null)} onConfirm={recibir} provs={provs} />}
+      {recibiendo && <RecepcionModal ped={recibiendo} onClose={() => setRecibiendo(null)} onConfirm={recibir} provs={provs} guardando={recibiendoGuarda} />}
     </div>
   );
 }
 
-function RecepcionModal({ ped, onClose, onConfirm, provs }) {
+function RecepcionModal({ ped, onClose, onConfirm, provs, guardando }) {
   const [lineas, setLineas] = useState(ped.items.map((i) => ({ ...i, cant: i.cant, costo: i.costo, ver: 0 })));
   const set = (pid, campo, val) => setLineas((ls) => ls.map((l) => (l.pid === pid ? { ...l, [campo]: val } : l)));
   useScanHandler((cod) => {
@@ -688,7 +750,9 @@ function RecepcionModal({ ped, onClose, onConfirm, provs }) {
           <div><span className="text-sm text-texto-suave">Total a pagar </span><span className="f-d text-xl">{money(total)}</span>
             <div className="text-xs text-texto-tenue">{(provs[ped.prov] || {}).pago === "Contado" ? "Sale de caja al confirmar" : "Queda en cuenta corriente"}</div>
           </div>
-          <Boton onClick={() => onConfirm(ped, lineas)}><Check size={15} /> Confirmar recepción</Boton>
+          <Boton onClick={() => onConfirm(ped, lineas)} disabled={guardando}>
+            {guardando ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} {guardando ? "Guardando…" : "Confirmar recepción"}
+          </Boton>
         </div>
       </div>
     </Modal>

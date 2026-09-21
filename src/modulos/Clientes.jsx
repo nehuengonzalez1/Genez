@@ -79,7 +79,7 @@ export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
    por qué cargar las cuentas de todos para elegir un nombre.
    ============================================================ */
 
-export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId, permisos, toast }) {
+export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId, permisos, toast, sesionId }) {
   const [q, setQ] = useState("");
   const [alta, setAlta] = useState(null);
   const [ficha, setFicha] = useState(null);
@@ -104,7 +104,7 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
 
   if (ficha) {
     return (
-      <FichaCliente empresaId={empresaId} clienteId={ficha} permisos={permisos} toast={toast}
+      <FichaCliente empresaId={empresaId} clienteId={ficha} permisos={permisos} toast={toast} sesionId={sesionId}
         onVolver={() => { setFicha(null); releer().catch(() => {}); }}
         onEditar={(c) => setAlta(c)} />
     );

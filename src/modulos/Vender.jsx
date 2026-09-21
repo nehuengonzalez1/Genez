@@ -12,7 +12,8 @@ import { HOY } from "../datos/generador.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   letraComprobante, conRecargo, mediosDe, medioPorK, FISCAL_INICIAL,
-  condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo
+  condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
+  leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE
 } from "../utils/helpers.js";
 import {
   beep, useScanHandler, imprimirComandera, ticketVenta,
@@ -406,7 +407,7 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
   );
 }
 
-function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
+export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
   const [q, setQ] = useState("");
   const [nuevo, setNuevo] = useState(false);
   const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -479,6 +480,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [alta, setAlta] = useState(null);
   const [ultimo, setUltimo] = useState(null);
   const [camara, setCamara] = useState(false);
+  const [verTodo, setVerTodo] = useState(false);
   const inp = useRef(null);
   const inpMonto = useRef(null);
   const inpMix = useRef(null);
@@ -489,17 +491,24 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   useEffect(() => { if (paso === "mixto" && inpMix.current) inpMix.current.focus(); }, [paso, pagos.length]);
 
   const norm = (t) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  /* "Ver todo" es para el mostrador sin pistola: la mayor\u00eda de estos
+     art\u00edculos no tiene c\u00f3digo de barras, as\u00ed que escribir el nombre a
+     ciegas no alcanza \u2014 hace falta poder tocar de una lista. Ordenado
+     por lo m\u00e1s vendido primero, que es lo que m\u00e1s se va a volver a
+     pedir. Se apaga solo en cuanto el operador escribe algo: buscar y
+     mirar todo son dos modos, no uno encima del otro. */
   const res = useMemo(() => {
+    if (verTodo && q.trim().length < 2) return [...productos].sort((a, b) => (b.u30 || 0) - (a.u30 || 0)).slice(0, 60);
     if (q.trim().length < 2) return [];
     const t = norm(q.trim());
     const ex = productos.find((p) => p.barcode === q.trim());
     if (ex) return [ex];
     return productos.filter((p) => norm(p.nombre).includes(t) || p.sku.toLowerCase().includes(t)).slice(0, 7);
-  }, [q, productos]);
+  }, [q, productos, verTodo]);
 
   const add = (p, qty) => {
     if (!p.precio) { beep(false, ajustes.sonido); return toast(`${p.nombre} no tiene precio de venta cargado.`, "mal"); }
-    const paso_ = p.unidad === "kg" ? 0.25 : 1;
+    const paso_ = pasoDe(p.unidad);
     const cantidad = qty != null ? qty : paso_;
     setCart((c) => {
       const i = c.findIndex((l) => l.pid === p.id);
@@ -511,6 +520,20 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   };
 
   useScanHandler((cod) => {
+    /* Balanza antes que código de barras normal: un código de balanza
+       tiene la misma forma (todo dígitos) y si se buscara tal cual nunca
+       va a matchear ningún producto — hay que desarmarlo primero. */
+    const bal = leerCodigoBalanza(cod, ajustes.balanza);
+    if (bal) {
+      const p = productos.find((x) => x.barcode === bal.codigo);
+      if (p) {
+        const cantidad = bal.peso != null ? bal.peso : +(bal.importe / p.precio).toFixed(3);
+        add(p, cantidad);
+        return beep(true, ajustes.sonido);
+      }
+      beep(false, ajustes.sonido);
+      return toast(`Balanza: no hay ningún producto con el código ${bal.codigo}.`, "mal");
+    }
     const p = productos.find((x) => x.barcode === cod);
     if (p) { add(p); beep(true, ajustes.sonido); }
     else { beep(false, ajustes.sonido); setAlta({ barcode: cod }); }
@@ -533,7 +556,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     setQ(""); setSel(0);
     setTimeout(() => {
       if (agregar && creado && creado.precio) {
-        setCart((c) => [...c, { pid: creado.id, qty: creado.unidad === "kg" ? 0.25 : 1, precio: creado.precio, precios: creado.precios || {}, costo: creado.costo, nombre: creado.nombre, unidad: creado.unidad }]);
+        setCart((c) => [...c, { pid: creado.id, qty: pasoDe(creado.unidad), precio: creado.precio, precios: creado.precios || {}, costo: creado.costo, nombre: creado.nombre, unidad: creado.unidad }]);
         setUltimo({ pid: creado.id, nombre: creado.nombre, unidad: creado.unidad });
         beep(true, ajustes.sonido);
         toast(`${datos.nombre} creado y agregado. Completá la ficha después.`);
@@ -600,6 +623,16 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   };
 
   const finalizar = (k, recibido, listaPagos, vueltoDado) => {
+    /* A cuenta corriente es una deuda de alguien puntual: sin saber de
+       quién, no hay a quién cobrarle después. Se frena acá, el único
+       lugar por el que pasan las tres formas de cobrar (un solo medio,
+       con vuelto, o combinado). */
+    const esCC = (p) => p.medio === MEDIO_CUENTA_CORRIENTE;
+    if ((k === MEDIO_CUENTA_CORRIENTE || (listaPagos || []).some(esCC)) && !cliente) {
+      beep(false, ajustes.sonido);
+      toast("Elegí un cliente antes de cobrar a cuenta corriente.", "mal");
+      return setBuscarCliente(true);
+    }
     const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre }));
     const m = medioPorK(ajustes, k);
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
@@ -749,6 +782,12 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <input ref={inp} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} onKeyDown={onKeyInput}
               placeholder="Escaneá o escribí el nombre · Enter con el campo vacío cobra"
               className="f-m flex-1 bg-transparent text-texto placeholder-stone-500 text-base outline-none py-1" autoFocus />
+            <button onClick={() => { setVerTodo((v) => !v); setQ(""); inp.current && inp.current.focus(); }}
+              className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold border rounded-xl px-2.5 py-2 ${
+                verTodo ? "text-acento border-acento bg-acento-suave" : "text-texto bg-superficie/10 active:bg-superficie/20 border-borde-fuerte"}`}
+              title="Buscar tocando, para lo que no tiene código de barras">
+              <Search size={16} className={verTodo ? "" : "text-acento-vivo"} /> <span className="hidden sm:inline">Catálogo</span>
+            </button>
             <button onClick={() => setCamara(true)}
               className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/10 active:bg-superficie/20 border border-borde-fuerte rounded-xl px-2.5 py-2"
               title="Leer con la cámara">
@@ -760,7 +799,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <div className="px-4 py-2.5 bg-bien-suave border-b border-bien flex items-center gap-2 text-sm">
               <span className="f-d text-emerald-800 text-lg">{aNumero(q)}</span>
               <span className="text-emerald-900 truncate flex-1">
-                {activo.unidad === "kg" ? "kg de" : "unidades de"} <strong>{activo.nombre}</strong>
+                {activo.unidad === "un" ? "unidades de" : `${nombreUnidad(activo.unidad).toLowerCase()}s de`} <strong>{activo.nombre}</strong>
               </span>
               <Tecla>Enter</Tecla>
             </div>
@@ -777,14 +816,22 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <ul className="divide-y divide-borde max-h-72 overflow-auto">
               {res.map((p, i) => (
                 <li key={p.id}>
-                  <button onMouseEnter={() => setSel(i)} onClick={() => add(p)}
-                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 ${i === sel ? "bg-acento-suave" : "hover:bg-superficie-2"}`}>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-texto truncate">{p.nombre}</div>
-                      <div className="f-m text-[11px] text-texto-tenue">{p.barcode || "sin código"} · stock {p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</div>
-                    </div>
-                    <div className="f-m text-sm font-semibold shrink-0">{p.precio ? money(p.precio) : <span className="text-ojo text-xs">sin precio</span>}</div>
-                  </button>
+                  <div className={`w-full flex items-center gap-2 px-4 py-2.5 ${i === sel ? "bg-acento-suave" : "hover:bg-superficie-2"}`}>
+                    <button onMouseEnter={() => setSel(i)} onClick={() => add(p)} className="text-left flex-1 min-w-0 flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-texto truncate">{p.nombre}</div>
+                        <div className="f-m text-[11px] text-texto-tenue">{p.barcode || "sin código"} · stock {formatoCantidad(p.unidad, p.stock)}</div>
+                      </div>
+                      <div className="f-m text-sm font-semibold shrink-0">{p.precio ? money(p.precio) : <span className="text-ojo text-xs">sin precio</span>}</div>
+                    </button>
+                    {p.bulto > 1 && (
+                      <button onClick={() => add(p, p.bulto)}
+                        title={`Vender el bulto entero: ${p.bulto} unidades`}
+                        className="shrink-0 text-[11px] font-semibold px-2 py-1 rounded-lg border border-borde text-texto-suave hover:border-acento hover:text-acento">
+                        ×{p.bulto} bulto
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -811,9 +858,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     <button onClick={() => quitar(l.pid)} className="text-texto-tenue active:text-mal shrink-0 p-1"><Trash2 size={16} /></button>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <button onClick={() => setQty(l.pid, l.qty - (l.unidad === "kg" ? 0.25 : 1))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Minus size={16} /></button>
-                    <span className="f-m w-14 text-center text-base">{l.unidad === "kg" ? l.qty.toFixed(2) : l.qty}</span>
-                    <button onClick={() => setQty(l.pid, l.qty + (l.unidad === "kg" ? 0.25 : 1))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Plus size={16} /></button>
+                    <button onClick={() => setQty(l.pid, l.qty - pasoDe(l.unidad))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Minus size={16} /></button>
+                    <span className="f-m w-14 text-center text-base">{formatoCantidad(l.unidad, l.qty)}</span>
+                    <button onClick={() => setQty(l.pid, l.qty + pasoDe(l.unidad))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Plus size={16} /></button>
                   </div>
                 </li>
               ))}
@@ -846,9 +893,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     </td>
                     <td className="px-2 py-2.5">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setQty(l.pid, l.qty - (l.unidad === "kg" ? 0.25 : 1))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Minus size={13} /></button>
-                        <span className="f-m w-12 text-center">{l.unidad === "kg" ? l.qty.toFixed(2) : l.qty}</span>
-                        <button onClick={() => setQty(l.pid, l.qty + (l.unidad === "kg" ? 0.25 : 1))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Plus size={13} /></button>
+                        <button onClick={() => setQty(l.pid, l.qty - pasoDe(l.unidad))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Minus size={13} /></button>
+                        <span className="f-m w-12 text-center">{formatoCantidad(l.unidad, l.qty)}</span>
+                        <button onClick={() => setQty(l.pid, l.qty + pasoDe(l.unidad))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Plus size={13} /></button>
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-right f-m text-texto-suave">
@@ -1433,7 +1480,7 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
           </Campo>
           <Campo label="Unidad de venta">
             <select value={d.unidad} onChange={(e) => set("unidad", e.target.value)} className={inputCls}>
-              <option value="un">Por unidad</option><option value="kg">Por kilo</option>
+              <option value="un">Por unidad</option><option value="kg">Por kilo</option><option value="m">Por metro</option>
             </select>
           </Campo>
           <Campo label="Compra por bulto de">
