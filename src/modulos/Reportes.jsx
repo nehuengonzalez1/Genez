@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
 import { money, moneyk, pct, nf } from "../utils/helpers.js";
 import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
-import { cargarSerieDiaria } from "../datos/ventas.js";
+import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
 import { tonoCanal } from "../ui/canales.jsx";
 
 /* Los tres de siempre. El resto se escribe. */
@@ -18,7 +18,7 @@ const ATAJOS = [7, 30, 90];
    trescientos mil días y deje la pantalla colgada armando el gráfico. */
 const TOPE_DIAS = 3650;
 
-export function Reportes({ productos, k, ir, empresaId = null, conPedidos = false }) {
+export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
   const [dias, setDias] = useState(30);
   const [aMedida, setAMedida] = useState("");
 
@@ -60,21 +60,43 @@ export function Reportes({ productos, k, ir, empresaId = null, conPedidos = fals
   const serie = diario.slice(-dias).map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
   const ventas = serie.reduce((s, d) => s + d.ventas, 0);
   const costo = serie.reduce((s, d) => s + d.costo, 0);
-  const factor = dias / 30;
+  /* LOS TRES CUADROS SALEN DEL HISTORIAL
 
-  const topVenta = [...productos].sort((a, b) => b.u30 * b.precio - a.u30 * a.precio).slice(0, 10);
-  const topGanancia = [...productos].sort((a, b) => (b.precio - b.costo) * b.u30 - (a.precio - a.costo) * a.u30).slice(0, 10);
+     Antes escalaban `u30` —la venta de los últimos treinta días— por el
+     período elegido. Era una proyección, no lo que pasó, y con un período
+     a medida se leía como si fuera historia. `ventas_por_item` (0080) lee
+     las líneas de las ventas confirmadas del período, con el mismo
+     criterio que la serie de arriba. */
+  const [porItem, setPorItem] = useState([]);
+
+  useEffect(() => {
+    if (!empresaId) return;
+    let vigente = true;
+    cargarVentasPorItem(empresaId, dias)
+      .then((v) => { if (vigente) setPorItem(v); })
+      .catch((e) => {
+        if (!vigente) return;
+        setPorItem([]);
+        console.error("No se pudieron cargar las ventas por producto:", e);
+      });
+    return () => { vigente = false; };
+  }, [empresaId, dias]);
+
+  /* Ya viene ordenado por venta desde la base. */
+  const topVenta = porItem.slice(0, 10);
+  const topGanancia = [...porItem].sort((a, b) => b.ganancia - a.ganancia).slice(0, 10);
+
   const porCat = useMemo(() => {
     const m = {};
-    productos.forEach((p) => {
+    porItem.forEach((p) => {
       if (!m[p.categoria]) m[p.categoria] = { cat: p.categoria, venta: 0, ganancia: 0 };
-      m[p.categoria].venta += p.precio * p.u30 * factor;
-      m[p.categoria].ganancia += (p.precio - p.costo) * p.u30 * factor;
+      m[p.categoria].venta += p.venta;
+      m[p.categoria].ganancia += p.ganancia;
     });
     return Object.values(m).sort((a, b) => b.venta - a.venta);
-  }, [productos, factor]);
+  }, [porItem]);
 
-  const maxVenta = topVenta.length ? topVenta[0].u30 * topVenta[0].precio : 1;
+  const maxVenta = topVenta.length ? topVenta[0].venta : 1;
 
   return (
     <div className="space-y-5">
@@ -147,48 +169,56 @@ export function Reportes({ productos, k, ir, empresaId = null, conPedidos = fals
       <div className="grid lg:grid-cols-2 gap-4">
         <Card className="p-4">
           <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Los que más facturan</div>
-          {/* Estas dos tablas y la de rubros no miran la serie: escalan la
-              venta de los últimos 30 días por el período elegido. Con 7, 30
-              y 90 la diferencia era chica y estaba implícita; con un rango a
-              medida —alguien va a pedir 365— deja de estarlo. Se dice. */}
-          <p className="text-[11px] text-texto-tenue -mt-2 mb-3">
-            Estimado: la venta de los últimos 30 días llevada a {dias} días, no el historial real.
-          </p>
+          {topVenta.length === 0 ? (
+            <Vacio>No hubo ventas en este período.</Vacio>
+          ) : (
           <ul className="space-y-2.5">
             {topVenta.map((p, i) => (
-              <li key={p.id}>
+              <li key={p.nombre}>
                 <div className="flex justify-between text-sm gap-3">
                   <span className="truncate text-texto"><span className="f-m text-texto-tenue mr-2">{i + 1}</span>{p.nombre}</span>
-                  <span className="f-m shrink-0">{money(p.u30 * p.precio * factor)}</span>
+                  <span className="f-m shrink-0">{money(p.venta)}</span>
                 </div>
-                <div className="h-1.5 bg-superficie-2 rounded-full mt-1 overflow-hidden">
-                  <div className="h-full bg-superficie-3 rounded-full" style={{ width: `${(p.u30 * p.precio / maxVenta) * 100}%` }} />
+                <div className="flex justify-between items-center gap-3">
+                  <div className="h-1.5 bg-superficie-2 rounded-full mt-1 overflow-hidden flex-1">
+                    <div className="h-full bg-superficie-3 rounded-full" style={{ width: `${(p.venta / maxVenta) * 100}%` }} />
+                  </div>
+                  {/* Cuántas se vendieron: el importe solo no distingue
+                      entre lo que sale mucho y lo que sale caro. */}
+                  <span className="f-m text-[10px] text-texto-tenue shrink-0">{nf.format(p.unidades)} u</span>
                 </div>
               </li>
             ))}
           </ul>
+          )}
         </Card>
 
         <Card className="p-4">
           <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Los que más ganancia dejan</div>
-          <p className="text-[11px] text-texto-tenue -mt-2 mb-3">Estimado, igual que el de al lado.</p>
+          {topGanancia.length === 0 ? (
+            <Vacio>No hubo ventas en este período.</Vacio>
+          ) : (
           <ul className="space-y-2">
             {topGanancia.map((p, i) => (
-              <li key={p.id} className="flex items-center justify-between text-sm gap-3 py-0.5">
+              <li key={p.nombre} className="flex items-center justify-between text-sm gap-3 py-0.5">
                 <span className="truncate text-texto"><span className="f-m text-texto-tenue mr-2">{i + 1}</span>{p.nombre}</span>
                 <span className="shrink-0 text-right">
-                  <span className="f-m block">{money((p.precio - p.costo) * p.u30 * factor)}</span>
-                  <span className="text-[10px] text-texto-tenue">{pct((p.precio - p.costo) / p.precio, 0)} margen</span>
+                  <span className="f-m block">{money(p.ganancia)}</span>
+                  <span className="text-[10px] text-texto-tenue">{pct(p.margen, 0)} margen</span>
                 </span>
               </li>
             ))}
           </ul>
+          )}
         </Card>
       </div>
 
       <Card className="p-4">
         <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Ventas y ganancia por rubro</div>
-        <p className="text-[11px] text-texto-tenue -mt-2 mb-3">Estimado sobre los últimos 30 días.</p>
+        {/* La suma de estas barras es el SUBTOTAL del período, no el total:
+            el descuento y el recargo de una venta viven en la operación y
+            no repartidos por línea. Con descuentos queda por encima del
+            gráfico de arriba, y repartirlos sería inventar un criterio. */}
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={porCat} margin={{ top: 4, right: 8, left: -14, bottom: 40 }}>
             <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
