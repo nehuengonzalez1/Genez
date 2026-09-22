@@ -185,3 +185,62 @@ export async function ajustarStock({ empresaId, itemId, cantidad, tipo = "ajuste
   });
   if (error) throw error;
 }
+
+/* Un solo producto, ya calculado por la vista. Lo usa quien recibe un
+   aviso de tiempo real: el evento trae la fila cruda de `items`, sin el
+   stock, el costo anterior ni la rotación, que los arma `items_vista`. */
+export async function cargarProducto(id) {
+  const { data, error } = await supabase
+    .from("items_vista").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? aProducto(data, null) : null;
+}
+
+/* ------------------------------------------------------------
+   EL CATÁLOGO AVISA CUANDO CAMBIA (migración 0081)
+
+   Hace falta porque el catálogo se carga una vez al entrar. Con la captura
+   con pistola son dos computadoras sobre los mismos datos —una escanea y
+   da de alta, otra completa precios— y sin esto la segunda mira una
+   pantalla vieja sin ninguna señal de que lo está.
+
+   Se avisa el id y no la fila: el evento trae `items` crudo y a la
+   pantalla le sirve lo que devuelve la vista. Quien escucha decide si
+   vale la pena ir a buscarlo.
+
+   Con espera: dar de alta con pistola son muchos INSERT seguidos, y
+   redibujar el catálogo en cada uno traba la pantalla justo cuando se está
+   escaneando rápido.
+   ------------------------------------------------------------ */
+export function escucharItems(empresaId, alCambiar, { esperaMs = 400 } = {}) {
+  if (!empresaId) return () => {};
+
+  let tarea = null;
+  const pendientes = new Map();
+
+  const avisar = (tipo, id) => {
+    if (!id) return;
+    /* El último gana: si un producto se creó y se editó en la misma
+       ráfaga, alcanza con leerlo una vez al final. */
+    pendientes.set(id, tipo);
+    if (tarea) clearTimeout(tarea);
+    tarea = setTimeout(() => {
+      tarea = null;
+      const lote = [...pendientes.entries()].map(([id, tipo]) => ({ id, tipo }));
+      pendientes.clear();
+      alCambiar(lote);
+    }, esperaMs);
+  };
+
+  const canal = supabase
+    .channel(`items:${empresaId}`)
+    .on("postgres_changes",
+      { event: "*", schema: "public", table: "items", filter: `empresa_id=eq.${empresaId}` },
+      (e) => avisar(e.eventType, (e.new && e.new.id) || (e.old && e.old.id)))
+    .subscribe();
+
+  return () => {
+    if (tarea) clearTimeout(tarea);
+    supabase.removeChannel(canal);
+  };
+}
