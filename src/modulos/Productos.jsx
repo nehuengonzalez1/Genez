@@ -8,7 +8,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { fdate, fdatel } from "../datos/generador.js";
 import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } from "../ui/Base.jsx";
-import { NumeroDiferido, Campo, inputCls } from "../ui/Campos.jsx";
+import { NumeroDiferido, TextoDiferido, Campo, inputCls } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
 import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../datos/recetas.js";
 
@@ -156,6 +156,14 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
     if (filtro === "margen") l = l.filter((p) => p.costo > p.costoPrev * 1.005);
     if (filtro === "flaco") l = l.filter((p) => (p.precio - p.costo) / p.precio < margenMinimo && p.u30 >= 4);
     if (filtro === "incompletos") l = l.filter((p) => faltantesProducto(p).length);
+    /* Los que entraron con pistola: el alta les pone el código como nombre
+       provisorio, así que el nombre igual al código es exactamente "todavía
+       nadie le puso nombre".
+
+       Hace falta un filtro propio porque "Incompletos" no los distingue: un
+       catálogo importado de una planilla sin costos ya cae entero ahí, y los
+       treinta recién escaneados quedarían perdidos entre doscientos. */
+    if (filtro === "sinNombre") l = l.filter((p) => p.barcode && p.nombre === p.barcode);
     if (q.trim().length >= 2) {
       const t = norm(q.trim());
       l = l.filter((p) => norm(p.nombre).includes(t) || p.sku.toLowerCase().includes(t) || p.barcode.includes(t));
@@ -199,18 +207,18 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {[["todos", "Todos"], ["margen", "Subieron de costo"], ["flaco", "Margen bajo"], ["incompletos", "Incompletos"]].map(([k, n]) => (
+        {[["todos", "Todos"], ["sinNombre", "Sin nombre"], ["margen", "Subieron de costo"], ["flaco", "Margen bajo"], ["incompletos", "Incompletos"]].map(([k, n]) => (
           <button key={k} onClick={() => setFiltro(k)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${filtro === k ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>{n}</button>
         ))}
         <span className="text-xs text-texto-tenue self-center ml-1">{nf.format(lista.length)} productos</span>
         {modoPrecios && (
           <span className="text-xs text-texto-suave basis-full sm:basis-auto">
-            Editá lo que haga falta y guardá al final. Debajo de cada precio: <b>mg</b> margen, <b>mk</b> markup.
+            Nombre, rubro, costo y precios: editá lo que haga falta y guardá al final. Debajo de cada precio: <b>mg</b> margen, <b>mk</b> markup.
           </span>
         )}
         <Boton size="sm" variant={modoPrecios ? "dark" : "ghost"} onClick={alternarModoPrecios}>
-          <Percent size={14} /> <span className="hidden sm:inline">{modoPrecios ? "Salir de precios" : "Editar precios"}</span>
+          <Percent size={14} /> <span className="hidden sm:inline">{modoPrecios ? "Salir de la tabla" : "Editar en tabla"}</span>
         </Boton>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           <input ref={archivo} type="file" accept=".xlsx,.xls,.csv" className="hidden"
@@ -274,6 +282,13 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         </ul>
         {modoPrecios ? (
           <>
+          {/* Los rubros que ya existen, para que el de un producto nuevo se
+              elija en vez de escribirse: así no terminan conviviendo
+              "Limpieza", "limpieza" y "LIMPIEZA" como tres rubros. */}
+          <datalist id="rubros-de-la-grilla">
+            {cats.filter((c) => c && c !== "Todas").map((c) => <option key={c} value={c} />)}
+          </datalist>
+
           {/* Arriba de la tabla y no en la barra de filtros: es una acción
               sobre lo que se está viendo, y tiene que leerse junto a ello. */}
           <div className="flex flex-wrap items-center gap-2 border-b border-borde bg-superficie-2 px-4 py-2.5">
@@ -401,8 +416,18 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                   return (
                     <tr key={p.id} className="hover:bg-superficie-2">
                       <td className="px-4 py-1.5">
-                        <div className="font-medium text-texto">{p.nombre}</div>
-                        <div className="f-m text-[11px] text-texto-tenue">{p.categoria}</div>
+                        {/* Editables acá y no solo en la ficha: los que
+                            entran con pistola vienen con el código como
+                            nombre, y completarlos de a uno abriendo un
+                            formulario es lo que la pistola vino a evitar. */}
+                        <TextoDiferido valor={enBorrador(p, "nombre")} onGuardar={(t) => t && anotar(p.id, { nombre: t })}
+                          placeholder="Sin nombre"
+                          className={`w-full font-medium text-texto bg-transparent border rounded-lg px-2 py-1 text-sm outline-none focus:border-acento ${
+                            tocado("nombre") ? "border-acento bg-acento-suave/40" : "border-transparent hover:border-borde"}`} />
+                        <TextoDiferido valor={enBorrador(p, "categoria")} onGuardar={(t) => anotar(p.id, { categoria: t })}
+                          placeholder="Sin rubro" lista="rubros-de-la-grilla"
+                          className={`w-full f-m text-[11px] text-texto-tenue bg-transparent border rounded-lg px-2 py-0.5 mt-0.5 outline-none focus:border-acento ${
+                            tocado("categoria") ? "border-acento bg-acento-suave/40" : "border-transparent hover:border-borde"}`} />
                       </td>
                       <td className={`px-2 py-1.5 text-right ${tocado("costo") ? "bg-acento-suave/40" : ""}`}>
                         <NumeroDiferido valor={enBorrador(p, "costo")} onGuardar={(n) => anotar(p.id, { costo: n })}
@@ -587,7 +612,9 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
           setCaptura(false);
           /* Se sale mirando lo que falta completar: es el paso siguiente y
              el único motivo por el que se escaneó. */
-          setFiltro("incompletos"); setQ(""); setCat("Todas");
+          setFiltro("sinNombre"); setQ(""); setCat("Todas");
+          /* Y en la tabla, que es donde se completan de a muchos. */
+          setModoPrecios(true);
         }} />
 
       <FormProducto abierto={!!alta} inicial={alta} productos={productos} provs={provs} ajustes0={ajustes} onClose={() => setAlta(null)}

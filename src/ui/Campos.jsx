@@ -35,6 +35,41 @@ export function NumeroDiferido({ valor, onGuardar, className, placeholder }) {
   );
 }
 
+/* El mismo trato para texto. Existe por la carga con pistola: los productos
+   entran con el código de barras como nombre provisorio y después hay que
+   escribirles el nombre de verdad, de a cientos. Hacerlo abriendo la ficha
+   de cada uno era volver al formulario por producto que la pistola vino a
+   evitar.
+
+   `lista` engancha un <datalist> para que el rubro se elija de los que ya
+   existen en vez de escribirse, que es como se terminan teniendo "Limpieza",
+   "limpieza" y "LIMPIEZA" como tres rubros distintos. */
+export function TextoDiferido({ valor, onGuardar, className, placeholder, lista }) {
+  const [borrador, setBorrador] = useState(null);
+
+  const confirmar = () => {
+    if (borrador === null) return;
+    const t = borrador.trim();
+    setBorrador(null);
+    if (t !== String(valor || "").trim()) onGuardar(t);
+  };
+
+  return (
+    <input
+      value={borrador ?? (valor || "")}
+      list={lista}
+      onChange={(e) => setBorrador(e.target.value)}
+      onBlur={confirmar}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") { setBorrador(null); e.currentTarget.blur(); }
+      }}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
 export function Campo({ label, children, ancho = "" }) {
   return (
     <label className={`block ${ancho}`}>
