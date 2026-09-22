@@ -15,7 +15,7 @@ import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios 
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { consultarCobros } from "../datos/mercadopago.js";
 import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
-import { cargarProductos, guardarProducto, crearProducto, cargarProducto, escucharItems } from "../datos/items.js";
+import { cargarProductos, guardarProducto, crearProducto, cargarProducto, escucharItems, eliminarProducto } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
 import { cargarProveedores, guardarProveedores } from "../datos/proveedores.js";
 import { cargarTablero, tableroVacio } from "../datos/tablero.js";
@@ -1278,6 +1278,21 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   }, [empresaId, proveedorIdDe]);
 
+  /* El tiempo real (0081) también avisaría del borrado, pero se saca del
+     estado acá mismo: esperar el viaje de ida y vuelta deja el producto en
+     pantalla un rato después de que alguien apretó Eliminar, y eso se lee
+     como que no funcionó. */
+  const borrarProducto = useCallback(async (id) => {
+    try {
+      await eliminarProducto(id);
+      setProductos((ps) => ps.filter((p) => p.id !== id));
+      return true;
+    } catch (e) {
+      toast(e.message || "No se pudo eliminar el producto.", "mal");
+      return false;
+    }
+  }, []);
+
   const agregarProducto = useCallback(async (datos, msg) => {
     try {
       const proveedorId = await proveedorIdDe(datos.proveedor);
@@ -1997,6 +2012,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             ? <Vacio>Cargando catálogo…</Vacio>
             : <Productos key={foco || "todos"} productos={productos} empresaId={empresaId}
                 actualizarProducto={actualizarProducto} agregarProducto={agregarProducto}
+                borrarProducto={borrarProducto}
                 toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes} />)}
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
           {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
