@@ -187,3 +187,34 @@ export async function cargarVentasDelDia(empresaId) {
   if (error) throw error;
   return data || [];
 }
+
+/* Lo que se vendió de cada producto en el período (migración 0080).
+
+   Reemplaza a la proyección que hacían los cuadros de Informes: tomaban
+   la venta de los últimos treinta días y la multiplicaban por el período
+   elegido, lo cual con 365 días decía cualquier cosa.
+
+   La venta es la suma de las líneas, así que no incluye el descuento ni
+   el recargo de la operación —viven arriba, sin repartir por línea—. Con
+   descuentos, esto queda por encima de `cargarSerieDiaria`. */
+export async function cargarVentasPorItem(empresaId, dias = 30) {
+  if (!empresaId) throw new Error("cargarVentasPorItem necesita la empresa.");
+
+  const { data, error } = await supabase.rpc("ventas_por_item", { p_empresa: empresaId, p_dias: dias });
+  if (error) throw error;
+
+  return (data || []).map((d) => {
+    const venta = Number(d.venta) || 0;
+    const costo = Number(d.costo) || 0;
+    return {
+      id: d.item_id,
+      nombre: d.nombre,
+      categoria: d.categoria || "Sin rubro",
+      unidades: Number(d.unidades) || 0,
+      venta,
+      costo,
+      ganancia: venta - costo,
+      margen: venta > 0 ? (venta - costo) / venta : 0,
+    };
+  });
+}

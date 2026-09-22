@@ -2005,7 +2005,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
           )}
           {tab === "reportes" && (
-            <Reportes productos={productos} k={k} ir={ir}
+            <Reportes k={k} ir={ir}
               empresaId={empresaId} conPedidos={modulos.includes("comandas")} />
           )}
           {tab === "informes" && <Informes empresaId={empresaId} ir={ir} />}
