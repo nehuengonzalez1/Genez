@@ -32,7 +32,23 @@
 
 import { origenValido, quienLlama } from "./_comun.js";
 
-const MAX_TOKENS = 2000;
+/* EL TECHO DE LA RESPUESTA
+
+   Es un freno de gasto: la clave es de la plataforma, así que cada llamada
+   la paga Genez y no el comercio. Acota lo que puede costar una sola
+   petición, no lo que puede costar el mes.
+
+   Estaba en 2000 y quedó corto por un caso concreto: `CargarCompra` pedía
+   exactamente 2000 —o sea, el techo— y una factura de proveedor de más de
+   veinticinco renglones no entra en eso. El JSON salía cortado a la mitad,
+   `JSON.parse` fallaba, y el usuario veía "No pude leer el remito" sin
+   ninguna pista de que el problema era el largo.
+
+   8000 cubre unos ciento cincuenta renglones. A los precios de Sonnet 5
+   —10 dólares el millón de tokens de salida— el peor caso de una petición
+   pasa de 2 a 8 centavos de dólar, que sigue siendo un techo razonable
+   para algo que requiere sesión iniciada. */
+const MAX_TOKENS = 8000;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {

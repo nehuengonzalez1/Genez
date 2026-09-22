@@ -17,7 +17,7 @@ import {
   useScanHandler, beep, Comandera, Kpi, Card, Modal, Boton, Vacio, Tabs,
   imprimirComandera, comandaPicking, TablaSimple
 } from "../ui/Base.jsx";
-import { preguntarAlModelo } from "../datos/modelo.js";
+import { preguntarAlModelo, fotoParaElModelo } from "../datos/modelo.js";
 import { EscanerCamara, TicketModal, FormProveedor } from "./Vender.jsx";
 import { palabras, emparejar } from "./Stock.jsx";
 import { registrarCompra } from "../datos/compras.js";
@@ -94,17 +94,18 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
     }
     setLeyendo(true); setErrorFoto(null);
     try {
-      const b64 = await new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(String(r.result).split(",")[1]);
-        r.onerror = () => rej(new Error("No se pudo leer el archivo"));
-        r.readAsDataURL(file);
-      });
+      /* Se encoge antes de mandarla: el modelo la reduce igual, y así la
+         subida entra en el límite de la función. Ver `fotoParaElModelo`. */
+      const { b64, mediaType } = await fotoParaElModelo(file);
       const crudo = await preguntarAlModelo({
-        maxTokens: 2000,
+        /* Una factura de proveedor pasa los veinticinco renglones sin
+           esfuerzo, y cada uno son unos cuarenta tokens de JSON. Con 2000
+           —el techo viejo del proxy— salía cortada y `JSON.parse` fallaba
+           con un mensaje que no decía que el problema era el largo. */
+        maxTokens: 8000,
         system: "Leés remitos y facturas de compra de comercios argentinos y devolvés únicamente JSON válido, sin markdown ni explicaciones. Nunca inventás renglones: si algo no se lee, ponés null.",
         mensajes: [{ role: "user", content: [
-          { type: "image", source: { type: "base64", media_type: file.type, data: b64 } },
+          { type: "image", source: { type: "base64", media_type: mediaType, data: b64 } },
           { type: "text", text: 'Devolvé exactamente este formato: {"proveedor": string|null, "cuit": string|null, "comprobante": string|null, "items": [{"descripcion": string, "codigo": string|null, "cantidad": number, "costoUnitario": number|null}]}. costoUnitario es el precio unitario de compra tal como figura. Si el remito no trae precios, dejá costoUnitario en null.' },
         ] }],
       });
