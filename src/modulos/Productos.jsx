@@ -308,11 +308,17 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
             </span>
           </div>
           <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
-            <table className="w-full text-sm min-w-[680px]">
+            <table className="w-full text-sm min-w-[790px]">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde bg-superficie-2">
                   <th className="px-4 py-2.5 font-semibold">Producto</th>
                   <th className="px-2 py-2.5 font-semibold text-right w-24">Costo</th>
+                  <th className="px-2 py-2.5 font-semibold text-right w-24">
+                    Markup
+                    <div className="font-normal normal-case text-[10px] text-texto-tenue">
+                      a {destinoMarkup === "precio" ? "general" : (listasActivas.find((l) => l.id === destinoMarkup) || {}).nombre}
+                    </div>
+                  </th>
                   <th className="px-2 py-2.5 font-semibold text-right w-32">General</th>
                   {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
                     <th key={l.id} className="px-2 py-2.5 font-semibold text-right w-32">
@@ -329,6 +335,38 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                   const costoAhora = Number(enBorrador(p, "costo")) || 0;
                   const mg = (v) => (Number(v) > 0 ? (Number(v) - costoAhora) / Number(v) : null);
                   const tocado = (campo) => borrador[p.id] && borrador[p.id][campo] !== undefined;
+
+                  /* LA COLUMNA DE MARKUP VA EN LAS DOS DIRECCIONES
+
+                     Muestra a qué markup está hoy el precio de destino, y si
+                     se escribe otro recalcula ese precio. Sirve para leer y
+                     para fijar con el mismo campo, que es lo que hace el ojo
+                     cuando recorre una lista: ve a cuánto está cada cosa y
+                     corrige la que se fue de línea.
+
+                     El destino es el mismo que elige la barra de arriba, así
+                     el markup de a uno y el de a muchos no significan cosas
+                     distintas en la misma pantalla. */
+                  const precioDestino = destinoMarkup === "precio"
+                    ? Number(enBorrador(p, "precio")) || 0
+                    : Number((enBorrador(p, "precios") || {})[destinoMarkup]) || 0;
+
+                  const markupActual = costoAhora > 0 && precioDestino > 0
+                    ? Math.round(((precioDestino - costoAhora) / costoAhora) * 100)
+                    : "";
+
+                  const aplicarMarkupFila = (mk) => {
+                    if (!(costoAhora > 0)) return toast(`${p.nombre}: cargá el costo primero, sin costo no hay markup.`, "mal");
+                    /* Redondeo a 10 como el resto del sistema. Eso hace que
+                       el markup que vuelve a mostrarse pueda diferir en un
+                       punto del que se escribió: manda el precio redondo,
+                       no el porcentaje exacto. */
+                    const sug = Math.round((costoAhora * (1 + mk / 100)) / 10) * 10;
+                    if (destinoMarkup === "precio") return anotar(p.id, { precio: sug });
+                    const precios = { ...(enBorrador(p, "precios") || {}) };
+                    precios[destinoMarkup] = sug;
+                    anotar(p.id, { precios });
+                  };
 
                   const celda = (valor, cambiado, alAnotar) => {
                     const m2 = mg(valor);
@@ -366,6 +404,12 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                         <NumeroDiferido valor={enBorrador(p, "costo")} onGuardar={(n) => anotar(p.id, { costo: n })}
                           className={`f-m w-24 text-right border rounded-lg px-2 py-1 text-sm outline-none focus:border-acento bg-superficie-2 ${
                             tocado("costo") ? "border-acento" : "border-borde"}`} />
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        <NumeroDiferido valor={markupActual} onGuardar={aplicarMarkupFila}
+                          placeholder={costoAhora > 0 ? "%" : "—"}
+                          className={`f-m w-20 text-right border border-borde rounded-lg px-2 py-1 text-sm outline-none focus:border-acento ${
+                            costoAhora > 0 ? "" : "opacity-40"}`} />
                       </td>
                       {celda(enBorrador(p, "precio"), tocado("precio"), (n) => anotar(p.id, { precio: n }))}
                       {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => {
