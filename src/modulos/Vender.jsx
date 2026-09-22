@@ -8,7 +8,7 @@ import {
   Minus, Plus, Trash2, Printer, FileText, MessageCircle, Mail, QrCode,
   ArrowRight, Check, X, Percent, Users, Search
 } from "lucide-react";
-import { HOY } from "../datos/generador.js";
+import { HOY, uid } from "../datos/generador.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   letraComprobante, conRecargo, mediosDe, medioPorK, FISCAL_INICIAL,
@@ -446,6 +446,45 @@ export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
   );
 }
 
+/* --- El importe de un producto de precio abierto ------------------------
+   Aparece entre que el cajero elige el producto y el renglón entra al
+   carrito. Es un solo campo a propósito: en un mostrador con gente
+   esperando, cualquier cosa que haya que leer antes de tipear es tiempo.
+
+   El teclado numérico ya está en la mano del cajero, así que Enter
+   confirma y Escape cancela sin tocar el mouse.                           */
+function PedirImporte({ pedido, onClose, onConfirmar }) {
+  const [valor, setValor] = useState("");
+  const campo = useRef(null);
+
+  /* Se limpia al abrir y no al cerrar: si quedara el importe anterior, el
+     segundo corte de fiambre saldría con el precio del primero. */
+  useEffect(() => { if (pedido) { setValor(""); setTimeout(() => campo.current && campo.current.focus(), 30); } }, [pedido]);
+  if (!pedido) return null;
+
+  const importe = Number(valor) || 0;
+  const confirmar = () => { if (importe > 0) onConfirmar(importe); };
+
+  return (
+    <Modal open onClose={onClose} ancho="max-w-xs">
+      <div className="p-5">
+        <h3 className="f-d text-lg">{pedido.p.nombre}</h3>
+        <p className="text-sm text-texto-suave mt-0.5">¿Cuánto se cobra?</p>
+        <input ref={campo} value={valor} inputMode="numeric"
+          onChange={(e) => setValor(e.target.value.replace(/\D/g, ""))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); confirmar(); }
+            if (e.key === "Escape") { e.preventDefault(); onClose(); }
+          }}
+          className="w-full border border-borde rounded-xl px-3 py-3 mt-3 f-m text-right text-2xl outline-none focus:border-acento" />
+        <div className="f-m text-right text-sm text-texto-tenue mt-1 h-5">{importe > 0 ? money(importe) : ""}</div>
+        <Boton className="w-full mt-3" disabled={importe <= 0} onClick={confirmar}>Agregar</Boton>
+        <button onClick={onClose} className="w-full mt-2 text-xs text-texto-tenue hover:text-texto py-1">Cancelar · Esc</button>
+      </div>
+    </Modal>
+  );
+}
+
 export function Overlay({ children, ancho = "max-w-xl" }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4">
@@ -478,6 +517,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [verTicket, setVerTicket] = useState(false);
   const [ayuda, setAyuda] = useState(false);
   const [alta, setAlta] = useState(null);
+  /* `{ p, qty }` mientras se pide el importe de un producto de precio
+     abierto; null el resto del tiempo. */
+  const [precioAbierto, setPrecioAbierto] = useState(null);
   const [ultimo, setUltimo] = useState(null);
   const [camara, setCamara] = useState(false);
   const [verTodo, setVerTodo] = useState(false);
@@ -506,14 +548,30 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     return productos.filter((p) => norm(p.nombre).includes(t) || p.sku.toLowerCase().includes(t)).slice(0, 7);
   }, [q, productos, verTodo]);
 
-  const add = (p, qty) => {
-    if (!p.precio) { beep(false, ajustes.sonido); return toast(`${p.nombre} no tiene precio de venta cargado.`, "mal"); }
-    const paso_ = pasoDe(p.unidad);
-    const cantidad = qty != null ? qty : paso_;
+  /* `importe` solo llega desde el cuadro de precio abierto. Cuando el
+     producto es de precio abierto y todavía no hay importe, esto no suma
+     nada: abre el cuadro y vuelve por acá cuando el cajero confirmó. */
+  const add = (p, qty, importe) => {
+    if (p.precioAbierto && importe == null) { setPrecioAbierto({ p, qty }); return; }
+    const unitario = p.precioAbierto ? importe : p.precio;
+    if (!unitario) { beep(false, ajustes.sonido); return toast(`${p.nombre} no tiene precio de venta cargado.`, "mal"); }
+    /* El de precio abierto entra de a uno: la cantidad ya está adentro del
+       importe que escribió el cajero —son 300 g de jamón, no "una unidad
+       de jamón"— y multiplicarlo por el paso de la unidad lo falsearía. */
+    const cantidad = p.precioAbierto ? 1 : (qty != null ? qty : pasoDe(p.unidad));
     setCart((c) => {
-      const i = c.findIndex((l) => l.pid === p.id);
+      /* Dos renglones de precio abierto del mismo producto NO se juntan:
+         son dos cortes distintos con dos importes distintos, y sumarlos
+         perdería de vista qué se cobró por cada uno. */
+      const i = p.precioAbierto ? -1 : c.findIndex((l) => l.pid === p.id && !l.precioAbierto);
       if (i >= 0) { const n = [...c]; n[i] = { ...n[i], qty: +(n[i].qty + cantidad).toFixed(3) }; return n; }
-      return [...c, { pid: p.id, qty: cantidad, precio: p.precio, precios: p.precios || {}, costo: p.costo, nombre: p.nombre, unidad: p.unidad }];
+      return [...c, {
+        lid: uid(), pid: p.id, qty: cantidad, precio: unitario,
+        /* Sin listas por volumen: el importe ya es el que se cobra, y una
+           lista de "desde 3 unidades" no significa nada acá. */
+        precios: p.precioAbierto ? {} : (p.precios || {}),
+        costo: p.costo, nombre: p.nombre, unidad: p.unidad, precioAbierto: !!p.precioAbierto,
+      }];
     });
     setUltimo({ pid: p.id, nombre: p.nombre, unidad: p.unidad });
     setQ(""); setSel(0);
@@ -537,7 +595,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     const p = productos.find((x) => x.barcode === cod);
     if (p) { add(p); beep(true, ajustes.sonido); }
     else { beep(false, ajustes.sonido); setAlta({ barcode: cod }); }
-  }, enCarga && !alta && !camara);
+  }, enCarga && !alta && !camara && !precioAbierto);
 
   useEffect(() => {
     if (!pendiente) return;
@@ -566,8 +624,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     }, 0);
   };
 
-  const setQty = (pid, qty) => setCart((c) => c.map((l) => (l.pid === pid ? { ...l, qty: Math.max(0, +qty.toFixed(3)) } : l)).filter((l) => l.qty > 0));
-  const quitar = (pid) => setCart((c) => c.filter((l) => l.pid !== pid));
+  /* Por renglón y no por producto: con precio abierto puede haber dos
+     renglones del mismo producto en el carrito, y tocar uno no tiene que
+     tocar el otro. */
+  const setQty = (lid, qty) => setCart((c) => c.map((l) => (l.lid === lid ? { ...l, qty: Math.max(0, +qty.toFixed(3)) } : l)).filter((l) => l.qty > 0));
+  const quitar = (lid) => setCart((c) => c.filter((l) => l.lid !== lid));
 
   const lineas = cart.map((l) => {
     const { precio, lista, nombre } = precioAplicado(l, l.qty, ajustes);
@@ -644,9 +705,13 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     if (!t) return;
     if (vueltoDado != null) t.vuelto = vueltoDado;
     setProductos((ps) => ps.map((p) => {
-      const l = lineas.find((x) => x.pid === p.id);
+      /* Se suman TODOS los renglones del producto y no se toma el primero:
+         con precio abierto el mismo producto puede aparecer varias veces
+         en la venta, y quedarse con uno descontaría de menos. */
+      const vendida = lineas.reduce((s, x) => (x.pid === p.id ? s + x.qty : s), 0);
+      if (!vendida) return p;
       // La venta es real aunque el resto del prototipo siga en la fecha congelada.
-      return l ? { ...p, stock: +(p.stock - l.qty).toFixed(3), ultimaVenta: new Date(), u30: p.u30 + l.qty } : p;
+      return { ...p, stock: +(p.stock - vendida).toFixed(3), ultimaVenta: new Date(), u30: p.u30 + vendida };
     }));
     setTicket(t);
     setPaso("fin");
@@ -844,7 +909,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             {/* En celular no entra una tabla de cinco columnas: va como lista */}
             <ul className="md:hidden divide-y divide-borde">
               {lineas.map((l, i) => (
-                <li key={l.pid} className={`px-3 py-2.5 ${i === lineas.length - 1 ? "bg-acento-suave/40" : ""}`}>
+                <li key={l.lid} className={`px-3 py-2.5 ${i === lineas.length - 1 ? "bg-acento-suave/40" : ""}`}>
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-texto leading-snug">{l.nombre}</div>
@@ -855,12 +920,12 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                       </div>
                     </div>
                     <div className="f-m text-base font-semibold shrink-0">{money(l.importe)}</div>
-                    <button onClick={() => quitar(l.pid)} className="text-texto-tenue active:text-mal shrink-0 p-1"><Trash2 size={16} /></button>
+                    <button onClick={() => quitar(l.lid)} className="text-texto-tenue active:text-mal shrink-0 p-1"><Trash2 size={16} /></button>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <button onClick={() => setQty(l.pid, l.qty - pasoDe(l.unidad))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Minus size={16} /></button>
+                    <button onClick={() => setQty(l.lid, l.qty - pasoDe(l.unidad))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Minus size={16} /></button>
                     <span className="f-m w-14 text-center text-base">{formatoCantidad(l.unidad, l.qty)}</span>
-                    <button onClick={() => setQty(l.pid, l.qty + pasoDe(l.unidad))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Plus size={16} /></button>
+                    <button onClick={() => setQty(l.lid, l.qty + pasoDe(l.unidad))} className="w-10 h-10 rounded-xl border border-borde flex items-center justify-center active:bg-superficie-2"><Plus size={16} /></button>
                   </div>
                 </li>
               ))}
@@ -877,7 +942,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               </thead>
               <tbody className="divide-y divide-borde">
                 {lineas.map((l, i) => (
-                  <tr key={l.pid} className={i === lineas.length - 1 ? "bg-acento-suave/40" : "hover:bg-superficie-2"}>
+                  <tr key={l.lid} className={i === lineas.length - 1 ? "bg-acento-suave/40" : "hover:bg-superficie-2"}>
                     <td className="px-4 py-2.5 text-texto">
                       {l.nombre}
                       {l.lista && (
@@ -893,9 +958,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     </td>
                     <td className="px-2 py-2.5">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setQty(l.pid, l.qty - pasoDe(l.unidad))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Minus size={13} /></button>
+                        <button onClick={() => setQty(l.lid, l.qty - pasoDe(l.unidad))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Minus size={13} /></button>
                         <span className="f-m w-12 text-center">{formatoCantidad(l.unidad, l.qty)}</span>
-                        <button onClick={() => setQty(l.pid, l.qty + pasoDe(l.unidad))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Plus size={13} /></button>
+                        <button onClick={() => setQty(l.lid, l.qty + pasoDe(l.unidad))} className="w-7 h-7 rounded-lg border border-borde hover:bg-superficie-2 flex items-center justify-center"><Plus size={13} /></button>
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-right f-m text-texto-suave">
@@ -903,7 +968,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                       <span className={l.lista ? "text-bien font-semibold" : ""}>{money(l.unit)}</span>
                     </td>
                     <td className="px-4 py-2.5 text-right f-m font-semibold">{money(l.importe)}</td>
-                    <td className="pr-3"><button onClick={() => quitar(l.pid)} className="text-texto-tenue hover:text-mal"><Trash2 size={15} /></button></td>
+                    <td className="pr-3"><button onClick={() => quitar(l.lid)} className="text-texto-tenue hover:text-mal"><Trash2 size={15} /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -1211,6 +1276,15 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       <AltaRapida abierto={!!alta} inicial={alta} productos={productos} ajustes={ajustes}
         onClose={() => { setAlta(null); setQ(""); }} onCrear={crearAlVuelo} />
 
+      <PedirImporte pedido={precioAbierto}
+        onClose={() => { setPrecioAbierto(null); setQ(""); setSel(0); }}
+        onConfirmar={(importe) => {
+          const { p, qty } = precioAbierto;
+          setPrecioAbierto(null);
+          add(p, qty, importe);
+          beep(true, ajustes.sonido);
+        }} />
+
       {ayuda && (
         <Overlay ancho="max-w-md">
           <div className="p-5">
@@ -1427,10 +1501,13 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
             <input value={d.costo || ""} onChange={(e) => set("costo", e.target.value.replace(/\D/g, ""))} className={`${inputCls} f-m text-right`} />
           </Campo>
           <Campo label="Precio lista 1">
-            <input value={d.precio || ""} onChange={(e) => set("precio", e.target.value.replace(/\D/g, ""))} className={`${inputCls} f-m text-right`} />
+            <input value={d.precioAbierto ? "" : (d.precio || "")} disabled={d.precioAbierto}
+              placeholder={d.precioAbierto ? "al vender" : ""}
+              onChange={(e) => set("precio", e.target.value.replace(/\D/g, ""))}
+              className={`${inputCls} f-m text-right ${d.precioAbierto ? "opacity-40" : ""}`} />
           </Campo>
           <Campo label="Margen">
-            <div className={`${inputCls} f-m text-right bg-superficie-2 ${margen > 0 && margen < 0.12 ? "text-mal" : ""}`}>{precio ? pct(margen) : "—"}</div>
+            <div className={`${inputCls} f-m text-right bg-superficie-2 ${margen > 0 && margen < 0.12 ? "text-mal" : ""}`}>{d.precioAbierto || !precio ? "—" : pct(margen)}</div>
           </Campo>
           <Campo label="IVA">
             <select value={d.iva} onChange={(e) => set("iva", Number(e.target.value))} className={inputCls}>
@@ -1438,6 +1515,21 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
             </select>
           </Campo>
         </div>
+
+        {/* Para el mostrador que corta y pesa: el producto existe en el
+            catálogo con su nombre y su rubro, pero el importe lo pone el
+            cajero. Va debajo del precio porque es lo que lo reemplaza. */}
+        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <input type="checkbox" checked={!!d.precioAbierto}
+            onChange={(e) => set("precioAbierto", e.target.checked)}
+            className="w-4 h-4 mt-0.5 accent-acento" />
+          <span>
+            <span className="text-sm">Precio abierto</span>
+            <span className="block text-xs text-texto-tenue">
+              El cajero escribe el importe al vender. Para fiambrería, panadería y todo lo que se cobra por lo que se lleva.
+            </span>
+          </span>
+        </label>
         {(provs && ajustes0.listas ? ajustes0.listas : []).filter((l) => l.activa !== false).length > 0 && (
           <div>
             <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Otras listas de precio</span>
