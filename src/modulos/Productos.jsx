@@ -297,6 +297,15 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                 deja {pct(Number(markup) / (100 + Number(markup)), 1)} de margen
               </span>
             )}
+
+            {/* Pegada a la grilla y no en la barra de filtros de arriba: los
+                rótulos `mg` y `mk` se leen acá abajo, y una aclaración que
+                hay que ir a buscar a otra parte de la pantalla no aclara. */}
+            <span className="ml-auto text-[11px] text-texto-tenue">
+              <b className="text-texto-suave">mg</b> margen = ganancia ÷ precio
+              <span className="mx-1.5">·</span>
+              <b className="text-texto-suave">mk</b> markup = ganancia ÷ costo
+            </span>
           </div>
           <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
             <table className="w-full text-sm min-w-[680px]">
@@ -332,12 +341,18 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                         {/* Los dos, y rotulados. El margen solo se prestaba a
                             leerse como markup, que es el error que hace
                             vender pensando que se gana casi el doble. */}
-                        {m2 != null && (
-                          <div className={`text-[10px] ${flojo ? "text-mal" : "text-texto-tenue"}`}>
-                            mg {pct(m2, 0)}
-                            {costoAhora > 0 && <span> · mk {pct((Number(valor) - costoAhora) / costoAhora, 0)}</span>}
+                        {m2 != null && (costoAhora > 0 ? (
+                          <div className={`text-[10px] ${flojo ? "text-mal" : "text-texto-tenue"}`}
+                            title={`Ganancia ${money(Number(valor) - costoAhora)}\nmargen = ganancia ÷ precio (${money(Number(valor))})\nmarkup = ganancia ÷ costo (${money(costoAhora)})`}>
+                            mg {pct(m2, 0)} · mk {pct((Number(valor) - costoAhora) / costoAhora, 0)}
                           </div>
-                        )}
+                        ) : (
+                          /* Sin costo el margen da 100% y es mentira: no se
+                             gana todo, no se sabe cuánto se gana. Decirlo
+                             así manda a cargar el costo, que es lo que
+                             falta; "mg 100%" manda a no hacer nada. */
+                          <div className="text-[10px] text-texto-tenue">sin costo</div>
+                        ))}
                       </td>
                     );
                   };
