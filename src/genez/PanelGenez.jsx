@@ -15,7 +15,7 @@ import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios 
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { consultarCobros } from "../datos/mercadopago.js";
 import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
-import { cargarProductos, guardarProducto, crearProducto } from "../datos/items.js";
+import { cargarProductos, guardarProducto, crearProducto, cargarProducto, escucharItems } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
 import { cargarProveedores, guardarProveedores } from "../datos/proveedores.js";
 import { cargarTablero, tableroVacio } from "../datos/tablero.js";
@@ -1100,6 +1100,47 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       })
       .finally(() => { if (vigente) setCargandoProductos(false); });
     return () => { vigente = false; };
+  }, [empresaId]);
+
+  /* EL CATÁLOGO SE MANTIENE SOLO (migración 0081)
+
+     Se carga una vez al entrar, y eso alcanzaba mientras lo tocara una
+     sola pantalla. Con la captura con pistola son dos computadoras sobre
+     los mismos datos —una escanea y da de alta, otra completa precios— y
+     la segunda miraba una pantalla vieja sin ninguna señal de que lo
+     estaba.
+
+     Se relee producto por producto y no el catálogo entero: son casi mil
+     fichas más tres mil registros de historial, y hacer eso en cada alta
+     dejaría la pantalla trabada justo mientras se escanea rápido.
+
+     Un fallo al releer se ignora: el aviso es una mejora sobre lo que ya
+     hay en pantalla, no la fuente de verdad. Si no llega, lo que se ve
+     sigue siendo lo que se cargó al entrar. */
+  useEffect(() => {
+    if (!empresaId) return;
+    return escucharItems(empresaId, async (lote) => {
+      for (const { id, tipo } of lote) {
+        if (tipo === "DELETE") {
+          setProductos((ps) => ps.filter((p) => p.id !== id));
+          continue;
+        }
+        try {
+          const fresco = await cargarProducto(id);
+          if (!fresco) continue;
+          setProductos((ps) => {
+            const i = ps.findIndex((p) => p.id === id);
+            if (i < 0) return [...ps, fresco];
+            /* El historial no viene en la relectura —lo arma otra consulta—
+               así que se conserva el que ya estaba en vez de vaciar el
+               gráfico de costos hasta el próximo refresco. */
+            const n = [...ps];
+            n[i] = { ...fresco, historial: ps[i].historial || [] };
+            return n;
+          });
+        } catch { /* se queda lo que hay */ }
+      }
+    });
   }, [empresaId]);
 
   /* Los clientes tampoco vienen del generador. Si la carga falla se queda la

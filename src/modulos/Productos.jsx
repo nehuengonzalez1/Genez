@@ -8,12 +8,13 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { fdate, fdatel } from "../datos/generador.js";
 import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } from "../ui/Base.jsx";
-import { NumeroDiferido, Campo, inputCls } from "../ui/Campos.jsx";
+import { NumeroDiferido, TextoDiferido, Campo, inputCls } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
 import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../datos/recetas.js";
 
 export function Productos({ productos, actualizarProducto, agregarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
   const [alta, setAlta] = useState(null);
+  const [captura, setCaptura] = useState(false);
   const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
   const [modoPrecios, setModoPrecios] = useState(false);
   const [leyendo, setLeyendo] = useState(false);
@@ -155,6 +156,14 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
     if (filtro === "margen") l = l.filter((p) => p.costo > p.costoPrev * 1.005);
     if (filtro === "flaco") l = l.filter((p) => (p.precio - p.costo) / p.precio < margenMinimo && p.u30 >= 4);
     if (filtro === "incompletos") l = l.filter((p) => faltantesProducto(p).length);
+    /* Los que entraron con pistola: el alta les pone el código como nombre
+       provisorio, así que el nombre igual al código es exactamente "todavía
+       nadie le puso nombre".
+
+       Hace falta un filtro propio porque "Incompletos" no los distingue: un
+       catálogo importado de una planilla sin costos ya cae entero ahí, y los
+       treinta recién escaneados quedarían perdidos entre doscientos. */
+    if (filtro === "sinNombre") l = l.filter((p) => p.barcode && p.nombre === p.barcode);
     if (q.trim().length >= 2) {
       const t = norm(q.trim());
       l = l.filter((p) => norm(p.nombre).includes(t) || p.sku.toLowerCase().includes(t) || p.barcode.includes(t));
@@ -198,18 +207,18 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {[["todos", "Todos"], ["margen", "Subieron de costo"], ["flaco", "Margen bajo"], ["incompletos", "Incompletos"]].map(([k, n]) => (
+        {[["todos", "Todos"], ["sinNombre", "Sin nombre"], ["margen", "Subieron de costo"], ["flaco", "Margen bajo"], ["incompletos", "Incompletos"]].map(([k, n]) => (
           <button key={k} onClick={() => setFiltro(k)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${filtro === k ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>{n}</button>
         ))}
         <span className="text-xs text-texto-tenue self-center ml-1">{nf.format(lista.length)} productos</span>
         {modoPrecios && (
           <span className="text-xs text-texto-suave basis-full sm:basis-auto">
-            Editá lo que haga falta y guardá al final. Debajo de cada precio: <b>mg</b> margen, <b>mk</b> markup.
+            Nombre, rubro, costo y precios: editá lo que haga falta y guardá al final. Debajo de cada precio: <b>mg</b> margen, <b>mk</b> markup.
           </span>
         )}
         <Boton size="sm" variant={modoPrecios ? "dark" : "ghost"} onClick={alternarModoPrecios}>
-          <Percent size={14} /> <span className="hidden sm:inline">{modoPrecios ? "Salir de precios" : "Editar precios"}</span>
+          <Percent size={14} /> <span className="hidden sm:inline">{modoPrecios ? "Salir de la tabla" : "Editar en tabla"}</span>
         </Boton>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           <input ref={archivo} type="file" accept=".xlsx,.xls,.csv" className="hidden"
@@ -229,6 +238,9 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
           </Boton>
           <Boton size="sm" variant="ghost" disabled={leyendo} onClick={() => archivo.current && archivo.current.click()}>
             {leyendo ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} <span className="hidden sm:inline">Importar</span>
+          </Boton>
+          <Boton size="sm" variant="ghost" onClick={() => setCaptura(true)}>
+            <Barcode size={14} /> <span className="hidden sm:inline">Captura con pistola</span><span className="sm:hidden">Pistola</span>
           </Boton>
           <Boton size="sm" onClick={() => setAlta({})}><Plus size={14} /> <span className="hidden sm:inline">Nuevo producto</span><span className="sm:hidden">Nuevo</span></Boton>
         </div>
@@ -270,6 +282,13 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         </ul>
         {modoPrecios ? (
           <>
+          {/* Los rubros que ya existen, para que el de un producto nuevo se
+              elija en vez de escribirse: así no terminan conviviendo
+              "Limpieza", "limpieza" y "LIMPIEZA" como tres rubros. */}
+          <datalist id="rubros-de-la-grilla">
+            {cats.filter((c) => c && c !== "Todas").map((c) => <option key={c} value={c} />)}
+          </datalist>
+
           {/* Arriba de la tabla y no en la barra de filtros: es una acción
               sobre lo que se está viendo, y tiene que leerse junto a ello. */}
           <div className="flex flex-wrap items-center gap-2 border-b border-borde bg-superficie-2 px-4 py-2.5">
@@ -397,8 +416,18 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                   return (
                     <tr key={p.id} className="hover:bg-superficie-2">
                       <td className="px-4 py-1.5">
-                        <div className="font-medium text-texto">{p.nombre}</div>
-                        <div className="f-m text-[11px] text-texto-tenue">{p.categoria}</div>
+                        {/* Editables acá y no solo en la ficha: los que
+                            entran con pistola vienen con el código como
+                            nombre, y completarlos de a uno abriendo un
+                            formulario es lo que la pistola vino a evitar. */}
+                        <TextoDiferido valor={enBorrador(p, "nombre")} onGuardar={(t) => t && anotar(p.id, { nombre: t })}
+                          placeholder="Sin nombre"
+                          className={`w-full font-medium text-texto bg-transparent border rounded-lg px-2 py-1 text-sm outline-none focus:border-acento ${
+                            tocado("nombre") ? "border-acento bg-acento-suave/40" : "border-transparent hover:border-borde"}`} />
+                        <TextoDiferido valor={enBorrador(p, "categoria")} onGuardar={(t) => anotar(p.id, { categoria: t })}
+                          placeholder="Sin rubro" lista="rubros-de-la-grilla"
+                          className={`w-full f-m text-[11px] text-texto-tenue bg-transparent border rounded-lg px-2 py-0.5 mt-0.5 outline-none focus:border-acento ${
+                            tocado("categoria") ? "border-acento bg-acento-suave/40" : "border-transparent hover:border-borde"}`} />
                       </td>
                       <td className={`px-2 py-1.5 text-right ${tocado("costo") ? "bg-acento-suave/40" : ""}`}>
                         <NumeroDiferido valor={enBorrador(p, "costo")} onGuardar={(n) => anotar(p.id, { costo: n })}
@@ -576,6 +605,16 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
             }, null);
           }
           toast(`Planilla aplicada: ${cambios.length} actualizados, ${nuevos.length} nuevos.`);
+        }} />
+
+      <CapturaConPistola abierto={captura} productos={productos} onCrear={agregarProducto}
+        onClose={() => {
+          setCaptura(false);
+          /* Se sale mirando lo que falta completar: es el paso siguiente y
+             el único motivo por el que se escaneó. */
+          setFiltro("sinNombre"); setQ(""); setCat("Todas");
+          /* Y en la tabla, que es donde se completan de a muchos. */
+          setModoPrecios(true);
         }} />
 
       <FormProducto abierto={!!alta} inicial={alta} productos={productos} provs={provs} ajustes0={ajustes} onClose={() => setAlta(null)}
@@ -1053,6 +1092,120 @@ function RecetaModal({ producto, productos, empresaId, toast, onClose }) {
           )}
         </div>
       )}
+    </Modal>
+  );
+}
+
+/* ============================================================
+   CAPTURA CON PISTOLA
+   ============================================================
+
+   Para cargar una góndola entera. La pistola da el código de barras y nada
+   más: el nombre hay que escribirlo, y con quinientos productos eso son
+   quinientas veces abrir un cuadro, tipear y confirmar.
+
+   Acá no se escribe nada. Se dispara, suena, y sigue el siguiente. Cada
+   código crea la ficha con el código como nombre provisorio, y después se
+   completan todas juntas desde el filtro "Incompletos" y la grilla de
+   precios, que es donde conviene hacerlo: una pantalla con todo a la vista
+   en vez de un formulario por producto.
+
+   Se probó sacar el nombre del código contra Open Food Facts —la base
+   pública más grande— y da 8% sobre este catálogo: es una base de
+   alimentos, y un minimercado es mitad limpieza y perfumería. Por eso el
+   nombre provisorio es el código y no una adivinanza.
+
+   Pensado para dos computadoras: una escanea, la otra completa. Desde la
+   migración 0081 el catálogo avisa cuando cambia, así que la segunda ve lo
+   que entra sin refrescar.
+   ============================================================ */
+function CapturaConPistola({ abierto, productos, onCrear, onClose }) {
+  const [capturas, setCapturas] = useState([]);
+  /* Sincrónico a propósito: dos disparos seguidos del mismo código llegan
+     antes de que el alta termine, y mirar `productos` no alcanza porque
+     todavía no está. */
+  const vistos = useRef(new Set());
+
+  useEffect(() => {
+    if (abierto) { setCapturas([]); vistos.current = new Set(); }
+  }, [abierto]);
+
+  const anotar = (c) => setCapturas((cs) => [c, ...cs].slice(0, 50));
+
+  useScanHandler(async (cod) => {
+    if (vistos.current.has(cod)) {
+      beep(false, true);
+      return anotar({ cod, estado: "repetido", detalle: "Ya lo escaneaste recién" });
+    }
+    const existente = productos.find((p) => p.barcode === cod);
+    if (existente) {
+      vistos.current.add(cod);
+      beep(false, true);
+      return anotar({ cod, estado: "ya-estaba", detalle: existente.nombre });
+    }
+    vistos.current.add(cod);
+    /* `null` en el mensaje: el alta no avisa de a una. Con cien productos
+       serían cien carteles tapando la pantalla. */
+    const creado = await onCrear({ nombre: cod, barcode: cod }, null);
+    if (!creado) {
+      vistos.current.delete(cod);
+      beep(false, true);
+      return anotar({ cod, estado: "error", detalle: "No se pudo crear" });
+    }
+    beep(true, true);
+    anotar({ cod, estado: "nuevo", detalle: "Listo para completar" });
+  }, abierto);
+
+  if (!abierto) return null;
+
+  const nuevos = capturas.filter((c) => c.estado === "nuevo").length;
+  const repetidos = capturas.filter((c) => c.estado !== "nuevo").length;
+
+  const TONO = {
+    nuevo: "text-bien",
+    "ya-estaba": "text-texto-tenue",
+    repetido: "text-texto-tenue",
+    error: "text-mal",
+  };
+
+  return (
+    <Modal open onClose={onClose} ancho="max-w-lg">
+      <div className="p-5">
+        <h3 className="f-d text-lg">Captura con pistola</h3>
+        <p className="text-sm text-texto-suave mt-0.5">
+          Pasá los productos por el lector. No hace falta escribir nada: se crean con el código
+          y después los completás desde <b>Incompletos</b>.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <div className="border border-borde rounded-xl p-3 text-center">
+            <div className="f-m text-3xl text-bien">{nuevos}</div>
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mt-0.5">Nuevos</div>
+          </div>
+          <div className="border border-borde rounded-xl p-3 text-center">
+            <div className="f-m text-3xl text-texto-tenue">{repetidos}</div>
+            <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mt-0.5">Ya estaban</div>
+          </div>
+        </div>
+
+        <ul className="mt-4 border border-borde rounded-xl divide-y divide-borde max-h-64 overflow-auto">
+          {capturas.length === 0 && (
+            <li className="px-3 py-6 text-center text-sm text-texto-tenue">
+              Esperando el primer disparo…
+            </li>
+          )}
+          {capturas.map((c, i) => (
+            <li key={`${c.cod}-${i}`} className="px-3 py-2 flex items-center justify-between gap-3">
+              <span className="f-m text-xs text-texto-suave shrink-0">{c.cod}</span>
+              <span className={`text-xs truncate text-right ${TONO[c.estado]}`}>{c.detalle}</span>
+            </li>
+          ))}
+        </ul>
+
+        <Boton className="w-full mt-4" onClick={onClose}>
+          {nuevos > 0 ? `Terminar · ${nuevos} para completar` : "Cerrar"}
+        </Boton>
+      </div>
     </Modal>
   );
 }
