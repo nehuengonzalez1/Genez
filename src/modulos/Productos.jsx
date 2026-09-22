@@ -26,6 +26,66 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
   const [filtro, setFiltro] = useState(focoInicial || "todos");
   const margenMinimo = (ajustes?.margenMinimo ?? 15) / 100;
 
+  /* LA GRILLA DE PRECIOS ES UN BORRADOR, NO UNA EDICIÓN EN VIVO
+
+     Antes cada celda escribía en la base al salir del campo. Para corregir
+     un precio suelto está bien, pero actualizar una lista entera así son
+     doscientas escrituras sueltas y —lo que importa— un número mal tipeado
+     queda publicado antes de que nadie lo mire. Acá los cambios se juntan
+     y recién se aplican al confirmar, que es como se actualiza una lista de
+     precios: se arma, se revisa, se publica.
+
+     Guardado por producto y no por celda: tocar el costo y dos listas del
+     mismo artículo es una sola escritura y no tres. */
+  const [borrador, setBorrador] = useState({});
+  const [guardando, setGuardando] = useState(false);
+
+  const anotar = (pid, parcial) =>
+    setBorrador((b) => ({ ...b, [pid]: { ...(b[pid] || {}), ...parcial } }));
+
+  /* Lo que se ve en una celda: el borrador si esa celda se tocó, y si no
+     el valor de la base. `??` y no `||` porque poner 0 es un cambio
+     válido —un precio que se borra— y `||` lo confundiría con "sin tocar". */
+  const enBorrador = (p, campo) => (borrador[p.id] && borrador[p.id][campo] !== undefined ? borrador[p.id][campo] : p[campo]);
+
+  const cuantosCambios = Object.values(borrador).reduce((s, c) => s + Object.keys(c).length, 0);
+
+  const descartar = () => setBorrador({});
+
+  const guardarBorrador = async () => {
+    const pendientes = Object.entries(borrador);
+    if (!pendientes.length) return;
+    setGuardando(true);
+    let hechos = 0;
+    try {
+      for (const [pid, cambios] of pendientes) {
+        /* `propagar` para que un fallo corte el lote y llegue al catch:
+           sin eso `actualizarProducto` se traga el error, avisa por su
+           cuenta y este contador diría que se guardó todo. */
+        await actualizarProducto(pid, cambios, null, { propagar: true });
+        /* Se saca del borrador recién cuando la base lo confirmó, uno por
+           uno: si el lote se corta en el cuarenta, los diez que faltan
+           siguen cargados y se reintenta con el mismo botón. */
+        setBorrador((b) => { const { [pid]: _, ...resto } = b; return resto; });
+        hechos++;
+      }
+      toast(`${hechos} ${hechos === 1 ? "producto actualizado" : "productos actualizados"}.`, "bien");
+    } catch (e) {
+      toast(`Se guardaron ${hechos} de ${pendientes.length}. ${e.message || "Falló la conexión."}`, "mal");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  /* Salir del modo con cambios sin guardar los perdería en silencio. */
+  const alternarModoPrecios = () => {
+    if (modoPrecios && cuantosCambios > 0) {
+      toast("Tenés cambios sin guardar. Guardalos o descartalos antes de salir.", "mal");
+      return;
+    }
+    setModoPrecios((v) => !v);
+  };
+
   useScanHandler((cod) => {
     const p = productos.find((x) => x.barcode === cod);
     if (!p) { beep(false, true); return toast(`El código ${cod} no está en el catálogo.`, "mal"); }
@@ -91,10 +151,10 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         <span className="text-xs text-texto-tenue self-center ml-1">{nf.format(lista.length)} productos</span>
         {modoPrecios && (
           <span className="text-xs text-texto-suave basis-full sm:basis-auto">
-            Editando precios: cada cambio se guarda solo. El porcentaje debajo es el margen.
+            Editá lo que haga falta y guardá al final. El porcentaje debajo de cada precio es el margen.
           </span>
         )}
-        <Boton size="sm" variant={modoPrecios ? "dark" : "ghost"} onClick={() => setModoPrecios((v) => !v)}>
+        <Boton size="sm" variant={modoPrecios ? "dark" : "ghost"} onClick={alternarModoPrecios}>
           <Percent size={14} /> <span className="hidden sm:inline">{modoPrecios ? "Salir de precios" : "Editar precios"}</span>
         </Boton>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
@@ -155,6 +215,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
           })}
         </ul>
         {modoPrecios ? (
+          <>
           <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
             <table className="w-full text-sm min-w-[680px]">
               <thead>
@@ -171,15 +232,22 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
               </thead>
               <tbody className="divide-y divide-borde">
                 {visibles.map((p) => {
-                  const mg = (v) => (Number(v) > 0 ? (Number(v) - p.costo) / Number(v) : null);
-                  const celda = (valor, alGuardar) => {
+                  /* El margen se calcula contra el costo del borrador, no
+                     contra el de la base: si se está subiendo el costo, el
+                     margen tiene que moverse mientras se escribe. */
+                  const costoAhora = Number(enBorrador(p, "costo")) || 0;
+                  const mg = (v) => (Number(v) > 0 ? (Number(v) - costoAhora) / Number(v) : null);
+                  const tocado = (campo) => borrador[p.id] && borrador[p.id][campo] !== undefined;
+
+                  const celda = (valor, cambiado, alAnotar) => {
                     const m2 = mg(valor);
+                    const flojo = m2 != null && m2 < margenMinimo;
                     return (
-                      <td className="px-2 py-1.5 text-right">
-                        <NumeroDiferido valor={valor} onGuardar={alGuardar} placeholder="—"
+                      <td className={`px-2 py-1.5 text-right ${cambiado ? "bg-acento-suave/40" : ""}`}>
+                        <NumeroDiferido valor={valor} onGuardar={alAnotar} placeholder="—"
                           className={`f-m w-24 text-right border rounded-lg px-2 py-1 text-sm outline-none focus:border-acento ${
-                            m2 != null && m2 < 0.08 ? "border-mal bg-mal-suave" : "border-borde"}`} />
-                        {m2 != null && <div className={`text-[10px] ${m2 < 0.08 ? "text-mal" : "text-texto-tenue"}`}>{pct(m2, 0)}</div>}
+                            flojo ? "border-mal bg-mal-suave" : cambiado ? "border-acento" : "border-borde"}`} />
+                        {m2 != null && <div className={`text-[10px] ${flojo ? "text-mal" : "text-texto-tenue"}`}>{pct(m2, 0)}</div>}
                       </td>
                     );
                   };
@@ -189,20 +257,28 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                         <div className="font-medium text-texto">{p.nombre}</div>
                         <div className="f-m text-[11px] text-texto-tenue">{p.categoria}</div>
                       </td>
-                      <td className="px-2 py-1.5 text-right">
-                        <NumeroDiferido valor={p.costo} onGuardar={(n) => actualizar(p.id, { costo: n })}
-                          className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1 text-sm outline-none focus:border-acento bg-superficie-2" />
+                      <td className={`px-2 py-1.5 text-right ${tocado("costo") ? "bg-acento-suave/40" : ""}`}>
+                        <NumeroDiferido valor={enBorrador(p, "costo")} onGuardar={(n) => anotar(p.id, { costo: n })}
+                          className={`f-m w-24 text-right border rounded-lg px-2 py-1 text-sm outline-none focus:border-acento bg-superficie-2 ${
+                            tocado("costo") ? "border-acento" : "border-borde"}`} />
                       </td>
-                      {celda(p.precio, (n) => actualizar(p.id, { precio: n }))}
-                      {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
-                        <React.Fragment key={l.id}>
-                          {celda((p.precios || {})[l.id], (n) => {
-                            const cp = { ...(p.precios || {}) };
-                            if (n > 0) cp[l.id] = n; else delete cp[l.id];
-                            actualizar(p.id, { precios: cp });
-                          })}
-                        </React.Fragment>
-                      ))}
+                      {celda(enBorrador(p, "precio"), tocado("precio"), (n) => anotar(p.id, { precio: n }))}
+                      {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => {
+                        const precios = enBorrador(p, "precios") || {};
+                        /* Por lista y no por producto: si se cambió la lista
+                           mayorista, resaltar también la minorista diría que
+                           se tocó algo que quedó igual. */
+                        const cambiadaEsta = (Number(precios[l.id]) || 0) !== (Number((p.precios || {})[l.id]) || 0);
+                        return (
+                          <React.Fragment key={l.id}>
+                            {celda(precios[l.id], cambiadaEsta, (n) => {
+                              const cp = { ...precios };
+                              if (n > 0) cp[l.id] = n; else delete cp[l.id];
+                              anotar(p.id, { precios: cp });
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
                     </tr>
                   );
                 })}
@@ -212,6 +288,30 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
               <Vacio>No hay listas creadas. Creá una en Ajustes para poder cargarle precios.</Vacio>
             )}
           </div>
+
+          {/* Pegada abajo y fuera del scroll horizontal: con doscientos
+              productos el Guardar tiene que estar a la vista sin volver
+              arriba, y no tiene que correrse al mover la tabla de costado. */}
+          {cuantosCambios > 0 && (
+            <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-borde bg-superficie px-4 py-3">
+              <span className="text-sm">
+                <span className="f-m font-semibold">{cuantosCambios}</span>
+                {cuantosCambios === 1 ? " cambio sin guardar" : " cambios sin guardar"}
+                <span className="text-texto-tenue">
+                  {" en "}{nf.format(Object.keys(borrador).length)}
+                  {Object.keys(borrador).length === 1 ? " producto" : " productos"}
+                </span>
+              </span>
+              <div className="ml-auto flex items-center gap-2">
+                <Boton size="sm" variant="ghost" onClick={descartar} disabled={guardando}>Descartar</Boton>
+                <Boton size="sm" onClick={guardarBorrador} disabled={guardando}>
+                  {guardando ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  {guardando ? "Guardando…" : "Guardar cambios"}
+                </Boton>
+              </div>
+            </div>
+          )}
+          </>
         ) : (
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">

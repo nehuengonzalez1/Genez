@@ -1204,7 +1204,11 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     return conIds[n].id;
   }, [empresaId]);
 
-  const actualizarProducto = useCallback(async (id, cambios, msg) => {
+  /* `opciones.propagar` es para quien guarda de a muchos: en vez de avisar
+     y recargar el catálogo por cada producto que falle —cincuenta toasts y
+     cincuenta relecturas—, el error sube y el que llamó decide qué contar y
+     cuándo releer. Sin la opción el comportamiento es el de siempre. */
+  const actualizarProducto = useCallback(async (id, cambios, msg, opciones) => {
     setProductos((ps) => ps.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
     try {
       const enBase = "proveedor" in cambios
@@ -1224,6 +1228,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       }
       if (msg) toast(msg);
     } catch (e) {
+      if (opciones && opciones.propagar) throw e;
       toast(e.message || "No se pudo guardar el producto.", "mal");
       try {
         const ps = await cargarProductos(empresaId);
