@@ -244,3 +244,49 @@ export function escucharItems(empresaId, alCambiar, { esperaMs = 400 } = {}) {
     supabase.removeChannel(canal);
   };
 }
+
+/* ------------------------------------------------------------
+   DAR DE BAJA Y ELIMINAR NO SON LO MISMO
+
+   Un producto que se vendió tiene historia colgando: movimientos de
+   stock, historial de costos y de precios. Borrarlo se los lleva puestos
+   —las claves foráneas son en cascada— y eso no se recupera. Las ventas
+   sobreviven porque la línea guarda el nombre con el que se vendió, pero
+   el resto no.
+
+   Por eso son dos operaciones distintas y no un botón con un cartel:
+   eliminar es para el error —lo que se escaneó de más, lo que se cargó
+   dos veces— y dar de baja es para lo que dejó de venderse pero pasó por
+   la caja.
+
+   `usoDelProducto` es lo que permite ofrecer la correcta: la pantalla
+   pregunta antes de mostrar el botón, en vez de intentar el borrado y
+   traducir un error de la base.
+   ------------------------------------------------------------ */
+export async function usoDelProducto(id) {
+  const contar = async (tabla) => {
+    const { count, error } = await supabase
+      .from(tabla).select("id", { count: "exact", head: true }).eq("item_id", id);
+    if (error) throw error;
+    return count || 0;
+  };
+  const [vendido, movimientos, enRecetas] = await Promise.all([
+    contar("operacion_lineas"),
+    contar("movimientos_stock"),
+    contar("receta_insumos"),
+  ]);
+  return { vendido, movimientos, enRecetas };
+}
+
+export async function eliminarProducto(id) {
+  const { error } = await supabase.from("items").delete().eq("id", id);
+  if (error) {
+    /* `receta_insumos` es la única foránea que restringe en vez de
+       cascadear: un insumo no se puede borrar mientras una receta lo use,
+       porque el costo del producto terminado sale de él. */
+    if (error.code === "23503") {
+      throw new Error("Es insumo de una receta. Sacalo de la receta antes de eliminarlo.");
+    }
+    throw error;
+  }
+}

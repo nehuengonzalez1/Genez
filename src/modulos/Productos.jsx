@@ -3,7 +3,7 @@
    ============================================================ */
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode, Trash2, ChefHat } from "lucide-react";
+import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode, Trash2, ChefHat, Ban } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { fdate, fdatel } from "../datos/generador.js";
 import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad } from "../utils/helpers.js";
@@ -11,8 +11,9 @@ import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } fr
 import { NumeroDiferido, TextoDiferido, Campo, inputCls } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
 import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../datos/recetas.js";
+import { usoDelProducto } from "../datos/items.js";
 
-export function Productos({ productos, actualizarProducto, agregarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
+export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
   const [alta, setAlta] = useState(null);
   const [captura, setCaptura] = useState(false);
   const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
@@ -561,7 +562,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         )}
       </Card>
 
-      <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} productos={productos} empresaId={empresaId} toast={toast} />
+      <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} productos={productos} empresaId={empresaId} toast={toast} borrar={borrarProducto} />
 
       <ImportarPlanilla resumen={planilla} listas={ajustes.listas || []} onCerrar={() => setPlanilla(null)}
         onAplicar={async () => {
@@ -731,10 +732,31 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
   );
 }
 
-function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, empresaId, toast }) {
+function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, empresaId, toast, borrar }) {
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
   const [receta, setReceta] = useState(false);
+
+  /* Qué arrastra este producto. Se pregunta al abrir la ficha y no al
+     apretar Eliminar: lo que hay que decidir es si conviene eliminarlo o
+     darlo de baja, y esa decisión se toma antes de apretar nada. */
+  const [uso, setUso] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [borrando, setBorrando] = useState(false);
+
+  useEffect(() => {
+    let vigente = true;
+    setUso(null); setConfirmando(false);
+    usoDelProducto(p.id)
+      .then((u) => { if (vigente) setUso(u); })
+      /* Si no se puede averiguar, no se ofrece eliminar: mejor no dar el
+         botón que darlo sin saber qué se lleva puesto. */
+      .catch(() => { if (vigente) setUso({ error: true }); });
+    return () => { vigente = false; };
+  }, [p.id]);
+
+  const tieneHistoria = uso && !uso.error && (uso.vendido > 0 || uso.movimientos > 0);
+  const enReceta = uso && !uso.error && uso.enRecetas > 0;
   useEffect(() => { if (p) { setPrecio(String(p.precio)); setCosto(String(p.costo)); } }, [p && p.id]);
   if (!p) return null;
 
@@ -756,6 +778,66 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, emp
           {editar && <Boton size="sm" variant="ghost" onClick={() => editar(p)}>Editar ficha</Boton>}
           <button onClick={onClose} className="text-texto-tenue hover:text-texto"><X size={18} /></button>
         </div>
+      </div>
+
+      {/* DAR DE BAJA Y ELIMINAR, SEPARADOS
+
+          Un producto que pasó por la caja tiene historia colgando —stock,
+          costos, precios— y eliminarlo se la lleva. La baja lo saca del
+          mostrador y conserva todo, que es lo que casi siempre se quiere.
+          Eliminar queda para el error: lo que se escaneó de más, lo que se
+          cargó dos veces.
+
+          Por eso la pantalla dice qué arrastra cada uno antes de que se
+          apriete nada, en vez de pedir confirmación después. */}
+      <div className="px-5 py-3 border-b border-borde flex flex-wrap items-center gap-2">
+        <Boton size="sm" variant="ghost"
+          onClick={() => actualizar(p.id, { activo: !p.activo },
+            p.activo ? `${p.nombre} dado de baja. Ya no aparece al vender.` : `${p.nombre} volvió al mostrador.`)}>
+          {p.activo ? <><Ban size={14} /> Dar de baja</> : <><Check size={14} /> Reactivar</>}
+        </Boton>
+
+        {enReceta ? (
+          <span className="text-xs text-texto-tenue">
+            Es insumo de una receta: para eliminarlo, sacalo de la receta primero.
+          </span>
+        ) : uso && !uso.error && !confirmando && (
+          <Boton size="sm" variant="ghost" onClick={() => setConfirmando(true)}>
+            <Trash2 size={14} /> Eliminar
+          </Boton>
+        )}
+
+        {!p.activo && <span className="text-xs text-texto-tenue">No aparece al vender.</span>}
+
+        {confirmando && (
+          <div className="basis-full border border-mal rounded-xl p-3 mt-1">
+            <p className="text-sm">
+              {tieneHistoria ? (
+                <>
+                  Se vendió <b className="f-m">{uso.vendido}</b>{uso.vendido === 1 ? " vez" : " veces"} y tiene{" "}
+                  <b className="f-m">{uso.movimientos}</b> movimientos de stock. Al eliminarlo se pierden
+                  su historial de costos, el de precios y esos movimientos. Las ventas quedan.{" "}
+                  <b>Darlo de baja conserva todo</b> y también lo saca del mostrador.
+                </>
+              ) : (
+                <>No tiene ventas ni movimientos de stock. Se elimina sin perder nada.</>
+              )}
+            </p>
+            <div className="flex items-center gap-2 mt-3">
+              <Boton size="sm" variant="ghost" onClick={() => setConfirmando(false)}>Cancelar</Boton>
+              <Boton size="sm" disabled={borrando} onClick={async () => {
+                setBorrando(true);
+                const ok = await borrar(p.id);
+                setBorrando(false);
+                if (ok) { toast(`${p.nombre} eliminado.`); onClose(); }
+                else setConfirmando(false);
+              }}>
+                {borrando ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {borrando ? "Eliminando…" : "Eliminar igual"}
+              </Boton>
+            </div>
+          </div>
+        )}
       </div>
 
       {receta && (

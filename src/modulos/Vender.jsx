@@ -539,14 +539,23 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
      por lo m\u00e1s vendido primero, que es lo que m\u00e1s se va a volver a
      pedir. Se apaga solo en cuanto el operador escribe algo: buscar y
      mirar todo son dos modos, no uno encima del otro. */
+  /* LO QUE SE PUEDE VENDER NO ES TODO EL CATÁLOGO
+
+     `activo` existía como columna desde el principio y no lo miraba nadie:
+     dar de baja un producto no lo sacaba del mostrador. Se filtra acá, en
+     el punto donde el POS resuelve qué producto es, y no en la prop: el
+     formulario de alta necesita ver también los dados de baja para avisar
+     que un código de barras ya está usado. */
+  const vendibles = useMemo(() => productos.filter((p) => p.activo !== false), [productos]);
+
   const res = useMemo(() => {
-    if (verTodo && q.trim().length < 2) return [...productos].sort((a, b) => (b.u30 || 0) - (a.u30 || 0)).slice(0, 60);
+    if (verTodo && q.trim().length < 2) return [...vendibles].sort((a, b) => (b.u30 || 0) - (a.u30 || 0)).slice(0, 60);
     if (q.trim().length < 2) return [];
     const t = norm(q.trim());
-    const ex = productos.find((p) => p.barcode === q.trim());
+    const ex = vendibles.find((p) => p.barcode === q.trim());
     if (ex) return [ex];
-    return productos.filter((p) => norm(p.nombre).includes(t) || p.sku.toLowerCase().includes(t)).slice(0, 7);
-  }, [q, productos, verTodo]);
+    return vendibles.filter((p) => norm(p.nombre).includes(t) || p.sku.toLowerCase().includes(t)).slice(0, 7);
+  }, [q, vendibles, verTodo]);
 
   /* `importe` solo llega desde el cuadro de precio abierto. Cuando el
      producto es de precio abierto y todavía no hay importe, esto no suma
@@ -583,7 +592,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
        va a matchear ningún producto — hay que desarmarlo primero. */
     const bal = leerCodigoBalanza(cod, ajustes.balanza);
     if (bal) {
-      const p = productos.find((x) => x.barcode === bal.codigo);
+      const p = vendibles.find((x) => x.barcode === bal.codigo);
       if (p) {
         const cantidad = bal.peso != null ? bal.peso : +(bal.importe / p.precio).toFixed(3);
         add(p, cantidad);
@@ -592,7 +601,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       beep(false, ajustes.sonido);
       return toast(`Balanza: no hay ningún producto con el código ${bal.codigo}.`, "mal");
     }
-    const p = productos.find((x) => x.barcode === cod);
+    const p = vendibles.find((x) => x.barcode === cod);
     if (p) { add(p); beep(true, ajustes.sonido); }
     else { beep(false, ajustes.sonido); setAlta({ barcode: cod }); }
   }, enCarga && !alta && !camara && !precioAbierto);
@@ -824,7 +833,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       e.preventDefault();
       if (!q.trim()) return irAPago();
       if (cantidadPendiente && aplicarCantidad()) return;
-      const exacto = productos.find((p) => p.barcode === q.trim());
+      const exacto = vendibles.find((p) => p.barcode === q.trim());
       if (exacto) { beep(true, ajustes.sonido); return add(exacto); }
       if (res[sel]) { beep(true, ajustes.sonido); return add(res[sel]); }
       if (/^\d{6,}$/.test(q.trim())) return setAlta({ barcode: q.trim() });
@@ -1268,7 +1277,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       <EscanerCamara abierto={camara} onCerrar={() => setCamara(false)}
         titulo="Escaneá los productos"
         onLeer={(cod) => {
-          const p = productos.find((x) => x.barcode === cod);
+          const p = vendibles.find((x) => x.barcode === cod);
           if (p) { add(p); beep(true, ajustes.sonido); toast(`${p.nombre} · ${money(p.precio)}`); }
           else { beep(false, ajustes.sonido); setCamara(false); setAlta({ barcode: cod }); }
         }} />
