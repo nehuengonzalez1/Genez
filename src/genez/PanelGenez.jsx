@@ -1376,6 +1376,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
     const t = {
       id: venta.id, nro, cae,
+      /* La fecha se captura acá, junto con la hora y del mismo `new Date()`.
+         Antes el ticket no la guardaba y al imprimir salía `HOY`, la fecha
+         congelada del generador: el papel decía 09/08/2026 con la hora real
+         al lado. La venta es real aunque el resto del prototipo no lo sea,
+         y lo que se le entrega a un cliente tiene que decir qué día fue. */
+      fecha: fdatel(new Date()),
       hora: hora(new Date()),
       items, sub, desc, total, medio: ps[0].medio, pagos: ps, ganancia, recibe: recibe || null,
       recargo: recargo || 0, recargoNombre: recargoNombre || "", fiscal: esFiscal,

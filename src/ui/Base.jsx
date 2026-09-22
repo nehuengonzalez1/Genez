@@ -249,34 +249,211 @@ export function imprimirComandera(lineas, ancho, qrSemilla, toast) {
     const qr = qrSemilla
       ? `<div class="qr">${svgQR(qrSemilla, mm === 58 ? 18 : 22)}</div>`
       : "";
+    /* El `@page` no va acá: se inyecta al cargar, con el alto ya medido.
+       Ver el comentario del iframe, abajo. */
+    /* EL PAPEL NO SE IMPRIME ENTERO
+
+       Un rollo de 58 mm tiene un cabezal de 384 puntos a 203 ppp, o sea
+       unos 48 mm; el de 80 mm imprime unos 72. El resto es margen físico
+       que ningún driver alcanza. Componer a 58 mm dejaba la franja derecha
+       fuera del cabezal, que es justo donde `armarLineas` alinea los
+       importes: de `$12.600` salía `$1`.
+
+       La PÁGINA sigue siendo del ancho del papel —si se la achica, el
+       driver reescala para llenar el rollo y vuelve a cortar— y lo que se
+       limita es el contenido.
+
+       ESTE NÚMERO SE AJUSTA MIRANDO EL PAPEL
+
+       Los 48 mm teóricos de un cabezal de 384 puntos resultaron
+       conservadores: en la impresora de Super 25 sobraban 5 mm a la
+       derecha. Así que el valor que vale es el medido, no el de la hoja de
+       datos, y se sube hasta que el ticket llegue al borde de lo que el
+       cabezal imprime sin pasarse.
+
+       Si en otra impresora quedara corto o cortara, es este número y nada
+       más: el cuerpo de letra se recalcula solo contra él. */
+    const util = mm === 58 ? 53 : 72;
+
+    /* La línea más larga es la que tiene que entrar justa. Sale de lo que
+       ya compuso `armarLineas`, así que no hay que mantener un ancho en dos
+       lados: si un día cambia, esto lo sigue solo. */
+    const columnas = lineas.reduce((m, l) => Math.max(m, String(l).length), 0) || (mm === 58 ? 32 : 48);
+
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Ticket</title><style>
-      @page { size: ${mm}mm auto; margin: 0; }
       html, body { margin: 0; padding: 0; background: #fff; }
-      body { width: ${mm}mm; }
+      body { width: ${util}mm; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      pre { margin: 0; padding: ${mm === 58 ? "1.5mm 1mm" : "2mm 1.5mm"}; white-space: pre;
+      pre { margin: 0; padding: ${mm === 58 ? "1.5mm" : "2mm"} 0; white-space: pre;
             font-family: "Courier New", ui-monospace, monospace;
             font-size: ${mm === 58 ? "8.6pt" : "9.2pt"}; line-height: 1.28;
             /* Negro puro y negrita: el papel térmico no imprime grises */
             color: #000; font-weight: 700; -webkit-font-smoothing: none; }
+      /* Sirve para medir cuánto ocupa de verdad una línea llena y ajustar
+         el cuerpo de la letra. No se ve ni se imprime. */
+      #medida { position: absolute; visibility: hidden; top: 0; left: 0; }
       .qr { text-align: center; padding-bottom: 4mm; }
       .qr svg { display: inline-block; }
-    </style></head><body><pre>${cuerpo}</pre>${qr}</body></html>`;
+    </style></head><body><pre id="medida">${"0".repeat(columnas)}</pre><pre id="ticket">${cuerpo}</pre>${qr}</body></html>`;
 
     const marco = document.createElement("iframe");
     marco.setAttribute("aria-hidden", "true");
-    marco.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+    /* EL IFRAME TIENE QUE ESTAR DENTRO DE LA VENTANA
+
+       Acá estuvo el ticket en blanco, y costó porque hay dos formas de
+       equivocarse y las dos parecen razonables: primero era 0x0 con
+       `visibility:hidden`, después lo mandé a `left:-10000px`. Las dos
+       imprimen una hoja vacía.
+
+       Lo que lo probó fue el PDF: la página salía de 58 mm con el alto
+       correcto —o sea que Chrome leía nuestro `@page`— pero su stream de
+       contenido decía `/Length 0`, cero operaciones de dibujo, sin
+       siquiera una fuente en los recursos. Chrome maqueta el documento del
+       iframe, pero lo PINTA desde la composición del padre; un iframe
+       oculto o fuera de la ventana nunca se compone, y de ahí sale la hoja
+       en blanco con el tamaño justo.
+
+       Así que va arriba de todo y visible. Durante el diálogo lo tapa el
+       propio diálogo, y se saca al cerrarlo. El alto real se le pone
+       después de medir: si el contenido desborda el iframe, lo que queda
+       abajo tampoco se pinta. */
+    marco.style.cssText =
+      `position:fixed;left:0;top:0;z-index:2147483647;border:0;background:#fff;width:${mm}mm;height:100px`;
+    /* UNA SOLA CARGA CUENTA, Y NO ES LA PRIMERA
+
+       Ésta era la causa de fondo del ticket en blanco, y estuvo debajo de
+       todo lo demás desde el principio.
+
+       Agregar el iframe al documento dispara una carga de `about:blank`
+       ANTES de la de `srcdoc`. O sea que este manejador corría dos veces, y
+       la primera con el documento vacío: medía un cuerpo de cero, armaba un
+       `@page` con esa medida y llamaba a `print()`. Esa primera llamada es
+       la que abre el diálogo; la segunda, ya con el diálogo abierto, Chrome
+       la descarta. Resultado: se imprimía el `about:blank`, y de ahí salía
+       la hoja con el tamaño puesto y el dibujo vacío.
+
+       Se corta por dos lados, porque cualquiera solo alcanza pero juntos no
+       dejan lugar a dudas: `srcdoc` se asigna ANTES de agregar el iframe,
+       así la única carga es la buena; y aun así se verifica que el
+       documento traiga el <pre> antes de tocar nada. */
+    let impreso = false;
     marco.onload = () => {
       try {
-        marco.contentWindow.focus();
-        marco.contentWindow.print();
+        const doc = marco.contentDocument;
+        if (impreso || !doc || !doc.querySelector("pre")) return;
+        impreso = true;
+
+        /* EL ALTO SE MIDE, NO SE ADIVINA
+
+           Antes decía `size: ${mm}mm auto`, que no es CSS válido —una medida
+           seguida de la palabra `auto` no es una combinación permitida— así
+           que Chrome descartaba la declaración entera y el ticket salía con
+           el tamaño de papel por defecto de la impresora.
+
+           Con el documento ya cargado se puede preguntar cuánto mide de
+           verdad y armar un `@page` con las dos medidas, que sí es válido.
+           Así el papel sale del largo del ticket y no al revés. Los 2 mm de
+           más son para que la última línea no quede al filo del corte. */
+        /* EL CUERPO DE LETRA SE CALCULA, NO SE FIJA
+
+           Los 8,6 pt de antes eran un número elegido a mano, y a ese tamaño
+           Courier avanza ~1,82 mm por carácter: 32 columnas daban 58 mm,
+           más que los 48 que el cabezal imprime. Acá se mide cuánto ocupa
+           de verdad una línea llena y se escala para que entre justa. Si
+           mañana cambia el ancho del ticket o la fuente, esto se acomoda
+           solo. */
+        const medida = doc.getElementById("medida");
+        const tinta = doc.getElementById("ticket");
+        if (medida && tinta) {
+          const objetivoPx = util * 96 / 25.4;
+          const realPx = medida.getBoundingClientRect().width;
+          if (realPx > 0) {
+            const base = parseFloat(marco.contentWindow.getComputedStyle(tinta).fontSize);
+            /* Para abajo a propósito: que sobre un pelo no se nota, que
+               falte corta el último carácter de cada importe. */
+            tinta.style.fontSize = `${Math.floor(base * (objetivoPx / realPx) * 100) / 100}px`;
+          }
+          medida.remove();
+        }
+
+        /* El alto se mide DESPUÉS de ajustar la letra, que es lo que lo
+           cambia. */
+        const altoPx = Math.ceil(doc.body.getBoundingClientRect().height);
+        const altoMM = Math.ceil(altoPx * 25.4 / 96) + 2;
+        const regla = doc.createElement("style");
+        regla.textContent = `@page { size: ${mm}mm ${altoMM}mm; margin: 0; }`;
+        doc.head.appendChild(regla);
+
+        /* El iframe se estira al alto del ticket: lo que desborde queda
+           fuera de la composición y saldría cortado en el papel. */
+        marco.style.height = `${altoPx}px`;
+
+        const ventana = marco.contentWindow;
+
+        /* EL IFRAME SE SACA CUANDO SE CERRÓ EL DIÁLOGO, NO A LOS DOS SEGUNDOS
+
+           No era la causa del ticket en blanco —eso está explicado abajo—
+           pero sí un problema real: `print()` sobre un iframe no siempre
+           bloquea el hilo, así que el temporizador de 2 s que había antes
+           podía arrancar con el diálogo abierto y borrar el documento por
+           debajo. Chrome re-dibuja la vista previa cada vez que se toca una
+           opción —elegir la impresora, por ejemplo— y para entonces ya no
+           quedaría nada que dibujar. */
+        let sacado = false;
+        const sacar = () => {
+          if (sacado) return;
+          sacado = true;
+          try { marco.remove(); } catch (e) {}
+        };
+        ventana.addEventListener("afterprint", sacar);
+        /* Respaldo por si `afterprint` no llega —algunos navegadores no lo
+           disparan al cancelar—: el iframe no queda colgado para siempre,
+           pero el minuto alcanza para cualquier diálogo. */
+        setTimeout(sacar, 60000);
+
+        /* SE IMPRIME DESPUÉS DE QUE EL CUADRO SE PINTÓ, NO EN EL `load`
+
+           Última pieza del ticket en blanco. `load` avisa que el documento
+           terminó de cargar, no que se dibujó: llamar a `print()` ahí es
+           pedirle a Chrome que imprima algo que todavía no compuso ni una
+           vez, y sale la hoja con el tamaño correcto y el dibujo vacío
+           (`/Length 0` en el PDF, sin una sola fuente en los recursos).
+
+           Forzar el reflujo no alcanzaba: eso obliga a MAQUETAR, que es
+           justo la parte que ya funcionaba —de ahí salía el `@page` bien
+           calculado— y no a PINTAR.
+
+           Dos `requestAnimationFrame` encadenados son la forma de esperar
+           un cuadro de verdad: el primero corre antes de pintar, el
+           segundo ya del otro lado. */
+        let lanzado = false;
+        const lanzar = () => {
+          if (lanzado) return;
+          lanzado = true;
+          try {
+            ventana.focus();
+            ventana.print();
+          } catch (e) {
+            toast && toast("El navegador bloqueó la impresión.", "mal");
+            sacar();
+          }
+        };
+        requestAnimationFrame(() => requestAnimationFrame(lanzar));
+        /* `requestAnimationFrame` no corre en una pestaña que no se está
+           dibujando —otra solapa al frente, ventana minimizada—, y ahí la
+           impresión no saldría nunca, que es peor que salir en blanco. Con
+           el respaldo, en ese caso se imprime igual. */
+        setTimeout(lanzar, 300);
       } catch (e) {
         toast && toast("El navegador bloqueó la impresión.", "mal");
+        try { marco.remove(); } catch (e2) {}
       }
-      setTimeout(() => { try { marco.remove(); } catch (e) {} }, 2000);
     };
-    document.body.appendChild(marco);
+    /* El orden importa: primero el contenido, después al documento. Al
+       revés, el `appendChild` provoca la carga de `about:blank` que se
+       explica arriba. */
     marco.srcdoc = html;
+    document.body.appendChild(marco);
   } catch (e) {
     toast && toast(`No se pudo imprimir: ${e.message}`, "mal");
   }
@@ -379,7 +556,10 @@ export function ticketVenta(t, ajustes, W) {
   b.push({ t: "c", v: t.fiscal ? condicionLegal(f.condicion) : "NO VALIDO COMO FACTURA" });
   b.push({ t: "sep", c: "=" });
   b.push({ t: "c", v: t.fiscal ? `FACTURA ${letra}` : "TICKET DE VENTA" });
-  b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${fdatel(HOY)} ${t.hora}` });
+  /* La fecha viene del ticket, no de `HOY`: la venta ocurrió hoy de verdad.
+     El respaldo es la fecha real y no la congelada, para que un ticket
+     viejo que se reimprima tampoco mienta. */
+  b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${t.fecha || fdatel(new Date())} ${t.hora}` });
 
   if (t.fiscal) {
     b.push({ t: "sep" });
