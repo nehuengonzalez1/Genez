@@ -4,14 +4,60 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { Loader2 } from "lucide-react";
 import { money, moneyk, pct, nf } from "../utils/helpers.js";
 import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
+import { cargarSerieDiaria } from "../datos/ventas.js";
 import { tonoCanal } from "../ui/canales.jsx";
+
+/* Los tres de siempre. El resto se escribe. */
+const ATAJOS = [7, 30, 90];
+/* Diez años. No es una restricción real —la función de la base arma la
+   serie que le pidan— sino un freno para que un cero de más no pida
+   trescientos mil días y deje la pantalla colgada armando el gráfico. */
+const TOPE_DIAS = 3650;
 
 export function Reportes({ productos, k, ir, empresaId = null, conPedidos = false }) {
   const [dias, setDias] = useState(30);
-  const serie = k.diario.slice(-dias).map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
+  const [aMedida, setAMedida] = useState("");
+
+  /* `k.diario` son los noventa días que Sistema carga al entrar, y con eso
+     alcanza para los atajos. Para un período más largo hay que ir a
+     buscarlo: `ventas_diarias` acepta cualquier cantidad y devuelve la
+     serie continua igual, con ceros en los días sin ventas. */
+  const [serieLarga, setSerieLarga] = useState(null);
+  const [cargando, setCargando] = useState(false);
+
+  const alcanzaLaCargada = dias <= k.diario.length;
+  const diario = alcanzaLaCargada ? k.diario : (serieLarga || []);
+
+  useEffect(() => {
+    if (alcanzaLaCargada || !empresaId) return;
+    if (serieLarga && serieLarga.length >= dias) return;
+    let vigente = true;
+    setCargando(true);
+    cargarSerieDiaria(empresaId, dias)
+      .then((s) => { if (vigente) setSerieLarga(s); })
+      .catch((e) => {
+        if (!vigente) return;
+        /* Sin serie el gráfico queda vacío y los indicadores en cero, que
+           es lo que ya hacía Sistema si la consulta fallaba. Un cero
+           honesto antes que una curva recortada sin avisar. */
+        setSerieLarga([]);
+        console.error("No se pudo cargar la serie del período pedido:", e);
+      })
+      .finally(() => { if (vigente) setCargando(false); });
+    return () => { vigente = false; };
+  }, [dias, empresaId, alcanzaLaCargada]);
+
+  const aplicarAMedida = () => {
+    const n = Math.floor(Number(aMedida));
+    if (!(n >= 1)) return;
+    setDias(Math.min(n, TOPE_DIAS));
+  };
+
+  const serie = diario.slice(-dias).map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
   const ventas = serie.reduce((s, d) => s + d.ventas, 0);
   const costo = serie.reduce((s, d) => s + d.costo, 0);
   const factor = dias / 30;
@@ -32,13 +78,37 @@ export function Reportes({ productos, k, ir, empresaId = null, conPedidos = fals
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-1.5">
-        {[7, 30, 90].map((d) => (
-          <button key={d} onClick={() => setDias(d)}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {ATAJOS.map((d) => (
+          <button key={d} onClick={() => { setDias(d); setAMedida(""); }}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${dias === d ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>
             {d} días
           </button>
         ))}
+
+        {/* El campo a medida vive al lado de los atajos y no detrás de un
+            menú: es un número y un Enter, y esconderlo lo volvería el
+            camino largo para algo que se pide todo el tiempo. */}
+        <div className={`flex items-center gap-1 rounded-full border pl-3 pr-1 py-0.5 ${
+          ATAJOS.includes(dias) ? "bg-superficie border-borde" : "bg-superficie-3 border-superficie-3"}`}>
+          <input value={aMedida} inputMode="numeric" placeholder="otros"
+            onChange={(e) => setAMedida(e.target.value.replace(/\D/g, ""))}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aplicarAMedida(); } }}
+            onBlur={aplicarAMedida}
+            className="f-m w-14 bg-transparent text-xs text-right outline-none placeholder:text-texto-tenue placeholder:font-semibold" />
+          <span className="text-xs text-texto-suave">días</span>
+          <Boton size="sm" variant="ghost" onClick={aplicarAMedida}>Ver</Boton>
+        </div>
+
+        {cargando && <Loader2 size={14} className="animate-spin text-texto-tenue" />}
+
+        {/* Qué período se está mirando, dicho con fechas. "212 días" no se
+            entiende solo; "desde el 23/02" sí. */}
+        {serie.length > 0 && (
+          <span className="text-xs text-texto-tenue ml-1">
+            {serie[0].label} — {serie[serie.length - 1].label}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -77,6 +147,13 @@ export function Reportes({ productos, k, ir, empresaId = null, conPedidos = fals
       <div className="grid lg:grid-cols-2 gap-4">
         <Card className="p-4">
           <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Los que más facturan</div>
+          {/* Estas dos tablas y la de rubros no miran la serie: escalan la
+              venta de los últimos 30 días por el período elegido. Con 7, 30
+              y 90 la diferencia era chica y estaba implícita; con un rango a
+              medida —alguien va a pedir 365— deja de estarlo. Se dice. */}
+          <p className="text-[11px] text-texto-tenue -mt-2 mb-3">
+            Estimado: la venta de los últimos 30 días llevada a {dias} días, no el historial real.
+          </p>
           <ul className="space-y-2.5">
             {topVenta.map((p, i) => (
               <li key={p.id}>
@@ -94,6 +171,7 @@ export function Reportes({ productos, k, ir, empresaId = null, conPedidos = fals
 
         <Card className="p-4">
           <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Los que más ganancia dejan</div>
+          <p className="text-[11px] text-texto-tenue -mt-2 mb-3">Estimado, igual que el de al lado.</p>
           <ul className="space-y-2">
             {topGanancia.map((p, i) => (
               <li key={p.id} className="flex items-center justify-between text-sm gap-3 py-0.5">
@@ -110,6 +188,7 @@ export function Reportes({ productos, k, ir, empresaId = null, conPedidos = fals
 
       <Card className="p-4">
         <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Ventas y ganancia por rubro</div>
+        <p className="text-[11px] text-texto-tenue -mt-2 mb-3">Estimado sobre los últimos 30 días.</p>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={porCat} margin={{ top: 4, right: 8, left: -14, bottom: 40 }}>
             <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
