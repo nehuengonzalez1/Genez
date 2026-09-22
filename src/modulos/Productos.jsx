@@ -52,6 +52,60 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
 
   const descartar = () => setBorrador({});
 
+  /* PRECIOS SUGERIDOS POR MARKUP
+
+     Markup y margen no son lo mismo y confundirlos cuesta plata: un markup
+     del 60% deja un margen del 37,5%, no del 60%. Acá se pide markup
+     —`precio = costo × (1 + markup)`— porque es como se habla con el
+     proveedor y como se piensa la lista, y debajo de cada precio se
+     muestran los dos para que nadie tenga que hacer la cuenta de cabeza.
+
+     Sugiere sobre el borrador y no sobre la base: lo que sale de acá se
+     mira, se corrige lo que haga falta y recién después se guarda. Por eso
+     puede alcanzar a toda la lista filtrada sin que sea peligroso. */
+  const [markup, setMarkup] = useState("");
+  const [destinoMarkup, setDestinoMarkup] = useState("precio");
+
+  const listasActivas = (ajustes.listas || []).filter((l) => l.activa !== false);
+
+  const sugerirPorMarkup = () => {
+    const m = Number(markup);
+    if (!(m > 0)) return toast("Poné un markup mayor que cero.", "mal");
+
+    const nuevos = {};
+    let alcanzados = 0, sinCosto = 0;
+
+    for (const p of lista) {
+      /* Contra el costo del borrador: si se acaba de cargar un costo nuevo
+         sin guardar todavía, el sugerido tiene que salir de ese. */
+      const costo = Number(enBorrador(p, "costo")) || 0;
+      if (!costo) { sinCosto++; continue; }
+      /* Redondeo a 10, como el resto del sistema: un precio de $4.237 en
+         una góndola no existe. */
+      const sug = Math.round((costo * (1 + m / 100)) / 10) * 10;
+      const yaEnBorrador = borrador[p.id] || {};
+
+      if (destinoMarkup === "precio") {
+        if ((Number(enBorrador(p, "precio")) || 0) === sug) continue;
+        nuevos[p.id] = { ...yaEnBorrador, precio: sug };
+      } else {
+        const precios = { ...(enBorrador(p, "precios") || {}) };
+        if ((Number(precios[destinoMarkup]) || 0) === sug) continue;
+        precios[destinoMarkup] = sug;
+        nuevos[p.id] = { ...yaEnBorrador, precios };
+      }
+      alcanzados++;
+    }
+
+    setBorrador((b) => ({ ...b, ...nuevos }));
+
+    if (!alcanzados) {
+      return toast(sinCosto ? `Ninguno cambió: ${sinCosto} no tienen costo cargado.` : "Ya estaban todos a ese markup.", "mal");
+    }
+    const cola = sinCosto ? ` · ${sinCosto} sin costo quedaron afuera` : "";
+    toast(`${alcanzados} ${alcanzados === 1 ? "precio sugerido" : "precios sugeridos"}. Revisalos y guardá.${cola}`);
+  };
+
   const guardarBorrador = async () => {
     const pendientes = Object.entries(borrador);
     if (!pendientes.length) return;
@@ -151,7 +205,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         <span className="text-xs text-texto-tenue self-center ml-1">{nf.format(lista.length)} productos</span>
         {modoPrecios && (
           <span className="text-xs text-texto-suave basis-full sm:basis-auto">
-            Editá lo que haga falta y guardá al final. El porcentaje debajo de cada precio es el margen.
+            Editá lo que haga falta y guardá al final. Debajo de cada precio: <b>mg</b> margen, <b>mk</b> markup.
           </span>
         )}
         <Boton size="sm" variant={modoPrecios ? "dark" : "ghost"} onClick={alternarModoPrecios}>
@@ -216,6 +270,34 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
         </ul>
         {modoPrecios ? (
           <>
+          {/* Arriba de la tabla y no en la barra de filtros: es una acción
+              sobre lo que se está viendo, y tiene que leerse junto a ello. */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-borde bg-superficie-2 px-4 py-2.5">
+            <span className="text-xs uppercase tracking-widest text-texto-tenue font-bold">Sugerir por markup</span>
+            <div className="flex items-center gap-1">
+              <input value={markup} onChange={(e) => setMarkup(e.target.value.replace(/[^\d]/g, ""))}
+                placeholder="60" inputMode="numeric"
+                onKeyDown={(e) => { if (e.key === "Enter") sugerirPorMarkup(); }}
+                className="f-m w-16 text-right border border-borde rounded-lg px-2 py-1 text-sm outline-none focus:border-acento bg-superficie" />
+              <span className="text-sm text-texto-suave">%</span>
+            </div>
+            <span className="text-sm text-texto-suave">sobre el costo, a</span>
+            <select value={destinoMarkup} onChange={(e) => setDestinoMarkup(e.target.value)}
+              className="text-sm border border-borde rounded-lg px-2 py-1 bg-superficie outline-none focus:border-acento">
+              <option value="precio">Precio general</option>
+              {listasActivas.map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+            </select>
+            <Boton size="sm" variant="ghost" onClick={sugerirPorMarkup}>
+              Aplicar a {nf.format(lista.length)}
+            </Boton>
+            {Number(markup) > 0 && (
+              /* El margen que deja ese markup, dicho en el momento: es la
+                 cuenta que nadie hace y la que después duele. */
+              <span className="text-xs text-texto-tenue">
+                deja {pct(Number(markup) / (100 + Number(markup)), 1)} de margen
+              </span>
+            )}
+          </div>
           <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
             <table className="w-full text-sm min-w-[680px]">
               <thead>
@@ -247,7 +329,15 @@ export function Productos({ productos, actualizarProducto, agregarProducto, toas
                         <NumeroDiferido valor={valor} onGuardar={alAnotar} placeholder="—"
                           className={`f-m w-24 text-right border rounded-lg px-2 py-1 text-sm outline-none focus:border-acento ${
                             flojo ? "border-mal bg-mal-suave" : cambiado ? "border-acento" : "border-borde"}`} />
-                        {m2 != null && <div className={`text-[10px] ${flojo ? "text-mal" : "text-texto-tenue"}`}>{pct(m2, 0)}</div>}
+                        {/* Los dos, y rotulados. El margen solo se prestaba a
+                            leerse como markup, que es el error que hace
+                            vender pensando que se gana casi el doble. */}
+                        {m2 != null && (
+                          <div className={`text-[10px] ${flojo ? "text-mal" : "text-texto-tenue"}`}>
+                            mg {pct(m2, 0)}
+                            {costoAhora > 0 && <span> · mk {pct((Number(valor) - costoAhora) / costoAhora, 0)}</span>}
+                          </div>
+                        )}
                       </td>
                     );
                   };
