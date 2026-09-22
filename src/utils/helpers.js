@@ -154,7 +154,10 @@ export function listaPorId(ajustes, id) {
 
 export function faltantesProducto(p) {
   const f = [];
-  if (!p.precio) f.push("precio de venta");
+  /* A un producto de precio abierto no le falta el precio: no lo tiene a
+     propósito, lo escribe el cajero al vender. Marcarlo como incompleto
+     mandaría a corregir algo que está bien. */
+  if (!p.precio && !p.precioAbierto) f.push("precio de venta");
   if (!p.costo) f.push("costo");
   if (!p.categoria) f.push("rubro");
   if (!p.proveedor) f.push("proveedor");

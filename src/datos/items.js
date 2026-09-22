@@ -61,6 +61,9 @@ function aProducto(f, historial) {
     /* La foto es del producto y no de la pantalla que lo muestra: la
        carta de la comanda y el catálogo leen la misma. */
     imagen: f.imagen || "",
+    /* Su precio lo escribe el cajero al vender. Distinto de `precio: 0`,
+       que es un producto al que le falta cargarle el precio. */
+    precioAbierto: f.precio_abierto === true,
     activo: f.activo !== false,
     historial: historial || [],
   };
@@ -112,6 +115,7 @@ const COLUMNA = {
   proveedorId: "proveedor_id",
   descripcion: "descripcion",
   imagen: "imagen",
+  precioAbierto: "precio_abierto",
   activo: "activo",
 };
 
