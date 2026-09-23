@@ -133,13 +133,21 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
      venta de otro. */
   const { data: venta, error: e1 } = await admin
     .from("operaciones")
-    .select("id, empresa_id, tipo, estado, total, cliente_id")
+    .select("id, empresa_id, tipo, estado, total, cliente_id, comprobante")
     .eq("id", operacionId).eq("empresa_id", empresaId)
     .maybeSingle();
   if (e1) throw e1;
   if (!venta) throw new ErrorArca("La venta no existe o todavía no llegó a la base.", 404);
   if (venta.tipo !== "venta" || venta.estado !== "confirmada") throw new ErrorArca("Solo se factura una venta confirmada.");
   if (!(Number(venta.total) > 0)) throw new ErrorArca("Una venta en cero no se factura.");
+
+  /* Solo las que el mostrador cobró como factura. Una que se entregó con
+     ticket no fiscal ya tiene su papel, y facturarla después serían dos
+     comprobantes de la misma venta. La que tiene `cae` en el jsonb es la
+     de antes de 0082, con un CAE inventado: ver 0083. */
+  const comp = venta.comprobante || {};
+  if (comp.fiscal !== true) throw new ErrorArca("Esta venta se cobró con ticket no fiscal: no se factura.", 409);
+  if (comp.cae) throw new ErrorArca("Esta venta ya tiene un comprobante impreso de antes de ARCA: no se factura.", 409);
 
   const { data: conexion, error: e2 } = await admin.from("arca_conexiones").select("*").eq("empresa_id", empresaId).maybeSingle();
   if (e2) throw e2;
@@ -281,4 +289,82 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     if (r) throw new ErrorArca(`ARCA no autorizó la factura: ${r.error}`, 502);
     throw new ErrorArca("ARCA no contesta. La factura quedó pendiente y se revisa en el próximo intento.", 503);
   }
+}
+
+/* Lo que ve el navegador de un comprobante autorizado. Los nombres de la
+   base no salen de acá, igual que no salen de `src/datos/`. */
+export function comoFactura(c) {
+  return {
+    operacionId: c.operacion_id,
+    letra: c.letra,
+    tipo: c.tipo,
+    puntoVenta: c.punto_venta,
+    numero: c.numero,
+    cae: c.cae,
+    vencimiento: c.cae_vto,
+    fecha: c.fecha,
+    cuit: c.cuit,
+    total: Number(c.total),
+    docTipo: c.doc_tipo,
+    docNro: Number(c.doc_nro) || 0,
+    homologacion: c.modo === "homologacion",
+  };
+}
+
+/* Cuánto se sigue pidiendo en una sola llamada. Cada CAE son dos idas a
+   ARCA; con esto la función contesta antes de que Vercel la corte, y el
+   navegador vuelve a llamar si quedan. */
+const PRESUPUESTO_MS = 20 * 1000;
+
+/**
+ * Pide el CAE de todas las ventas que lo esperan, de la más vieja a la
+ * más nueva, una por una.
+ *
+ * EN ORDEN Y DE A UNA
+ * -------------------
+ * El número lo pone ARCA en el orden en que se le pide. Si las facturas
+ * que quedaron colgadas durante un corte se pidieran en cualquier orden
+ * —o si la venta nueva pasara adelante de las viejas—, la numeración
+ * dejaría de seguir el orden de las ventas. Por eso no hay forma de pedir
+ * el CAE de una venta suelta: se piden todas las que esperan, empezando
+ * por la primera.
+ *
+ * Y se corta en el primer error. Seguir con la siguiente dejaría a la que
+ * falló con un número más alto que una venta posterior, que es justo lo
+ * que se quiere evitar.
+ *
+ * Devuelve { autorizadas, quedan, error }. Un error no se tira: lo que se
+ * autorizó antes de él ya es real y el navegador tiene que enterarse.
+ */
+export async function facturarPendientes({ admin, empresaId, usuarioId = null, afip = null }) {
+  if (!empresaId) throw new ErrorArca("Falta el comercio.");
+
+  const esperan = async () => {
+    const { data, error } = await admin
+      .from("facturas_vista")
+      .select("operacion_id")
+      .eq("empresa_id", empresaId)
+      .neq("estado", "autorizada")
+      .order("fecha", { ascending: true })
+      .limit(50);
+    if (error) throw error;
+    return data || [];
+  };
+
+  const inicio = Date.now();
+  const autorizadas = [];
+  let error = null;
+
+  for (const { operacion_id } of await esperan()) {
+    if (Date.now() - inicio > PRESUPUESTO_MS) break;
+    try {
+      const c = await facturarVenta({ admin, empresaId, operacionId: operacion_id, usuarioId, afip });
+      autorizadas.push(comoFactura(c));
+    } catch (e) {
+      error = e instanceof ErrorArca ? e.message : (e.message || "ARCA no pudo procesar el comprobante.");
+      break;
+    }
+  }
+
+  return { autorizadas, quedan: (await esperan()).length, error };
 }

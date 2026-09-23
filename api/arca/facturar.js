@@ -1,11 +1,12 @@
 /**
- * Factura una venta: le pide el CAE a ARCA y lo deja en `comprobantes`.
+ * Pide el CAE de las ventas cobradas como factura que todavía no lo
+ * tienen, en orden. Lo llama el cobro después de cada factura, la cola
+ * cuando vuelve internet, y el botón de Caja → Facturas.
  *
- * Reemplaza a `api/arca/cae.js`, que recibía la letra, el punto de venta y
- * el total desde el navegador y facturaba siempre con el mismo CUIT, el de
- * una variable de Vercel. Ahora recibe el id de la venta y todo lo demás
- * sale de la base, del comercio de quien llama. La lógica está en
- * `_arca.js`, que es lo que corre también `scripts/probar-arca.mjs`.
+ * No recibe qué facturar: factura todo lo que espera, de lo más viejo a lo
+ * más nuevo, para que la numeración siga el orden de las ventas (ver
+ * `facturarPendientes` en `_arca.js`). Tampoco recibe importes, letra ni
+ * punto de venta: todo sale de la base, del comercio de quien llama.
  *
  * POR QUÉ AFIP SDK Y NO EL WEBSERVICE DIRECTO
  * --------------------------------------------
@@ -19,7 +20,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { origenValido, quienLlama } from "../_comun.js";
-import { facturarVenta, ErrorArca } from "./_arca.js";
+import { facturarPendientes, ErrorArca } from "./_arca.js";
 
 const error = (res, estado, message) => res.status(estado).json({ error: { message } });
 
@@ -46,17 +47,7 @@ export default async function handler(req, res) {
   const admin = createClient(url, maestra, { auth: { persistSession: false, autoRefreshToken: false } });
 
   try {
-    const c = await facturarVenta({ admin, empresaId, operacionId: cuerpo.operacionId, usuarioId: quien.id });
-    return res.status(200).json({
-      id: c.id,
-      letra: c.letra,
-      puntoVenta: c.punto_venta,
-      numero: c.numero,
-      cae: c.cae,
-      vencimiento: c.cae_vto,
-      cuit: c.cuit,
-      homologacion: c.modo === "homologacion",
-    });
+    return res.status(200).json(await facturarPendientes({ admin, empresaId, usuarioId: quien.id }));
   } catch (e) {
     if (e instanceof ErrorArca) return error(res, e.estado, e.message);
     return error(res, 502, e.message || "ARCA no pudo procesar el comprobante.");

@@ -26,7 +26,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { createClient } from "@supabase/supabase-js";
-import { facturarVenta, ErrorArca, CUIT_PRUEBAS, hoyEnArgentina } from "../api/arca/_arca.js";
+import { facturarVenta, facturarPendientes, ErrorArca, CUIT_PRUEBAS, hoyEnArgentina } from "../api/arca/_arca.js";
 
 const env = Object.fromEntries(
   readFileSync(".env", "utf8").split("\n").filter((l) => l.includes("=") && !l.trim().startsWith("#"))
@@ -166,47 +166,65 @@ if (!env.AFIP_ACCESS_TOKEN || !env.SUPABASE_SERVICE_ROLE_KEY) {
     `insert into empresas (nombre, config) values ('Prueba ARCA (se borra sola)', $1) returning id`,
     [JSON.stringify({ fiscal: { condicion: "MONOTRIBUTO" } })]
   );
-  const ventaDe = async (total) => {
+
+  /* Las ventas llevan su hora a propósito, separadas por minutos: el
+     orden de la numeración tiene que seguir el de las ventas y no el de
+     inserción. */
+  let minuto = 0;
+  const ventaDe = async (total, comprobante = { fiscal: true }) => {
     const id = randomUUID();
-    await c.query("insert into operaciones (id, empresa_id, tipo, total) values ($1, $2, 'venta', $3)", [id, empresaId, total]);
+    minuto++;
+    await c.query(
+      "insert into operaciones (id, empresa_id, tipo, total, comprobante, fecha) values ($1, $2, 'venta', $3, $4, now() - interval '1 hour' + $5 * interval '1 minute')",
+      [id, empresaId, total, JSON.stringify(comprobante), minuto]
+    );
     return id;
   };
+  const numeroDe = async (op) => (await una("select numero from comprobantes where operacion_id = $1 and estado = 'autorizado'", [op]) || {}).numero;
 
   try {
-    const v = await ventaDe(1234.5);
-    let error = null;
-    try { await facturarVenta({ admin, empresaId, operacionId: v }); } catch (e) { error = e; }
-    decir(error instanceof ErrorArca && error.estado === 409, "sin conexión con ARCA no factura");
+    /* Tres facturas que "quedaron colgadas" sin internet, y un ticket en
+       el medio. */
+    const [f1, ticket, f2, f3] = [await ventaDe(1234.5), await ventaDe(500, {}), await ventaDe(10), await ventaDe(20)];
+
+    let r = await facturarPendientes({ admin, empresaId });
+    decir(r.error && /no está conectado/.test(r.error) && !r.autorizadas.length, "sin conexión con ARCA no factura nada");
 
     await c.query("insert into arca_conexiones (empresa_id, punto_venta) values ($1, 1)", [empresaId]);
 
-    const f = await facturarVenta({ admin, empresaId, operacionId: v });
-    decir(f.estado === "autorizado" && /^\d{14}$/.test(f.cae), `factura C autorizada: ${f.punto_venta}-${f.numero}, CAE ${f.cae}`);
-    decir(Number(f.total) === 1234.5 && f.letra === "C" && f.tipo === 11, "con el total de la venta, no el que mande nadie");
+    r = await facturarPendientes({ admin, empresaId });
+    decir(!r.error && r.autorizadas.length === 3 && r.quedan === 0, `volvió ARCA: las 3 facturas tienen CAE (${r.error || "sin errores"})`);
+    const [n1, n2, n3] = [await numeroDe(f1), await numeroDe(f2), await numeroDe(f3)];
+    decir(n1 < n2 && n2 < n3, `en el orden en que se vendieron: ${n1}, ${n2}, ${n3}`);
+    /* "Sin huecos" no se puede probar acá: el CUIT de pruebas lo comparten
+       todos los usuarios de Afip SDK, y otro puede llevarse un número entre
+       dos de los nuestros. Con el CUIT propio de un comercio, sí. */
+    decir(!(await numeroDe(ticket)), "la venta con ticket no fiscal no se factura");
 
-    const otra = await facturarVenta({ admin, empresaId, operacionId: v });
-    decir(otra.id === f.id && otra.cae === f.cae, "reintentar devuelve la misma factura, no emite otra");
+    const a = r.autorizadas.find((x) => x.operacionId === f1);
+    decir(a && /^\d{14}$/.test(a.cae) && a.total === 1234.5 && a.letra === "C" && a.homologacion,
+      `factura C por el total de la venta: CAE ${a && a.cae}`);
 
-    /* Dos cajas a la vez: una factura y la otra espera su turno. Ninguna
-       sale con un número repetido. */
-    const [a, b] = [await ventaDe(10), await ventaDe(20)];
-    const res = await Promise.allSettled([
-      facturarVenta({ admin, empresaId, operacionId: a }),
-      facturarVenta({ admin, empresaId, operacionId: b }),
-    ]);
-    const bien = res.filter((x) => x.status === "fulfilled").map((x) => x.value);
-    const choque = res.filter((x) => x.status === "rejected").map((x) => x.reason);
-    decir(bien.length >= 1 && choque.every((e) => e instanceof ErrorArca && e.estado === 409),
-      `dos cajas a la vez: ${bien.length} autorizada(s), ${choque.length} esperando turno`);
-    decir(new Set(bien.map((x) => x.numero)).size === bien.length, "sin números repetidos");
+    let error = null;
+    try { await facturarVenta({ admin, empresaId, operacionId: ticket }); } catch (e) { error = e; }
+    decir(error instanceof ErrorArca && error.estado === 409, "ni pidiéndola suelta: un ticket no se convierte en factura");
 
-    const cero = await ventaDe(0);
+    const v = await facturarVenta({ admin, empresaId, operacionId: f1 });
+    decir(v.numero === n1, "reintentar una ya autorizada devuelve la misma, no emite otra");
+
+    const vieja = await ventaDe(30, { fiscal: true, cae: "74300000000000" });
+    r = await facturarPendientes({ admin, empresaId });
+    decir(!r.autorizadas.length && !(await numeroDe(vieja)), "la venta con el CAE inventado de antes de 0082 no se factura");
+
+    /* Dos cajas pidiendo a la vez sobre las mismas pendientes. */
+    const [g1, g2] = [await ventaDe(40), await ventaDe(50)];
+    const dos = await Promise.all([facturarPendientes({ admin, empresaId }), facturarPendientes({ admin, empresaId })]);
+    const total = dos.reduce((s, x) => s + x.autorizadas.length, 0);
+    const [m1, m2] = [await numeroDe(g1), await numeroDe(g2)];
+    decir(m1 && m2 && m1 < m2, `dos cajas a la vez: ${total} autorizadas entre las dos, ${m1} y ${m2}, en orden`);
+
     error = null;
-    try { await facturarVenta({ admin, empresaId, operacionId: cero }); } catch (e) { error = e; }
-    decir(error instanceof ErrorArca && error.estado === 400, "una venta en cero no llega a ARCA");
-
-    error = null;
-    try { await facturarVenta({ admin, empresaId: SUPER.id, operacionId: v }); } catch (e) { error = e; }
+    try { await facturarVenta({ admin, empresaId: SUPER.id, operacionId: f2 }); } catch (e) { error = e; }
     decir(error instanceof ErrorArca && error.estado === 404, "la venta de otro comercio no se factura");
   } catch (e) {
     decir(false, `ARCA: ${e.message}`);

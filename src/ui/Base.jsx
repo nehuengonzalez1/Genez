@@ -4,7 +4,8 @@
 
 import React, { useEffect, useRef, useContext, createContext, useCallback } from "react";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
-import { mulberry32, HOY, addDays, fdatel } from "../datos/generador.js";
+import QRCode from "qrcode";
+import { HOY, fdatel } from "../datos/generador.js";
 import { pct, money, nf, nf2, moneyk, FISCAL_INICIAL, letraComprobante, discriminaIVA, condicionLegal, medioPorK } from "../utils/helpers.js";
 
 export const SEV = {
@@ -247,7 +248,7 @@ export function imprimirComandera(lineas, ancho, qrSemilla, toast) {
     const mm = ancho === 58 ? 58 : 80;
     const cuerpo = escaparHTML(lineas.join("\n"));
     const qr = qrSemilla
-      ? `<div class="qr">${svgQR(qrSemilla, mm === 58 ? 18 : 22)}</div>`
+      ? `<div class="qr">${svgQR(qrSemilla, mm === 58 ? 30 : 34)}</div>`
       : "";
     /* El `@page` no va acá: se inyecta al cargar, con el alto ya medido.
        Ver el comentario del iframe, abajo. */
@@ -495,22 +496,59 @@ export function armarLineas(W, bloques) {
   return out;
 }
 
-export function celdasQR(semilla) {
-  const n = 21;
-  let h = 0;
-  for (let i = 0; i < String(semilla).length; i++) h = (h * 31 + String(semilla).charCodeAt(i)) >>> 0;
-  const rnd = mulberry32(h);
+/* --- El QR de la factura -------------------------------------------------
+   Hasta 0082 esto era un dibujo: un patrón al azar sembrado con el CAE,
+   con las tres esquinas de un QR para que lo pareciera. No se podía
+   escanear. Ahora es un QR de verdad, y en una factura lleva lo que pide
+   ARCA (RG 4892): la dirección de su verificador con los datos del
+   comprobante en base64. Quien lo escanea ve en el sitio de ARCA si la
+   factura existe. */
+export function celdasQR(texto) {
+  const { modules } = QRCode.create(String(texto), { errorCorrectionLevel: "L" });
+  const n = modules.size;
   const out = [];
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-    const esquina = (x < 7 && y < 7) || (x > n - 8 && y < 7) || (x < 7 && y > n - 8);
-    const anillo = esquina && (x % 6 === 0 || y % 6 === 0 || (x > 1 && x < 5 && y > 1 && y < 5) ||
-      ((x > n - 7 && x < n - 2) && y > 1 && y < 5) || (x > 1 && x < 5 && y > n - 7 && y < n - 2));
-    if (esquina ? anillo : rnd() > 0.55) out.push([x, y]);
-  }
+  // get(fila, columna): la fila es la y. Al revés sale espejado y no se lee.
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (modules.get(y, x)) out.push([x, y]);
   return { n, celdas: out };
 }
 
-export function PseudoQR({ semilla, size = 84 }) {
+/* Lo que ARCA espera adentro del QR, con sus nombres de campo. */
+export function qrDeFactura(fac) {
+  if (!fac) return null;
+  const datos = {
+    ver: 1,
+    fecha: fac.fecha,
+    cuit: Number(fac.cuit),
+    ptoVta: fac.puntoVenta,
+    tipoCmp: fac.tipo,
+    nroCmp: fac.numero,
+    importe: fac.total,
+    moneda: "PES",
+    ctz: 1,
+    tipoDocRec: fac.docTipo,
+    nroDocRec: fac.docNro,
+    tipoCodAut: "E",
+    codAut: Number(fac.cae),
+  };
+  return `https://www.afip.gob.ar/fe/qr/?p=${btoa(JSON.stringify(datos))}`;
+}
+
+/* Una factura sin CAE no se imprime. El cliente se lleva un solo papel
+   de cada venta, y ese papel es la factura: si se imprimiera algo antes,
+   serían dos. */
+export const esperaCAE = (t) => !!(t && t.fiscal && !t.factura);
+
+export function imprimirTicket(t, ajustes, toast) {
+  if (esperaCAE(t)) {
+    toast("La factura todavía no tiene CAE. Se imprime cuando ARCA la autorice (Caja → Facturas).", "mal");
+    return;
+  }
+  const W = ajustes.ancho === 58 ? 32 : 48;
+  imprimirComandera(ticketVenta(t, ajustes, W), ajustes.ancho, t.fiscal ? qrDeFactura(t.factura) : null, toast);
+}
+
+export function CodigoQR({ semilla, size = 84 }) {
+
   const { n, celdas } = celdasQR(semilla);
   return (
     <svg viewBox={`0 0 ${n} ${n}`} width={size} height={size} shapeRendering="crispEdges" fill="currentColor">
@@ -533,7 +571,7 @@ export function Comandera({ lineas, ancho, qr, className = "" }) {
       <pre className="f-m whitespace-pre leading-[1.35] m-0" style={{ fontSize: ancho === 58 ? "9.5px" : "10.5px" }}>
         {lineas.join("\n")}
       </pre>
-      {qr && <div className="flex justify-center py-1"><PseudoQR semilla={qr} size={ancho === 58 ? 70 : 88} /></div>}
+      {qr && <div className="flex justify-center py-1"><CodigoQR semilla={qr} size={ancho === 58 ? 150 : 170} /></div>}
     </div>
   );
 }
@@ -541,7 +579,10 @@ export function Comandera({ lineas, ancho, qr, className = "" }) {
 export function ticketVenta(t, ajustes, W) {
   const f = ajustes.fiscal || FISCAL_INICIAL;
   const cli = t.cliente || null;
-  const letra = t.fiscal ? letraComprobante(f.condicion, cli ? cli.condicion : "CF") : null;
+  /* Con CAE, la letra y el número son los que dio ARCA, no los que se
+     deducen acá: el papel tiene que decir lo mismo que el comprobante. */
+  const fac = t.fiscal ? t.factura || null : null;
+  const letra = t.fiscal ? (fac ? fac.letra : letraComprobante(f.condicion, cli ? cli.condicion : "CF")) : null;
   const discrimina = letra && discriminaIVA(letra);
 
   const b = [
@@ -556,10 +597,22 @@ export function ticketVenta(t, ajustes, W) {
   b.push({ t: "c", v: t.fiscal ? condicionLegal(f.condicion) : "NO VALIDO COMO FACTURA" });
   b.push({ t: "sep", c: "=" });
   b.push({ t: "c", v: t.fiscal ? `FACTURA ${letra}` : "TICKET DE VENTA" });
+  /* Homologación es el ARCA de pruebas: el CAE es real pero no vale nada.
+     Se dice arriba, porque ese papel puede terminar en la mano de un
+     cliente mientras el comercio prueba. */
+  if (fac && fac.homologacion) b.push({ t: "c", v: "PRUEBA - SIN VALIDEZ FISCAL" });
   /* La fecha viene del ticket, no de `HOY`: la venta ocurrió hoy de verdad.
      El respaldo es la fecha real y no la congelada, para que un ticket
      viejo que se reimprima tampoco mienta. */
-  b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${t.fecha || fdatel(new Date())} ${t.hora}` });
+  /* El número de una factura son 14 dígitos con el guión, y a 58 mm no
+     entra junto con la fecha y la hora: se cortaba el último dígito. Va
+     solo en su renglón. */
+  if (fac) {
+    b.push({ t: "c", v: `Nro ${String(fac.puntoVenta).padStart(5, "0")}-${String(fac.numero).padStart(8, "0")}` });
+    b.push({ t: "c", v: `${t.fecha || fdatel(new Date())} ${t.hora}` });
+  } else {
+    b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${t.fecha || fdatel(new Date())} ${t.hora}` });
+  }
 
   if (t.fiscal) {
     b.push({ t: "sep" });
@@ -604,8 +657,14 @@ export function ticketVenta(t, ajustes, W) {
 
   if (t.fiscal) {
     b.push({ t: "b" });
-    b.push({ t: "c", v: `CAE ${t.cae}` });
-    b.push({ t: "c", v: `Vto CAE ${fdatel(addDays(HOY, 10))}` });
+    if (fac) {
+      b.push({ t: "c", v: `CAE ${fac.cae}` });
+      b.push({ t: "c", v: `Vto CAE ${fac.vencimiento.split("-").reverse().join("/")}` });
+    } else {
+      /* Solo se ve en pantalla: `imprimirTicket` no la deja salir. */
+      b.push({ t: "c", v: "ESPERANDO CAE DE ARCA" });
+      b.push({ t: "c", v: "NO ENTREGAR" });
+    }
   }
   b.push({ t: "b" });
   b.push({ t: "c", v: `${t.items.length} items` });

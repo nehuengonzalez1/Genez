@@ -14,7 +14,8 @@ import { mulberry32, uid, HOY, PEDIDOS_INICIALES, fdatel } from "../datos/genera
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios } from "../datos/sesion.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { consultarCobros } from "../datos/mercadopago.js";
-import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras } from "../utils/helpers.js";
+import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras, letraComprobante } from "../utils/helpers.js";
+import { cargarConexionArca, obtenerCAEs } from "../datos/arca.js";
 import { cargarProductos, guardarProducto, crearProducto, cargarProducto, escucharItems, eliminarProducto } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
 import { cargarProveedores, guardarProveedores } from "../datos/proveedores.js";
@@ -46,6 +47,7 @@ import { Ventas } from "../modulos/Ventas.jsx";
 import { Finanzas } from "../modulos/Finanzas.jsx";
 import { Servicios } from "../modulos/Servicios.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
+import { Facturas } from "../modulos/Facturas.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Informes } from "../modulos/Informes.jsx";
 import { Crm } from "../modulos/Crm.jsx";
@@ -985,6 +987,19 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const [cargandoProductos, setCargandoProductos] = useState(true);
   const [tickets, setTickets] = useState([]);
   const [pendientes, setPendientes] = useState(cuantasPendientes());
+
+  /* LA FACTURA ELECTRÓNICA
+     La conexión la da de alta la plataforma (0082). Mientras no exista, el
+     cobro no ofrece "Factura" y todo sale como ticket.
+
+     `facturas` son las que ARCA ya autorizó en esta sesión, por venta. El
+     ticket que se está mostrando las mira para pasar de "esperando CAE" a
+     imprimible sin que nadie tenga que refrescar. */
+  const [conexionArca, setConexionArca] = useState(null);
+  const [facturas, setFacturas] = useState({});
+  const [sinCAE, setSinCAE] = useState(null);
+  const pidiendoCAE = useRef(false);
+  const otraVuelta = useRef(false);
   /* Lo vendido hoy sale de la base, no de los tickets de esta pantalla:
      si se cuenta lo de la sesión, refrescar borra la mitad del día y
      cambiar de equipo muestra otra cifra. */
@@ -1031,6 +1046,62 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   };
 
   const empresaId = sesion.comercio.id;
+
+  useEffect(() => {
+    let vigente = true;
+    cargarConexionArca(empresaId)
+      .then((c) => { if (vigente) setConexionArca(c); })
+      /* Sin poder leerla se vende con ticket. Ofrecer "Factura" sin saber
+         si hay con qué pedir el CAE es prometer un papel que no va a salir. */
+      .catch(() => { if (vigente) setConexionArca(null); });
+    return () => { vigente = false; };
+  }, [empresaId]);
+
+  /* Por ahora solo la C: A y B necesitan el IVA por alícuota, y el
+     servidor las rechaza. Ofrecerlas dejaría ventas esperando un CAE que
+     nunca va a llegar. */
+  const puedeFacturar = !!conexionArca &&
+    letraComprobante((ajustes.fiscal || FISCAL_INICIAL).condicion, "CF") === "C";
+  const facturacion = { puede: puedeFacturar, modo: conexionArca ? conexionArca.modo : null };
+
+  /* Pide el CAE de todo lo que espera, en orden (ver src/datos/arca.js).
+     Una sola vuelta a la vez: dos pedidos cruzados desde la misma caja
+     solo se chocarían entre sí en el servidor. Pero si una venta nueva
+     llega mientras hay una vuelta en curso, esa vuelta ya no la va a ver:
+     se anota y se da otra al terminar. */
+  const pedirCAEs = useCallback(async ({ avisar = true } = {}) => {
+    if (pidiendoCAE.current) { otraVuelta.current = true; return null; }
+    pidiendoCAE.current = true;
+    try {
+      const r = await obtenerCAEs(sesion.comercio.id);
+      if (r.autorizadas.length) {
+        setFacturas((m) => {
+          const n = { ...m };
+          r.autorizadas.forEach((f) => { n[f.operacionId] = f; });
+          return n;
+        });
+      }
+      if (r.quedan != null) setSinCAE(r.quedan);
+      if (avisar && r.error) {
+        toast(`Factura sin CAE por ahora: ${r.error} Queda guardada y se pide desde Caja → Facturas.`, "mal");
+      }
+      return r;
+    } finally {
+      pidiendoCAE.current = false;
+      if (otraVuelta.current) { otraVuelta.current = false; setTimeout(() => facturaRef.current.pedirCAEs({ avisar }), 0); }
+    }
+  }, [sesion.comercio.id]);
+
+  /* La cola corre en un efecto que se registra una sola vez; con esto
+     sabe si el comercio factura sin quedar atada al primer render. */
+  const facturaRef = useRef({ puedeFacturar, pedirCAEs });
+  facturaRef.current = { puedeFacturar, pedirCAEs };
+
+  /* Al entrar: si quedaron facturas sin CAE de otro día o de otra caja,
+     se prueba una vez. Sin aviso si falla: el número queda en Caja. */
+  useEffect(() => {
+    if (puedeFacturar) pedirCAEs({ avisar: false });
+  }, [puedeFacturar, pedirCAEs]);
 
   /* Va acá abajo y no junto al estado de ajustes por una razón que costó
      una pantalla en negro: la lista de dependencias se evalúa durante el
@@ -1397,7 +1468,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, cliente }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente }) => {
     /* El POS ya no se monta con la caja cerrada, pero no es el único que
        cobra: los pedidos preparados entran por acá también. La condición
        se verifica en el único lugar por el que pasan todos, así que un
@@ -1409,14 +1480,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
     const nro = siguienteNumero(empresaId, (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001");
     const ps = pagos && pagos.length ? pagos : [{ medio, monto: total }];
-    /* Ninguna venta sale como factura todavía. Acá se fabricaba el CAE con
-       una cuenta (74300000000000 + 137 por ticket) y el ticket lo imprimía
-       con su QR, con el botón "Factura" a mano de cualquier cajero: un
-       comprobante fiscal falso en la mano de un cliente. El CAE de verdad
-       lo pide `api/arca/facturar` sobre la venta ya guardada, y el cobro
-       lo va a llamar cuando esté resuelto qué se imprime si la venta se
-       hizo sin internet y el CAE llega después. */
-    const esFiscal = false;
+    /* Una factura se decide acá y no se cambia después: la venta viaja
+       marcada, y el servidor solo factura las marcadas. Así una venta sale
+       como factura o como ticket, nunca como las dos cosas.
+
+       El CAE no se inventa ni se espera acá. Antes de 0082 se fabricaba
+       con una cuenta (74300000000000 + 137 por ticket); ahora lo pide
+       `pedirCAEs` cuando la venta llega a la base, y hasta entonces el
+       ticket dice "esperando CAE" y no se puede imprimir. */
+    const esFiscal = !!fiscal && puedeFacturar;
 
     /* La venta se arma antes que el ticket para que compartan el id: lo que
        se imprime en el mostrador y lo que queda en la base son la misma cosa,
@@ -1473,7 +1545,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
        sola, así que no hace falta interrumpir a quien está cobrando. */
     const marcar = (ok) => setTickets((x) => x.map((v) => (v.id === t.id ? { ...v, sincronizada: ok } : v)));
     registrarVenta(venta)
-      .then(() => { quitar(venta.id); marcar(true); })
+      .then(() => {
+        quitar(venta.id); marcar(true);
+        /* Recién con la venta en la base hay algo que facturar. Si ARCA no
+           contesta, la factura queda esperando y el aviso dice dónde está. */
+        if (esFiscal) pedirCAEs();
+      })
       .catch(() => marcar(false))
       .finally(() => setPendientes(cuantasPendientes()));
 
@@ -1501,6 +1578,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      es la forma en que suele fallar en un local. */
   useEffect(() => vigilarCola((r) => {
     setPendientes(cuantasPendientes());
+    /* Volvió la red y entraron ventas que estaban en el equipo: si alguna
+       era factura, ahora se le puede pedir el CAE. Se piden todas las que
+       esperan, en orden, así que no hace falta saber cuáles eran. */
+    if (r.enviadas && facturaRef.current.puedeFacturar) facturaRef.current.pedirCAEs({ avisar: false });
     if (r.enviadas) {
       toast(r.enviadas === 1
         ? "Se guardó en el servidor una venta que había quedado pendiente."
@@ -1770,7 +1851,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             {caja.abierta ? (
               <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
-                aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos} />
+                aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
+                facturacion={facturacion} facturas={facturas} pedirCAEs={pedirCAEs} />
             ) : (
               <div className="py-8">
                 <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia}
@@ -2023,8 +2105,18 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
           {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (
-            <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes}
-              abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
+            <div className="space-y-4">
+              <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes}
+                abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
+              {/* Con la caja cerrada también: una factura sin CAE de ayer se
+                  resuelve aunque hoy todavía no se haya abierto. Y aparece
+                  si quedaron pendientes aunque la conexión se haya dado de
+                  baja, que es cuando más hay que verlas. */}
+              {(conexionArca || sinCAE > 0) && (
+                <Facturas empresaId={empresaId} ajustes={ajustes} toast={toast}
+                  facturacion={facturacion} pedirCAEs={pedirCAEs} sinCAE={sinCAE} />
+              )}
+            </div>
           )}
           {tab === "reportes" && (
             <Reportes k={k} ir={ir}
@@ -2043,7 +2135,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               miRol={sesion.rol} esPlataforma={esPlataforma} toast={toast} />
           )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
-          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} />}
+          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion} />}
         </main>
       </div>
       )}

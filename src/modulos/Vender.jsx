@@ -11,12 +11,12 @@ import {
 import { HOY, uid } from "../datos/generador.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
-  conRecargo, mediosDe, medioPorK,
+  conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
   condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
   leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE
 } from "../utils/helpers.js";
 import {
-  beep, useScanHandler, imprimirComandera, ticketVenta,
+  beep, useScanHandler, ticketVenta, imprimirTicket, qrDeFactura, esperaCAE,
   Vacio, Modal, Boton, Card, Comandera
 } from "../ui/Base.jsx";
 import { FormCliente } from "./Clientes.jsx";
@@ -503,7 +503,8 @@ const ATAJOS = [
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
-export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos }) {
+export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos,
+  facturacion = { puede: false }, facturas = {}, pedirCAEs }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → monto → fin
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -514,6 +515,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [pagos, setPagos] = useState([]);
   const [montoMix, setMontoMix] = useState("");
   const [ticket, setTicket] = useState(null);
+  /* El ticket que se muestra, con la factura si ARCA ya la autorizó. El
+     CAE llega después del cobro —a veces mucho después—, así que no se
+     guarda en `ticket`: se mira cada vez en lo que va llegando. */
+  const tk = ticket && ticket.fiscal ? { ...ticket, factura: facturas[ticket.id] || null } : ticket;
   const [verTicket, setVerTicket] = useState(false);
   const [ayuda, setAyuda] = useState(false);
   const [alta, setAlta] = useState(null);
@@ -655,6 +660,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
 
   const [cliente, setCliente] = useState(null);
   const [buscarCliente, setBuscarCliente] = useState(false);
+  /* "Factura" existe solo si el comercio está conectado con ARCA. La
+     preferencia de Ajustes decide con cuál arranca cada venta. */
+  const arrancaFactura = !!ajustes.arca && facturacion.puede;
+  const [fiscal, setFiscal] = useState(arrancaFactura);
+  const letra = letraComprobante((ajustes.fiscal || FISCAL_INICIAL).condicion, cliente ? cliente.condicion : "CF");
   const rec = conRecargo(total, medio);
   const totalFinal = rec.total;
   // El vuelto se calcula sobre el total con recargo, así que va después.
@@ -663,7 +673,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const irAPago = () => {
     if (!cart.length) return;
     setMedioSel(0); setRecibe(""); setPagos([]); setMontoMix("");
-    setCliente(null);
+    setFiscal(arrancaFactura); setCliente(null);
     setPaso("pago");
   };
 
@@ -706,7 +716,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
     const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
-      cliente });
+      fiscal: fiscal && facturacion.puede, cliente });
     /* Sin caja abierta no hay venta: no se descuenta stock ni se limpia el
        carrito, así el cobro se puede retomar apenas se abra. */
     if (!t) return;
@@ -802,14 +812,14 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
         if (e.key === "Enter" || e.key === "Escape") return nuevaVenta();
         const k = e.key.toLowerCase();
         if (k === "t") return setVerTicket(true);
-        if (k === "i") return imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ticket.fiscal ? ticket.cae : null, toast);
+        if (k === "i") return imprimirTicket(tk, ajustes, toast);
         if (k === "w") return toast("Comprobante enviado por WhatsApp.");
         if (k === "e") return toast("Comprobante enviado por email.");
       }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, totalFinal, cliente, buscarCliente, permisos]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -1058,15 +1068,32 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <div className="text-right text-xs text-texto-tenue"><Tecla>Esc</Tecla> volver</div>
           </div>
           <div className="p-4">
-            {/* Acá había un selector Ticket / Factura que imprimía la
-                factura con un CAE inventado. Vuelve cuando el cobro pida el
-                CAE de verdad a ARCA (ver `cobrar` en PanelGenez.jsx). */}
-            <div className="mb-3">
+            <div className="flex items-center justify-between gap-3 mb-3">
               <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Cómo paga?</span>
+              {/* Solo con conexión a ARCA. Antes estaba siempre y la
+                  factura salía con un CAE inventado. */}
+              {facturacion.puede && (
+                <div className="flex rounded-md border border-borde overflow-hidden text-xs font-semibold">
+                  <button onClick={() => setFiscal(false)} className={`px-3 py-1.5 ${!fiscal ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>Ticket</button>
+                  <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>
+                    Factura {fiscal ? letra : ""}{fiscal && facturacion.modo === "homologacion" ? " · prueba" : ""}
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* El cliente se elige cuando se cobra a cuenta corriente, y
-                tiene que verse a quién se le está anotando la deuda. */}
+            {/* A quién se le factura, o a quién se le anota la deuda de una
+                cuenta corriente. */}
+            {fiscal && !cliente && (
+              <button onClick={() => setBuscarCliente(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-md border border-borde hover:bg-superficie-2 text-left">
+                <Users size={16} className="text-texto-tenue shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">Consumidor final</span>
+                  <span className="block text-[11px] text-texto-tenue">Sin identificar · tocá para elegir un cliente</span>
+                </span>
+              </button>
+            )}
             {cliente && (
               <button onClick={() => setBuscarCliente(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-xl border border-borde hover:bg-superficie-2 text-left">
@@ -1242,9 +1269,26 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             </div>
           )}
           <div className="p-5">
+            {/* La factura sin CAE no se imprime: el papel que se lleva el
+                cliente es uno solo y tiene que ser la factura. Queda
+                guardada y se imprime desde acá apenas llega, o después
+                desde Caja → Facturas. */}
+            {tk.fiscal && (
+              <div className={`rounded-md border p-3 mb-4 text-sm ${tk.factura ? "border-bien bg-bien-suave text-bien" : "border-ojo bg-ojo-suave text-ojo"}`}>
+                {tk.factura ? (
+                  <span>Factura {tk.factura.letra} {String(tk.factura.puntoVenta).padStart(5, "0")}-{String(tk.factura.numero).padStart(8, "0")} · CAE {tk.factura.cae}
+                    {tk.factura.homologacion ? " · prueba, sin validez fiscal" : ""}</span>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1">Esperando el CAE de ARCA. La factura queda guardada: si no llega, se pide desde Caja → Facturas.</span>
+                    {pedirCAEs && <Boton size="sm" variant="ghost" onClick={() => pedirCAEs()}>Pedir CAE</Boton>}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-2">¿Querés comprobante?</div>
             <div className="grid grid-cols-4 gap-1.5">
-              {[[Printer, "Imprimir", "I", () => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ticket.fiscal ? ticket.cae : null, toast)],
+              {[[Printer, "Imprimir", "I", () => imprimirTicket(tk, ajustes, toast)],
                 [FileText, "Ver ticket", "T", () => setVerTicket(true)],
                 [MessageCircle, "WhatsApp", "W", () => toast("Comprobante enviado por WhatsApp.")],
                 [Mail, "Email", "E", () => toast("Comprobante enviado por email.")]].map(([I, n, k2, fn]) => (
@@ -1262,10 +1306,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
         <Modal open onClose={() => setVerTicket(false)} ancho="max-w-md">
           <div className="p-5">
             <div className="bg-superficie-2 rounded-xl p-3 overflow-auto">
-              <Comandera lineas={ticketVenta(ticket, ajustes, W)} ancho={ajustes.ancho} qr={ticket.fiscal ? ticket.cae : null} className="py-2 shadow-sm" />
+              <Comandera lineas={ticketVenta(tk, ajustes, W)} ancho={ajustes.ancho} qr={tk.fiscal ? qrDeFactura(tk.factura) : null} className="py-2 shadow-sm" />
             </div>
             <div className="grid grid-cols-2 gap-1.5 mt-3 no-print">
-              <Boton variant="ghost" onClick={() => imprimirComandera(ticketVenta(ticket, ajustes, W), ajustes.ancho, ticket.fiscal ? ticket.cae : null, toast)}><Printer size={15} /> Imprimir</Boton>
+              <Boton variant="ghost" disabled={esperaCAE(tk)} onClick={() => imprimirTicket(tk, ajustes, toast)}><Printer size={15} /> Imprimir</Boton>
               <Boton variant="dark" onClick={() => setVerTicket(false)}>Cerrar</Boton>
             </div>
           </div>
@@ -1322,7 +1366,7 @@ export function TicketModal({ t, onClose, ajustes, toast }) {
   if (!t) return null;
   const W = ajustes.ancho === 58 ? 32 : 48;
   const acciones = [
-    { i: Printer, n: "Imprimir", fn: () => imprimirComandera(ticketVenta(t, ajustes, W), ajustes.ancho, t.fiscal ? t.cae : null, toast) },
+    { i: Printer, n: "Imprimir", fn: () => imprimirTicket(t, ajustes, toast) },
     { i: MessageCircle, n: "WhatsApp", fn: () => toast("Comprobante enviado por WhatsApp.") },
     { i: Mail, n: "Email", fn: () => toast("Comprobante enviado por email.") },
     { i: QrCode, n: "QR", fn: () => toast("QR en pantalla para el cliente.") },
@@ -1339,7 +1383,7 @@ export function TicketModal({ t, onClose, ajustes, toast }) {
         </div>
         <div className="bg-superficie-2 rounded-xl p-3 mt-4 overflow-auto">
           <Comandera lineas={ticketVenta(t, ajustes, W)} ancho={ajustes.ancho}
-            qr={t.fiscal ? t.cae : null} className="py-2 shadow-sm" />
+            qr={t.fiscal ? qrDeFactura(t.factura) : null} className="py-2 shadow-sm" />
         </div>
         <div className="grid grid-cols-4 gap-1.5 mt-4 no-print">
           {acciones.map((a) => (

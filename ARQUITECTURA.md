@@ -574,10 +574,24 @@ sobrevive al cierre de sesión.
 
 ## La factura electrónica
 
-Migración 0082 y `api/arca/`. Está a mitad de camino: el servidor ya pide
-un CAE de verdad contra homologación, pero **el cobro todavía no lo llama**
-y ninguna venta sale como factura. Hasta 0082 el cobro fabricaba el CAE
-con una cuenta y lo imprimía con su QR; eso se sacó.
+Migraciones 0082 y 0083, `api/arca/` y Caja → Facturas. Hasta 0082 el
+cobro fabricaba el CAE con una cuenta y lo imprimía con un QR dibujado;
+eso se sacó. "Factura" aparece en el cobro solo si el comercio tiene fila
+en `arca_conexiones` y le corresponde la C.
+
+**Una venta es factura o ticket desde el mostrador, y no cambia.** Viaja
+marcada en `operaciones.comprobante.fiscal`, y el servidor factura solo
+las marcadas. Sin internet o con ARCA caído la venta se cobra igual y la
+factura queda esperando; **no se imprime nada hasta tener el CAE**. Así el
+cliente se lleva un solo papel de cada venta, y es la factura.
+
+**Los CAE se piden todos y en orden**, de la venta más vieja a la más
+nueva, y se corta en el primer error. No hay forma de pedir uno suelto:
+pasaría adelante de los que esperan y la numeración dejaría de seguir el
+orden de las ventas. Se piden solos después de cada factura, cuando vuelve
+internet y al entrar; y con el botón de Caja → Facturas. "Esperando CAE"
+no se guarda: `facturas_vista` es una venta marcada sin comprobante
+autorizado.
 
 **El CAE lo escribe solo el servidor.** `comprobantes` no tiene política
 de escritura para `authenticated`: la escribe `api/arca/facturar.js` con
@@ -600,11 +614,9 @@ serie: el segundo choca y espera. Si el servidor se cae esperando a ARCA,
 la fila pendiente queda y el próximo intento le pregunta a ARCA qué pasó
 con ese número antes de pedir otro.
 
-Lo que falta: que el cobro pida el CAE y qué se imprime si la venta se
-hizo sin internet; el QR que exige ARCA (hoy `PseudoQR` es un dibujo); las
-facturas A y B, que necesitan el IVA por alícuota; la nota de crédito; y
-producción, que necesita el certificado del comercio y decidir dónde vive
-su clave privada. Ojo con eso último: Afip SDK autentica pasando por sus
+Lo que falta: las facturas A y B, que necesitan el IVA por alícuota; la
+nota de crédito; y producción, que necesita el certificado del comercio y
+decidir dónde vive su clave privada. Ojo con eso último: Afip SDK autentica pasando por sus
 propios servidores, y en producción les manda el certificado y la clave.
 
 ## Lo que ya funciona y no hay que rehacer

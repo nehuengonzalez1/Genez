@@ -21,7 +21,7 @@ const Vol2 = Volume2;
    13. AJUSTES
    ============================================================ */
 
-export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro }) {
+export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro, facturacion = { puede: false } }) {
   const f = ajustes.fiscal || FISCAL_INICIAL;
   const setFiscal = (cambios) => setAjustes({ ...ajustes, fiscal: { ...f, ...cambios } });
   const bal = ajustes.balanza || BALANZA_INICIAL;
@@ -157,21 +157,43 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
             </div>
             <p className="text-sm text-texto-suave mt-1">Arrancás vendiendo hoy mismo. El sistema numera, imprime y envía comprobantes internos, y registra todo en ventas, stock y caja.</p>
           </button>
-          {/* No se elige desde acá. Era un botón que prendía un CAE
-              simulado; la conexión con ARCA la da de alta Genez, con el
-              CUIT y el punto de venta del comercio. */}
-          <div className="w-full text-left border border-borde rounded-xl p-4 opacity-70">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-widest font-bold text-texto-suave">Fase 2</span>
-              <span className="font-semibold text-sm">Factura electrónica (ARCA)</span>
-              <span className="ml-auto text-[10px] uppercase tracking-widest font-bold text-texto-tenue">Próximamente</span>
+          {/* Se elige solo con la conexión hecha. La da de alta Genez, con
+              el CUIT y el punto de venta del comercio; antes era un botón
+              que prendía un CAE simulado. */}
+          {facturacion.puede ? (
+            <button onClick={() => setAjustes({ ...ajustes, arca: true })}
+              className={`w-full text-left border rounded-xl p-4 ${ajustes.arca ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-widest font-bold text-texto-suave">Fase 2</span>
+                <span className="font-semibold text-sm">Factura electrónica (ARCA)</span>
+                {facturacion.modo === "homologacion" && <span className="text-[10px] uppercase tracking-widest font-bold text-ojo">Prueba</span>}
+                {ajustes.arca && <Check size={15} className="ml-auto text-acento" />}
+              </div>
+              <p className="text-sm text-texto-suave mt-1">
+                Cada venta arranca como factura, con su CAE. Si ARCA o internet no están, la factura queda guardada y se
+                pide después desde Caja → Facturas.
+                {facturacion.modo === "homologacion" && " Estás conectado al ARCA de pruebas: las facturas salen marcadas sin validez fiscal."}
+              </p>
+            </button>
+          ) : (
+            <div className="w-full text-left border border-borde rounded-xl p-4 opacity-70">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-widest font-bold text-texto-suave">Fase 2</span>
+                <span className="font-semibold text-sm">Factura electrónica (ARCA)</span>
+                <span className="ml-auto text-[10px] uppercase tracking-widest font-bold text-texto-tenue">Próximamente</span>
+              </div>
+              <p className="text-sm text-texto-suave mt-1">
+                La misma venta emite la factura que te corresponde según tu condición, con su CAE. Se activa cuando
+                conectamos tu CUIT y tu punto de venta con ARCA; el flujo de caja no cambia.
+              </p>
             </div>
-            <p className="text-sm text-texto-suave mt-1">
-              La misma venta emite la factura que te corresponde según tu condición, con su CAE. Se activa cuando
-              conectamos tu CUIT y tu punto de venta con ARCA; el flujo de caja no cambia.
-            </p>
-          </div>
+          )}
         </div>
+        {facturacion.puede && (
+          <p className="text-xs text-texto-tenue mt-3">
+            Esto define con qué opción arranca cada venta. En la pantalla de cobro se puede cambiar venta por venta.
+          </p>
+        )}
       </Card>
 
       <Card className="p-5">
