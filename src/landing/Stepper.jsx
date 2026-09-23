@@ -494,7 +494,7 @@ function TarjetaPlan({ opcion, tarifas, todos, onElegir }) {
         {!calculando && pre.mensual != null && (
           <div className="f-d f-m text-3xl">{pesos(pre.mensual)} <span className="text-sm text-texto-suave font-normal">/mes</span></div>
         )}
-        {!calculando && pre.mensual == null && <div className="f-d text-xl">Precio a confirmar</div>}
+        {!calculando && pre.mensual == null && <div className="f-d text-xl">Consultar</div>}
         <div className="text-[11px] text-texto-tenue mt-0.5">{pre.cantidad} módulos · cobro, caja y ajustes incluidos</div>
       </div>
       <button type="button" onClick={onElegir} className={`${opcion.recomendado ? SOLIDO : LINEA} mt-4 w-full !py-2.5 text-sm`}>
@@ -551,6 +551,20 @@ function Listo({ rubro, negocio, escala, canal, sucursales, respuestas, mensaje,
   const armado = elegida.armado;
   const { lineas, base, mensual, puestaEnMarcha, faltan, cantidad } = presupuesto;
   const calculando = tarifas === null;
+  /* HASTA QUE HAYA PRECIOS, CADA RENGLON DICE "CONSULTAR"
+
+     Antes, sin precios cargados, la columna desaparecia entera y el unico
+     aviso era un parrafo al pie. Un renglon en blanco al lado de un modulo
+     se lee como "no cuesta nada" o como que la pagina esta rota, y quien
+     mira no sabe si tiene que preguntar.
+
+     La palabra va en cada uno porque cada modulo se cotiza aparte: cuando
+     haya precios, algunos van a tener numero y otros no, y ahi el renglon
+     que dice "Consultar" es exactamente el que hay que preguntar.
+
+     La bandera sigue viva para lo que si desaparece sin precios: el total
+     y la puesta en marcha, que no son un renglon a cotizar sino una suma
+     que no existe. */
   const sinPrecios = !calculando && base == null;
   const opcionales = lineas.filter((l) => !l.base);
   const nombresBase = lineas.filter((l) => l.base).map((l) => l.n).join(", ");
@@ -630,10 +644,10 @@ function Listo({ rubro, negocio, escala, canal, sucursales, respuestas, mensaje,
                 </div>
                 <ul className="divide-y divide-borde">
                   <Linea nombre="Base" detalle={nombresBase} motivo="Siempre incluida"
-                    precio={sinPrecios ? null : (calculando ? "…" : base == null ? "a cotizar" : pesos(base))} />
+                    precio={calculando ? "…" : base == null ? "Consultar" : pesos(base)} />
                   {opcionales.map((l) => (
                     <Linea key={l.k} nombre={l.n} detalle={l.d} motivo={armado.motivos[l.k]}
-                      precio={sinPrecios ? null : (calculando ? "…" : l.monto == null ? "a cotizar" : pesos(l.monto))} />
+                      precio={calculando ? "…" : l.monto == null ? "Consultar" : pesos(l.monto)} />
                   ))}
                   {!sinPrecios && !calculando && puestaEnMarcha > 0 && (
                     <Linea nombre="Puesta en marcha" detalle="Una sola vez, al arrancar: cargamos tu catálogo y dejamos todo configurado" precio={pesos(puestaEnMarcha)} />
@@ -716,7 +730,7 @@ function Linea({ nombre, detalle, motivo, precio }) {
         {detalle && <div className="text-xs text-texto-tenue mt-0.5">{detalle}</div>}
         {motivo && <div className="text-[11px] text-acento mt-0.5">{motivo}</div>}
       </div>
-      {precio != null && <span className={`f-m shrink-0 text-[15px] ${precio === "a cotizar" || precio === "…" ? "text-texto-tenue" : ""}`}>{precio}</span>}
+      {precio != null && <span className={`f-m shrink-0 text-[15px] ${precio === "Consultar" || precio === "…" ? "text-texto-tenue" : ""}`}>{precio}</span>}
     </li>
   );
 }
@@ -774,7 +788,7 @@ function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cant
       )}
       {!calculando && mensual == null && (
         <>
-          <div className="f-d text-2xl mt-1">Precio a confirmar</div>
+          <div className="f-d text-2xl mt-1">Consultar</div>
           <p className="text-sm text-texto-suave mt-1 leading-relaxed">
             {sinPrecios
               ? `Nos ponemos en contacto con vos por WhatsApp y te pasamos el precio de estos ${cantidad} módulos. Sin compromiso.`

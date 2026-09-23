@@ -93,7 +93,9 @@ const OTRO = {
    ancho, para el pulgar): acá van en línea, con el aire que pide DISENO.md:
    12px arriba y abajo, 18px a los costados, esquina de 6px. */
 const BOTON = "inline-flex items-center justify-center gap-2 rounded-md text-[15px] px-[18px] py-3 transition-colors";
-const SOLIDO = `${BOTON} bg-acento hover:bg-acento-vivo text-sobre-acento font-bold`;
+/* Las variantes `disabled:` solo pintan cuando el boton esta apagado, asi
+   que no molestan donde SOLIDO se usa habilitado. */
+const SOLIDO = `${BOTON} bg-acento hover:bg-acento-vivo text-sobre-acento font-bold disabled:opacity-50 disabled:cursor-default disabled:hover:bg-acento`;
 const LINEA = `${BOTON} border border-borde-fuerte hover:border-texto-tenue text-texto font-semibold`;
 const LINEA_ACENTO = `${BOTON} border border-acento text-acento hover:bg-acento-suave/40 font-semibold`;
 
@@ -103,7 +105,20 @@ const ROTULO_ACENTO = "text-[11px] uppercase tracking-[0.14em] font-bold text-ac
    por fondo) y los aparatos; cambia con el botón de la cabecera. */
 const TemaCtx = createContext(false);
 const useOscuro = () => useContext(TemaCtx);
-const CTA = "Armar mi sistema";
+/* EL ALTA GUIADA ESTÁ CERRADA HASTA QUE EL SISTEMA ESTÉ LISTO
+
+   La landing se ve entera —sirve para mostrar el producto, y el link se le
+   puede pasar a alguien— pero no se puede pedir nada. El alta guiada
+   termina mandando un pedido por WhatsApp y guardándolo en `solicitudes`,
+   y recibir pedidos antes de poder atenderlos es peor que no tener
+   landing: alguien espera una respuesta que no va a llegar.
+
+   Es un interruptor y no un borrado. Cuando se abra, esta línea pasa a
+   `true` y vuelve todo: las tarjetas de rubro, el botón y el enlace
+   directo con `?rubro=`. No hay nada más que deshacer. */
+const ALTA_ABIERTA = false;
+
+const CTA = ALTA_ABIERTA ? "Armar mi sistema" : "Próximamente";
 
 function deLaDireccion(clave) {
   if (typeof window === "undefined") return null;
@@ -122,7 +137,10 @@ export default function Landing() {
   const [rubros, setRubros] = useState(RUBROS_DE_FABRICA);
   const [elegido, setElegido] = useState(deLaDireccion("rubro"));
   const [negocio, setNegocio] = useState(deLaDireccion("negocio"));
-  const [paso, setPaso] = useState(deLaDireccion("rubro") ? "empezar" : "cards");
+  /* El `?rubro=` de la dirección también entra al alta guiada, así que
+     cerrarla solo en los botones dejaría la puerta de atrás abierta: un
+     link viejo compartido por WhatsApp seguiría llevando al formulario. */
+  const [paso, setPaso] = useState(ALTA_ABIERTA && deLaDireccion("rubro") ? "empezar" : "cards");
   const [oscuro, setOscuro] = useState(estaOscuro());
   const alternarTema = () => { fijarTema(oscuro ? "claro" : "oscuro"); setOscuro(!oscuro); };
 
@@ -140,12 +158,14 @@ export default function Landing() {
   /* Tocar un negocio elige y avanza en el mismo gesto: la card ya es la
      respuesta, y un "Continuar" aparte era un toque de más. */
   const elegir = (clave, nombre) => {
+    if (!ALTA_ABIERTA) return;
     setElegido(clave); setNegocio(nombre); escribirEnLaDireccion(clave, nombre);
     setPaso("empezar"); window.scrollTo(0, 0);
   };
   /* "Armar mi sistema" entra al alta guiada por su paso 1 (elegir el
      negocio); tocar una card de la portada lo saltea. */
   const empezar = () => {
+    if (!ALTA_ABIERTA) return;
     setElegido(null); setNegocio(null); escribirEnLaDireccion(null, null);
     setPaso("empezar"); window.scrollTo(0, 0);
   };
@@ -204,7 +224,7 @@ function Cabecera({ conMenu, onAlternarTema, onEmpezar }) {
           </button>
           <a href="/" className={`${LINEA} !py-2 !px-4 text-sm`}>Entrar</a>
           {conMenu && (
-            <button type="button" onClick={onEmpezar} className={`${SOLIDO} !py-2 !px-4 text-sm hidden sm:inline-flex`}>{CTA} <ArrowRight size={15} /></button>
+            <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className={`${SOLIDO} !py-2 !px-4 text-sm hidden sm:inline-flex`}>{CTA} <ArrowRight size={15} /></button>
           )}
         </div>
       </div>
@@ -236,7 +256,7 @@ function Hero({ onEmpezar }) {
         <p className="text-texto-suave mt-5 text-[17px] leading-relaxed max-w-md">
           Ventas, stock, turnos, clientes, finanzas y más. Solo los módulos que necesitás, con un precio claro desde el primer día.
         </p>
-        <button type="button" onClick={onEmpezar} className={`${SOLIDO} mt-7`}>{CTA} <ArrowRight size={16} /></button>
+        <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className={`${SOLIDO} mt-7`}>{CTA} <ArrowRight size={16} /></button>
         <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-texto-suave">
           {[[MapPin, "Hecho en Argentina"], [CreditCard, "Sin tarjeta"], [Unlock, "Cancelás cuando quieras"]].map(([I, t]) => (
             <li key={t} className="inline-flex items-center gap-1.5"><I size={14} className="text-texto-tenue" /> {t}</li>
@@ -411,7 +431,7 @@ function Empecemos({ rubros, onElegir }) {
 
       <p className="text-sm text-texto-tenue mt-5">
         ¿No ves el tuyo?{" "}
-        <button type="button" onClick={() => onElegir("otro", "Otro negocio")} className="text-acento font-semibold hover:text-acento-vivo">
+        <button type="button" onClick={() => onElegir("otro", "Otro negocio")} disabled={!ALTA_ABIERTA} className="text-acento font-semibold hover:text-acento-vivo">
           Contanos qué hacés →
         </button>
       </p>
@@ -430,8 +450,8 @@ function FilaRubro({ rubro, onElegir }) {
         <div className="md:mt-3 min-w-0">
           <div className="font-bold text-[17px] leading-tight">{rubro.nombre}</div>
           <div className="text-[13px] text-texto-suave mt-1 leading-snug">{FRASE_RUBRO[rubro.clave] || p.bajada}</div>
-          <button type="button" onClick={() => onElegir(rubro.clave, null)}
-            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-acento border border-acento/60 rounded-md px-3 py-1.5 hover:bg-acento-suave/40">
+          <button type="button" onClick={() => onElegir(rubro.clave, null)} disabled={!ALTA_ABIERTA}
+            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-acento border border-acento/60 rounded-md px-3 py-1.5 hover:bg-acento-suave/40 disabled:opacity-50 disabled:cursor-default disabled:hover:bg-transparent">
             Elegir este rubro <ArrowRight size={13} />
           </button>
         </div>
@@ -448,8 +468,8 @@ function TarjetaNegocio({ nombre, rubro, onElegir }) {
   const Icono = ICONOS[rubro.presentacion.icono] || Store;
   const src = foto(nombre);
   return (
-    <button type="button" onClick={onElegir}
-      className="shrink-0 w-[124px] text-left bg-superficie border border-borde rounded-xl p-2 hover:border-acento transition-colors">
+    <button type="button" onClick={onElegir} disabled={!ALTA_ABIERTA}
+      className="shrink-0 w-[124px] text-left bg-superficie border border-borde rounded-xl p-2 hover:border-acento transition-colors disabled:opacity-60 disabled:cursor-default disabled:hover:border-borde">
       <div className="h-[66px] rounded-lg overflow-hidden bg-superficie-2 flex items-center justify-center text-texto-tenue">
         {src ? <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" /> : <Icono size={22} />}
       </div>
@@ -641,7 +661,7 @@ function ComoFunciona({ onEmpezar }) {
           <p className="opacity-70 mt-4 text-[17px] leading-relaxed">
             Sin llamados de venta ni presupuestos por mail. Lo ves vos, en el momento, y hasta ahí no te pedimos tarjeta.
           </p>
-          <button type="button" onClick={onEmpezar} className={`${SOLIDO} mt-8`}>{CTA} <ArrowRight size={16} /></button>
+          <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className={`${SOLIDO} mt-8`}>{CTA} <ArrowRight size={16} /></button>
         </div>
         <ol className="space-y-6">
           {pasos.map((s) => (
@@ -720,7 +740,7 @@ function Pie({ onEmpezar }) {
             </li>
           ))}
         </ul>
-        <button type="button" onClick={onEmpezar} className={`${SOLIDO} shrink-0`}>{CTA} <ArrowRight size={16} /></button>
+        <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className={`${SOLIDO} shrink-0`}>{CTA} <ArrowRight size={16} /></button>
       </div>
       <div className="border-t border-borde">
         <div className="max-w-6xl mx-auto px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
