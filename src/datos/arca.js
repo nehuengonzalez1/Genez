@@ -141,8 +141,12 @@ export async function cargarTicketDeVenta(empresaId, operacionId) {
     nro: o.numero,
     fecha: fdatel(f),
     hora: hora(f),
+    /* El precio es lo cobrado por unidad y no `precio_unitario`: un
+       renglón con el precio bajado a mano guarda ahí el de lista, y el
+       papel tiene que sumar lo mismo que el total. */
     items: (o.operacion_lineas || []).map((l) => ({
-      nombre: l.descripcion, qty: Number(l.cantidad), precio: Number(l.precio_unitario),
+      nombre: l.descripcion, qty: Number(l.cantidad),
+      precio: Number(l.cantidad) ? Number(l.total) / Number(l.cantidad) : Number(l.precio_unitario),
     })),
     sub: Number(o.subtotal), desc: Number(o.descuento), recargo: Number(o.recargo), total: Number(o.total),
     pagos, medio: pagos.length ? pagos[0].medio : null,

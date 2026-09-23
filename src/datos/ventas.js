@@ -91,16 +91,25 @@ export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub
     recargo: Math.round(recargo || 0),
     total: Math.round(total || 0),
     comprobante: comprobante || (fiscal ? { fiscal: true } : {}),
-    lineas: (items || []).map((l) => ({
-      item_id: l.pid,
-      descripcion: l.nombre,
-      cantidad: l.qty,
-      precio_unitario: l.precio,
-      costo_unitario: l.costo,
-      iva: l.iva != null ? l.iva : 21,
-      descuento: 0,
-      total: Math.round(l.precio * l.qty),
-    })),
+    lineas: (items || []).map((l) => {
+      /* Un precio bajado a mano en el mostrador queda escrito: el
+         renglón guarda el de lista y lo que se rebajó, y el total es lo
+         que se cobró. Es por donde se va la plata de un local, y sin esto
+         un "se lo dejo a tanto" no se distinguiría de un precio de lista.
+         Subir el precio no es un descuento: ahí el precio es el cobrado. */
+      const rebaja = l.precioLista && l.precioLista > l.precio
+        ? Math.round((l.precioLista - l.precio) * l.qty) : 0;
+      return {
+        item_id: l.pid,
+        descripcion: l.nombre,
+        cantidad: l.qty,
+        precio_unitario: rebaja ? l.precioLista : l.precio,
+        costo_unitario: l.costo,
+        iva: l.iva != null ? l.iva : 21,
+        descuento: rebaja,
+        total: Math.round(l.precio * l.qty),
+      };
+    }),
     pagos: lista.map((p) => ({
       medio: p.medio,
       monto: Math.round(p.monto),

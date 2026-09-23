@@ -498,6 +498,48 @@ export function Tecla({ children }) {
   return <kbd className="f-m text-[10px] border border-borde-fuerte rounded px-1.5 py-0.5 bg-superficie text-texto-suave">{children}</kbd>;
 }
 
+/* El descuento de la venta: un porcentaje o un importe en pesos. Los
+   botones de 5, 10 y 15 % siguen siendo los rápidos, y F4 rota entre
+   ellos; lo que no está en los botones se escribe. */
+const SIN_DESC = { modo: "pct", valor: 0 };
+const DESC_RAPIDOS = [0, 5, 10, 15];
+
+/* El precio de un renglón, que se toca con un clic. Cambia lo que se
+   cobra en esta venta y nada más: el precio del catálogo sigue igual, que
+   es lo que se espera de "se lo dejo a tanto". Para cambiarlo de verdad
+   está Productos. */
+function PrecioEditable({ linea, puede, onCambiar, className = "" }) {
+  const [editando, setEditando] = useState(false);
+  const [v, setV] = useState("");
+  if (!puede) return <span className={className}>{money(linea.unit)}</span>;
+  if (editando) {
+    const confirmar = () => {
+      const n = Number(v);
+      if (n > 0) onCambiar(n);
+      setEditando(false);
+    };
+    return (
+      <input autoFocus inputMode="numeric" value={v}
+        onChange={(e) => setV(e.target.value.replace(/[^\d]/g, ""))}
+        onFocus={(e) => e.target.select()}
+        onKeyDown={(e) => {
+          /* Enter y Esc son de este campo: sin cortarlos acá, llegan al
+             buscador del cobro. */
+          if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); confirmar(); }
+          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditando(false); }
+        }}
+        onBlur={confirmar}
+        className="f-m w-24 text-right border border-acento rounded-md px-2 py-1 text-sm bg-superficie outline-none" />
+    );
+  }
+  return (
+    <button onClick={() => { setV(String(linea.unit)); setEditando(true); }} title="Cambiar el precio en esta venta"
+      className={`underline decoration-dotted decoration-texto-tenue underline-offset-4 hover:decoration-acento ${className}`}>
+      {money(linea.unit)}
+    </button>
+  );
+}
+
 const ATAJOS = [
   ["F2", "Cobrar"], ["F4", "Descuento"], ["F7", "Quitar último"], ["F8", "Anular venta"],
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
@@ -509,7 +551,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const [cart, setCart] = useState([]);
-  const [desc, setDesc] = useState(0);
+  const [desc, setDesc] = useState(SIN_DESC);
   const [medioSel, setMedioSel] = useState(0);
   const [recibe, setRecibe] = useState("");
   const [pagos, setPagos] = useState([]);
@@ -641,17 +683,35 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   /* Por renglón y no por producto: con precio abierto puede haber dos
      renglones del mismo producto en el carrito, y tocar uno no tiene que
      tocar el otro. */
+  /* El precio a mano va al renglón, no al producto: si el mismo artículo
+     está dos veces, cada uno tiene el suyo. Volver al de lista es poner
+     el mismo número o apretar la cruz. */
+  const setPrecioManual = (lid, precio) => setCart((c) => c.map((l) => (
+    l.lid === lid ? { ...l, manual: precio == null || precio === l.precio ? null : precio } : l
+  )));
   const setQty = (lid, qty) => setCart((c) => c.map((l) => (l.lid === lid ? { ...l, qty: Math.max(0, +qty.toFixed(3)) } : l)).filter((l) => l.qty > 0));
   const quitar = (lid) => setCart((c) => c.filter((l) => l.lid !== lid));
 
   const lineas = cart.map((l) => {
+    /* Un precio puesto a mano gana a todo, también al precio por
+       cantidad: es lo que decidió quien cobra, para esta venta. */
+    if (l.manual != null) {
+      return { ...l, unit: l.manual, lista: null, listaNombre: null, proxima: null, importe: l.manual * l.qty, ahorro: 0 };
+    }
     const { precio, lista, nombre } = precioAplicado(l, l.qty, ajustes);
     return { ...l, unit: precio, lista, listaNombre: nombre, proxima: proximaLista(l, l.qty, ajustes),
       importe: precio * l.qty, ahorro: (l.precio - precio) * l.qty };
   });
   const ahorroTotal = lineas.reduce((s, l) => s + l.ahorro, 0);
   const sub = lineas.reduce((s, l) => s + l.importe, 0);
-  const descMonto = sub * (desc / 100);
+  /* Lo que se rebajó a mano, para que se vea al lado del total y no
+     quede escondido en un renglón. */
+  const rebajaManual = lineas.reduce((s, l) => s + (l.manual != null ? (l.precio - l.manual) * l.qty : 0), 0);
+  /* En pesos enteros, como toda la plata del sistema. Un descuento en
+     pesos no puede pasar el subtotal: la venta no queda en negativo. */
+  const descMonto = desc.modo === "pct"
+    ? Math.round(sub * Math.min(desc.valor, 100) / 100)
+    : Math.min(Math.round(desc.valor), Math.round(sub));
   const total = sub - descMonto;
   const costoTot = lineas.reduce((s, l) => s + l.costo * l.qty, 0);
   const ganancia = total - costoTot;
@@ -711,7 +771,8 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       toast("Elegí un cliente antes de cobrar a cuenta corriente.", "mal");
       return setBuscarCliente(true);
     }
-    const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre }));
+    const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre,
+      precioLista: l.manual != null ? l.precio : null }));
     const m = medioPorK(ajustes, k);
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
     const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
@@ -735,7 +796,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   };
 
   const nuevaVenta = () => {
-    setCart([]); setDesc(0); setRecibe(""); setMedioSel(0); setPagos([]); setMontoMix(""); setUltimo(null); setCliente(null);
+    setCart([]); setDesc(SIN_DESC); setRecibe(""); setMedioSel(0); setPagos([]); setMontoMix(""); setUltimo(null); setCliente(null);
     setTicket(null); setVerTicket(false); setPaso("carga");
   };
 
@@ -751,13 +812,16 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
         if (e.key === "F4") {
           e.preventDefault();
           if (!permisos.descuentos) return toast("Tu usuario no puede dar descuentos.", "mal");
-          return setDesc((d) => [0, 5, 10, 15][([0, 5, 10, 15].indexOf(d) + 1) % 4]);
+          return setDesc((d) => {
+            const i = d.modo === "pct" ? DESC_RAPIDOS.indexOf(d.valor) : -1;
+            return { modo: "pct", valor: DESC_RAPIDOS[(i + 1) % DESC_RAPIDOS.length] };
+          });
         }
         if (e.key === "F7") { e.preventDefault(); return setCart((c) => c.slice(0, -1)); }
         if (e.key === "F8") {
           e.preventDefault();
           if (!permisos.anular) return toast("Tu usuario no puede anular ventas.", "mal");
-          if (cart.length) { setCart([]); setDesc(0); toast("Venta anulada."); }
+          if (cart.length) { setCart([]); setDesc(SIN_DESC); toast("Venta anulada."); }
           return;
         }
         if (e.key === "F9") { e.preventDefault(); return ir("pedidos"); }
@@ -931,8 +995,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-texto leading-snug">{l.nombre}</div>
                       <div className="f-m text-[11px] text-texto-tenue mt-0.5">
-                        {l.lista && <span className="line-through mr-1">{money(l.precio)}</span>}
-                        <span className={l.lista ? "text-bien font-semibold" : ""}>{money(l.unit)}</span> c/u
+                        {(l.lista || l.manual != null) && <span className="line-through mr-1">{money(l.precio)}</span>}
+                        <PrecioEditable linea={l} puede={permisos.descuentos} onCambiar={(n) => setPrecioManual(l.lid, n)}
+                          className={l.lista || l.manual != null ? "text-bien font-semibold" : ""} /> c/u
                         {l.lista && <span className="ml-1 text-bien font-bold uppercase">{l.listaNombre}</span>}
                       </div>
                     </div>
@@ -967,6 +1032,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                           {l.listaNombre} −{money(l.ahorro)}
                         </span>
                       )}
+                      {l.manual != null && (
+                        <span className="ml-2 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-ojo-suave text-ojo border-ojo">
+                          precio a mano
+                        </span>
+                      )}
                       {!l.lista && l.proxima && (
                         <span className="ml-2 text-[10px] text-texto-tenue">
                           desde {l.proxima.umbral} u paga {money(l.proxima.precio)}
@@ -981,8 +1051,12 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-right f-m text-texto-suave">
-                      {l.lista && <span className="line-through text-texto-tenue mr-1">{money(l.precio)}</span>}
-                      <span className={l.lista ? "text-bien font-semibold" : ""}>{money(l.unit)}</span>
+                      {(l.lista || l.manual != null) && <span className="line-through text-texto-tenue mr-1">{money(l.precio)}</span>}
+                      <PrecioEditable linea={l} puede={permisos.descuentos} onCambiar={(n) => setPrecioManual(l.lid, n)}
+                        className={l.lista || l.manual != null ? "text-bien font-semibold" : ""} />
+                      {l.manual != null && (
+                        <button onClick={() => setPrecioManual(l.lid, null)} title="Volver al precio de lista" className="ml-1 text-texto-tenue hover:text-mal align-middle"><X size={12} /></button>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-right f-m font-semibold">{money(l.importe)}</td>
                     <td className="pr-3"><button onClick={() => quitar(l.lid)} className="text-texto-tenue hover:text-mal"><Trash2 size={15} /></button></td>
@@ -1033,14 +1107,48 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               <span className="f-m text-sm">−{money(ahorroTotal)}</span>
             </div>
           )}
+          {rebajaManual !== 0 && (
+            <div className="flex items-baseline justify-between mt-1 text-ojo">
+              <span className="text-sm">Precios a mano</span>
+              <span className="f-m text-sm">{rebajaManual > 0 ? "−" : "+"}{money(Math.abs(rebajaManual))}</span>
+            </div>
+          )}
           {permisos.descuentos && (
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-sm text-texto-suave">Descuento <Tecla>F4</Tecla></span>
-              <div className="flex items-center gap-1">
-                {[0, 5, 10, 15].map((d) => (
-                  <button key={d} onClick={() => setDesc(d)} className={`f-m text-xs px-2 py-1 rounded-lg border ${desc === d ? "bg-superficie-3 text-texto border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>{d}%</button>
-                ))}
+            <div className="mt-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-texto-suave">Descuento <Tecla>F4</Tecla></span>
+                <div className="flex items-center gap-1">
+                  {DESC_RAPIDOS.map((d) => (
+                    <button key={d} onClick={() => setDesc({ modo: "pct", valor: d })}
+                      className={`f-m text-xs px-2 py-1 rounded-md border ${desc.modo === "pct" && desc.valor === d ? "bg-superficie-3 text-texto border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>{d}%</button>
+                  ))}
+                </div>
               </div>
+              {/* Cualquier otro: un porcentaje o un importe en pesos. */}
+              <div className="flex items-center gap-1.5 mt-2">
+                <div className="flex rounded-md border border-borde overflow-hidden text-xs font-semibold shrink-0">
+                  {[["pct", "%"], ["monto", "$"]].map(([m, n]) => (
+                    <button key={m} onClick={() => setDesc((d) => ({ modo: m, valor: d.modo === m ? d.valor : 0 }))}
+                      className={`px-2.5 py-1.5 ${desc.modo === m ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>{n}</button>
+                  ))}
+                </div>
+                <input inputMode="numeric" placeholder={desc.modo === "pct" ? "Otro %" : "Importe en pesos"}
+                  value={desc.valor ? String(desc.valor) : ""}
+                  onChange={(e) => {
+                    const n = Number(e.target.value.replace(/[^\d]/g, "")) || 0;
+                    setDesc((d) => ({ modo: d.modo, valor: d.modo === "pct" ? Math.min(n, 100) : n }));
+                  }}
+                  className="f-m flex-1 min-w-0 border border-borde rounded-md px-2.5 py-1.5 text-sm bg-superficie outline-none focus:border-acento" />
+              </div>
+              {descMonto > 0 && (
+                <div className="flex items-baseline justify-between mt-2">
+                  <span className="text-sm text-texto-suave">{desc.modo === "pct" ? `Descuento ${desc.valor}%` : "Descuento"}</span>
+                  <span className="f-m text-sm">−{money(descMonto)}</span>
+                </div>
+              )}
+              {desc.modo === "monto" && desc.valor > sub && sub > 0 && (
+                <p className="text-[11px] text-ojo mt-1">No puede pasar el subtotal: se descuenta {money(sub)}.</p>
+              )}
             </div>
           )}
           <div className="flex items-baseline justify-between mt-4 pt-4 border-t border-borde">
