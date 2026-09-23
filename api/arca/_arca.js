@@ -27,6 +27,8 @@
  */
 
 import Afip from "@afipsdk/afip.js";
+import { clienteDirecto } from "./_directo.js";
+import { cifrar, descifrar } from "./_cifrado.js";
 
 /* El CUIT de pruebas de Afip SDK: en homologación no pide certificado. */
 export const CUIT_PRUEBAS = "20409378472";
@@ -78,16 +80,55 @@ const comoFecha = (aaaammdd) => `${aaaammdd.slice(0, 4)}-${aaaammdd.slice(4, 6)}
 const redondo = (n) => Math.round(Number(n) * 100) / 100;
 
 /**
- * El cliente de Afip SDK para una conexión. Producción queda cerrada a
- * propósito: todavía no hay certificado de nadie, y cuando lo haya hay
- * que decidir dónde vive la clave privada (ver la nota del commit).
+ * Con quién se habla, según el ambiente.
+ *
+ * Homologación es el ARCA de pruebas con el CUIT compartido de Afip SDK:
+ * no pide certificado y no tiene validez fiscal. Producción es ARCA
+ * directo con el certificado del comercio (`_directo.js`): la clave
+ * privada no sale de Genez.
  */
-export function afipPara(conexion, accessToken = process.env.AFIP_ACCESS_TOKEN) {
-  if (!accessToken) throw new ErrorArca("Falta AFIP_ACCESS_TOKEN en el servidor.", 501);
-  if (conexion.modo !== "homologacion") {
-    throw new ErrorArca("Facturar en producción todavía no está habilitado: falta el certificado del comercio.", 501);
+export async function clienteArca(admin, conexion) {
+  if (conexion.modo === "homologacion") {
+    const accessToken = process.env.AFIP_ACCESS_TOKEN;
+    if (!accessToken) throw new ErrorArca("Falta AFIP_ACCESS_TOKEN en el servidor.", 501);
+    return new Afip({ CUIT: Number(CUIT_PRUEBAS), access_token: accessToken });
   }
-  return new Afip({ CUIT: Number(CUIT_PRUEBAS), access_token: accessToken });
+  return clienteDeProduccion(admin, conexion.empresa_id, conexion.cuit);
+}
+
+/**
+ * El cliente directo con el certificado en uso de un comercio. Lo usan
+ * la facturación y la prueba de conexión.
+ *
+ * `cuitEsperado` es el de la conexión: si alguien cargara un certificado
+ * de otro CUIT, se factura con ninguno antes que con el equivocado.
+ */
+export async function clienteDeProduccion(admin, empresaId, cuitEsperado = null) {
+  const { data: cred, error } = await admin.from("arca_credenciales").select("*").eq("empresa_id", empresaId).maybeSingle();
+  if (error) throw error;
+  if (!cred || !cred.certificado) throw new ErrorArca("Este comercio todavía no cargó su certificado de ARCA.", 409);
+  if (cuitEsperado && cred.cert_cuit !== cuitEsperado) {
+    throw new ErrorArca(`El certificado es del CUIT ${cred.cert_cuit} y la conexión factura con ${cuitEsperado}.`, 409);
+  }
+  if (new Date(cred.cert_vence).getTime() < Date.now()) {
+    throw new ErrorArca("El certificado de ARCA venció. Hay que pedir uno nuevo desde Ajustes → Factura electrónica.", 409);
+  }
+
+  return clienteDirecto({
+    produccion: true,
+    cuit: cred.cert_cuit,
+    certPem: cred.certificado,
+    clavePem: descifrar(cred.clave_cifrada),
+    cargarTA: async () => {
+      const { data } = await admin.from("arca_credenciales").select("ta_cifrado, ta_vence").eq("empresa_id", empresaId).maybeSingle();
+      return data && data.ta_cifrado ? { ...JSON.parse(descifrar(data.ta_cifrado)), vence: data.ta_vence } : null;
+    },
+    guardarTA: async ({ token, sign, vence }) => {
+      await admin.from("arca_credenciales")
+        .update({ ta_cifrado: cifrar(JSON.stringify({ token, sign })), ta_vence: vence.toISOString() })
+        .eq("empresa_id", empresaId);
+    },
+  });
 }
 
 /** El CUIT con el que se factura, según el ambiente. */
@@ -153,7 +194,7 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
   if (e2) throw e2;
   if (!conexion) throw new ErrorArca("Este comercio no está conectado con ARCA.", 409);
 
-  const afip = afipDado || afipPara(conexion);
+  const afip = afipDado || await clienteArca(admin, conexion);
   const cuit = cuitDe(conexion);
 
   /* 2 · ¿Ya tiene? */

@@ -105,10 +105,15 @@ try {
   decir(await rechaza(() => c.query("delete from operaciones where id = $1", [v1])),
     "una venta con comprobante no se borra");
 
-  decir(await rechaza(() => c.query("insert into arca_conexiones (empresa_id, modo, punto_venta) values ($1, 'produccion', 3)", [SUPER.id])),
+  /* En un comercio sin conexión: si fuera uno que ya la tiene, el insert
+     fallaría por repetido y la prueba pasaría por la razón equivocada. */
+  const { id: nuevo } = await una("insert into empresas (nombre) values ('Prueba 0082') returning id");
+  decir(await rechaza(() => c.query("insert into arca_conexiones (empresa_id, modo, punto_venta) values ($1, 'produccion', 3)", [nuevo])),
     "producción sin CUIT no se conecta");
-  decir(await rechaza(() => c.query("insert into arca_conexiones (empresa_id, punto_venta) values ($1, 0)", [SUPER.id])),
+  decir(await rechaza(() => c.query("insert into arca_conexiones (empresa_id, punto_venta) values ($1, 0)", [nuevo])),
     "el punto de venta 0 no existe");
+  decir(!(await rechaza(() => c.query("insert into arca_conexiones (empresa_id, punto_venta) values ($1, 1)", [nuevo]))),
+    "y una conexión de pruebas bien formada sí");
 } finally {
   await c.query("rollback");
 }
@@ -124,7 +129,7 @@ if (!axel) {
   await c.query("begin");
   try {
     const v = await venta();
-    await c.query("insert into arca_conexiones (empresa_id, punto_venta) values ($1, 1)", [SUPER.id]);
+    await c.query("insert into arca_conexiones (empresa_id, punto_venta) values ($1, 1) on conflict (empresa_id) do nothing", [SUPER.id]);
     const { rows: [p] } = await insertar(comprobante(v));
 
     await c.query("set local role authenticated");
@@ -231,6 +236,137 @@ if (!env.AFIP_ACCESS_TOKEN || !env.SUPABASE_SERVICE_ROLE_KEY) {
   } finally {
     await c.query("delete from comprobantes where empresa_id = $1", [empresaId]);
     await c.query("delete from empresas where id = $1", [empresaId]);
+  }
+}
+
+/* ------------------------------------------------------------
+   4 · Producción: el certificado de cada comercio (0084)
+
+   No hay un certificado real para probar —solo lo emite ARCA, y solo al
+   dueño de un CUIT—, así que se hace uno con una autoridad inventada.
+   Alcanza para probar todo el circuito de Genez, y además para probar
+   algo de ARCA: si WSAA contesta "no confío en este certificado", es que
+   entendió el pedido firmado. Si el formato estuviera mal, diría otra
+   cosa.
+   ------------------------------------------------------------ */
+console.log("\nProducción: certificado propio");
+if (!env.ARCA_CLAVE_MAESTRA || !env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.log("  --   falta ARCA_CLAVE_MAESTRA o SUPABASE_SERVICE_ROLE_KEY en el .env, se saltea");
+} else {
+  process.env.ARCA_CLAVE_MAESTRA = env.ARCA_CLAVE_MAESTRA;
+  const { cifrar, descifrar } = await import("../api/arca/_cifrado.js");
+  const { cuitValido } = await import("../api/arca/_certificados.js");
+  const conexion = await import("../api/arca/conexion.js");
+  const forge = (await import("node-forge")).default;
+  const admin = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+
+  const secreto = cifrar("-----BEGIN PRIVATE KEY-----");
+  decir(!secreto.includes("PRIVATE") && descifrar(secreto) === "-----BEGIN PRIVATE KEY-----", "la clave se guarda cifrada y se recupera");
+  const [v, iv, tag, datos] = secreto.split(":");
+  const tocado = [v, iv, tag, Buffer.from(datos, "base64").map((b, i) => (i === 0 ? b ^ 1 : b)).toString("base64")].join(":");
+  let falla = false;
+  try { descifrar(tocado); } catch { falla = true; }
+  decir(falla, "un dato cifrado alterado no se descifra");
+  decir(cuitValido("20-40937847-2") && !cuitValido("20409378473"), "el CUIT se valida con su dígito verificador");
+
+  /* Una autoridad de mentira que "emite" el certificado del pedido. */
+  const ca = forge.pki.rsa.generateKeyPair(2048);
+  const emitir = (csrPem, { cuit, vencido = false } = {}) => {
+    const csr = forge.pki.certificationRequestFromPem(csrPem);
+    const cert = forge.pki.createCertificate();
+    cert.publicKey = csr.publicKey;
+    cert.serialNumber = "0" + Date.now().toString(16);
+    cert.validity.notBefore = new Date(Date.now() - 3 * 864e5);
+    cert.validity.notAfter = new Date(Date.now() + (vencido ? -1 : 730) * 864e5);
+    cert.setSubject(cuit
+      ? csr.subject.attributes.map((a) => (a.name === "serialNumber" ? { name: "serialNumber", value: `CUIT ${cuit}` } : { shortName: a.shortName, name: a.name, value: a.value }))
+      : csr.subject.attributes.map((a) => ({ shortName: a.shortName, name: a.name, value: a.value })));
+    cert.setIssuer([{ shortName: "CN", value: "Autoridad de prueba de Genez" }]);
+    cert.sign(ca.privateKey, forge.md.sha256.create());
+    return forge.pki.certificateToPem(cert);
+  };
+
+  const { id: empresaId } = await una(
+    "insert into empresas (nombre, config) values ('Prueba ARCA producción (se borra sola)', $1) returning id",
+    [JSON.stringify({ fiscal: { condicion: "MONOTRIBUTO", cuit: "20-40937847-2", razonSocial: "Prueba SA" } })]
+  );
+  const falla409 = async (hacer) => { try { await hacer(); return null; } catch (e) { return e; } };
+
+  try {
+    let e = await falla409(() => conexion.generar({ admin, empresaId, cuerpo: { cuit: "20409378473" } }));
+    decir(e && /CUIT no es válido/.test(e.message), "un CUIT mal tipeado no genera pedido");
+
+    let est = await conexion.generar({ admin, empresaId, cuerpo: {} });
+    decir(est.pedido && est.pedido.cuit === "20409378472" && /BEGIN CERTIFICATE REQUEST/.test(est.pedido.csr),
+      `pedido generado para el CUIT de los datos fiscales, alias ${est.pedido && est.pedido.alias}`);
+    decir(!JSON.stringify(est).includes("PRIVATE KEY"), "el estado no devuelve la clave privada");
+    const fila = await una("select pedido_clave_cifrada from arca_credenciales where empresa_id = $1", [empresaId]);
+    decir(fila.pedido_clave_cifrada.startsWith("v1:") && !fila.pedido_clave_cifrada.includes("PRIVATE"), "en la base la clave está cifrada");
+
+    const csrViejo = est.pedido.csr;
+    est = await conexion.generar({ admin, empresaId, cuerpo: {} });
+    e = await falla409(() => conexion.certificado({ admin, empresaId, cuerpo: { pem: emitir(csrViejo) } }));
+    decir(e && /no es el del último pedido/.test(e.message), "el certificado de un pedido anterior no entra");
+    e = await falla409(() => conexion.certificado({ admin, empresaId, cuerpo: { pem: emitir(est.pedido.csr, { vencido: true }) } }));
+    decir(e && /venció/.test(e.message), "un certificado vencido no entra");
+    e = await falla409(() => conexion.certificado({ admin, empresaId, cuerpo: { pem: emitir(est.pedido.csr, { cuit: "20111111112" }) } }));
+    decir(e && /CUIT/.test(e.message), "un certificado de otro CUIT que el pedido no entra");
+    e = await falla409(() => conexion.certificado({ admin, empresaId, cuerpo: { pem: "hola" } }));
+    decir(e && /no es un certificado/.test(e.message), "un archivo cualquiera no entra");
+
+    est = await conexion.certificado({ admin, empresaId, cuerpo: { pem: emitir(est.pedido.csr) } });
+    decir(est.certificado && est.certificado.cuit === "20409378472" && !est.pedido, "el certificado bueno entra y reemplaza al pedido");
+
+    e = await falla409(() => conexion.activar({ admin, empresaId, cuerpo: { puntoVenta: 3 } }));
+    decir(e && /Probá la conexión/.test(e.message), "no se activa sin probar la conexión");
+
+    const r = await conexion.probar({ admin, empresaId, cuerpo: { puntoVenta: 3 } });
+    const pasos = r.prueba.pasos.map((p) => `${p.clave}:${p.ok ? "ok" : "no"}`).join(" ");
+    const auth = r.prueba.pasos.find((p) => p.clave === "autenticacion");
+    decir(!r.prueba.ok && auth && !auth.ok && /cms\.cert\.untrusted/.test(auth.detalle),
+      `la prueba llega a ARCA de producción y WSAA entiende el pedido firmado (${pasos})`);
+
+    e = await falla409(() => conexion.activar({ admin, empresaId, cuerpo: { puntoVenta: 3 } }));
+    decir(e && /Probá la conexión/.test(e.message), "con la prueba mal no se activa");
+
+    /* Lo que pasaría con la prueba bien, sin poder tenerla de verdad. */
+    await c.query("update arca_credenciales set prueba = jsonb_build_object('ok', true, 'puntoVenta', 3, 'en', now(), 'pasos', '[]'::jsonb) where empresa_id = $1", [empresaId]);
+    await c.query("update empresas set config = jsonb_set(config, '{fiscal,cuit}', to_jsonb('20-11111111-2'::text)) where id = $1", [empresaId]);
+    e = await falla409(() => conexion.activar({ admin, empresaId, cuerpo: { puntoVenta: 3 } }));
+    decir(e && /es el que va impreso/.test(e.message), "con otro CUIT en los datos fiscales no se activa");
+    await c.query("update empresas set config = jsonb_set(config, '{fiscal,cuit}', to_jsonb('20-40937847-2'::text)) where id = $1", [empresaId]);
+
+    const pend = randomUUID();
+    await c.query("insert into operaciones (id, empresa_id, tipo, total, comprobante) values ($1, $2, 'venta', 10, $3)", [pend, empresaId, JSON.stringify({ fiscal: true })]);
+    e = await falla409(() => conexion.activar({ admin, empresaId, cuerpo: { puntoVenta: 3 } }));
+    decir(e && /esperando CAE/.test(e.message), "con facturas de prueba esperando CAE no se activa");
+    await c.query("delete from operaciones where id = $1", [pend]);
+
+    est = await conexion.activar({ admin, empresaId, cuerpo: { puntoVenta: 3 } });
+    decir(est.conexion && est.conexion.modo === "produccion" && est.conexion.cuit === "20409378472" && est.conexion.puntoVenta === 3,
+      "activada: el CUIT de la conexión sale del certificado");
+
+    e = await falla409(async () => {
+      const g = await conexion.generar({ admin, empresaId, cuerpo: { cuit: "20111111112" } });
+      return conexion.certificado({ admin, empresaId, cuerpo: { pem: emitir(g.pedido.csr) } });
+    });
+    decir(e && /factura con el CUIT/.test(e.message), "ya en producción, renovar no puede cambiar de CUIT");
+  } catch (e) {
+    decir(false, `producción: ${e.message}`);
+  } finally {
+    await c.query("delete from empresas where id = $1", [empresaId]);
+  }
+
+  /* Que el navegador no llegue a la tabla, ni leyendo. */
+  if (axel) {
+    await c.query("begin");
+    try {
+      await c.query("set local role authenticated");
+      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: axel.id, role: "authenticated" })]);
+      decir(await rechaza(() => c.query("select count(*) from arca_credenciales")), "un usuario de comercio no puede ni leer las credenciales");
+    } finally {
+      await c.query("rollback");
+    }
   }
 }
 

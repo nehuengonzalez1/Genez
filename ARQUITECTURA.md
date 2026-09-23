@@ -614,10 +614,49 @@ serie: el segundo choca y espera. Si el servidor se cae esperando a ARCA,
 la fila pendiente queda y el próximo intento le pregunta a ARCA qué pasó
 con ese número antes de pedir otro.
 
-Lo que falta: las facturas A y B, que necesitan el IVA por alícuota; la
-nota de crédito; y producción, que necesita el certificado del comercio y
-decidir dónde vive su clave privada. Ojo con eso último: Afip SDK autentica pasando por sus
-propios servidores, y en producción les manda el certificado y la clave.
+### Producción: el certificado de cada comercio
+
+Migración 0084, `api/arca/conexion.js` y Ajustes → Factura electrónica.
+Cada comercio le habla a ARCA **directo** (`_directo.js`: WSAA y WSFEv1
+por SOAP) con su propio certificado. Afip SDK queda solo para el ambiente
+de pruebas con su CUIT compartido: en producción resuelve la
+autenticación en sus servidores y para eso les manda la clave privada del
+comercio, que es su firma fiscal.
+
+**La clave la genera Genez y no sale del servidor.** El comercio se lleva
+el pedido (CSR), lo sube a ARCA con su Clave Fiscal y trae el
+certificado. `arca_credenciales` no tiene políticas y se le sacaron los
+permisos a `anon` y `authenticated`; además la clave y el pase de WSAA van
+cifrados con `ARCA_CLAVE_MAESTRA` (AES-256-GCM, `_cifrado.js`). Esa llave
+tiene que ser la misma en el `.env` y en Vercel: la base es una sola.
+
+**El CUIT no se tipea, sale del certificado.** Por eso el comercio se
+puede conectar solo, con `configurar`: ARCA emite un certificado para un
+CUIT solo a quien tiene esa Clave Fiscal, y el certificado solo sirve con
+la clave que generó Genez. Ya en producción, renovar no puede cambiar de
+CUIT.
+
+**El pedido nuevo vive al lado del certificado en uso** (`pedido_*`): se
+renueva sin dejar de facturar, y el nuevo reemplaza al viejo recién
+cuando llega.
+
+**El pase de WSAA se guarda y se comparte.** Dura 12 horas y ARCA no da
+otro mientras haya uno vigente; si cada función de Vercel pidiera el suyo,
+la segunda recibiría `coe.alreadyAuthenticated`.
+
+**Probar conexión no emite nada**: servidores, certificado, autorización
+(WSAA), punto de venta de web service y numeración, cortando en el primero
+que falla y diciendo qué hacer. Activar exige una prueba bien de las
+últimas 24 horas con ese punto de venta, el mismo CUIT en los datos
+fiscales —es el que va impreso— y ninguna factura de prueba esperando
+CAE, que si no saldría de verdad.
+
+**El TLS de ARCA**: el WSFE de producción negocia una clave DH que el
+OpenSSL de Node rechaza ("dh key too small"). El agente de `_directo.js`
+baja el nivel solo para hablar con ARCA.
+
+Lo que falta: las facturas A y B, que necesitan el IVA por alícuota, y la
+nota de crédito.
 
 ## Lo que ya funciona y no hay que rehacer
 

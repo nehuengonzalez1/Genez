@@ -15,13 +15,14 @@ import {
 } from "../utils/helpers.js";
 import { Card, Boton, Modal, Kpi, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
+import { ConexionArca } from "./ConexionArca.jsx";
 const Vol2 = Volume2;
 
 /* ============================================================
    13. AJUSTES
    ============================================================ */
 
-export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro, facturacion = { puede: false } }) {
+export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro, facturacion = { puede: false }, empresaId, recargarConexion }) {
   const f = ajustes.fiscal || FISCAL_INICIAL;
   const setFiscal = (cambios) => setAjustes({ ...ajustes, fiscal: { ...f, ...cambios } });
   const bal = ajustes.balanza || BALANZA_INICIAL;
@@ -195,6 +196,8 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           </p>
         )}
       </Card>
+
+      {empresaId && <ConexionArca empresaId={empresaId} toast={toast} alCambiar={recargarConexion} />}
 
       <Card className="p-5">
         <h3 className="f-d text-lg">Comandera y pistola</h3>

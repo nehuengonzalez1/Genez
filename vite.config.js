@@ -130,6 +130,7 @@ export default defineConfig(({ mode }) => {
        aunque estuviera en el .env: probar-arca.mjs lee el .env por su
        cuenta y no se enteró. */
     "AFIP_ACCESS_TOKEN",
+    "ARCA_CLAVE_MAESTRA",
   ]) {
     if (env[clave] && !process.env[clave]) process.env[clave] = env[clave];
   }

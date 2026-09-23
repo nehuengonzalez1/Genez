@@ -1047,6 +1047,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
   const empresaId = sesion.comercio.id;
 
+  /* Después de activar la facturación real desde Ajustes, el cobro tiene
+     que enterarse sin refrescar. */
+  const recargarConexion = useCallback(() => {
+    cargarConexionArca(empresaId).then(setConexionArca).catch(() => {});
+  }, [empresaId]);
+
   useEffect(() => {
     let vigente = true;
     cargarConexionArca(empresaId)
@@ -2135,7 +2141,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               miRol={sesion.rol} esPlataforma={esPlataforma} toast={toast} />
           )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
-          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion} />}
+          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion}
+            empresaId={empresaId} recargarConexion={recargarConexion} />}
         </main>
       </div>
       )}

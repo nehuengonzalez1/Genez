@@ -150,3 +150,25 @@ export async function cargarTicketDeVenta(empresaId, operacionId) {
     cliente: cl ? { razonSocial: cl.razon_social, tipoDoc: cl.tipo_doc || "CUIT", doc: cl.doc || "", condicion: cl.condicion, domicilio: cl.domicilio } : null,
   };
 }
+
+/**
+ * La conexión con ARCA de producción: el certificado, la prueba y el
+ * paso a facturar de verdad (ver `api/arca/conexion.js`). La clave
+ * privada no pasa nunca por acá: la genera y la guarda el servidor.
+ *
+ * `accion`: estado | generar | certificado | probar | activar.
+ */
+export async function conexionArca(accion, datos = {}, empresaId = null) {
+  const { data } = await supabase.auth.getSession();
+  const token = data && data.session ? data.session.access_token : null;
+  if (!token) throw new Error("Se venció la sesión. Volvé a entrar.");
+
+  const r = await fetch("/api/arca/conexion", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ accion, empresaId, ...datos }),
+  });
+  const respuesta = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((respuesta && respuesta.error && respuesta.error.message) || "No se pudo hablar con el servidor.");
+  return respuesta;
+}
