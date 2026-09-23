@@ -126,6 +126,10 @@ export default defineConfig(({ mode }) => {
     "VITE_SUPABASE_ANON_KEY",
     "ANTHROPIC_API_KEY",
     "MP_ACCESS_TOKEN",
+    /* Sin esta, api/arca/facturar contestaba "falta el token" en local
+       aunque estuviera en el .env: probar-arca.mjs lee el .env por su
+       cuenta y no se enteró. */
+    "AFIP_ACCESS_TOKEN",
   ]) {
     if (env[clave] && !process.env[clave]) process.env[clave] = env[clave];
   }
