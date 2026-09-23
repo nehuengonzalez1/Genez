@@ -280,17 +280,22 @@ export function discriminaIVA(letra) {
   return letra === "A";
 }
 
+/* El nombre de fantasía es el que ve el cliente arriba del comprobante;
+   la razón social y el CUIT van debajo, que es lo que exige ARCA.
+
+   Vacío a propósito. Tenía los datos de Super 25 y es el respaldo de
+   `ajustesDe` para un comercio sin datos fiscales cargados: el primero que
+   se diera de alta imprimía el CUIT de Axel en cada ticket. La condición
+   tampoco se supone: de ella sale la letra de la factura. */
 export const FISCAL_INICIAL = {
-  // El nombre de fantasía es el que ve el cliente arriba del comprobante;
-  // la razón social y el CUIT van debajo, que es lo que exige ARCA.
-  nombreFactura: "Super 25",
-  razonSocial: "Axel Gonzalez",
-  cuit: "20-41564841-0",
-  condicion: "MONOTRIBUTO",
-  iibb: "901-234567-8",
-  inicio: "01/03/2019",
+  nombreFactura: "",
+  razonSocial: "",
+  cuit: "",
+  condicion: "",
+  iibb: "",
+  inicio: "",
   puntoVenta: "0001",
-  domicilio: "Av. San Martín 1204 · Caseros",
+  domicilio: "",
 };
 
 export function mediosDe(ajustes) {

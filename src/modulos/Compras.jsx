@@ -968,7 +968,7 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
       const p = productos.find((x) => x.id === l.pid);
       return { pid: l.pid, qty: l.preparado, precio: l.unit, costo: p ? p.costo : 0, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre };
     });
-    const t = cobrar({ items: lineas, sub: monto, desc: 0, total: monto, medio, fiscal: !!ajustes.arca,
+    const t = cobrar({ items: lineas, sub: monto, desc: 0, total: monto, medio,
       ganancia: monto - lineas.reduce((s, l) => s + l.costo * l.qty, 0) });
     /* Sin caja abierta el pedido queda como estaba, listo para cobrarse
        de nuevo cuando se abra. */

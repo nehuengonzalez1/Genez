@@ -551,7 +551,7 @@ export function ticketVenta(t, ajustes, W) {
   // En un comprobante fiscal la razón social y el CUIT son obligatorios,
   // aunque arriba figure el nombre del local.
   if (t.fiscal && f.razonSocial && f.razonSocial !== f.nombreFactura) b.push({ t: "c", v: f.razonSocial.toUpperCase() });
-  b.push({ t: "c", v: `CUIT ${f.cuit}` });
+  if (f.cuit) b.push({ t: "c", v: `CUIT ${f.cuit}` });
   if (t.fiscal && f.iibb) b.push({ t: "c", v: `IIBB ${f.iibb}  Inicio ${f.inicio || ""}`.trim() });
   b.push({ t: "c", v: t.fiscal ? condicionLegal(f.condicion) : "NO VALIDO COMO FACTURA" });
   b.push({ t: "sep", c: "=" });

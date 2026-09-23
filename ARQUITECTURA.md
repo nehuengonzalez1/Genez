@@ -40,6 +40,7 @@ node scripts/probar-pedidos.mjs    # estados, flujo por canal e historial
 node scripts/probar-comanda.mjs    # dividir la cuenta, cerrar y auditoría
 node scripts/probar-salon.mjs      # los cinco estados de una mesa y la reserva
 node scripts/probar-dominio.mjs    # qué aplicación sirve cada host
+node scripts/probar-arca.mjs       # factura electrónica: candado, permisos y homologación
 ```
 
 `probar-dominio.mjs` es el único que no toca la base ni la red: le pasa un
@@ -570,6 +571,41 @@ si fuera la marca del local.
 ni de `/api`: un turno cancelado hace una hora que se muestra como vigente
 es peor que no mostrar nada, y son datos de una persona en un caché que
 sobrevive al cierre de sesión.
+
+## La factura electrónica
+
+Migración 0082 y `api/arca/`. Está a mitad de camino: el servidor ya pide
+un CAE de verdad contra homologación, pero **el cobro todavía no lo llama**
+y ninguna venta sale como factura. Hasta 0082 el cobro fabricaba el CAE
+con una cuenta y lo imprimía con su QR; eso se sacó.
+
+**El CAE lo escribe solo el servidor.** `comprobantes` no tiene política
+de escritura para `authenticated`: la escribe `api/arca/facturar.js` con
+la service_role y la respuesta de ARCA en la mano. `arca_conexiones` —con
+qué CUIT y qué punto de venta factura cada comercio— la escribe solo la
+plataforma, porque ese CUIT es la identidad fiscal de alguien.
+
+**El navegador manda el id de la venta y nada más.** El total sale de
+`operaciones`, la condición del comercio de `empresas.config.fiscal` y la
+del comprador de su ficha.
+
+**La factura va aparte de la venta** porque la venta es append-only y el
+CAE puede llegar mucho después, si se cortó internet. Una venta tiene a lo
+sumo una factura no rechazada; anularla será una nota de crédito.
+
+**El número lo pone ARCA, y el candado es un índice.** Se pregunta el
+último autorizado y se pide el siguiente; dos cajas a la vez oirían el
+mismo. `comprobantes_un_pendiente_por_serie` deja un solo pendiente por
+serie: el segundo choca y espera. Si el servidor se cae esperando a ARCA,
+la fila pendiente queda y el próximo intento le pregunta a ARCA qué pasó
+con ese número antes de pedir otro.
+
+Lo que falta: que el cobro pida el CAE y qué se imprime si la venta se
+hizo sin internet; el QR que exige ARCA (hoy `PseudoQR` es un dibujo); las
+facturas A y B, que necesitan el IVA por alícuota; la nota de crédito; y
+producción, que necesita el certificado del comercio y decidir dónde vive
+su clave privada. Ojo con eso último: Afip SDK autentica pasando por sus
+propios servidores, y en producción les manda el certificado y la clave.
 
 ## Lo que ya funciona y no hay que rehacer
 

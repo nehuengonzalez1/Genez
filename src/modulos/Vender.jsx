@@ -11,7 +11,7 @@ import {
 import { HOY, uid } from "../datos/generador.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
-  letraComprobante, conRecargo, mediosDe, medioPorK, FISCAL_INICIAL,
+  conRecargo, mediosDe, medioPorK,
   condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
   leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE
 } from "../utils/helpers.js";
@@ -653,10 +653,8 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const medios = mediosDe(ajustes);
   const medio = medios[medioSel] || medios[0];
 
-  const [fiscal, setFiscal] = useState(!!ajustes.arca);
   const [cliente, setCliente] = useState(null);
   const [buscarCliente, setBuscarCliente] = useState(false);
-  const letra = letraComprobante((ajustes.fiscal || FISCAL_INICIAL).condicion, cliente ? cliente.condicion : "CF");
   const rec = conRecargo(total, medio);
   const totalFinal = rec.total;
   // El vuelto se calcula sobre el total con recargo, así que va después.
@@ -665,7 +663,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const irAPago = () => {
     if (!cart.length) return;
     setMedioSel(0); setRecibe(""); setPagos([]); setMontoMix("");
-    setFiscal(!!ajustes.arca); setCliente(null);
+    setCliente(null);
     setPaso("pago");
   };
 
@@ -708,7 +706,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
     const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
-      fiscal, cliente });
+      cliente });
     /* Sin caja abierta no hay venta: no se descuenta stock ni se limpia el
        carrito, así el cobro se puede retomar apenas se abra. */
     if (!t) return;
@@ -811,7 +809,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, totalFinal, cliente, buscarCliente, permisos]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -1060,25 +1058,25 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <div className="text-right text-xs text-texto-tenue"><Tecla>Esc</Tecla> volver</div>
           </div>
           <div className="p-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
+            {/* Acá había un selector Ticket / Factura que imprimía la
+                factura con un CAE inventado. Vuelve cuando el cobro pida el
+                CAE de verdad a ARCA (ver `cobrar` en PanelGenez.jsx). */}
+            <div className="mb-3">
               <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Cómo paga?</span>
-              <div className="flex rounded-xl border border-borde overflow-hidden text-xs font-semibold">
-                <button onClick={() => setFiscal(false)} className={`px-3 py-1.5 ${!fiscal ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>Ticket</button>
-                <button onClick={() => setFiscal(true)} className={`px-3 py-1.5 ${fiscal ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>Factura {fiscal ? letra : ""}</button>
-              </div>
             </div>
 
-            {fiscal && (
+            {/* El cliente se elige cuando se cobra a cuenta corriente, y
+                tiene que verse a quién se le está anotando la deuda. */}
+            {cliente && (
               <button onClick={() => setBuscarCliente(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-xl border border-borde hover:bg-superficie-2 text-left">
                 <Users size={16} className="text-texto-tenue shrink-0" />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold truncate">{cliente ? cliente.razonSocial : "Consumidor final"}</span>
+                  <span className="block text-sm font-semibold truncate">{cliente.razonSocial}</span>
                   <span className="block text-[11px] text-texto-tenue">
-                    {cliente ? `${cliente.tipoDoc} ${cliente.doc} · ${condicionNombre(cliente.condicion)}` : "Sin identificar · toca para elegir un cliente"}
+                    {`${cliente.tipoDoc} ${cliente.doc} · ${condicionNombre(cliente.condicion)}`}
                   </span>
                 </span>
-                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border bg-superficie-3 text-texto border-superficie-3 shrink-0">{letra}</span>
               </button>
             )}
             <ul className="space-y-1.5">

@@ -1397,7 +1397,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, cliente }) => {
     /* El POS ya no se monta con la caja cerrada, pero no es el único que
        cobra: los pedidos preparados entran por acá también. La condición
        se verifica en el único lugar por el que pasan todos, así que un
@@ -1409,8 +1409,14 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
     const nro = siguienteNumero(empresaId, (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001");
     const ps = pagos && pagos.length ? pagos : [{ medio, monto: total }];
-    const esFiscal = fiscal != null ? fiscal : !!ajustes.arca;
-    const cae = String(74300000000000 + tickets.length * 137);
+    /* Ninguna venta sale como factura todavía. Acá se fabricaba el CAE con
+       una cuenta (74300000000000 + 137 por ticket) y el ticket lo imprimía
+       con su QR, con el botón "Factura" a mano de cualquier cajero: un
+       comprobante fiscal falso en la mano de un cliente. El CAE de verdad
+       lo pide `api/arca/facturar` sobre la venta ya guardada, y el cobro
+       lo va a llamar cuando esté resuelto qué se imprime si la venta se
+       hizo sin internet y el CAE llega después. */
+    const esFiscal = false;
 
     /* La venta se arma antes que el ticket para que compartan el id: lo que
        se imprime en el mostrador y lo que queda en la base son la misma cosa,
@@ -1426,7 +1432,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       pagos: ps, medio: ps[0].medio,
       fiscal: esFiscal,
       cliente,
-      comprobante: { fiscal: esFiscal, cae, cliente: cliente ? { nombre: cliente.razonSocial, doc: cliente.doc } : null },
+      comprobante: { fiscal: esFiscal, cliente: cliente ? { nombre: cliente.razonSocial, doc: cliente.doc } : null },
     });
 
     /* Primero al disco, después el ticket. Guardar es sincrónico, así que
@@ -1436,7 +1442,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     const guardada = encolar(venta);
 
     const t = {
-      id: venta.id, nro, cae,
+      id: venta.id, nro,
       /* La fecha se captura acá, junto con la hora y del mismo `new Date()`.
          Antes el ticket no la guardaba y al imprimir salía `HOY`, la fecha
          congelada del generador: el papel decía 09/08/2026 con la hora real
