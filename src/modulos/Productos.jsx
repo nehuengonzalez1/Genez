@@ -201,7 +201,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
     return (
       <div className="space-y-4">
         {pestanas}
-        <Etiquetas enPagina productos={productos} empresaId={empresaId} ajustes={ajustes} toast={toast} />
+        <Etiquetas productos={productos} empresaId={empresaId} ajustes={ajustes} toast={toast} />
       </div>
     );
   }
