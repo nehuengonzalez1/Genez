@@ -6,6 +6,8 @@ import React, { useEffect, useRef, useContext, createContext, useCallback } from
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import QRCode from "qrcode";
 import { armarPdfTicket, imprimirPdf } from "./ticketPdf.js";
+import { armarEscPos } from "./escpos.js";
+import { impresoraElegida, imprimirDirecto } from "./agenteImpresion.js";
 import { HOY, fdatel } from "../datos/generador.js";
 import { pct, money, nf, nf2, moneyk, FISCAL_INICIAL, letraComprobante, discriminaIVA, condicionLegal, medioPorK } from "../utils/helpers.js";
 
@@ -278,7 +280,33 @@ export const utilDe = (mm) => Math.min(mm, Math.max(40, utilPropio || UTIL_MM[mm
    navegador sin visor de PDF, uno que bloquea la impresión del iframe—
    se imprime como antes, como página: mejor un ticket con encabezado
    que ningún ticket. */
+/* LA IMPRESIÓN DIRECTA VA PRIMERO
+   Si esta computadora tiene el programa de impresión de Genez y una
+   impresora elegida (Ajustes → Impresión directa), el ticket sale por ahí:
+   sin ventana, sin la fecha ni la dirección del navegador, y con el corte
+   de papel. Si el programa no contesta —se cerró, la computadora se
+   reinició y no arrancó, se desenchufó la impresora—, se abre la ventana
+   de siempre y se avisa: un ticket que no sale es peor que uno con
+   ventana. */
 export function imprimirComandera(lineas, ancho, qrSemilla, toast) {
+  const impresora = impresoraElegida();
+  if (impresora) {
+    let bytes = null;
+    try {
+      bytes = armarEscPos({ lineas, mm: ancho === 58 ? 58 : 80, celdas: qrSemilla ? celdasQR(qrSemilla) : null });
+    } catch (e) { /* se imprime con la ventana */ }
+    if (bytes) {
+      imprimirDirecto(impresora, bytes).catch((e) => {
+        toast && toast(`No salió por la impresión directa (${e.message || "el programa no contesta"}). Se abre la ventana.`, "mal");
+        imprimirConVentana(lineas, ancho, qrSemilla, toast);
+      });
+      return;
+    }
+  }
+  imprimirConVentana(lineas, ancho, qrSemilla, toast);
+}
+
+function imprimirConVentana(lineas, ancho, qrSemilla, toast) {
   const mm = ancho === 58 ? 58 : 80;
   if (!comoPagina) {
     try {

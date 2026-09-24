@@ -1,5 +1,43 @@
 # La impresora de tickets
 
+## Impresión directa: la forma recomendada
+
+Un navegador no puede imprimir sin abrir su ventana, y a todo lo que
+imprime le agrega la fecha y la dirección. La impresión directa lo
+resuelve con un programa chico que se instala **una vez** en cada
+computadora que imprime:
+
+1. En esa computadora, en Genez: **Ajustes → Impresión directa → Bajar el
+   instalador**, y abrirlo con doble clic. No pide permisos de
+   administrador. Si Windows avisa que es un archivo descargado: **Más
+   información → Ejecutar de todas formas**.
+2. Volver a Ajustes, **Buscar de nuevo**, elegir la impresora térmica y
+   **Imprimir prueba**.
+3. La primera vez Chrome puede preguntar si genez.com.ar puede usar
+   aplicaciones de esta computadora: permitirlo.
+
+Desde ahí, Imprimir manda el ticket directo a la térmica: sin ventana,
+sin encabezados y con corte de papel. Si el programa no contesta, Genez
+abre la ventana de siempre y avisa.
+
+Cómo está hecho:
+
+- `public/impresora/genez-impresora.ps1` — PowerShell, que viene en todo
+  Windows 10 y 11. Escucha solo en `127.0.0.1:9197`, contesta solo a las
+  páginas de Genez (exige el encabezado `X-Genez`, que obliga a Chrome a
+  preguntar antes, y responde solo a los orígenes de Genez) y le pasa los
+  bytes a la impresora en crudo. No sabe qué es un ticket.
+- `src/ui/escpos.js` arma el ticket en ESC/POS: los renglones de
+  `armarLineas`, negrita, el QR como imagen, avance y corte. Los acentos
+  se sacan, porque la tabla de caracteres de cada impresora es distinta.
+- `src/ui/agenteImpresion.js` le habla al programa. La impresora elegida
+  se guarda en el navegador, no en el comercio: es de cada computadora.
+- Se instala en `%LOCALAPPDATA%\GenezImpresora`, con un acceso directo en
+  la carpeta Inicio del usuario; deja un registro en `registro.txt`.
+  `desinstalar-impresora-genez.cmd` lo saca.
+
+Lo de abajo sirve solo para las computadoras sin impresión directa.
+
 ## La fecha, el título y la dirección que salen arriba y abajo
 
 No los pone Genez: los agrega el navegador. Chrome y Edge tienen una

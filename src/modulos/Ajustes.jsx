@@ -16,6 +16,7 @@ import {
 import { Card, Boton, Modal, Kpi, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { ConexionArca } from "./ConexionArca.jsx";
+import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 const Vol2 = Volume2;
 
 /* ============================================================
@@ -198,6 +199,8 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
       </Card>
 
       {empresaId && <ConexionArca empresaId={empresaId} toast={toast} alCambiar={recargarConexion} />}
+
+      <ImpresionDirecta ajustes={ajustes} toast={toast} />
 
       <Card className="p-5">
         <h3 className="f-d text-lg">Comandera y pistola</h3>
