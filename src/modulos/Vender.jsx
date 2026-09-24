@@ -920,7 +920,23 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const aplicarCantidad = () => {
     const n = aNumero(q);
     if (!activo || !(n > 0)) return false;
-    setQty(activo.pid, n);
+    /* `setQty` trabaja por renglón (`lid`), no por producto: desde el
+       precio abierto un mismo producto puede estar dos veces. Acá se le
+       pasaba el id del producto, que no coincide con ningún renglón, así
+       que el cartel aparecía y la cantidad no cambiaba. Va al último
+       renglón de ese producto, que es el que se acaba de cargar. */
+    const renglon = [...cart].reverse().find((l) => l.pid === activo.pid);
+    if (!renglon) return false;
+    /* En uno de precio abierto la cantidad ya está adentro del importe
+       (300 g de jamón son un renglón de $X, no "una unidad"): multiplicar
+       lo falsearía. */
+    if (renglon.precioAbierto) {
+      beep(false, ajustes.sonido);
+      toast(`${activo.nombre} se cobra por importe: para otro, cargalo de nuevo.`, "mal");
+      setQ("");
+      return true;
+    }
+    setQty(renglon.lid, n);
     setQ(""); setSel(0);
     beep(true, ajustes.sonido);
     return true;
