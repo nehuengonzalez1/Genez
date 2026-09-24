@@ -302,6 +302,27 @@ export const FISCAL_INICIAL = {
   domicilio: "",
 };
 
+/* EL TOPE DEL DESCUENTO
+   Un descuento llega hasta 99,99 %: una venta en $0 no es una venta, es
+   mercadería que salió sin cobrarse, y la caja no la puede explicar.
+
+   El tope se aplica sobre la plata y no solo sobre el porcentaje, porque
+   el redondeo lo saltea: el 99,99 % de $1.500 son $1.499,85, que en pesos
+   enteros es $1.500 y deja la venta en cero. `topeDescuento` es lo máximo
+   que se puede descontar de un subtotal, siempre por debajo de él. */
+export const TOPE_DESCUENTO = 99.99;
+export const topeDescuento = (sub) => Math.max(0, Math.floor(sub * TOPE_DESCUENTO / 100));
+
+/* El porcentaje se escribe con coma, como se escribe acá: "99,99". El
+   campo deja solo dígitos y una coma con hasta dos decimales, y lo leído
+   no pasa del tope. */
+export const limpiarPorcentaje = (texto) => {
+  const t = String(texto).replace(/\./g, ",").replace(/[^\d,]/g, "");
+  const i = t.indexOf(",");
+  return i < 0 ? t.slice(0, 3) : `${t.slice(0, i).slice(0, 3)},${t.slice(i + 1).replace(/,/g, "").slice(0, 2)}`;
+};
+export const leerPorcentaje = (texto) => Math.min(Number(String(texto).replace(",", ".")) || 0, TOPE_DESCUENTO);
+
 export function mediosDe(ajustes) {
   const ms = (ajustes && ajustes.medios) || MEDIOS_INICIALES;
   return ms.filter((m) => m.activo !== false);

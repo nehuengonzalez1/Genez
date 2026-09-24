@@ -14,7 +14,8 @@ import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
   condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
-  leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE
+  leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE,
+  TOPE_DESCUENTO, topeDescuento, limpiarPorcentaje, leerPorcentaje
 } from "../utils/helpers.js";
 import {
   beep, useScanHandler, ticketVenta, imprimirTicket, qrDeFactura, esperaCAE,
@@ -503,6 +504,10 @@ export function Tecla({ children }) {
    botones de 5, 10 y 15 % siguen siendo los rápidos, y F4 rota entre
    ellos; lo que no está en los botones se escribe. */
 const SIN_DESC = { modo: "pct", valor: 0 };
+/* Lo que se ve en el campo. `texto` es lo tipeado, para que "99," no se
+   pierda a mitad de escribir; los botones no lo traen y se muestra el
+   número. */
+const textoDesc = (d) => d.texto != null ? d.texto : d.valor ? String(d.valor).replace(".", ",") : "";
 const DESC_RAPIDOS = [0, 5, 10, 15];
 
 /* El precio de un renglón, que se toca con un clic. Cambia lo que se
@@ -710,9 +715,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const rebajaManual = lineas.reduce((s, l) => s + (l.manual != null ? (l.precio - l.manual) * l.qty : 0), 0);
   /* En pesos enteros, como toda la plata del sistema. Un descuento en
      pesos no puede pasar el subtotal: la venta no queda en negativo. */
-  const descMonto = desc.modo === "pct"
-    ? Math.round(sub * Math.min(desc.valor, 100) / 100)
-    : Math.min(Math.round(desc.valor), Math.round(sub));
+  const descPedido = desc.modo === "pct"
+    ? Math.round(sub * Math.min(desc.valor, TOPE_DESCUENTO) / 100)
+    : Math.round(desc.valor);
+  const descMonto = Math.min(descPedido, topeDescuento(sub));
   const total = sub - descMonto;
   const costoTot = lineas.reduce((s, l) => s + l.costo * l.qty, 0);
   const ganancia = total - costoTot;
@@ -1176,22 +1182,29 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                       className={`px-2.5 py-1.5 ${desc.modo === m ? "bg-superficie-3 text-texto" : "text-texto-suave hover:bg-superficie-2"}`}>{n}</button>
                   ))}
                 </div>
-                <input inputMode="numeric" placeholder={desc.modo === "pct" ? "Otro %" : "Importe en pesos"}
-                  value={desc.valor ? String(desc.valor) : ""}
+                <input inputMode="decimal" placeholder={desc.modo === "pct" ? "Otro %" : "Importe en pesos"}
+                  value={textoDesc(desc)}
                   onChange={(e) => {
-                    const n = Number(e.target.value.replace(/[^\d]/g, "")) || 0;
-                    setDesc((d) => ({ modo: d.modo, valor: d.modo === "pct" ? Math.min(n, 100) : n }));
+                    if (desc.modo === "monto") {
+                      const n = Number(e.target.value.replace(/[^\d]/g, "")) || 0;
+                      return setDesc({ modo: "monto", valor: n });
+                    }
+                    /* Un porcentaje de más se muestra ya topeado: que el
+                       campo diga lo que se va a descontar. */
+                    const t = limpiarPorcentaje(e.target.value);
+                    const pasado = Number(t.replace(",", ".")) > TOPE_DESCUENTO;
+                    setDesc({ modo: "pct", valor: leerPorcentaje(t), texto: pasado ? "99,99" : t });
                   }}
                   className="f-m flex-1 min-w-0 border border-borde rounded-md px-2.5 py-1.5 text-sm bg-superficie outline-none focus:border-acento" />
               </div>
               {descMonto > 0 && (
                 <div className="flex items-baseline justify-between mt-2">
-                  <span className="text-sm text-texto-suave">{desc.modo === "pct" ? `Descuento ${desc.valor}%` : "Descuento"}</span>
+                  <span className="text-sm text-texto-suave">{desc.modo === "pct" ? `Descuento ${String(desc.valor).replace(".", ",")}%` : "Descuento"}</span>
                   <span className="f-m text-sm">−{money(descMonto)}</span>
                 </div>
               )}
-              {desc.modo === "monto" && desc.valor > sub && sub > 0 && (
-                <p className="text-[11px] text-ojo mt-1">No puede pasar el subtotal: se descuenta {money(sub)}.</p>
+              {descPedido > descMonto && sub > 0 && (
+                <p className="text-[11px] text-ojo mt-1">El descuento llega hasta 99,99 %: se descuenta {money(descMonto)} y se cobra {money(sub - descMonto)}.</p>
               )}
             </div>
           )}

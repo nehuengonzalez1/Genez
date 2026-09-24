@@ -30,7 +30,7 @@ import {
   Pizza, Beef, Sandwich, Salad, Soup, Fish, Drumstick, Coffee, Wine, Beer,
   CupSoda, IceCream, Cake, Croissant, Cookie, Milk, Flame, Utensils,
 } from "lucide-react";
-import { money, hora, mediosDe, medioPorK, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
+import { money, hora, mediosDe, medioPorK, conRecargo, FISCAL_INICIAL, TOPE_DESCUENTO, topeDescuento, limpiarPorcentaje } from "../utils/helpers.js";
 import { siguienteNumero, serieDe } from "../datos/ventas.js";
 import {
   cargarSalon, cargarRecursos, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
@@ -1446,7 +1446,7 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
      relee, y reaccionar a eso le pisaría al usuario lo que está tipeando. */
   useEffect(() => {
     if (!abierto) return;
-    if (comanda.descuentoPct != null) { setModo("pct"); setValor(String(comanda.descuentoPct)); }
+    if (comanda.descuentoPct != null) { setModo("pct"); setValor(String(comanda.descuentoPct).replace(".", ",")); }
     else if (comanda.descuento > 0) { setModo("monto"); setValor(String(comanda.descuento)); }
     else { setModo("pct"); setValor(""); }
   }, [abierto]);
@@ -1455,10 +1455,18 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
 
   const esPct = modo === "pct";
   const sub = comanda.subtotal;
-  const n = Number(valor) || 0;
-  const excede = esPct ? n > 100 : n > sub;
-  const desc = esPct ? Math.round(sub * Math.min(n, 100) / 100) : Math.min(n, sub);
+  const n = esPct ? Number(valor.replace(",", ".")) || 0 : Number(valor) || 0;
+  /* Hasta 99,99 %, y medido en plata: el redondeo del porcentaje puede
+     dejar la mesa en cero aunque el número tipeado esté en regla. */
+  const tope = topeDescuento(sub);
+  const pedido = esPct ? Math.round(sub * n / 100) : n;
+  const excede = esPct ? n > TOPE_DESCUENTO : n > tope;
+  const desc = Math.min(pedido, tope);
   const total = sub - desc;
+  /* El porcentaje se guarda como porcentaje porque sigue al subtotal si
+     se agregan platos. Solo cuando el redondeo lo pasaría del tope va
+     como importe, que es el tope mismo. */
+  const aAplicar = esPct && pedido <= tope ? { pct: n } : { monto: desc };
   const habia = comanda.descuento > 0;
 
   const solapa = (k, texto) => (
@@ -1482,8 +1490,8 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
 
         <div className="mt-3 flex items-center gap-2 rounded-xl border-2 border-borde focus-within:border-acento px-4 py-3">
           {!esPct && <span className="f-m text-2xl text-texto-tenue shrink-0">$</span>}
-          <input value={valor} onChange={(e) => setValor(e.target.value.replace(/\D/g, ""))}
-            inputMode="numeric" placeholder="0" autoFocus
+          <input value={valor} onChange={(e) => setValor(esPct ? limpiarPorcentaje(e.target.value) : e.target.value.replace(/\D/g, ""))}
+            inputMode={esPct ? "decimal" : "numeric"} placeholder="0" autoFocus
             className="f-m flex-1 min-w-0 text-3xl bg-transparent outline-none" />
           {esPct && <span className="f-m text-2xl text-texto-tenue shrink-0">%</span>}
         </div>
@@ -1506,7 +1514,7 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
             <span>Subtotal</span><span className="f-m">{money(sub)}</span>
           </div>
           <div className="flex items-baseline justify-between text-sm text-acento mt-0.5">
-            <span>Descuento{esPct && n > 0 ? ` (${Math.min(n, 100)}%)` : ""}</span>
+            <span>Descuento{esPct && n > 0 ? ` (${String(Math.min(n, TOPE_DESCUENTO)).replace(".", ",")}%)` : ""}</span>
             <span className="f-m">-{money(desc)}</span>
           </div>
           <div className="flex items-baseline justify-between gap-2 mt-1">
@@ -1517,12 +1525,12 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
 
         {excede && (
           <p className="text-xs text-mal mt-2">
-            {esPct ? "El porcentaje no puede pasar de 100." : "El descuento no puede ser mayor que la cuenta."}
+            {esPct ? "El descuento llega hasta 99,99 %." : `El descuento llega hasta 99,99 % de la cuenta: ${money(tope)}.`}
           </p>
         )}
 
         <Boton size="lg" className="w-full mt-4" disabled={trabajando || excede}
-          onClick={() => (n > 0 ? onAplicar(esPct ? { pct: n } : { monto: n }) : onQuitar())}>
+          onClick={() => (n > 0 ? onAplicar(aAplicar) : onQuitar())}>
           <Check size={18} /> {n > 0 ? `Aplicar · queda ${money(total)}` : "Dejar sin descuento"}
         </Boton>
         {habia && (
