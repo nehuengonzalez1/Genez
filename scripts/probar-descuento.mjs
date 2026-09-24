@@ -78,6 +78,42 @@ try {
   decir(e.code === "P0009", "no deja descontar mas que la cuenta");
 }
 
+/* El tope (0088): hasta 99,99 %, medido en plata. La mesa nunca queda
+   en cero, ni por porcentaje, ni por importe, ni por redondeo. */
+console.log("\nTope de 99,99 %");
+
+const rechaza = async (sql, args, texto) => {
+  try { await c.query(sql, args); decir(false, texto); }
+  catch (e) { decir(e.code === "P0009" || e.code === "23514", texto); }
+};
+const tope = Number((await una("select tope_descuento($1) t", [sub2])).t);
+decir(tope === Math.floor(sub2 * 99.99 / 100) && tope < sub2, `el tope de ${sub2} es ${tope}, por debajo del subtotal`);
+await rechaza("select aplicar_descuento($1, 100, null)", [cm.id], "no deja poner 100 %");
+await rechaza("select aplicar_descuento($1, null, $2)", [cm.id, sub2], "no deja descontar la cuenta entera");
+/* 99,99 % de un subtotal chico redondea a la cuenta entera: el caso que
+   el porcentaje solo no ve. */
+const chico = await una("select abrir_comanda($1::jsonb) id", [JSON.stringify({ empresa_id: emp.id, canal: "mostrador" })]);
+await c.query(
+  `insert into operacion_lineas (operacion_id, empresa_id, item_id, descripcion, cantidad, precio_unitario, costo_unitario, total, destino)
+   values ($1,$2,$3,'Prueba tope',1,1500,0,1500,'cocina')`, [chico.id, emp.id, plato.id]);
+await rechaza("select aplicar_descuento($1, 99.99, null)", [chico.id], "99,99 % de $1.500 redondea a $1.500 y se rechaza");
+const alTope = await una("select aplicar_descuento($1, null, 1499) d", [chico.id]);
+decir(Number(alTope.d) === 1499, "descontar justo el tope ($1.499 de $1.500) se acepta");
+await c.query("delete from operacion_lineas where operacion_id = $1", [chico.id]);
+await c.query("delete from operaciones where id = $1", [chico.id]);
+
+/* El control de fondo: una venta confirmada por encima del tope no entra,
+   venga de donde venga. */
+const ventaCon = (desc) => c.query(
+  `insert into operaciones (id, empresa_id, sucursal_id, tipo, estado, numero, subtotal, descuento, total)
+   values (gen_random_uuid(), $1, $2, 'venta', 'confirmada', 'PRUEBA-TOPE', 1500, $3::numeric, 1500 - $3::numeric) returning id`,
+  [emp.id, suc.id, desc]);
+try { await ventaCon(1500); decir(false, "una venta confirmada en $0 no entra"); }
+catch (e) { decir(e.code === "P0009", "una venta confirmada en $0 no entra"); }
+const entra = (await ventaCon(1499)).rows[0];
+decir(!!entra, "una venta confirmada con el tope justo entra");
+await c.query("delete from operaciones where id = $1", [entra.id]);
+
 console.log("\nComensales y cobro");
 
 await c.query("update operaciones set comensales = 3 where id = $1", [cm.id]);

@@ -540,7 +540,7 @@ export async function aplicarDescuento(comandaId, { pct = null, monto = null }) 
     p_monto: monto,
   });
   if (error) {
-    if (error.code === "P0009") throw new Error("El descuento no puede ser mayor que la cuenta.");
+    if (error.code === "P0009") throw new Error("El descuento llega hasta 99,99 % de la cuenta.");
     throw error;
   }
   return n(data);
@@ -643,7 +643,7 @@ export async function cerrarComanda({ comandaId, sesionId, pagos, numero = null,
   if (error) {
     if (error.code === "P0001") throw new Error("Abrí la caja antes de cobrar la mesa.");
     if (error.code === "P0003") throw new Error("Esa mesa ya fue cobrada.");
-    if (error.code === "P0009") throw new Error("El descuento no puede ser mayor que la cuenta.");
+    if (error.code === "P0009") throw new Error("El descuento llega hasta 99,99 % de la cuenta.");
     throw error;
   }
   return data;

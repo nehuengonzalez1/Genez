@@ -145,7 +145,8 @@ Lo que toca varias tablas a la vez vive en Postgres, no en el navegador:
 | `permisos_de(uuid)` / `permiso(text)` | Qué puede hacer alguien. Lo que consultan las políticas. Ver abajo. |
 | `sembrar_canales(uuid)` | Los canales con los que arranca un comercio. |
 | `enviar_a_cocina(uuid)` | Despacha solo lo que falta despachar. |
-| `aplicar_descuento(...)` | Por porcentaje o por importe. |
+| `aplicar_descuento(...)` | Por porcentaje o por importe, hasta 99,99 %. |
+| `tope_descuento(numeric)` | Lo máximo que se puede descontar: 99,99 % en pesos enteros, siempre por debajo del subtotal. Lo usa también un disparador que rechaza toda venta confirmada por encima (0088). |
 | `guardar_plano(jsonb)` | Acomoda el salón en una transacción. |
 | `unir_mesas` / `separar_mesa` | Con sus validaciones. |
 
