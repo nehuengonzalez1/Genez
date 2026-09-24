@@ -16,7 +16,9 @@ import { Etiquetas } from "./Etiquetas.jsx";
 
 export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
   const [alta, setAlta] = useState(null);
-  const [etiquetas, setEtiquetas] = useState(false);
+  /* Catálogo o códigos de barras: una pestaña y no una ventana, para que
+     los códigos generados queden a la vista cuando se los quiera buscar. */
+  const [pestana, setPestana] = useState("catalogo");
   const [captura, setCaptura] = useState(false);
   const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
   const [modoPrecios, setModoPrecios] = useState(false);
@@ -190,8 +192,23 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
      base cuando ve el cambio, así ninguna pantalla se puede olvidar de él. */
   const actualizar = actualizarProducto;
 
+  const pestanas = (
+    <Tabs value={pestana} onChange={setPestana}
+      items={[{ k: "catalogo", n: "Catálogo" }, { k: "codigos", n: "Códigos de barras" }]} />
+  );
+
+  if (pestana === "codigos") {
+    return (
+      <div className="space-y-4">
+        {pestanas}
+        <Etiquetas enPagina productos={productos} empresaId={empresaId} ajustes={ajustes} toast={toast} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {pestanas}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-tenue" />
@@ -245,7 +262,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
           <Boton size="sm" variant="ghost" onClick={() => setCaptura(true)}>
             <Barcode size={14} /> <span className="hidden sm:inline">Captura con pistola</span><span className="sm:hidden">Pistola</span>
           </Boton>
-          <Boton size="sm" variant="ghost" onClick={() => setEtiquetas(true)}>
+          <Boton size="sm" variant="ghost" onClick={() => setPestana("codigos")}>
             <Barcode size={14} /> <span className="hidden sm:inline">Etiquetas</span>
           </Boton>
           <Boton size="sm" onClick={() => setAlta({})}><Plus size={14} /> <span className="hidden sm:inline">Nuevo producto</span><span className="sm:hidden">Nuevo</span></Boton>
@@ -567,7 +584,6 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
         )}
       </Card>
 
-      {etiquetas && <Etiquetas productos={productos} empresaId={empresaId} ajustes={ajustes} toast={toast} onClose={() => setEtiquetas(false)} />}
       <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} productos={productos} empresaId={empresaId} toast={toast} borrar={borrarProducto} />
 
       <ImportarPlanilla resumen={planilla} listas={ajustes.listas || []} onCerrar={() => setPlanilla(null)}

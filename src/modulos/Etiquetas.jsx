@@ -1,6 +1,10 @@
 /* ============================================================
-   PRODUCTOS · ETIQUETAS CON CÓDIGO DE BARRAS
+   PRODUCTOS · CÓDIGOS DE BARRAS
    ============================================================
+
+   Una pestaña de Productos y no una ventana que se abre y se cierra: los
+   códigos generados quedan a la vista (0087), con cuándo y quién, para
+   volver a buscarlos y reimprimir cuando haga falta.
 
    Para lo que no se puede pasar con la pistola porque no trae código: lo
    que se fracciona en el local, lo suelto, lo que el proveedor no
@@ -17,14 +21,15 @@
      propia impresora.
    ============================================================ */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Barcode, Printer, Wand2, Minus, Plus, X } from "lucide-react";
 import { money, nf } from "../utils/helpers.js";
-import { asignarCodigos } from "../datos/items.js";
+import { asignarCodigos, cargarCodigosPropios } from "../datos/items.js";
 import { formatoDe, svgCodigo } from "../ui/codigoBarras.js";
 import { etiquetasEscPos } from "../ui/escpos.js";
 import { impresoraElegida, imprimirDirecto } from "../ui/agenteImpresion.js";
 import { Modal, Boton, escaparHTML, utilDe } from "../ui/Base.jsx";
+import { fdatel } from "../datos/generador.js";
 
 const sinCodigo = (p) => !String(p.barcode || "").trim();
 const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -83,9 +88,18 @@ function imprimirDocumento(html, { rolloMM = null } = {}) {
   document.body.appendChild(marco);
 }
 
-export function Etiquetas({ productos, empresaId, ajustes, toast, onClose }) {
+export function Etiquetas({ productos, empresaId, ajustes, toast, onClose, enPagina = false }) {
   const [q, setQ] = useState("");
-  const [filtro, setFiltro] = useState("sin");            // sin | todos
+  const [filtro, setFiltro] = useState(enPagina ? "generados" : "sin");   // generados | sin | todos
+  /* Los códigos propios de hoy, con cuándo y quién (0087). */
+  const [propios, setPropios] = useState({});
+  const leerPropios = useCallback(async () => {
+    try {
+      const lista = await cargarCodigosPropios(empresaId);
+      setPropios(Object.fromEntries(lista.map((x) => [x.id, x])));
+    } catch (e) { /* sin la lista, se siguen viendo los productos con su código */ }
+  }, [empresaId]);
+  useEffect(() => { leerPropios(); }, [leerPropios]);
   const [elegidos, setElegidos] = useState({});           // id → copias
   const [codigos, setCodigos] = useState({});             // id → código recién generado
   const [generando, setGenerando] = useState(false);
@@ -101,13 +115,18 @@ export function Etiquetas({ productos, empresaId, ajustes, toast, onClose }) {
 
   const activos = useMemo(() => productos.filter((p) => p.activo !== false), [productos]);
   const cuantosSin = activos.filter((p) => !codigoDe(p)).length;
+  const esPropio = (p) => !!(propios[p.id] || codigos[p.id]);
+  const cuantosPropios = activos.filter(esPropio).length;
   const lista = useMemo(() => {
     const t = norm(q.trim());
+    const cuando = (p) => (propios[p.id] && propios[p.id].generadoEn ? propios[p.id].generadoEn.getTime() : 0);
     return activos
-      .filter((p) => filtro === "todos" || !codigoDe(p))
+      .filter((p) => filtro === "todos" || (filtro === "sin" ? !codigoDe(p) : esPropio(p)))
       .filter((p) => !t || norm(p.nombre).includes(t) || codigoDe(p).includes(q.trim()))
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [activos, q, filtro, codigos]);
+      /* Los generados, del más nuevo al más viejo: lo que se busca suele
+         ser lo último que se hizo. */
+      .sort((a, b) => (filtro === "generados" ? (codigos[b.id] ? 1 : 0) - (codigos[a.id] ? 1 : 0) || cuando(b) - cuando(a) : 0) || a.nombre.localeCompare(b.nombre));
+  }, [activos, q, filtro, codigos, propios]);
 
   const marcados = activos.filter((p) => elegidos[p.id]);
   const marcadosSin = marcados.filter((p) => !codigoDe(p));
@@ -124,6 +143,7 @@ export function Etiquetas({ productos, empresaId, ajustes, toast, onClose }) {
     try {
       const nuevos = await asignarCodigos(empresaId, marcadosSin.map((p) => p.id));
       setCodigos((c) => { const n = { ...c }; nuevos.forEach((x) => { n[x.id] = x.barcode; }); return n; });
+      leerPropios();
       toast(nuevos.length === 1 ? "Se generó 1 código. Quedó guardado en el producto." : `Se generaron ${nuevos.length} códigos. Quedaron guardados en cada producto.`);
     } catch (e) {
       toast(e.message || "No se pudieron generar los códigos.", "mal");
@@ -174,17 +194,19 @@ export function Etiquetas({ productos, empresaId, ajustes, toast, onClose }) {
 
   const previa = etiquetas.slice(0, formato === "a4" ? columnas * 4 : 4);
 
-  return (
-    <Modal open onClose={onClose} ancho="max-w-6xl">
+  /* Página o ventana, sin un componente de por medio: uno definido acá
+     adentro sería "otro" en cada dibujo, y el buscador perdería el foco
+     con cada letra. */
+  const contenido = (
       <div className="p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="f-d text-xl">Etiquetas con código de barras</h3>
+            <h3 className="f-d text-xl">Códigos de barras</h3>
             <p className="text-sm text-texto-suave mt-1">
-              A los productos sin código se les genera uno propio que queda guardado y se lee con la pistola. Elegí cuáles y cuántas copias.
+              A los productos sin código se les genera uno propio, que queda guardado y se lee con la pistola. Acá quedan todos los generados, para buscarlos y reimprimir sus etiquetas cuando haga falta.
             </p>
           </div>
-          <button onClick={onClose} className="text-texto-tenue hover:text-texto p-1 -mr-2 -mt-2"><X size={18} /></button>
+          {!enPagina && <button onClick={onClose} className="text-texto-tenue hover:text-texto p-1 -mr-2 -mt-2"><X size={18} /></button>}
         </div>
 
         <div className="grid lg:grid-cols-[1fr_360px] gap-5 mt-5">
@@ -197,13 +219,18 @@ export function Etiquetas({ productos, empresaId, ajustes, toast, onClose }) {
                   className="w-full border border-borde rounded-md pl-8 pr-3 py-1.5 text-sm bg-superficie outline-none focus:border-acento" />
               </div>
               <div className="flex rounded-md border border-borde overflow-hidden text-xs font-semibold">
+                <button onClick={() => setFiltro("generados")} className={`px-3 py-1.5 ${filtro === "generados" ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>Generados ({nf.format(cuantosPropios)})</button>
                 <button onClick={() => setFiltro("sin")} className={`px-3 py-1.5 ${filtro === "sin" ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>Sin código ({nf.format(cuantosSin)})</button>
                 <button onClick={() => setFiltro("todos")} className={`px-3 py-1.5 ${filtro === "todos" ? "bg-superficie-3 text-texto" : "text-texto-suave"}`}>Todos</button>
               </div>
               <button onClick={todosLosQueSeVen} className="text-xs font-semibold text-acento hover:underline">Marcar los que se ven</button>
             </div>
             <ul className="divide-y divide-borde max-h-[420px] overflow-auto">
-              {lista.length === 0 && <li className="px-4 py-6 text-sm text-texto-tenue">{filtro === "sin" ? "Todos los productos tienen código." : "Ningún producto coincide."}</li>}
+              {lista.length === 0 && (
+                <li className="px-4 py-6 text-sm text-texto-tenue">
+                  {q ? "Ningún producto coincide." : filtro === "sin" ? "Todos los productos tienen código." : filtro === "generados" ? "Todavía no se generó ningún código. En \"Sin código\" están los productos que no tienen." : "No hay productos."}
+                </li>
+              )}
               {lista.slice(0, mostrar).map((p) => {
                 const cod = codigoDe(p);
                 const marcado = !!elegidos[p.id];
@@ -214,7 +241,8 @@ export function Etiquetas({ productos, empresaId, ajustes, toast, onClose }) {
                       <div className="text-sm truncate">{p.nombre}</div>
                       <div className="text-xs f-m text-texto-tenue">
                         {cod ? cod : <span className="text-ojo">sin código</span>}
-                        {codigos[p.id] && <span className="text-bien"> · nuevo</span>}
+                        {codigos[p.id] ? <span className="text-bien"> · recién generado</span>
+                          : propios[p.id] ? <span> · {propios[p.id].generadoEn ? `generado el ${fdatel(propios[p.id].generadoEn)}${propios[p.id].generadoPor ? ` por ${propios[p.id].generadoPor}` : ""}` : "código propio cargado a mano"}</span> : null}
                       </div>
                     </button>
                     {marcado && (
@@ -295,6 +323,8 @@ export function Etiquetas({ productos, empresaId, ajustes, toast, onClose }) {
           </div>
         </div>
       </div>
-    </Modal>
   );
+  return enPagina
+    ? <div className="bg-superficie border border-borde rounded-lg">{contenido}</div>
+    : <Modal open onClose={onClose} ancho="max-w-6xl">{contenido}</Modal>;
 }

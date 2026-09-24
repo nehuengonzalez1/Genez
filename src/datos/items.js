@@ -301,3 +301,20 @@ export async function asignarCodigos(empresaId, ids) {
   if (error) throw error;
   return (data || []).map((f) => ({ id: f.item_id, barcode: f.barcode }));
 }
+
+/* Los productos que hoy tienen un código propio, con cuándo y quién lo
+   generó (0087). Sale del producto y no solo del registro: si a uno le
+   cambiaron el código a mano, deja de figurar. */
+export async function cargarCodigosPropios(empresaId) {
+  if (!empresaId) throw new Error("cargarCodigosPropios necesita la empresa.");
+  const { data, error } = await supabase
+    .from("codigos_propios_vista")
+    .select("item_id, codigo, generado_en, generado_por")
+    .eq("empresa_id", empresaId);
+  if (error) throw error;
+  return (data || []).map((f) => ({
+    id: f.item_id, codigo: f.codigo,
+    generadoEn: f.generado_en ? new Date(f.generado_en) : null,
+    generadoPor: f.generado_por || "",
+  }));
+}

@@ -63,6 +63,15 @@ try {
   decir(guardados.every((g) => r.some((x) => x.barcode === g)), "quedan guardados en el producto");
   decir((await c.query("select * from asignar_codigos_internos($1, $2)", [SUPER.id, [a, b]])).rows.length === 0,
     "pedirlo de nuevo no cambia nada");
+
+  /* 0087: quedan registrados y se ven en la sección. */
+  const vista = (await c.query("select item_id, codigo, generado_en, generado_por from codigos_propios_vista where item_id = any($1)", [[a, b]])).rows;
+  decir(vista.length === 2 && vista.every((x) => x.generado_en && x.generado_por),
+    "aparecen en la sección de códigos, con cuándo y quién los generó");
+  await c.query("reset role");
+  await c.query("update items set barcode = '7790070507273' where id = $1", [a]);
+  const tras = (await c.query("select item_id from codigos_propios_vista where item_id = any($1)", [[a, b]])).rows;
+  decir(tras.length === 1 && tras[0].item_id === b, "si a un producto le cambian el código a mano, deja de figurar como propio");
 } catch (e) {
   decir(false, `error inesperado: ${e.message}`);
 } finally {
