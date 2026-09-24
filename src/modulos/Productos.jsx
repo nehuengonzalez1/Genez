@@ -744,16 +744,24 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, emp
   const [confirmando, setConfirmando] = useState(false);
   const [borrando, setBorrando] = useState(false);
 
+  /* La ficha está montada siempre, con o sin producto abierto: `p` llega
+     undefined la mayor parte del tiempo. Por eso nada de `p.id` antes del
+     `if (!p)` de abajo, tampoco en la lista de dependencias, que se
+     evalúa al dibujar. Así estuvo y dejó Productos en negro para
+     cualquiera que refrescara: la pantalla se rompía al entrar, sin
+     haber abierto nada. */
+  const pid = p ? p.id : null;
   useEffect(() => {
+    if (!pid) return undefined;
     let vigente = true;
     setUso(null); setConfirmando(false);
-    usoDelProducto(p.id)
+    usoDelProducto(pid)
       .then((u) => { if (vigente) setUso(u); })
       /* Si no se puede averiguar, no se ofrece eliminar: mejor no dar el
          botón que darlo sin saber qué se lleva puesto. */
       .catch(() => { if (vigente) setUso({ error: true }); });
     return () => { vigente = false; };
-  }, [p.id]);
+  }, [pid]);
 
   const tieneHistoria = uso && !uso.error && (uso.vendido > 0 || uso.movimientos > 0);
   const enReceta = uso && !uso.error && uso.enRecetas > 0;
