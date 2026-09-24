@@ -48,6 +48,7 @@ import { Finanzas } from "../modulos/Finanzas.jsx";
 import { Servicios } from "../modulos/Servicios.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Facturas } from "../modulos/Facturas.jsx";
+import { Barrera } from "../ui/Barrera.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Informes } from "../modulos/Informes.jsx";
 import { Crm } from "../modulos/Crm.jsx";
@@ -1854,6 +1855,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             {/* El POS ni se monta con la caja cerrada: la base rechaza toda
                 venta sin sesión, así que dejar armar el carrito termina en un
                 ticket impreso de una venta que el servidor nunca aceptó. */}
+            <Barrera key="cobro" nombre="Cobro">
             {caja.abierta ? (
               <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
@@ -1865,6 +1867,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                   bajada="No se puede cobrar sin caja abierta. Cargá el efectivo que hay en el cajón y arrancá el turno." />
               </div>
             )}
+            </Barrera>
           </main>
 
           <footer className="hidden md:block px-4 py-2 text-center text-[11px] text-texto-tenue border-t border-borde bg-superficie">
@@ -1922,8 +1925,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           </header>
 
           <main className="flex-1 min-h-0 p-3 md:p-4">
-            <PantallaComandas empresaId={empresaId} config={config} ajustes={ajustes}
-              caja={caja} permisos={permisos} sesion={sesion} toast={toast} />
+            <Barrera key="comanda" nombre="Comanda">
+              <PantallaComandas empresaId={empresaId} config={config} ajustes={ajustes}
+                caja={caja} permisos={permisos} sesion={sesion} toast={toast} />
+            </Barrera>
           </main>
         </div>
       )}
@@ -2072,6 +2077,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             </div>
           )}
 
+          {/* Cada sección con su barrera: si una se rompe, el menú sigue
+              andando y el error queda a la vista (ver src/ui/Barrera.jsx).
+              La `key` la limpia al cambiar de sección. */}
+          <Barrera key={tab} nombre={titulo}>
           {tab === "inicio" && (
             <Inicio tablero={rubro ? rubro.inicio : "comercio"}
               k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy}
@@ -2143,6 +2152,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
           {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion}
             empresaId={empresaId} recargarConexion={recargarConexion} />}
+          </Barrera>
         </main>
       </div>
       )}
