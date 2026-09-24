@@ -20,7 +20,7 @@
    ============================================================ */
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { Search, Printer, Plus, X, Wand2 } from "lucide-react";
+import { Search, Printer, Plus, Minus, X, Wand2 } from "lucide-react";
 import { money, nf } from "../utils/helpers.js";
 import { asignarCodigos, cargarCodigosPropios } from "../datos/items.js";
 import { formatoDe, svgCodigo } from "../ui/codigoBarras.js";
@@ -30,6 +30,11 @@ import { Modal, Boton, Vacio, escaparHTML, utilDe } from "../ui/Base.jsx";
 import { fdatel } from "../datos/generador.js";
 
 const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+/* Un tope para que un cero de más en el campo no mande mil etiquetas a
+   la térmica: 500 ya son más de diez hojas A4 de una sola. */
+const MAX_COPIAS = 500;
+const acotar = (n) => Math.min(MAX_COPIAS, Math.max(1, Math.floor(Number(n)) || 1));
 
 /* Lo que va adentro de cada etiqueta, igual en la pantalla y en el papel:
    si se armaran por separado, un día dejan de coincidir. */
@@ -93,6 +98,18 @@ export function Etiquetas({ productos, empresaId, ajustes, toast }) {
   const [columnas, setColumnas] = useState(4);
   const [conNombre, setConNombre] = useState(true);
   const [conPrecio, setConPrecio] = useState(false);
+  /* Cuántas de cada una: id → n, y la que no está vale 1. Es de la
+     impresión del momento, no del producto: no se guarda en la base y se
+     pierde al salir de la pestaña, a propósito. Lo que hoy se imprime por
+     diez mañana se imprime por una. */
+  const [copias, setCopias] = useState({});
+  const copiasDe = (id) => copias[id] || 1;
+  const fijarCopias = (id, n) => setCopias((c) => {
+    const v = acotar(n);
+    const nuevo = { ...c };
+    if (v === 1) delete nuevo[id]; else nuevo[id] = v;
+    return nuevo;
+  });
 
   const leer = useCallback(async () => {
     try {
@@ -130,7 +147,13 @@ export function Etiquetas({ productos, empresaId, ajustes, toast }) {
   const anchoCeldaMM = formato === "a4" ? (210 - 16) / columnas : utilDe(58);
   const opciones = { anchoMM: anchoCeldaMM - 4, conNombre, conPrecio };
 
-  const imprimir = async (lista) => {
+  /* Las copias se resuelven acá, repitiendo cada etiqueta: así la hoja A4,
+     la ventana de la térmica y el ESC/POS reciben una lista común y
+     ninguno tiene que saber de copias. Las repetidas quedan juntas, que es
+     como se recortan y se pegan. */
+  const totalCopias = (lista) => lista.reduce((s, e) => s + copiasDe(e.id), 0);
+  const imprimir = async (elegidas) => {
+    const lista = elegidas.flatMap((e) => Array(copiasDe(e.id)).fill(e));
     if (!lista.length) return;
     if (formato === "termica") {
       const impresora = impresoraElegida();
@@ -189,7 +212,7 @@ export function Etiquetas({ productos, empresaId, ajustes, toast }) {
         </div>
         <Boton onClick={() => setCreando(true)}><Plus size={15} /> Crear código</Boton>
         <Boton variant="ghost" onClick={() => imprimir(etiquetas)} disabled={!etiquetas.length}>
-          <Printer size={15} /> Imprimir {q ? "las que se ven" : "todas"}{etiquetas.length ? ` (${nf.format(etiquetas.length)})` : ""}
+          <Printer size={15} /> Imprimir {q ? "las que se ven" : "todas"}{etiquetas.length ? ` (${nf.format(totalCopias(etiquetas))})` : ""}
         </Boton>
       </div>
 
@@ -237,11 +260,13 @@ export function Etiquetas({ productos, empresaId, ajustes, toast }) {
                 <div key={e.id}>
                   <div className="rounded-md border border-dashed border-stone-300 overflow-hidden text-black"
                     dangerouslySetInnerHTML={{ __html: htmlEtiqueta(e, { anchoMM: 38, conNombre, conPrecio }) }} />
+                  <p className="text-[11px] text-texto-tenue truncate mt-1.5" title={e.generadoPor ? `por ${e.generadoPor}` : ""}>
+                    {e.generadoEn ? `Generado el ${fdatel(e.generadoEn)}` : "Cargado a mano"}
+                  </p>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[11px] text-texto-tenue truncate flex-1" title={e.generadoPor ? `por ${e.generadoPor}` : ""}>
-                      {e.generadoEn ? `Generado el ${fdatel(e.generadoEn)}` : "Cargado a mano"}
-                    </span>
-                    <button onClick={() => imprimir([e])} title="Imprimir esta etiqueta"
+                    <Contador valor={copiasDe(e.id)} onCambiar={(n) => fijarCopias(e.id, n)} />
+                    <span className="flex-1" />
+                    <button onClick={() => imprimir([e])} title={copiasDe(e.id) > 1 ? `Imprimir ${copiasDe(e.id)} copias` : "Imprimir esta etiqueta"}
                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-texto-suave hover:text-acento">
                       <Printer size={12} /> Imprimir
                     </button>
@@ -257,6 +282,28 @@ export function Etiquetas({ productos, empresaId, ajustes, toast }) {
         <CrearCodigo sinCodigo={sinCodigo} empresaId={empresaId} toast={toast}
           onCerrar={() => setCreando(false)} onCreados={alCrear} />
       )}
+    </div>
+  );
+}
+
+/* − n + de las copias. El número se puede escribir: mientras se escribe
+   se deja el campo vacío o a medias, y recién al salir (o con Enter) se
+   acota. Si se acotara en cada tecla, borrar el 1 para poner 40 dejaba
+   "140". */
+function Contador({ valor, onCambiar }) {
+  const [texto, setTexto] = useState(null); // null: se muestra `valor`
+  const confirmar = () => { if (texto !== null) onCambiar(texto); setTexto(null); };
+  const boton = "w-6 h-6 inline-flex items-center justify-center text-texto-suave hover:text-acento disabled:opacity-30 disabled:hover:text-texto-suave";
+  return (
+    <div className="inline-flex items-center border border-borde rounded-md" title="Copias de esta etiqueta">
+      <button className={boton} onClick={() => onCambiar(valor - 1)} disabled={valor <= 1} aria-label="Una copia menos"><Minus size={12} /></button>
+      <input value={texto ?? String(valor)} inputMode="numeric" aria-label="Copias"
+        onFocus={(ev) => ev.target.select()}
+        onChange={(ev) => setTexto(ev.target.value.replace(/\D/g, "").slice(0, 3))}
+        onBlur={confirmar}
+        onKeyDown={(ev) => { if (ev.key === "Enter") ev.currentTarget.blur(); }}
+        className="f-m w-8 text-center text-xs bg-transparent outline-none" />
+      <button className={boton} onClick={() => onCambiar(valor + 1)} disabled={valor >= MAX_COPIAS} aria-label="Una copia más"><Plus size={12} /></button>
     </div>
   );
 }
