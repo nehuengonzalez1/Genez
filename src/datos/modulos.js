@@ -28,6 +28,7 @@ export const MODULOS = [
   { k: "compras", n: "Compras", d: "Remitos, costos y proveedores", nivel: "pro", necesita: [] },
   { k: "pedidos", n: "Pedidos", d: "Preparación con pistola", nivel: "pro", necesita: [] },
   { k: "clientes", n: "Clientes", d: "Facturación A, B y C", nivel: "pro", necesita: ["CUIT y condición frente al IVA si vas a facturar"] },
+  { k: "cuentas", n: "Cuenta corriente", d: "Fiado: quién debe, cobrar, anular y ajustar", nivel: "pro", necesita: [] },
   { k: "equipo", n: "Equipo y RR. HH.", d: "Quién trabaja, horarios y liquidaciones", nivel: "empresa", necesita: [] },
   { k: "agenda", n: "Agenda", d: "Turnos, clases y disponibilidad", nivel: "start", necesita: ["Los horarios de cada persona y de cada sala"] },
   { k: "ventas", n: "Ventas", d: "Abonos, packs y planes", nivel: "pro", necesita: [] },

@@ -104,7 +104,7 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
 
   if (ficha) {
     return (
-      <FichaCliente empresaId={empresaId} clienteId={ficha} permisos={permisos} toast={toast} sesionId={sesionId}
+      <FichaCliente empresaId={empresaId} clienteId={ficha} permisos={permisos} toast={toast} sesionId={sesionId} ajustes={ajustes}
         onVolver={() => { setFicha(null); releer().catch(() => {}); }}
         onEditar={(c) => setAlta(c)} />
     );

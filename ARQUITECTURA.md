@@ -41,6 +41,7 @@ node scripts/probar-comanda.mjs    # dividir la cuenta, cerrar y auditoría
 node scripts/probar-salon.mjs      # los cinco estados de una mesa y la reserva
 node scripts/probar-dominio.mjs    # qué aplicación sirve cada host
 node scripts/probar-arca.mjs       # factura electrónica: candado, permisos y homologación
+node scripts/probar-cuenta-corriente.mjs  # fiado: cobrar, anular, ajustar, límite y permisos por rol
 ```
 
 `probar-dominio.mjs` es el único que no toca la base ni la red: le pasa un
@@ -657,6 +658,42 @@ baja el nivel solo para hablar con ARCA.
 
 Lo que falta: las facturas A y B, que necesitan el IVA por alícuota, y la
 nota de crédito.
+
+## La cuenta corriente
+
+Migraciones 0075 y 0085, `src/datos/cuentas.js` y la sección Cuenta
+corriente (módulo `cuentas`). Es el fiado: vender a alguien que paga
+después, cobrarle, y corregir cuando algo se cargó mal.
+
+**El saldo no se guarda**, igual que el stock: `saldo_cliente` suma las
+ventas pagadas con `cuenta_corriente`, los cargos manuales, y resta los
+descuentos manuales y los pagos. Lo anulado no cuenta. Por eso la ficha
+del cliente, el cobro y la sección dicen el mismo número.
+
+**Nada se borra.** Un pago o un ajuste se anula —con quién, cuándo y por
+qué, y en la bitácora—. Si el pago había entrado a la caja, la anulación
+lo saca con un egreso del mismo medio en la caja abierta. Las tablas no
+tienen política de escritura: todo pasa por funciones `security definer`
+que verifican el comercio a mano.
+
+**Un fiado siempre tiene cliente**, lo exige un disparador sobre `pagos`
+—no solo el cobro: también presupuestos y comandas—. Y en una comanda
+abierta no se fía como pago parcial: `registrar_pago` metería eso en la
+caja como plata cobrada.
+
+**Dos permisos.** `ajustarCuentas` (anular, cargar o perdonar deuda,
+fijar el límite) lo verifica la base; de fábrica, dueño y encargado.
+`fiar` y el límite de crédito los controla el cobro y no la base, a
+propósito: una venta hecha sin internet llega a la base después, y
+rechazarla ahí no devuelve la mercadería. Cobrar una deuda lo puede
+cualquiera que vea la sección: es tarea de mostrador.
+
+**La caja** no suma el fiado —no entró al cajón— y muestra aparte lo
+fiado y lo cobrado de cuentas en el día.
+
+Lo que falta: devolver una venta fiada (hoy una compra fiada se corrige
+desde la venta), y un informe mensual en Reportes más allá de los
+indicadores de la sección.
 
 ## Lo que ya funciona y no hay que rehacer
 

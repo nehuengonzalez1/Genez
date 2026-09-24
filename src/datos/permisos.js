@@ -32,6 +32,11 @@ import { supabase } from "./supabase.js";
 export const BANDERAS = [
   { k: "verCostos", n: "Ver costos y ganancias", d: "Cuánto costó cada cosa y cuánto deja." },
   { k: "descuentos", n: "Hacer descuentos", d: "Bajar el precio de una venta o una cuenta." },
+  /* 0085. Fiar lo controla el cobro y no la base, a propósito: una venta
+     hecha sin internet llega después, y rechazarla ahí no devuelve la
+     mercadería. Ajustar sí lo verifica la base. */
+  { k: "fiar", n: "Vender fiado", d: "Cobrar a cuenta corriente, hasta el límite de cada cliente." },
+  { k: "ajustarCuentas", n: "Ajustar cuentas corrientes", d: "Anular pagos, cargar o perdonar deuda, fijar límites y fiar más allá del límite. Queda en la bitácora.", pesado: true },
   { k: "anular", n: "Anular ventas", d: "Dar de baja algo ya cobrado. Queda en la bitácora." },
   { k: "cerrarCaja", n: "Cerrar la caja", d: "Hacer el arqueo y cerrar el día." },
   { k: "cambiarPrecios", n: "Cambiar precios", d: "Editar el precio de venta del catálogo." },

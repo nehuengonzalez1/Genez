@@ -9,6 +9,7 @@ import {
   ArrowRight, Check, X, Percent, Users, Search
 } from "lucide-react";
 import { HOY, uid } from "../datos/generador.js";
+import { saldoDe } from "../datos/cuentas.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
@@ -715,10 +716,23 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const total = sub - descMonto;
   const costoTot = lineas.reduce((s, l) => s + l.costo * l.qty, 0);
   const ganancia = total - costoTot;
-  const medios = mediosDe(ajustes);
+  /* Fiar es un permiso (0085): a quien no lo tiene, el medio no le aparece. */
+  const medios = mediosDe(ajustes).filter((m) => m.k !== MEDIO_CUENTA_CORRIENTE || permisos.fiar);
   const medio = medios[medioSel] || medios[0];
 
   const [cliente, setCliente] = useState(null);
+  /* Lo que debe el cliente elegido, para decidir si se le fía. Se pregunta
+     al elegirlo: sin internet queda en null y la venta sigue, porque
+     frenar el mostrador por no poder consultar un saldo es peor que fiar
+     de más una vez. */
+  const [saldoCliente, setSaldoCliente] = useState(null);
+  useEffect(() => {
+    setSaldoCliente(null);
+    if (!cliente || !cliente.id) return undefined;
+    let vigente = true;
+    saldoDe(cliente.id).then((v) => { if (vigente) setSaldoCliente(v); }).catch(() => {});
+    return () => { vigente = false; };
+  }, [cliente && cliente.id]);
   const [buscarCliente, setBuscarCliente] = useState(false);
   /* "Factura" existe solo si el comercio está conectado con ARCA. La
      preferencia de Ajustes decide con cuál arranca cada venta. */
@@ -775,6 +789,20 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       precioLista: l.manual != null ? l.precio : null }));
     const m = medioPorK(ajustes, k);
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
+
+    /* El límite de crédito se controla acá y no en la base (ver 0085): la
+       venta puede llegar a la base una hora después, sin internet, y
+       rechazarla ahí no devuelve la mercadería. El cajero no lo puede
+       pasar; quien puede ajustar cuentas sí, pero se le pregunta. */
+    const fiado = k === MEDIO_CUENTA_CORRIENTE ? r.total : (listaPagos || []).filter(esCC).reduce((s2, p) => s2 + p.monto, 0);
+    if (fiado > 0 && cliente.limiteCredito != null && saldoCliente != null && saldoCliente + fiado > cliente.limiteCredito) {
+      const texto = `${cliente.razonSocial} debe ${money(saldoCliente)} y su límite es ${money(cliente.limiteCredito)}. Con esta venta quedaría en ${money(saldoCliente + fiado)}.`;
+      if (!permisos.ajustarCuentas) {
+        beep(false, ajustes.sonido);
+        return toast(`${texto} No se puede fiar: que la autorice el dueño o el encargado.`, "mal");
+      }
+      if (!window.confirm(`${texto}\n\n¿Fiar igual?`)) return;
+    }
     const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
       fiscal: fiscal && facturacion.puede, cliente });
@@ -1210,6 +1238,12 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                   <span className="block text-sm font-semibold truncate">{cliente.razonSocial}</span>
                   <span className="block text-[11px] text-texto-tenue">
                     {`${cliente.tipoDoc} ${cliente.doc} · ${condicionNombre(cliente.condicion)}`}
+                    {saldoCliente != null && saldoCliente !== 0 && (
+                      <span className={saldoCliente > 0 ? "text-mal font-semibold" : "text-bien"}>
+                        {saldoCliente > 0 ? ` · debe ${money(saldoCliente)}` : ` · a favor ${money(-saldoCliente)}`}
+                      </span>
+                    )}
+                    {cliente.limiteCredito != null && ` · límite ${money(cliente.limiteCredito)}`}
                   </span>
                 </span>
               </button>

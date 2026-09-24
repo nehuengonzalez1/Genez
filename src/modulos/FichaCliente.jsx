@@ -24,6 +24,7 @@ import { cargarFicha, anotarEnFicha, borrarNota, invitarALaApp, quitarLaApp, reg
 import { estadoDe } from "../datos/agenda.js";
 import { estadoAbono } from "../datos/abonos.js";
 import { money, nf, pct, linkWhatsapp } from "../utils/helpers.js";
+import { EstadoDeCuenta } from "./CuentasCorrientes.jsx";
 import { Card, Kpi, Boton, Vacio, Tabs, Sello, Cargando, ErrorEstado } from "../ui/Base.jsx";
 import { inputCls } from "../ui/Campos.jsx";
 
@@ -194,7 +195,7 @@ function AccesoApp({ cliente, onInvitar, onQuitar, puede, toast }) {
 }
 
 
-export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permisos, toast, sesionId }) {
+export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permisos, toast, sesionId, ajustes = {} }) {
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -226,7 +227,12 @@ export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permiso
 
   const { cliente: c, turnos, abonos, ventas, notas } = datos;
   const alertas = notas.filter((n) => n.destacada);
-  const debe = ventas.reduce((s, v) => s + Math.max(0, v.falta), 0);
+  /* "Debe" es la cuenta corriente, la misma que se ve en la pestaña y en
+     la sección Cuenta corriente. Sumaba solo lo que quedó sin pagar de
+     cada venta, y una venta fiada figuraba como pagada: la ficha decía
+     $0 arriba y la deuda real en la pestaña de al lado. Lo pendiente de
+     ventas cobradas en partes se sigue viendo en Pagos. */
+  const debe = Math.max(0, datos.saldoCC || 0);
 
   async function anotar() {
     if (!nota.trim()) return;
@@ -422,6 +428,12 @@ export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permiso
 
         {/* ---------- Cuenta corriente ---------- */}
         {pestana === "cc" && (
+          <EstadoDeCuenta
+            cliente={{ id: clienteId, razonSocial: c.razonSocial, tel: c.tel, limiteCredito: c.limiteCredito ?? null }}
+            permisos={permisos} caja={{ abierta: !!sesionId, sesionId }} ajustes={ajustes} toast={toast}
+            alCambiar={() => releer().catch(() => {})} />
+        )}
+        {pestana === "cc-viejo" && (
           <div className="p-4 space-y-4">
             <div className={`rounded-xl p-3.5 border ${datos.saldoCC > 0 ? "bg-mal-suave border-mal" : "bg-superficie-2 border-borde"}`}>
               <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Saldo</div>

@@ -159,7 +159,7 @@ export function Permisos({ empresaId, modulosComercio, catalogoModulos, miRol, e
               habilitan. Un módulo no contratado no lo ve ni el dueño.
             </p>
             <p className="text-sm text-texto-suave mt-2 leading-relaxed">
-              Los dos permisos marcados con <Lock size={11} className="inline mb-0.5" /> los
+              Los permisos marcados con <Lock size={11} className="inline mb-0.5" /> los
               verifica la base de datos. El resto apaga botones en la pantalla:
               sirve para evitar errores, no para frenar a alguien decidido.
             </p>

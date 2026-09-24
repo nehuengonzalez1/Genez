@@ -8,13 +8,13 @@ import {
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
-  Heart, MessageSquare, FileText
+  Heart, MessageSquare, FileText, NotebookPen
 } from "lucide-react";
 import { mulberry32, uid, HOY, PEDIDOS_INICIALES, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios } from "../datos/sesion.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { consultarCobros } from "../datos/mercadopago.js";
-import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras, letraComprobante } from "../utils/helpers.js";
+import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras, letraComprobante, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
 import { cargarConexionArca, obtenerCAEs } from "../datos/arca.js";
 import { cargarProductos, guardarProducto, crearProducto, cargarProducto, escucharItems, eliminarProducto } from "../datos/items.js";
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
@@ -49,6 +49,7 @@ import { Servicios } from "../modulos/Servicios.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Facturas } from "../modulos/Facturas.jsx";
 import { Barrera } from "../ui/Barrera.jsx";
+import { CuentasCorrientes } from "../modulos/CuentasCorrientes.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
 import { Informes } from "../modulos/Informes.jsx";
 import { Crm } from "../modulos/Crm.jsx";
@@ -84,17 +85,17 @@ const ROLES = [
   {
     k: "dueno", n: "Dueño", d: "Acceso completo al comercio",
     modulos: "todos",
-    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: true },
+    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: true, fiar: true, ajustarCuentas: true },
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
-    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios", "reportes", "informes", "crm", "comunicaciones", "asistente"],
-    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false },
+    modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios", "reportes", "informes", "crm", "comunicaciones", "asistente", "cuentas"],
+    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false, fiar: true, ajustarCuentas: true },
   },
   {
     k: "cajero", n: "Cajero", d: "Cobra, sin ver costos ni ganancias",
-    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios"],
-    permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false },
+    modulos: ["cobro", "caja", "comandas", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios", "cuentas"],
+    permisos: { verCostos: false, descuentos: false, anular: false, cerrarCaja: false, cambiarPrecios: false, ajustes: false, fiar: true, ajustarCuentas: false },
   },
   {
     k: "repositor", n: "Repositor", d: "Stock y preparación de pedidos",
@@ -884,7 +885,7 @@ const ICONOS = {
   barras: BarChart3, chispas: Sparkles, tuerca: Settings,
   cubiertos: UtensilsCrossed, cocina: ChefHat, agenda: CalendarDays,
   barcode: Barcode, bolsa: ShoppingBag, corazon: Heart, mensaje: MessageSquare,
-  presupuesto: FileText,
+  presupuesto: FileText, cuaderno: NotebookPen,
 };
 const iconoDe = (n) => ICONOS[n] || Store;
 
@@ -912,6 +913,7 @@ const MENU_POR_DEFECTO = [{
     { k: "cocina", n: "Cocina", i: "cocina", d: "Lo que hay que preparar, en el orden en que se pidió" },
     { k: "pedidos", n: "Pedidos", i: "planilla", d: "Preparación con pistola y control de faltantes" },
     { k: "clientes", n: "Clientes", i: "gente", d: "Para emitir facturas A, B o C según corresponda" },
+    { k: "cuentas", n: "Cuenta corriente", i: "cuaderno", d: "Quién debe, cuánto y desde cuándo; cobrar y corregir" },
     { k: "presupuestos", n: "Presupuestos", i: "presupuesto", d: "Cotizar sin vender, convertir cuando el cliente confirma" },
     { k: "productos", n: "Productos", i: "caja", d: "Costos, precios y margen de todo tu catálogo" },
     { k: "stock", n: "Stock", i: "cajas", d: "Qué reponer, qué vence y qué no se mueve" },
@@ -1545,7 +1547,11 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     // Un movimiento de caja por medio de pago: así el arqueo y el reporte
     // por medio siguen cerrando aunque la venta se haya cobrado partida.
     // Solo en pantalla: los de verdad los escribe `registrar_venta`.
-    ps.forEach((p) => sumarMovLocal({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}` }));
+    /* Lo fiado no entra al cajón: la base tampoco lo anota en la caja
+       (0075). Antes se sumaba acá igual, y hasta refrescar la caja mostraba
+       como cobrada una venta que se llevó el cliente sin pagar. */
+    ps.filter((p) => p.medio !== MEDIO_CUENTA_CORRIENTE)
+      .forEach((p) => sumarMovLocal({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}` }));
 
     /* Se manda sin esperar: la venta ya ocurrió en el mostrador y el ticket
        tiene que salir ahora. Si no entra queda en la cola y se reintenta
@@ -2121,7 +2127,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (
             <div className="space-y-4">
-              <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes}
+              <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes} empresaId={empresaId}
                 abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
               {/* Con la caja cerrada también: una factura sin CAE de ayer se
                   resuelve aunque hoy todavía no se haya abierto. Y aparece
@@ -2148,6 +2154,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               modulosComercio={(sesion.comercio && sesion.comercio.modulos) || []}
               catalogoModulos={MODULOS.filter((m) => !m.base)}
               miRol={sesion.rol} esPlataforma={esPlataforma} toast={toast} />
+          )}
+          {tab === "cuentas" && (
+            <CuentasCorrientes empresaId={empresaId} clientes={clientes} permisos={permisos} caja={caja} ajustes={ajustes} toast={toast}
+              alMoverCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }}
+              /* El límite nuevo tiene que llegar al cobro sin refrescar. */
+              alCambiarClientes={() => cargarClientes(empresaId).then(setClientes).catch(() => {})} />
           )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
           {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion}

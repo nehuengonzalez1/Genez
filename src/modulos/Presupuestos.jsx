@@ -11,7 +11,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Plus, X, Search, Trash2, FileText, MessageCircle, ArrowRightLeft, Clock } from "lucide-react";
-import { money, pct, precioAplicado, mediosDe, medioPorK, FISCAL_INICIAL, linkWhatsapp } from "../utils/helpers.js";
+import { money, pct, precioAplicado, mediosDe, medioPorK, FISCAL_INICIAL, linkWhatsapp, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
 import { fdate } from "../datos/generador.js";
 import { Card, Boton, Modal, Vacio, Cargando } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
@@ -306,6 +306,8 @@ function VerPresupuesto({ p, onClose, onConvertido, empresaId, sucursalId, ajust
 
 function ConvertirAVenta({ p, empresaId, sucursalId, ajustes, toast, sesionId, onClose, onConvertido }) {
   const [lineas, setLineas] = useState(p.lineas.map((l) => ({ ...l })));
+  /* Fiado solo si el presupuesto tiene cliente: una venta a cuenta
+     corriente sin a quién cobrarle no aparece en ningún saldo (0085). */
   const [medio, setMedio] = useState((mediosDe(ajustes)[0] || {}).k || "efectivo");
   const [guardando, setGuardando] = useState(false);
 
@@ -359,7 +361,7 @@ function ConvertirAVenta({ p, empresaId, sucursalId, ajustes, toast, sesionId, o
         </ul>
         <Campo label="Medio de pago">
           <select value={medio} onChange={(e) => setMedio(e.target.value)} className={inputCls}>
-            {mediosDe(ajustes).map((m) => <option key={m.k} value={m.k}>{m.n}</option>)}
+            {mediosDe(ajustes).filter((m) => m.k !== MEDIO_CUENTA_CORRIENTE || p.clienteId).map((m) => <option key={m.k} value={m.k}>{m.n}</option>)}
           </select>
         </Campo>
         <div className="flex items-center justify-between border-t border-borde pt-4">

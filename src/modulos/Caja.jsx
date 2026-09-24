@@ -2,18 +2,21 @@
    10. CAJA
    ============================================================ */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { cargarResumenCuentas } from "../datos/cuentas.js";
 import { Plus, Wallet, ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { mediosDe, medioPorK, money, nf } from "../utils/helpers.js";
+import { mediosDe, medioPorK, money, nf, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
 import { Kpi, Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
 
-export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
+export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empresaId }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ monto: "", detalle: "", medio: "efectivo" });
   const [contado, setContado] = useState("");
   const [guardando, setGuardando] = useState(false);
 
-  const porMedio = mediosDe(ajustes).map((m) => {
+  /* El fiado no pasa por el cajón: no tiene fila en el arqueo. Lo que se
+     fió y lo que se cobró de cuentas va aparte, abajo. */
+  const porMedio = mediosDe(ajustes).filter((m) => m.k !== MEDIO_CUENTA_CORRIENTE).map((m) => {
     const ing = caja.movimientos.filter((x) => x.tipo === "ingreso" && x.medio === m.k).reduce((s, x) => s + x.monto, 0);
     const egr = caja.movimientos.filter((x) => x.tipo === "egreso" && x.medio === m.k).reduce((s, x) => s + x.monto, 0);
     return { ...m, ing, egr, neto: ing - egr };
@@ -38,6 +41,20 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
     setModal(null);
     toast(era === "gasto" ? "Gasto registrado." : "Retiro registrado.");
   };
+
+  /* Lo fiado hoy y lo cobrado de cuentas. Lo primero no pasa por el
+     cajón y lo segundo sí, ya sumado en los ingresos: se muestran juntos
+     y aparte para que el arqueo se entienda. Se relee cuando cambian los
+     movimientos, que es cuando entra o sale un pago. */
+  const [cc, setCc] = useState(null);
+  useEffect(() => {
+    if (!empresaId || !caja.abierta) return undefined;
+    let vigente = true;
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    cargarResumenCuentas(empresaId, hoy, new Date(Date.now() + 60000))
+      .then((r) => { if (vigente) setCc(r); }).catch(() => {});
+    return () => { vigente = false; };
+  }, [empresaId, caja.abierta, caja.movimientos.length]);
 
   if (!caja.abierta) return <CajaCerrada caja={caja} abrirCaja={abrirCaja} />;
 
@@ -98,6 +115,15 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
             </div>
           </Card>
 
+          {cc && (cc.fiado > 0 || cc.cobrado > 0) && (
+            <Card className="p-4">
+              <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Cuenta corriente hoy</div>
+              <div className="flex justify-between text-sm"><span className="text-texto-suave">Fiado</span><span className="f-m text-mal">{money(cc.fiado)}</span></div>
+              <div className="flex justify-between text-sm mt-1.5"><span className="text-texto-suave">Cobrado de cuentas</span><span className="f-m text-bien">{money(cc.cobrado)}</span></div>
+              <p className="text-[11px] text-texto-tenue mt-2">Lo fiado no entró al cajón. Lo cobrado ya está sumado en los ingresos.</p>
+            </Card>
+          )}
+
           <Card className="p-4">
             <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Cerrar caja</div>
             <p className="text-sm text-texto-suave">Contá el efectivo y cargá cuánto hay realmente.</p>
@@ -128,7 +154,7 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes }) {
           <input value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value.replace(/\D/g, "") })} placeholder="Monto"
             className="f-m w-full text-right border border-borde rounded-xl px-3 py-2 text-sm mt-2 outline-none focus:border-acento" />
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {mediosDe(ajustes).map((m) => (
+            {mediosDe(ajustes).filter((m) => m.k !== MEDIO_CUENTA_CORRIENTE).map((m) => (
               <button key={m.k} onClick={() => setForm({ ...form, medio: m.k })}
                 className={`text-xs px-2.5 py-1.5 rounded-lg border ${form.medio === m.k ? "bg-superficie-3 text-texto border-superficie-3" : "border-borde text-texto-suave"}`}>{m.n}</button>
             ))}

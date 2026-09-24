@@ -23,7 +23,7 @@ const COLUMNA = {
 };
 
 const SELECT =
-  "id, razon_social, tipo_doc, doc, condicion, domicilio, email, tel, campos_extra, activo, creado_en";
+  "id, razon_social, tipo_doc, doc, condicion, domicilio, email, tel, campos_extra, activo, creado_en, limite_credito";
 
 function aCliente(f) {
   return {
@@ -38,6 +38,8 @@ function aCliente(f) {
     camposExtra: f.campos_extra || {},
     activo: f.activo,
     alta: f.creado_en ? new Date(f.creado_en) : null,
+    /* Se lee con la ficha y se escribe aparte (ver `fijarLimite` en cuentas.js). */
+    limiteCredito: f.limite_credito == null ? null : Number(f.limite_credito),
   };
 }
 
