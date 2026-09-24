@@ -23,54 +23,59 @@ const env = Object.fromEntries(
 
 const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL });
 await c.connect();
-/* Desde cuándo corre esta prueba, según el reloj de la base y no el de
-   Node. Lo usa la limpieza del final para borrar de la bitácora solo lo
-   que escribió esta corrida.
 
-   Antes se borraba por acción —o directamente entera— y eso se llevaba
-   puesto el registro de los tres comercios. Daba igual mientras nadie la
-   leyera; desde que la auditoría tiene pantalla, es destruir un dato
-   real cada vez que alguien corre las pruebas. */
-const arranque = (await c.query("select now() as t")).rows[0].t;
+/* TODO ADENTRO DE UNA TRANSACCIÓN QUE SE DESHACE
+   La base es la de producción, con comercios que están vendiendo. Antes
+   esta prueba escribía de verdad y limpiaba al final, y eso rompió cosas
+   reales tres veces:
+   - Al arrancar barría "restos de una corrida anterior" borrando TODA
+     comanda de la base que no fuera de la semilla, de cualquier comercio:
+     el 24/09 se llevó una venta cobrada de Bar Rivadavia (0003-00000001,
+     $35.400) con su caja y su stock.
+   - Si se cortaba a la mitad, la caja de prueba de Super 25 quedaba
+     abierta; era la más nueva, la pantalla de Caja la tomaba como la del
+     comercio y Axel veía la caja vacía con las ventas del día en otra.
+   - Tomaba la primera mesa del bar: con una cuenta real abierta ahí, se
+     la reutilizaba, le sumaba renglones, la cobraba y la borraba.
+
+   Ahora nada de lo que escribe se confirma. La aplicación no lo ve
+   mientras corre —no está confirmado— y si la prueba se corta, la
+   conexión se cierra y Postgres lo deshace solo. No hace falta limpiar
+   nada, ni la bitácora. */
+await c.query("begin");
 
 const una = async (sql, args = []) => (await c.query(sql, args)).rows[0];
-const limpiar = [];
 let fallas = 0;
 const decir = (ok, texto) => { if (!ok) fallas++; console.log(`  ${ok ? "ok " : "MAL"}  ${texto}`); };
-
-/* Restos de una corrida que se cortó a la mitad. Sin esto, la comanda que
-   quedó abierta de la vez anterior se reutiliza —abrir_comanda hace bien
-   su trabajo— y las líneas se suman encima: todo da el doble y parece un
-   bug del código. */
-/* Los pedidos de la semilla de desarrollo quedan afuera: no ocupan mesa,
-   así que no ensucian nada de lo que se prueba acá, y borrarlos obligaba
-   a resembrar el tablero cada vez que se corren las pruebas. */
-async function barrerRestos() {
-  const cond = "(tipo = 'comanda' or numero like 'PRUEBA%') and campos_extra->>'demo' is distinct from 'pedidos'";
-  await c.query(`delete from movimientos_stock where operacion_id in (select id from operaciones where ${cond})`);
-  await c.query(`delete from movimientos_caja  where operacion_id in (select id from operaciones where ${cond})`);
-  const r = await c.query(`delete from operaciones where ${cond}`);
-  if (r.rowCount) console.log(`\n(se limpiaron ${r.rowCount} operaciones de una corrida anterior)`);
-}
-await barrerRestos();
 
 /* ------------------------------------------------------------
    1 · Venta directa
    ------------------------------------------------------------ */
 console.log("\nVenta directa");
 
+const partes = async (id) => una(`
+  select (select count(*) from operacion_lineas   where operacion_id = $1) lineas,
+         (select count(*) from pagos              where operacion_id = $1) pagos,
+         (select count(*) from movimientos_stock  where operacion_id = $1) stock,
+         (select count(*) from movimientos_caja   where operacion_id = $1) caja`, [id]);
+
 const emp = await una("select id from empresas where nombre = 'Super 25'");
 const suc = await una("select id from sucursales where empresa_id = $1 limit 1", [emp.id]);
+/* Cualquier producto que lleve stock: lo que se mira es que baje tres,
+   no cuánto hay. Pedía "más de 10" y el día que Super 25 no tuvo ninguno
+   la prueba se cayó con la caja de prueba ya abierta. */
 const prod = await una(
-  "select i.id, i.nombre, i.costo, i.precio, v.stock from items i join items_vista v on v.id = i.id where v.stock > 10 and i.empresa_id = $1 limit 1",
+  "select i.id, i.nombre, i.costo, i.precio, v.stock from items i join items_vista v on v.id = i.id where i.controla_stock and i.precio > 0 and i.empresa_id = $1 limit 1",
   [emp.id]
 );
 
+if (!prod) {
+  console.log("  --   Super 25 no tiene productos con stock y precio, se saltea");
+} else {
 const sesion = await una(
   "insert into sesiones_caja (empresa_id, sucursal_id, monto_inicial) values ($1, $2, 20000) returning id",
   [emp.id, suc.id]
 );
-limpiar.push(["sesiones_caja", sesion.id]);
 
 const ventaId = randomUUID();
 const venta = {
@@ -88,13 +93,6 @@ const venta = {
 };
 
 await c.query("select registrar_venta($1::jsonb)", [JSON.stringify(venta)]);
-limpiar.push(["operaciones", ventaId]);
-
-const partes = async (id) => una(`
-  select (select count(*) from operacion_lineas   where operacion_id = $1) lineas,
-         (select count(*) from pagos              where operacion_id = $1) pagos,
-         (select count(*) from movimientos_stock  where operacion_id = $1) stock,
-         (select count(*) from movimientos_caja   where operacion_id = $1) caja`, [id]);
 
 const a = await partes(ventaId);
 decir(a.lineas === "1" && a.pagos === "2" && a.stock === "1" && a.caja === "2",
@@ -107,11 +105,16 @@ await c.query("select registrar_venta($1::jsonb)", [JSON.stringify(venta)]);
 const b = await partes(ventaId);
 decir(JSON.stringify(a) === JSON.stringify(b), "reintentarla no duplica nada");
 
+/* Un error adentro de la transacción la invalida entera: el rechazo que
+   se espera va en su propio punto de guardado. */
+await c.query("savepoint sin_caja");
 try {
   await c.query("select registrar_venta($1::jsonb)", [JSON.stringify({ ...venta, id: randomUUID(), sesion_id: null })]);
   decir(false, "rechaza cobrar sin caja abierta");
 } catch (e) {
   decir(e.code === "P0001", "rechaza cobrar sin caja abierta");
+}
+await c.query("rollback to savepoint sin_caja");
 }
 
 /* ------------------------------------------------------------
@@ -124,7 +127,12 @@ if (!bar) {
   console.log("  --   sin Bar Rivadavia cargado, se saltea (corré supabase/seed/gastronomia.sql)");
 } else {
   const sucBar = await una("select id from sucursales where empresa_id = $1 limit 1", [bar.id]);
-  const mesa = await una("select id, nombre from recursos where empresa_id = $1 and tipo = 'mesa' order by orden limit 1", [bar.id]);
+  /* Una mesa libre: en una ocupada, abrir_comanda devuelve la cuenta real
+     que está ahí, y la prueba se la cobraría. */
+  const mesa = await una(
+    `select r.id, r.nombre from recursos r where r.empresa_id = $1 and r.tipo = 'mesa'
+       and not exists (select 1 from operaciones o where o.recurso_id = r.id and o.estado = 'abierta')
+     order by r.orden limit 1`, [bar.id]);
   const plato = await una("select id, nombre, precio, costo from items where empresa_id = $1 and controla_stock = false limit 1", [bar.id]);
   const bebida = await una("select i.id, i.nombre, i.precio, i.costo, v.stock from items i join items_vista v on v.id = i.id where i.empresa_id = $1 and i.controla_stock limit 1", [bar.id]);
 
@@ -132,12 +140,10 @@ if (!bar) {
     "insert into sesiones_caja (empresa_id, sucursal_id, monto_inicial) values ($1, $2, 10000) returning id",
     [bar.id, sucBar.id]
   );
-  limpiar.push(["sesiones_caja", sesionBar.id]);
 
   const abrir = { empresa_id: bar.id, sucursal_id: sucBar.id, recurso_id: mesa.id };
   const c1 = await una("select abrir_comanda($1::jsonb) id", [JSON.stringify(abrir)]);
   const c2 = await una("select abrir_comanda($1::jsonb) id", [JSON.stringify(abrir)]);
-  limpiar.push(["operaciones", c1.id]);
   decir(c1.id === c2.id, `tocar dos veces ${mesa.nombre} devuelve la misma comanda`);
 
   const sumar = (item, cant, mods, destino) => c.query(
@@ -180,21 +186,12 @@ if (!bar) {
   decir(Number(postBeb.stock) === Number(bebida.stock) - 3, `stock de barra (${bebida.stock} -> ${postBeb.stock})`);
 
   const libre = await una("select abrir_comanda($1::jsonb) id", [JSON.stringify(abrir)]);
-  limpiar.push(["operaciones", libre.id]);
   decir(libre.id !== c1.id, "la mesa queda libre y abre una comanda nueva");
 }
 
-/* ------------------------------------------------------------
-   Limpieza
-   ------------------------------------------------------------ */
-for (const [tabla, id] of limpiar.reverse()) {
-  if (tabla === "operaciones") {
-    await c.query("delete from movimientos_stock where operacion_id = $1", [id]);
-    await c.query("delete from movimientos_caja  where operacion_id = $1", [id]);
-  }
-  await c.query(`delete from ${tabla} where id = $1`, [id]);
-}
-await c.query("delete from bitacora where fecha >= $1", [arranque]);
+/* Nada de lo que se escribió queda: ni las ventas, ni las cajas de
+   prueba, ni lo que anotó la bitácora. */
+await c.query("rollback");
 
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien. Base como estaba.");
 await c.end();
