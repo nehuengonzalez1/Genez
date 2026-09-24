@@ -88,6 +88,17 @@ const aFactura = (f) => f.estado === "autorizada"
     }
   : null;
 
+/* Lo mismo, leído de la tabla `comprobantes` en vez de la vista: ahí el
+   estado es el del comprobante (autorizado, pendiente, rechazado) y la
+   fecha se llama `fecha`. Para Caja → Tickets y facturas, que lee la
+   factura junto con la venta. */
+export const facturaDeComprobante = (c, operacionId) => aFactura({
+  ...c,
+  operacion_id: operacionId,
+  estado: c.estado === "autorizado" ? "autorizada" : c.estado,
+  fecha_factura: c.fecha,
+});
+
 /**
  * Las ventas cobradas como factura: todas las que esperan CAE, y las
  * autorizadas desde `desde`. Las que esperan van siempre, sean de cuando

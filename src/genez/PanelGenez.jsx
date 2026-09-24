@@ -48,6 +48,7 @@ import { Finanzas } from "../modulos/Finanzas.jsx";
 import { Servicios } from "../modulos/Servicios.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Facturas } from "../modulos/Facturas.jsx";
+import { Comprobantes } from "../modulos/Comprobantes.jsx";
 import { Barrera } from "../ui/Barrera.jsx";
 import { CuentasCorrientes } from "../modulos/CuentasCorrientes.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
@@ -2136,6 +2137,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             <div className="space-y-4">
               <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes} empresaId={empresaId}
                 abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
+              {/* Para todos los comercios, facturen o no: un ticket de
+                  hace una hora también se pide de nuevo. */}
+              <Comprobantes empresaId={empresaId} ajustes={ajustes} toast={toast} sinCAE={sinCAE} />
               {/* Con la caja cerrada también: una factura sin CAE de ayer se
                   resuelve aunque hoy todavía no se haya abierto. Y aparece
                   si quedaron pendientes aunque la conexión se haya dado de

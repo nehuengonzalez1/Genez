@@ -696,6 +696,28 @@ Lo que falta: devolver una venta fiada (hoy una compra fiada se corrige
 desde la venta), y un informe mensual en Reportes más allá de los
 indicadores de la sección.
 
+## Tickets y facturas
+
+`src/modulos/Comprobantes.jsx`, en la pestaña Caja, para todos los
+comercios. Las ventas de un día, una por una: al abrir una se ve qué se
+vendió, cómo se pagó, quién la cobró y la factura con su CAE, y se vuelve
+a imprimir.
+
+**No hay tabla ni migración nueva.** La lista es `cargarVentasDelDia`
+(ventas y comandas confirmadas, con la factura no rechazada de
+`comprobantes`) y el detalle es `cargarTicketDeVenta`, lo mismo que
+imprime Caja → Facturas. La consulta nombra la relación
+`perfiles!usuario_id` porque `operaciones` tiene dos hacia `perfiles`
+(`usuario_id` y `actualizada_por`) y sin eso PostgREST no sabe cuál.
+
+**Se reimprime igual que salió**, sin marca de copia: una factura
+reimpresa es la misma factura. La que espera CAE no se imprime tampoco
+desde acá, por lo mismo que en el cobro. Reimprimir no pide permiso: es
+tarea de mostrador.
+
+El buscador anda sobre el día cargado —número, cliente, importe o
+producto—, no sobre todo el historial.
+
 ## Lo que ya funciona y no hay que rehacer
 
 Comandas de salón y mostrador, centro de pedidos con estados reales y
