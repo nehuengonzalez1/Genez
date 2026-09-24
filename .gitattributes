@@ -1,0 +1,4 @@
+# Los .cmd se sirven tal cual desde public/ y Windows los ejecuta mal con
+# saltos de linea de Linux (los goto a etiquetas fallan). Se guardan con
+# CRLF y git no los toca.
+*.cmd -text
