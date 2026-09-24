@@ -211,6 +211,24 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
             </button>
           ))}
         </div>
+        {/* Cuánto del rollo imprime el cabezal. El texto se estira o se
+            achica para llenar justo eso (ver imprimirComandera). */}
+        <div className="flex flex-wrap items-center gap-2 mt-4">
+          <span className="text-sm text-texto-suave">Ancho que imprime la impresora</span>
+          <div className="flex items-center border border-borde rounded-md overflow-hidden">
+            <button onClick={() => setAjustes({ ...ajustes, anchoUtil: Math.max(40, (ajustes.anchoUtil || (ajustes.ancho === 58 ? 53 : 72)) - 1) })}
+              className="px-2.5 py-1 text-sm hover:bg-superficie-2">−</button>
+            <span className="f-m text-sm px-2 min-w-[4.5rem] text-center">{ajustes.anchoUtil || (ajustes.ancho === 58 ? 53 : 72)} mm</span>
+            <button onClick={() => setAjustes({ ...ajustes, anchoUtil: Math.min(ajustes.ancho === 58 ? 58 : 80, (ajustes.anchoUtil || (ajustes.ancho === 58 ? 53 : 72)) + 1) })}
+              className="px-2.5 py-1 text-sm hover:bg-superficie-2">+</button>
+          </div>
+          {ajustes.anchoUtil && (
+            <button onClick={() => setAjustes({ ...ajustes, anchoUtil: null })} className="text-xs text-acento hover:underline">volver al de fábrica</button>
+          )}
+        </div>
+        <p className="text-xs text-texto-tenue mt-1">
+          Si sobra papel a la derecha del ticket, subilo; si se cortan los importes, bajalo. La letra se acomoda sola.
+        </p>
         {/* PDF: así Chrome no le agrega al ticket la fecha, el título y
             la dirección. Apagado de fábrica porque depende del papel que
             tenga configurado el driver (ver imprimirComandera). */}

@@ -260,9 +260,18 @@ const UTIL_MM = { 58: 53, 80: 72 };
    un dígito. La forma de página le dice a Chrome el papel exacto con
    `@page`, y por eso sigue siendo la de fábrica. */
 let comoPagina = true;
-export function configurarImpresion({ pdf = false } = {}) {
+/* Lo que imprime el cabezal lo puede corregir cada comercio en Ajustes:
+   el número de fábrica se calibró en una impresora, y en la misma de
+   Super 25 después sobraba medio centímetro a la derecha. Cada térmica
+   es distinta, y corregirlo no tiene que esperar una actualización. */
+let utilPropio = null;
+export function configurarImpresion({ pdf = false, anchoUtil = null } = {}) {
   comoPagina = pdf !== true;
+  utilPropio = Number(anchoUtil) > 0 ? Number(anchoUtil) : null;
 }
+/* Entre 40 mm y el ancho del papel: más allá no hay papel, y menos no
+   entra ni una columna de importes. */
+export const utilDe = (mm) => Math.min(mm, Math.max(40, utilPropio || UTIL_MM[mm]));
 
 /* El ticket sale como PDF para que Chrome no le agregue la fecha, el
    título y la dirección (ver src/ui/ticketPdf.js). Si algo falla —un
@@ -274,7 +283,7 @@ export function imprimirComandera(lineas, ancho, qrSemilla, toast) {
   if (!comoPagina) {
     try {
       const bytes = armarPdfTicket({
-        lineas, mm, util: UTIL_MM[mm],
+        lineas, mm, util: utilDe(mm),
         celdas: qrSemilla ? celdasQR(qrSemilla) : null,
         qrMM: mm === 58 ? 30 : 34,
       });
@@ -318,7 +327,7 @@ function imprimirComoPagina(lineas, ancho, qrSemilla, toast) {
 
        Si en otra impresora quedara corto o cortara, es este número y nada
        más: el cuerpo de letra se recalcula solo contra él. */
-    const util = UTIL_MM[mm];
+    const util = utilDe(mm);
 
     /* La línea más larga es la que tiene que entrar justa. Sale de lo que
        ya compuso `armarLineas`, así que no hay que mantener un ancho en dos
@@ -531,7 +540,14 @@ export function armarLineas(W, bloques) {
   };
   for (const b of bloques) {
     if (b.t === "sep") out.push(sep(b.c || "-"));
-    else if (b.t === "c") out.push(centro(b.v));
+    /* Un renglón centrado que no entra se parte en palabras, como los
+       nombres de los productos, en vez de cortarse: la dirección de un
+       comercio no entra casi nunca en 32 caracteres, y salía mocha. Uno
+       vacío se deja: hay quien lo usa de separación. */
+    else if (b.t === "c") {
+      if (String(b.v) === "") out.push("");
+      else out.push(...wrap(b.v).map(centro));
+    }
     else if (b.t === "lr") out.push(lr(b.a, b.b));
     else if (b.t === "w") out.push(...wrap(b.v));
     else if (b.t === "b") out.push("");
