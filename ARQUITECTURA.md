@@ -42,6 +42,7 @@ node scripts/probar-salon.mjs      # los cinco estados de una mesa y la reserva
 node scripts/probar-dominio.mjs    # qué aplicación sirve cada host
 node scripts/probar-arca.mjs       # factura electrónica: candado, permisos y homologación
 node scripts/probar-cuenta-corriente.mjs  # fiado: cobrar, anular, ajustar, límite y permisos por rol
+node scripts/probar-codigos.mjs    # códigos de barras propios: no pisan, no se repiten
 ```
 
 `probar-dominio.mjs` es el único que no toca la base ni la red: le pasa un

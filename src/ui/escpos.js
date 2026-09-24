@@ -92,3 +92,46 @@ export function armarEscPos({ lineas, mm = 58, celdas = null, cortar = true }) {
   for (const p of partes) { todo.set(p, i); i += p.length; }
   return todo;
 }
+
+/* ------------------------------------------------------------
+   Etiquetas de código de barras en la térmica
+   ------------------------------------------------------------
+   Con el comando de código de barras de la propia impresora (GS k): la
+   barra la dibuja ella, a su resolución, y sale más nítida que una
+   imagen. Una etiqueta debajo de la otra, con una línea de puntos para
+   cortar. */
+
+const FORMATO_ESCPOS = { EAN13: 67, EAN8: 68, CODE128: 73 };
+
+export function etiquetasEscPos({ etiquetas, mm = 58, W = 32, formatoDe }) {
+  const partes = [];
+  const cmd = (...b) => partes.push(new Uint8Array(b));
+  cmd(ESC, 0x40);
+  cmd(GS, 0x68, 70);          // alto de las barras, en puntos (~9 mm)
+  cmd(GS, 0x77, mm === 58 ? 2 : 3); // ancho del módulo
+  cmd(GS, 0x48, 2);           // los números debajo de las barras
+  for (const e of etiquetas) {
+    const f = formatoDe(e.codigo);
+    if (!f) continue;
+    cmd(ESC, 0x61, 1);
+    cmd(ESC, 0x45, 1);
+    if (e.nombre) { partes.push(aBytes(String(e.nombre).slice(0, W))); cmd(0x0a); }
+    cmd(ESC, 0x45, 0);
+    const datos = f === "CODE128" ? "{B" + e.codigo : e.codigo;
+    const bytes = aBytes(datos);
+    cmd(GS, 0x6b, FORMATO_ESCPOS[f], bytes.length);
+    partes.push(bytes);
+    cmd(0x0a);
+    if (e.precio) { cmd(ESC, 0x45, 1); partes.push(aBytes(e.precio)); cmd(0x0a); cmd(ESC, 0x45, 0); }
+    cmd(ESC, 0x61, 0);
+    partes.push(aBytes("- ".repeat(Math.floor(W / 2))));
+    cmd(0x0a);
+  }
+  cmd(ESC, 0x64, 4);
+  cmd(GS, 0x56, 0x42, 0);
+  const largo = partes.reduce((s, p) => s + p.length, 0);
+  const todo = new Uint8Array(largo);
+  let i = 0;
+  for (const p of partes) { todo.set(p, i); i += p.length; }
+  return todo;
+}

@@ -290,3 +290,14 @@ export async function eliminarProducto(id) {
     throw error;
   }
 }
+
+/* Código de barras propio para los productos que no tienen (0086): un
+   EAN-8 que empieza con 2, que no choca con los de fábrica ni con las
+   etiquetas de la balanza. La base los numera y no pisa ninguno que ya
+   exista. Devuelve { id, barcode } de los que recibieron uno. */
+export async function asignarCodigos(empresaId, ids) {
+  if (!empresaId) throw new Error("asignarCodigos necesita la empresa.");
+  const { data, error } = await supabase.rpc("asignar_codigos_internos", { p_empresa: empresaId, p_items: ids });
+  if (error) throw error;
+  return (data || []).map((f) => ({ id: f.item_id, barcode: f.barcode }));
+}

@@ -12,9 +12,11 @@ import { NumeroDiferido, TextoDiferido, Campo, inputCls } from "../ui/Campos.jsx
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
 import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../datos/recetas.js";
 import { usoDelProducto } from "../datos/items.js";
+import { Etiquetas } from "./Etiquetas.jsx";
 
 export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
   const [alta, setAlta] = useState(null);
+  const [etiquetas, setEtiquetas] = useState(false);
   const [captura, setCaptura] = useState(false);
   const [planilla, setPlanilla] = useState(null);   // resumen previo a aplicar
   const [modoPrecios, setModoPrecios] = useState(false);
@@ -242,6 +244,9 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
           </Boton>
           <Boton size="sm" variant="ghost" onClick={() => setCaptura(true)}>
             <Barcode size={14} /> <span className="hidden sm:inline">Captura con pistola</span><span className="sm:hidden">Pistola</span>
+          </Boton>
+          <Boton size="sm" variant="ghost" onClick={() => setEtiquetas(true)}>
+            <Barcode size={14} /> <span className="hidden sm:inline">Etiquetas</span>
           </Boton>
           <Boton size="sm" onClick={() => setAlta({})}><Plus size={14} /> <span className="hidden sm:inline">Nuevo producto</span><span className="sm:hidden">Nuevo</span></Boton>
         </div>
@@ -562,6 +567,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
         )}
       </Card>
 
+      {etiquetas && <Etiquetas productos={productos} empresaId={empresaId} ajustes={ajustes} toast={toast} onClose={() => setEtiquetas(false)} />}
       <FichaProducto p={productos.find((x) => x.id === abierto)} onClose={() => setAbierto(null)} actualizar={actualizar} ajustes={ajustes} editar={(p) => { setAbierto(null); setAlta(p); }} productos={productos} empresaId={empresaId} toast={toast} borrar={borrarProducto} />
 
       <ImportarPlanilla resumen={planilla} listas={ajustes.listas || []} onCerrar={() => setPlanilla(null)}
