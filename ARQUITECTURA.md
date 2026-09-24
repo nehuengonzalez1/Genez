@@ -696,27 +696,32 @@ Lo que falta: devolver una venta fiada (hoy una compra fiada se corrige
 desde la venta), y un informe mensual en Reportes más allá de los
 indicadores de la sección.
 
-## Tickets y facturas
+## Abrir un movimiento de caja
 
-`src/modulos/Comprobantes.jsx`, en la pestaña Caja, para todos los
-comercios. Las ventas de un día, una por una: al abrir una se ve qué se
-vendió, cómo se pagó, quién la cobró y la factura con su CAE, y se vuelve
-a imprimir.
+`src/modulos/DetalleMovimiento.jsx`. Cada renglón de "Movimientos de hoy"
+se abre. Si viene de una venta (`movimientos_caja.operacion_id`) se ve qué
+se vendió, cómo se pagó, quién la cobró y la factura con su CAE, y se
+vuelve a imprimir. Si es un gasto, un retiro o un cobro de cuenta, se ve
+el movimiento y se imprime un comprobante de caja, con renglón de firma
+cuando es un egreso.
 
-**No hay tabla ni migración nueva.** La lista es `cargarVentasDelDia`
-(ventas y comandas confirmadas, con la factura no rechazada de
-`comprobantes`) y el detalle es `cargarTicketDeVenta`, lo mismo que
-imprime Caja → Facturas. La consulta nombra la relación
-`perfiles!usuario_id` porque `operaciones` tiene dos hacia `perfiles`
-(`usuario_id` y `actualizada_por`) y sin eso PostgREST no sabe cuál.
+**No hay un listado de ventas aparte**, a propósito: hubo uno y se sacó.
+El cajero ya mira los movimientos. La contracara: lo fiado no pasa por el
+cajón, así que una venta fiada no tiene movimiento y no se abre desde acá.
+
+**No hay tabla ni migración nueva.** La venta es `cargarVenta` (cliente,
+cajero y la factura no rechazada de `comprobantes`) más
+`cargarTicketDeVenta`, lo mismo que imprime Caja → Facturas. La consulta
+nombra la relación `perfiles!usuario_id` porque `operaciones` tiene dos
+hacia `perfiles` (`usuario_id` y `actualizada_por`) y sin eso PostgREST no
+sabe cuál. El movimiento que el cobro suma en pantalla lleva el id de la
+venta, como los que vienen de la base; si la venta todavía está en la
+cola sin internet, se abre como movimiento con un aviso.
 
 **Se reimprime igual que salió**, sin marca de copia: una factura
 reimpresa es la misma factura. La que espera CAE no se imprime tampoco
 desde acá, por lo mismo que en el cobro. Reimprimir no pide permiso: es
 tarea de mostrador.
-
-El buscador anda sobre el día cargado —número, cliente, importe o
-producto—, no sobre todo el historial.
 
 ## Lo que ya funciona y no hay que rehacer
 

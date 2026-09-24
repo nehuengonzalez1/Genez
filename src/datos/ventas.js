@@ -193,60 +193,50 @@ export async function cargarSerieDiaria(empresaId, dias = 90) {
   });
 }
 
-/* Las ventas de un día, una por una, para Caja → Tickets y facturas:
-   ver qué se vendió en cada operación y volver a imprimirla.
+/* Una venta, para abrirla desde un movimiento de Caja: quién la cobró,
+   el cliente y la factura. Los renglones y los importes los trae
+   `cargarTicketDeVenta`, que es lo mismo que se imprime. La factura sale
+   de `comprobantes`, la que no fue rechazada: una venta tiene a lo sumo
+   una viva.
 
-   Trae los nombres de los renglones para poder buscar por producto ("¿a
-   qué hora se vendió el fernet?"), pero no los importes: el detalle se
-   lee entero recién al abrir una, con `cargarTicketDeVenta`, que es lo
-   mismo que se imprime. La factura sale de `comprobantes`, la que no fue
-   rechazada: una venta tiene a lo sumo una viva. */
-export async function cargarVentasDelDia(empresaId, dia = new Date()) {
-  if (!empresaId) throw new Error("cargarVentasDelDia necesita la empresa.");
-  const desde = new Date(dia);
-  desde.setHours(0, 0, 0, 0);
-  const hasta = new Date(desde);
-  hasta.setDate(hasta.getDate() + 1);
-
+   Devuelve null si la venta todavía no está en la base: se cobró sin
+   internet y sigue en la cola de este equipo (src/datos/cola.js). */
+export async function cargarVenta(empresaId, operacionId) {
+  if (!empresaId) throw new Error("cargarVenta necesita la empresa.");
   const { data, error } = await supabase
     .from("operaciones")
-    .select("id, numero, fecha, total, tipo, comprobante, clientes ( razon_social ), cajero:perfiles!usuario_id ( nombre ), pagos ( medio, monto ), operacion_lineas ( descripcion ), comprobantes ( estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha, total, doc_tipo, doc_nro )")
+    .select("id, numero, fecha, total, comprobante, clientes ( razon_social ), cajero:perfiles!usuario_id ( nombre ), comprobantes ( estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha, total, doc_tipo, doc_nro )")
     .eq("empresa_id", empresaId)
+    .eq("id", operacionId)
     .in("tipo", ["venta", "comanda"])
-    .eq("estado", "confirmada")
-    .gte("fecha", desde.toISOString())
-    .lt("fecha", hasta.toISOString())
-    .order("fecha", { ascending: false })
-    .limit(2000);
+    .limit(1);
   if (error) throw error;
 
-  return (data || []).map((o) => {
-    const fiscal = !!(o.comprobante && o.comprobante.fiscal);
-    const c = (o.comprobantes || []).find((x) => x.estado !== "rechazado") || null;
-    const factura = c && c.estado === "autorizado" ? facturaDeComprobante(c, o.id) : null;
-    return {
-      id: o.id,
-      numero: o.numero,
-      fecha: new Date(o.fecha),
-      total: Number(o.total),
-      cliente: (o.clientes && o.clientes.razon_social) || (o.comprobante && o.comprobante.cliente && o.comprobante.cliente.nombre) || null,
-      cajero: (o.cajero && o.cajero.nombre) || "",
-      medios: [...new Set((o.pagos || []).map((p) => p.medio))],
-      productos: (o.operacion_lineas || []).map((l) => l.descripcion),
-      fiscal,
-      factura,
-      /* autorizada | pidiendo | sin_cae | simulada, o null si es un
-         ticket. "Simulada" es la del prototipo, con un CAE inventado
-         escrito en la venta y sin comprobante: no espera nada (la vista
-         de facturas también la deja afuera) y no hay que ofrecer pedirle
-         CAE. */
-      estadoFactura: !fiscal ? null
-        : factura ? "autorizada"
-        : c && c.estado === "pendiente" ? "pidiendo"
-        : !c && o.comprobante.cae ? "simulada"
-        : "sin_cae",
-    };
-  });
+  const o = data && data[0];
+  if (!o) return null;
+
+  const fiscal = !!(o.comprobante && o.comprobante.fiscal);
+  const c = (o.comprobantes || []).find((x) => x.estado !== "rechazado") || null;
+  const factura = c && c.estado === "autorizado" ? facturaDeComprobante(c, o.id) : null;
+  return {
+    id: o.id,
+    numero: o.numero,
+    fecha: new Date(o.fecha),
+    total: Number(o.total),
+    cliente: (o.clientes && o.clientes.razon_social) || (o.comprobante && o.comprobante.cliente && o.comprobante.cliente.nombre) || null,
+    cajero: (o.cajero && o.cajero.nombre) || "",
+    fiscal,
+    factura,
+    /* autorizada | pidiendo | sin_cae | simulada, o null si es un
+       ticket. "Simulada" es la del prototipo, con un CAE inventado
+       escrito en la venta y sin comprobante: no espera nada (la vista de
+       facturas también la deja afuera) y no hay que ofrecer pedirle CAE. */
+    estadoFactura: !fiscal ? null
+      : factura ? "autorizada"
+      : c && c.estado === "pendiente" ? "pidiendo"
+      : !c && o.comprobante.cae ? "simulada"
+      : "sin_cae",
+  };
 }
 
 /* Lo que se vendió de cada producto en el período (migración 0080).

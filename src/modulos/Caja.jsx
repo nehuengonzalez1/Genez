@@ -4,7 +4,8 @@
 
 import React, { useState, useEffect } from "react";
 import { cargarResumenCuentas } from "../datos/cuentas.js";
-import { Plus, Wallet, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { Plus, Wallet, ArrowDownRight, ArrowUpRight, ChevronRight } from "lucide-react";
+import { DetalleMovimiento } from "./DetalleMovimiento.jsx";
 import { mediosDe, medioPorK, money, nf, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
 import { Kpi, Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
 
@@ -13,6 +14,7 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, emp
   const [form, setForm] = useState({ monto: "", detalle: "", medio: "efectivo" });
   const [contado, setContado] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [abierto, setAbierto] = useState(null);   // el movimiento que se está mirando
 
   /* El fiado no pasa por el cajón: no tiene fila en el arqueo. Lo que se
      fió y lo que se cobró de cuentas va aparte, abajo. */
@@ -79,20 +81,27 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, emp
           {caja.movimientos.length === 0 ? <Vacio>Todavía no hay movimientos. La primera venta aparece acá.</Vacio> : (
             <ul className="divide-y divide-borde max-h-[460px] overflow-auto">
               {[...caja.movimientos].reverse().map((m) => (
-                <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${m.tipo === "ingreso" ? "bg-bien-suave text-bien" : "bg-mal-suave text-mal"}`}>
-                    {m.tipo === "ingreso" ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-texto truncate">{m.detalle}</div>
-                    <div className="text-[11px] text-texto-tenue">{m.hora} · {medioPorK(ajustes, m.medio).n}</div>
-                  </div>
-                  <span className={`f-m text-sm font-semibold shrink-0 ${m.tipo === "ingreso" ? "text-bien" : "text-mal"}`}>
-                    {m.tipo === "ingreso" ? "+" : "−"}{money(m.monto)}
-                  </span>
+                <li key={m.id}>
+                  <button onClick={() => setAbierto(m)} title="Ver el detalle y volver a imprimir"
+                    className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-superficie-2 transition-colors">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${m.tipo === "ingreso" ? "bg-bien-suave text-bien" : "bg-mal-suave text-mal"}`}>
+                      {m.tipo === "ingreso" ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-texto truncate">{m.detalle}</div>
+                      <div className="text-[11px] text-texto-tenue">{m.hora} · {medioPorK(ajustes, m.medio).n}</div>
+                    </div>
+                    <span className={`f-m text-sm font-semibold shrink-0 ${m.tipo === "ingreso" ? "text-bien" : "text-mal"}`}>
+                      {m.tipo === "ingreso" ? "+" : "−"}{money(m.monto)}
+                    </span>
+                    <ChevronRight size={14} className="text-texto-tenue shrink-0" />
+                  </button>
                 </li>
               ))}
             </ul>
+          )}
+          {abierto && (
+            <DetalleMovimiento m={abierto} empresaId={empresaId} ajustes={ajustes} toast={toast} onCerrar={() => setAbierto(null)} />
           )}
         </Card>
 

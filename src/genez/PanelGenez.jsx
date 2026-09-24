@@ -48,7 +48,6 @@ import { Finanzas } from "../modulos/Finanzas.jsx";
 import { Servicios } from "../modulos/Servicios.jsx";
 import { Caja, CajaCerrada } from "../modulos/Caja.jsx";
 import { Facturas } from "../modulos/Facturas.jsx";
-import { Comprobantes } from "../modulos/Comprobantes.jsx";
 import { Barrera } from "../ui/Barrera.jsx";
 import { CuentasCorrientes } from "../modulos/CuentasCorrientes.jsx";
 import { Reportes } from "../modulos/Reportes.jsx";
@@ -1555,11 +1554,13 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     // Un movimiento de caja por medio de pago: así el arqueo y el reporte
     // por medio siguen cerrando aunque la venta se haya cobrado partida.
     // Solo en pantalla: los de verdad los escribe `registrar_venta`.
+    // Llevan el id de la venta, como los que vienen de la base, para que
+    // en Caja se puedan abrir y reimprimir sin esperar a refrescar.
     /* Lo fiado no entra al cajón: la base tampoco lo anota en la caja
        (0075). Antes se sumaba acá igual, y hasta refrescar la caja mostraba
        como cobrada una venta que se llevó el cliente sin pagar. */
     ps.filter((p) => p.medio !== MEDIO_CUENTA_CORRIENTE)
-      .forEach((p) => sumarMovLocal({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}` }));
+      .forEach((p) => sumarMovLocal({ tipo: "ingreso", medio: p.medio, monto: p.monto, detalle: `Venta ${nro}${ps.length > 1 ? " (parte)" : ""}`, operacionId: venta.id }));
 
     /* Se manda sin esperar: la venta ya ocurrió en el mostrador y el ticket
        tiene que salir ahora. Si no entra queda en la cola y se reintenta
@@ -2138,9 +2139,6 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             <div className="space-y-4">
               <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes} empresaId={empresaId}
                 abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
-              {/* Para todos los comercios, facturen o no: un ticket de
-                  hace una hora también se pide de nuevo. */}
-              <Comprobantes empresaId={empresaId} ajustes={ajustes} toast={toast} sinCAE={sinCAE} />
               {/* Con la caja cerrada también: una factura sin CAE de ayer se
                   resuelve aunque hoy todavía no se haya abierto. Y aparece
                   si quedaron pendientes aunque la conexión se haya dado de
