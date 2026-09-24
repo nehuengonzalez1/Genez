@@ -31,7 +31,7 @@ import {
   CupSoda, IceCream, Cake, Croissant, Cookie, Milk, Flame, Utensils,
 } from "lucide-react";
 import { money, hora, mediosDe, medioPorK, conRecargo, FISCAL_INICIAL } from "../utils/helpers.js";
-import { siguienteNumero } from "../datos/ventas.js";
+import { siguienteNumero, serieDe } from "../datos/ventas.js";
 import {
   cargarSalon, cargarRecursos, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
   anularLinea, cambiarCantidad, enviarACocina, cargarCocina, moverComanda, cerrarComanda,
@@ -2049,12 +2049,10 @@ function ModalCobro({ abierto, comanda, comandaId, empresaId, config, ajustes, c
   const medio = medios[sel] || medios[0];
   const rec = conRecargo(comanda.total, medio);
 
-  /* El punto de venta sale de la configuración del comercio: `ajustes`
-     todavía arranca con los datos del minimercado y numeraría la mesa en
-     la serie equivocada. */
-  const puntoVenta =
-    (config.fiscal && config.fiscal.puntoVenta) ||
-    (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001";
+  /* La serie sale de la configuración del comercio: `ajustes` todavía
+     arranca con los datos del minimercado y numeraría la mesa en la serie
+     equivocada. Una mesa se cobra siempre como ticket. */
+  const puntoVenta = serieDe(config.fiscal || ajustes.fiscal || FISCAL_INICIAL, false);
 
   const cobrar = async () => {
     if (cobrando) return;

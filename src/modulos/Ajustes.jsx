@@ -59,8 +59,11 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           <Campo label="Inicio de actividades">
             <input value={f.inicio || ""} onChange={(e) => setFiscal({ inicio: e.target.value })} placeholder="01/03/2019" className={`${inputCls} f-m`} />
           </Campo>
-          <Campo label="Punto de venta">
+          <Campo label="Punto de venta (facturas)">
             <input value={f.puntoVenta || ""} onChange={(e) => setFiscal({ puntoVenta: e.target.value })} className={`${inputCls} f-m`} />
+          </Campo>
+          <Campo label="Serie de los tickets">
+            <input value={f.serieTickets ?? "0099"} onChange={(e) => setFiscal({ serieTickets: e.target.value })} placeholder="0099" className={`${inputCls} f-m`} />
           </Campo>
           <div className="md:col-span-2">
             <Campo label="Domicilio comercial">

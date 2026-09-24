@@ -17,7 +17,7 @@ import { Card, Boton, Modal, Vacio, Cargando } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { BuscarCliente } from "./Vender.jsx";
 import { cargarPresupuestos, crearPresupuesto, marcarConvertido } from "../datos/presupuestos.js";
-import { armarVenta, registrarVenta, siguienteNumero } from "../datos/ventas.js";
+import { armarVenta, registrarVenta, siguienteNumero, serieDe } from "../datos/ventas.js";
 import { cargarProductos } from "../datos/items.js";
 
 const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -323,7 +323,8 @@ function ConvertirAVenta({ p, empresaId, sucursalId, ajustes, toast, sesionId, o
     setGuardando(true);
     try {
       const items = validas.map((l) => ({ pid: l.itemId, qty: Number(l.cantidad), precio: l.precioUnitario, costo: 0, nombre: l.descripcion }));
-      const nro = siguienteNumero(empresaId, (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001");
+      // Un presupuesto convertido sale como ticket: no pasa por ARCA.
+      const nro = siguienteNumero(empresaId, serieDe(ajustes.fiscal, false));
       const venta = armarVenta({
         empresaId, sucursalId, sesionId, numero: nro, items,
         sub: total, desc: 0, recargo: 0, total,

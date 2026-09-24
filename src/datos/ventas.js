@@ -30,6 +30,20 @@ import { facturaDeComprobante } from "./arca.js";
 
 const CLAVE_NUMERO = "genez.ventas.numerador";
 
+/* Facturas y tickets van en series distintas: la factura en el punto de
+   venta de Ajustes (0001 de fábrica) y el ticket en la suya (0099). Antes
+   compartían la 0001 y en la lista de ventas no se distinguía uno del
+   otro por el número. Cada serie tiene su contador, así que ninguna salta
+   números por la otra.
+
+   Lo decide el tipo de comprobante de la venta, y por eso el número se
+   pide recién cuando ya se sabe si es factura. `fiscal` es la
+   configuración fiscal del comercio; si no trae la serie de tickets —un
+   comercio configurado antes de que existiera— vale la de fábrica. */
+export const serieDe = (fiscal, esFactura) => esFactura
+  ? (fiscal && fiscal.puntoVenta) || "0001"
+  : (fiscal && fiscal.serieTickets) || "0099";
+
 const claveDe = (empresaId, puntoVenta) => `${CLAVE_NUMERO}.${empresaId}.${puntoVenta}`;
 
 const armarNumero = (puntoVenta, n) => `${puntoVenta}-${String(n).padStart(8, "0")}`;

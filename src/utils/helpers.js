@@ -295,6 +295,10 @@ export const FISCAL_INICIAL = {
   iibb: "",
   inicio: "",
   puntoVenta: "0001",
+  /* Los tickets van en su propia serie, para que no se mezclen con las
+     facturas y se distingan de un vistazo: 0099-00000012 es un ticket,
+     0001-00000012 una factura. Ver `serieDe` en src/datos/ventas.js. */
+  serieTickets: "0099",
   domicilio: "",
 };
 

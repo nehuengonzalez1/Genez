@@ -20,7 +20,7 @@ import { cargarProductos, guardarProducto, crearProducto, cargarProducto, escuch
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
 import { cargarProveedores, guardarProveedores } from "../datos/proveedores.js";
 import { cargarTablero, tableroVacio } from "../datos/tablero.js";
-import { armarVenta, registrarVenta, siguienteNumero, ponerNumeradorAlDia, resumenDelDia, cargarSerieDiaria } from "../datos/ventas.js";
+import { armarVenta, registrarVenta, siguienteNumero, serieDe, ponerNumeradorAlDia, resumenDelDia, cargarSerieDiaria } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
 import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
 import {
@@ -1495,7 +1495,6 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       return null;
     }
 
-    const nro = siguienteNumero(empresaId, (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001");
     const ps = pagos && pagos.length ? pagos : [{ medio, monto: total }];
     /* Una factura se decide acá y no se cambia después: la venta viaja
        marcada, y el servidor solo factura las marcadas. Así una venta sale
@@ -1506,6 +1505,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
        `pedirCAEs` cuando la venta llega a la base, y hasta entonces el
        ticket dice "esperando CAE" y no se puede imprimir. */
     const esFiscal = !!fiscal && puedeFacturar;
+    const nro = siguienteNumero(empresaId, serieDe(ajustes.fiscal, esFiscal));
 
     /* La venta se arma antes que el ticket para que compartan el id: lo que
        se imprime en el mostrador y lo que queda en la base son la misma cosa,
@@ -1582,7 +1582,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      numeración: si este equipo es nuevo, o le borraron el almacenamiento,
      su contador arranca en uno y repetiría números ya usados. */
   useEffect(() => {
-    ponerNumeradorAlDia(empresaId, (ajustes.fiscal || FISCAL_INICIAL).puntoVenta || "0001");
+    ponerNumeradorAlDia(empresaId, serieDe(ajustes.fiscal, true));
+    ponerNumeradorAlDia(empresaId, serieDe(ajustes.fiscal, false));
   }, [empresaId]);
 
   useEffect(() => {
