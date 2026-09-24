@@ -5,11 +5,16 @@
 No los pone Genez: los agrega el navegador. Chrome y Edge tienen una
 opción, **"Encabezados y pies de página"**, que imprime la fecha y el
 título arriba, y la dirección de la página y el número de hoja abajo.
-Genez ya pide la hoja sin márgenes (`@page { margin: 0 }` en
-`imprimirComandera`, `src/ui/Base.jsx`), pero ninguna página web puede
-apagar esa opción: es de cada computadora.
+Ninguna página web puede apagar esa opción: es de cada computadora.
 
-Hay dos formas de sacarlo. **La primera es la que conviene en una caja.**
+**Desde septiembre de 2026 Genez imprime los tickets como PDF**
+(`src/ui/ticketPdf.js`), y a un PDF Chrome no le agrega nada. No hay que
+configurar ninguna computadora. Se puede volver a la forma anterior desde
+Ajustes → Comandera y pistola, si alguna impresora se lleva mal con el
+PDF; solo en ese caso sirve lo de abajo.
+
+Hay dos formas de sacarlo imprimiendo como página. **La primera es la
+que conviene en una caja.**
 
 ### 1 · Para siempre, en toda la computadora (recomendado)
 

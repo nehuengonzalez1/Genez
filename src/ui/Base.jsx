@@ -5,6 +5,7 @@
 import React, { useEffect, useRef, useContext, createContext, useCallback } from "react";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import QRCode from "qrcode";
+import { armarPdfTicket, imprimirPdf } from "./ticketPdf.js";
 import { HOY, fdatel } from "../datos/generador.js";
 import { pct, money, nf, nf2, moneyk, FISCAL_INICIAL, letraComprobante, discriminaIVA, condicionLegal, medioPorK } from "../utils/helpers.js";
 
@@ -243,7 +244,44 @@ export function escaparHTML(t) {
   return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/* Lo que imprime el cabezal de cada rollo, en mm. Ver "EL PAPEL NO SE
+   IMPRIME ENTERO" más abajo: el número se ajustó mirando el papel de
+   Super 25. Lo usan las dos formas de imprimir. */
+const UTIL_MM = { 58: 53, 80: 72 };
+
+/* Cómo se imprime: como PDF (de fábrica) o como página. Lo decide
+   Ajustes y lo avisa Sistema; queda acá y no en cada llamada porque
+   imprimen el cobro, la comanda, la caja y la cuenta corriente, y ninguno
+   tiene por qué saberlo. */
+let comoPagina = false;
+export function configurarImpresion({ pdf = true } = {}) {
+  comoPagina = pdf === false;
+}
+
+/* El ticket sale como PDF para que Chrome no le agregue la fecha, el
+   título y la dirección (ver src/ui/ticketPdf.js). Si algo falla —un
+   navegador sin visor de PDF, uno que bloquea la impresión del iframe—
+   se imprime como antes, como página: mejor un ticket con encabezado
+   que ningún ticket. */
 export function imprimirComandera(lineas, ancho, qrSemilla, toast) {
+  const mm = ancho === 58 ? 58 : 80;
+  if (!comoPagina) {
+    try {
+      const bytes = armarPdfTicket({
+        lineas, mm, util: UTIL_MM[mm],
+        celdas: qrSemilla ? celdasQR(qrSemilla) : null,
+        qrMM: mm === 58 ? 30 : 34,
+      });
+      imprimirPdf(bytes).catch(() => imprimirComoPagina(lineas, ancho, qrSemilla, toast));
+      return;
+    } catch (e) {
+      /* sigue abajo, como página */
+    }
+  }
+  imprimirComoPagina(lineas, ancho, qrSemilla, toast);
+}
+
+function imprimirComoPagina(lineas, ancho, qrSemilla, toast) {
   try {
     const mm = ancho === 58 ? 58 : 80;
     const cuerpo = escaparHTML(lineas.join("\n"));
@@ -274,7 +312,7 @@ export function imprimirComandera(lineas, ancho, qrSemilla, toast) {
 
        Si en otra impresora quedara corto o cortara, es este número y nada
        más: el cuerpo de letra se recalcula solo contra él. */
-    const util = mm === 58 ? 53 : 72;
+    const util = UTIL_MM[mm];
 
     /* La línea más larga es la que tiene que entrar justa. Sale de lo que
        ya compuso `armarLineas`, así que no hay que mantener un ancho en dos

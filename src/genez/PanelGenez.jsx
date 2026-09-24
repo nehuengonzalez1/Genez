@@ -28,7 +28,7 @@ import {
   abrirCaja as abrirCajaEnBase, cerrarCaja as cerrarCajaEnBase,
 } from "../datos/caja.js";
 import { calcular, insights } from "../utils/diagnostico.js";
-import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apagado, Tabs } from "../ui/Base.jsx";
+import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apagado, Tabs, configurarImpresion } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
 import { PreciosPanel } from "./PreciosPanel.jsx";
@@ -1049,6 +1049,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   };
 
   const empresaId = sesion.comercio.id;
+
+  /* Cómo se imprime lo decide el comercio en Ajustes (ver imprimirComandera). */
+  useEffect(() => { configurarImpresion({ pdf: ajustes.impresionPdf !== false }); }, [ajustes.impresionPdf]);
 
   /* Después de activar la facturación real desde Ajustes, el cobro tiene
      que enterarse sin refrescar. */

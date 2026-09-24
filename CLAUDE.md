@@ -206,9 +206,15 @@ ilegible hasta que alguien se acordaba de remaparlo.
 
 Ticket, pre cuenta y comanda se componen como texto de ancho fijo: **32 caracteres a
 58 mm, 48 a 80 mm** (`ancho` en `ajustes`). `ticketVenta` / `preCuenta` /
-`comandaCocina` / `comandaPicking` arman las líneas con `armarLineas`, y
-`imprimirComandera` las imprime en un documento aparte dentro de un iframe invisible
-con `@page { size: Nmm auto }`.
+`comandaCocina` / `comandaPicking` arman las líneas con `armarLineas`, e
+`imprimirComandera` las imprime.
+
+De fábrica las imprime **como PDF** (`src/ui/ticketPdf.js`, armado a mano con Courier,
+sin librerías): a un PDF Chrome no le agrega la fecha, el título ni la dirección, que
+a una página no se le pueden sacar sin configurar cada computadora. Si el PDF falla,
+o el comercio lo apaga en Ajustes, cae a la forma anterior: un documento aparte en un
+iframe con `@page` medido. Los comentarios de `imprimirComandera` cuentan todo lo que
+costó que esa saliera bien; no simplificarla sin leerlos.
 
 No imprimir la página con CSS: eso ya falló antes, salían dos hojas en A4.
 

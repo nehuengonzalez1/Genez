@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Plus, X, Check, Trash2, BellOff, Bell, Volume2, VolumeX,
+  Plus, X, Check, Trash2, BellOff, Bell, Volume2, VolumeX, Printer,
   ScanLine, Barcode
 } from "lucide-react";
 import { uid, HOY } from "../datos/generador.js";
@@ -211,6 +211,14 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
             </button>
           ))}
         </div>
+        {/* De fábrica, PDF: así Chrome no le agrega al ticket la fecha,
+            el título y la dirección. La otra forma queda para una
+            impresora que se lleve mal con el PDF. */}
+        <button onClick={() => setAjustes({ ...ajustes, impresionPdf: ajustes.impresionPdf === false })}
+          className="flex items-center gap-2 text-sm text-texto-suave mt-3 hover:text-texto">
+          <Printer size={16} className={ajustes.impresionPdf === false ? "" : "text-acento"} />
+          Imprimir como PDF, sin la fecha ni la dirección del navegador: <strong>{ajustes.impresionPdf === false ? "apagado" : "activado"}</strong>
+        </button>
         <button onClick={() => setAjustes({ ...ajustes, sonido: !ajustes.sonido })}
           className="flex items-center gap-2 text-sm text-texto-suave mt-3 hover:text-texto">
           {ajustes.sonido ? <Volume2 size={16} className="text-acento" /> : <VolumeX size={16} />}
