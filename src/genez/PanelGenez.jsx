@@ -1051,7 +1051,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const empresaId = sesion.comercio.id;
 
   /* Cómo se imprime lo decide el comercio en Ajustes (ver imprimirComandera). */
-  useEffect(() => { configurarImpresion({ pdf: ajustes.impresionPdf !== false }); }, [ajustes.impresionPdf]);
+  /* El PDF es opcional y apagado de fábrica: en la térmica de Super 25
+     salió corrido a la derecha (ver imprimirComandera). */
+  useEffect(() => { configurarImpresion({ pdf: ajustes.impresionPdf === true }); }, [ajustes.impresionPdf]);
 
   /* Después de activar la facturación real desde Ajustes, el cobro tiene
      que enterarse sin refrescar. */

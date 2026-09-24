@@ -211,14 +211,17 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
             </button>
           ))}
         </div>
-        {/* De fábrica, PDF: así Chrome no le agrega al ticket la fecha,
-            el título y la dirección. La otra forma queda para una
-            impresora que se lleve mal con el PDF. */}
-        <button onClick={() => setAjustes({ ...ajustes, impresionPdf: ajustes.impresionPdf === false })}
+        {/* PDF: así Chrome no le agrega al ticket la fecha, el título y
+            la dirección. Apagado de fábrica porque depende del papel que
+            tenga configurado el driver (ver imprimirComandera). */}
+        <button onClick={() => setAjustes({ ...ajustes, impresionPdf: ajustes.impresionPdf !== true })}
           className="flex items-center gap-2 text-sm text-texto-suave mt-3 hover:text-texto">
-          <Printer size={16} className={ajustes.impresionPdf === false ? "" : "text-acento"} />
-          Imprimir como PDF, sin la fecha ni la dirección del navegador: <strong>{ajustes.impresionPdf === false ? "apagado" : "activado"}</strong>
+          <Printer size={16} className={ajustes.impresionPdf === true ? "text-acento" : ""} />
+          Imprimir como PDF, sin la fecha ni la dirección del navegador: <strong>{ajustes.impresionPdf === true ? "activado" : "apagado"}</strong>
         </button>
+        {ajustes.impresionPdf === true && (
+          <p className="text-xs text-texto-tenue mt-1">Si el ticket sale corrido a la derecha o cortado, la impresora tiene configurado en Windows un papel más ancho que el rollo: apagalo.</p>
+        )}
         <button onClick={() => setAjustes({ ...ajustes, sonido: !ajustes.sonido })}
           className="flex items-center gap-2 text-sm text-texto-suave mt-3 hover:text-texto">
           {ajustes.sonido ? <Volume2 size={16} className="text-acento" /> : <VolumeX size={16} />}

@@ -209,12 +209,17 @@ Ticket, pre cuenta y comanda se componen como texto de ancho fijo: **32 caracter
 `comandaCocina` / `comandaPicking` arman las líneas con `armarLineas`, e
 `imprimirComandera` las imprime.
 
-De fábrica las imprime **como PDF** (`src/ui/ticketPdf.js`, armado a mano con Courier,
-sin librerías): a un PDF Chrome no le agrega la fecha, el título ni la dirección, que
-a una página no se le pueden sacar sin configurar cada computadora. Si el PDF falla,
-o el comercio lo apaga en Ajustes, cae a la forma anterior: un documento aparte en un
-iframe con `@page` medido. Los comentarios de `imprimirComandera` cuentan todo lo que
-costó que esa saliera bien; no simplificarla sin leerlos.
+De fábrica las imprime como página: un documento aparte en un iframe con `@page`
+medido, que le dice a Chrome el tamaño exacto del papel. Los comentarios de
+`imprimirComandera` cuentan todo lo que costó que saliera bien; no simplificarla sin
+leerlos. Chrome le agrega la fecha, el título y la dirección, y eso solo se saca en
+cada computadora (`docs/impresion/`).
+
+Hay una segunda forma, **como PDF** (`src/ui/ticketPdf.js`, armado a mano con
+Courier), que se prende en Ajustes: a un PDF Chrome no le agrega nada. Está apagada
+de fábrica porque con un PDF Chrome no toma el papel de la página sino el del driver,
+y centra el ticket ahí: en Super 25 el papel del driver era más ancho que el rollo y
+el ticket salió corrido a la derecha, con un dígito de cada importe.
 
 No imprimir la página con CSS: eso ya falló antes, salían dos hojas en A4.
 

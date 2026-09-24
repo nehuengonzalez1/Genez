@@ -7,14 +7,17 @@ opción, **"Encabezados y pies de página"**, que imprime la fecha y el
 título arriba, y la dirección de la página y el número de hoja abajo.
 Ninguna página web puede apagar esa opción: es de cada computadora.
 
-**Desde septiembre de 2026 Genez imprime los tickets como PDF**
-(`src/ui/ticketPdf.js`), y a un PDF Chrome no le agrega nada. No hay que
-configurar ninguna computadora. Se puede volver a la forma anterior desde
-Ajustes → Comandera y pistola, si alguna impresora se lleva mal con el
-PDF; solo en ese caso sirve lo de abajo.
+Genez puede imprimir el ticket **como PDF** (`src/ui/ticketPdf.js`), y a
+un PDF Chrome no le agrega nada. Se prende en Ajustes → Comandera y
+pistola. Está apagado de fábrica porque con un PDF Chrome usa el tamaño
+de papel del driver de la impresora y no el de la página: si en Windows
+la térmica tiene un papel más ancho que el rollo (80 mm en una de 58,
+por ejemplo), el ticket sale centrado en ese papel, corrido a la
+derecha, y se corta. Pasó en Super 25. Con el papel del driver en 58 mm
+debería salir bien, pero eso vuelve a ser configurar cada computadora.
 
-Hay dos formas de sacarlo imprimiendo como página. **La primera es la
-que conviene en una caja.**
+Imprimiendo como página, hay dos formas de sacar la fecha y la dirección.
+**La primera es la que conviene en una caja.**
 
 ### 1 · Para siempre, en toda la computadora (recomendado)
 

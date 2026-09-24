@@ -253,9 +253,15 @@ const UTIL_MM = { 58: 53, 80: 72 };
    Ajustes y lo avisa Sistema; queda acá y no en cada llamada porque
    imprimen el cobro, la comanda, la caja y la cuenta corriente, y ninguno
    tiene por qué saberlo. */
-let comoPagina = false;
-export function configurarImpresion({ pdf = true } = {}) {
-  comoPagina = pdf === false;
+/* APAGADO DE FÁBRICA. Con un PDF, Chrome no toma el tamaño de papel de
+   la página: usa el del driver de la impresora y centra el ticket ahí. En
+   la térmica de Super 25 el papel del driver era más ancho que el rollo,
+   el ticket de 58 mm salió corrido a la derecha y de los importes quedaba
+   un dígito. La forma de página le dice a Chrome el papel exacto con
+   `@page`, y por eso sigue siendo la de fábrica. */
+let comoPagina = true;
+export function configurarImpresion({ pdf = false } = {}) {
+  comoPagina = pdf !== true;
 }
 
 /* El ticket sale como PDF para que Chrome no le agregue la fecha, el
