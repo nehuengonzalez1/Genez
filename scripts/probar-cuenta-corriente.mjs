@@ -53,6 +53,13 @@ const saldo = async (cli) => Number((await una("select saldo_cliente($1) s", [cl
 
 await c.query("begin");
 try {
+  /* El resumen del día es de todo el comercio, y Super 25 fía de verdad
+     desde el 25/09: se toma cómo está antes de cargar nada y se mira
+     cuánto sube. Adentro de la transacción now() no se mueve, así que la
+     ventana de las dos lecturas es la misma. */
+  const resumen = () => una("select * from resumen_cuenta_corriente($1, now() - interval '1 hour', now() + interval '1 hour')", [SUPER.id]);
+  const resumenAntes = await resumen();
+
   /* --- Preparación, como administrador --- */
   const { id: cli } = await una("insert into clientes (empresa_id, razon_social, tel) values ($1, 'Doña Prueba', '11 5555 5555') returning id", [SUPER.id]);
   const { id: ajeno } = await una("insert into clientes (empresa_id, razon_social) values ($1, 'Cliente de otro comercio') returning id", [OTRO.id]);
@@ -135,8 +142,9 @@ try {
   decir(d && Number(d.saldo) === 9500 && Number(d.limite) === 15000, "aparece en la lista de deudores con su saldo y su límite");
   decir(!(await c.query("select * from deudores($1)", [SUPER.id])).rows.some((x) => x.cliente_id === ajeno),
     "y no aparecen clientes de otro comercio");
-  const r = await una("select * from resumen_cuenta_corriente($1, now() - interval '1 hour', now() + interval '1 hour')", [SUPER.id]);
-  decir(Number(r.fiado) === 10000 && Number(r.cobrado) === 0 && Number(r.cargos) === 0 && Number(r.descuentos) === 500,
+  const r = await resumen();
+  const suba = (k) => Number(r[k]) - Number(resumenAntes[k]);
+  decir(suba("fiado") === 10000 && suba("cobrado") === 0 && suba("cargos") === 0 && suba("descuentos") === 500,
     `el resumen del día: fiado 10.000, cobrado 0 (el anulado no cuenta), descuentos 500`);
 
   console.log("\nComo cajero");
