@@ -50,9 +50,12 @@ function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar })
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi label="Ventas 30 días" valor={money(k.v30)} delta={k.v30 / k.v30p - 1} sub="vs. 30 previos" />
-        <Kpi label="Margen bruto" valor={pct(k.margen30)} delta={k.margen30 - k.margen30p} tono={k.margen30 >= k.margen30p ? "bien" : "mal"} sub="vs. mes anterior" />
-        <Kpi label="Ticket promedio" valor={money(k.ticketProm)} delta={k.ticketProm / k.ticketPromP - 1} />
+        {/* Sin un período anterior contra el cual comparar no hay
+            variación: dividir por cero daba "Infinity%". */}
+        <Kpi label="Ventas 30 días" valor={money(k.ventas30)}
+          delta={k.ventas30p > 0 ? k.ventas30 / k.ventas30p - 1 : null} sub={k.ventas30p > 0 ? "vs. 30 previos" : "sin mes anterior para comparar"} />
+        <Kpi label="Margen bruto" valor={pct(k.margen30)} delta={k.v30p > 0 ? k.margen30 - k.margen30p : null} tono={k.margen30 >= k.margen30p ? "bien" : "mal"} sub={k.v30p > 0 ? "vs. mes anterior" : undefined} />
+        <Kpi label="Ticket promedio" valor={money(k.ticketProm)} delta={k.ticketPromP > 0 ? k.ticketProm / k.ticketPromP - 1 : null} />
         <Kpi label="Valor del stock" valor={moneyk(k.valorStock)} sub={`${nf.format(k.dormidos.length)} sin rotar`} />
       </div>
 

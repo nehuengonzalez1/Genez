@@ -18,6 +18,14 @@ export function calcular(productos, diario, coberturaDias) {
   const margen30 = v30 ? (v30 - c30) / v30 : 0;
   const margen30p = v30p ? (v30p - c30p) / v30p : 0;
 
+  /* Lo que de verdad se vendió, de la serie de la base (ventas_diarias):
+     con los descuentos, los precios bajados a mano y las devoluciones. Es
+     el mismo número que el total del día y que Informes. v30 no sirve
+     para esto: vale lo vendido a precio de lista de hoy, y el primer día
+     de Super 25 daba $155.500 contra $137.800 cobrados. */
+  const ventas30 = sum(ult30, "ventas");
+  const ventas30p = sum(prev30, "ventas");
+
   const tickets30 = sum(ult30, "tickets");
   const ticketProm = tickets30 ? sum(ult30, "ventas") / tickets30 : 0;
   const ticketsP = sum(prev30, "tickets");
@@ -76,7 +84,7 @@ export function calcular(productos, diario, coberturaDias) {
     .sort((a, b) => a.cobertura - b.cobertura);
 
   return {
-    v30, v30p, margen30, margen30p, ticketProm, ticketPromP, tickets30,
+    v30, v30p, ventas30, ventas30p, margen30, margen30p, ticketProm, ticketPromP, tickets30,
     valorStock, subas, impactoTotal, criticos, dormidos, valorDormido, incompletos,
     porVencer, valorVencer, margenFlaco, sugeridos, diario,
   };

@@ -16,7 +16,7 @@ export function Asistente({ k, ins, ir, negocio }) {
 
   const snapshot = useMemo(() => ({
     negocio, fecha: fdatel(new Date()),
-    ventas30: Math.round(k.v30), ventasMesAnterior: Math.round(k.v30p),
+    ventas30: Math.round(k.ventas30), ventasMesAnterior: Math.round(k.ventas30p),
     margenActual: pct(k.margen30), margenMesAnterior: pct(k.margen30p),
     ticketPromedio: Math.round(k.ticketProm), tickets30: k.tickets30,
     valorStock: Math.round(k.valorStock),
