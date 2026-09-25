@@ -2188,6 +2188,25 @@ console.log("\nHorarios libres");
     const individual = await una(
       `select id, nombre from items where empresa_id = $1 and nombre = 'Masaje Relajante'`, [almhaH]);
 
+    /* Una clase a futuro, propia de esta corrida. Antes se usaban las de la
+       semilla, y el día que la última quedó en el pasado (04/09) cuatro
+       pruebas empezaron a fallar sin que nada del sistema hubiera cambiado.
+       Es una copia de la última publicada —misma sala, profesional,
+       duración y cupo— dentro de tres días a las 10, lejos de la
+       anticipación mínima. Adentro de la transacción: no queda. */
+    const nuevaClase = await una(
+      `insert into reservas (empresa_id, sucursal_id, recurso_id, personal_id, item_id,
+                             nombre, personas, desde, duracion_min, estado, cupo)
+       select empresa_id, sucursal_id, recurso_id, personal_id, item_id, nombre, 0,
+              (((now() at time zone 'America/Argentina/Buenos_Aires')::date + 3) + time '10:00')
+                at time zone 'America/Argentina/Buenos_Aires',
+              duracion_min, 'confirmada', cupo
+         from reservas
+        where empresa_id = $1 and item_id = $2 and cupo is not null
+        order by desde desc limit 1
+       returning id`, [almhaH, enClase.id]);
+    decir(!!nuevaClase, "hay una clase de Pilates Reformer publicada a futuro para probar");
+
     /* La zona del comercio: sin esto, un horario de agenda de las 10 se
        arma como las 10 UTC y los huecos salen tres horas corridos
        respecto de los turnos reales. */
@@ -2307,10 +2326,18 @@ console.log("\nReservar desde la app");
 
     /* Una clase futura con lugar, creada acá para no depender de que la
        semilla tenga una: una prueba que depende de datos que alguien
-       puede borrar no es una prueba. */
+       puede borrar no es una prueba.
+
+       A las 10 de la mañana y no a "ahora + 3 días": más abajo se arma
+       otra cuatro horas después para probar el aviso de "mismo día", y
+       corrida de noche esa otra caía al día siguiente y el aviso no
+       salía. La prueba pasaba o fallaba según la hora. */
     const clase = (await una(
       `insert into reservas (empresa_id, nombre, desde, duracion_min, estado, cupo, item_id, personas)
-       values ($1, 'Clase de prueba', now() + interval '3 days', 60, 'confirmada', 2, $2, 0)
+       values ($1, 'Clase de prueba',
+               (((now() at time zone 'America/Argentina/Buenos_Aires')::date + 3) + time '10:00')
+                 at time zone 'America/Argentina/Buenos_Aires',
+               60, 'confirmada', 2, $2, 0)
        returning id`, [almhaR, enClaseR.id])).id;
 
     await c.query("set local role authenticated");
