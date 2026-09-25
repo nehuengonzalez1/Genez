@@ -46,6 +46,7 @@ node scripts/probar-codigos.mjs    # códigos de barras propios: no pisan, no se
 node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito, y contra ARCA de pruebas
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
+node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
 node scripts/backup.mjs            # copia toda la base a C:\Users\<vos>\Genez-backups\ (solo lee)
 ```
 
@@ -835,8 +836,9 @@ Comandas de salón y mostrador, centro de pedidos con estados reales y
 tiempo real, cocina agrupada por pedido, despacho incremental, descuento
 por porcentaje o importe, comensales, pre cuenta, plano de mesas
 configurable, juntar y separar mesas, cobro con caja obligatoria, venta
-sin internet con cola y reintento, numeración correlativa por punto de
-venta, bitácora automática, alta de accesos por el propio comercio con
+sin internet con cola y reintento, numeración por punto de venta con
+bloques que reparte la base (0094: dos cajas no repiten, y sigue sin
+internet), bitácora automática, alta de accesos por el propio comercio con
 excepciones por persona.
 
 ## Datos para desarrollar

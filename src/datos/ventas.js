@@ -22,13 +22,29 @@ import { facturaDeComprobante } from "./arca.js";
    abierta: al recargar vuelve a cero y dos ventas distintas terminan con
    el mismo comprobante.
 
-   Tampoco puede pedirse al servidor, porque entonces no se podría cobrar
-   sin internet. Se lleva en el equipo, que es como funciona la
-   numeración fiscal de verdad: cada punto de venta tiene su propia
-   serie, y por eso dos cajas no chocan aunque numeren a la vez.
+   Tampoco puede pedirse al servidor en el momento de cobrar: el ticket se
+   imprime al instante y se tiene que poder cobrar sin internet.
+
+   Hasta 0094 lo llevaba cada equipo con su contador, adelantado al abrir
+   hasta el último número que la base conocía. Con dos cajas cobrando a la
+   vez, las dos seguían desde el mismo número y los repetían (Super 25,
+   25/09: 0099-00000102 y 0099-00000103, dos veces cada uno). Ahora el
+   equipo le pide a la base un BLOQUE de números por adelantado y los usa
+   con o sin conexión; la base no da el mismo bloque a dos equipos. Cuando
+   le quedan pocos, pide otro en segundo plano.
+
+   Si no tiene ninguno —sin conexión desde que se abrió, o la base no
+   contestó— sigue con su contador como antes: cobrar no se frena nunca
+   por el número. Ese es el único caso que todavía puede repetir.
    ------------------------------------------------------------ */
 
 const CLAVE_NUMERO = "genez.ventas.numerador";
+
+/* Cuántos se piden por vez, y con cuántos restantes se pide el próximo.
+   Diez alcanzan para un rato largo sin internet en un minimercado, y un
+   bloque que un equipo no usa deja un hueco chico. */
+const BLOQUE = 10;
+const REPONER_CON = 3;
 
 /* Facturas y tickets van en series distintas: la factura en el punto de
    venta de Ajustes (0001 de fábrica) y el ticket en la suya (0099). Antes
@@ -44,24 +60,73 @@ export const serieDe = (fiscal, esFactura) => esFactura
   ? (fiscal && fiscal.puntoVenta) || "0001"
   : (fiscal && fiscal.serieTickets) || "0099";
 
-const claveDe = (empresaId, puntoVenta) => `${CLAVE_NUMERO}.${empresaId}.${puntoVenta}`;
+/* En el equipo, por comercio y serie: el mayor número que usó (la misma
+   clave de antes de 0094, así el contador viejo sigue valiendo) y los
+   bloques que le quedan, [[desde, hasta], ...]. */
+const claveDe = (empresaId, serie) => `${CLAVE_NUMERO}.${empresaId}.${serie}`;
+const claveBloques = (empresaId, serie) => `${claveDe(empresaId, serie)}.bloques`;
 
-const armarNumero = (puntoVenta, n) => `${puntoVenta}-${String(n).padStart(8, "0")}`;
+const armarNumero = (serie, n) => `${serie}-${String(n).padStart(8, "0")}`;
 
-export function siguienteNumero(empresaId, puntoVenta = "0001") {
-  const clave = claveDe(empresaId, puntoVenta);
-  let n = 0;
-  try { n = Number(localStorage.getItem(clave)) || 0; } catch { /* sin storage se arranca de cero */ }
-  n += 1;
-  try { localStorage.setItem(clave, String(n)); } catch { /* se sigue vendiendo igual */ }
-  return armarNumero(puntoVenta, n);
+function leerUltimo(empresaId, serie) {
+  try { return Number(localStorage.getItem(claveDe(empresaId, serie))) || 0; } catch { return 0; }
+}
+function leerBloques(empresaId, serie) {
+  try {
+    const b = JSON.parse(localStorage.getItem(claveBloques(empresaId, serie)) || "[]");
+    return Array.isArray(b) ? b.filter((x) => Array.isArray(x) && x[0] <= x[1]) : [];
+  } catch { return []; }
+}
+function guardar(empresaId, serie, ultimo, bloques) {
+  try {
+    localStorage.setItem(claveDe(empresaId, serie), String(ultimo));
+    localStorage.setItem(claveBloques(empresaId, serie), JSON.stringify(bloques));
+  } catch { /* se sigue vendiendo igual */ }
+}
+const quedan = (bloques) => bloques.reduce((s, [d, h]) => s + (h - d + 1), 0);
+
+export function siguienteNumero(empresaId, serie = "0001") {
+  const ultimo = leerUltimo(empresaId, serie);
+  const bloques = leerBloques(empresaId, serie);
+  let n;
+  if (bloques.length) {
+    n = bloques[0][0];
+    bloques[0] = [n + 1, bloques[0][1]];
+    if (bloques[0][0] > bloques[0][1]) bloques.shift();
+  } else {
+    n = ultimo + 1;
+  }
+  guardar(empresaId, serie, Math.max(ultimo, n), bloques);
+  reponer(empresaId, serie);
+  return armarNumero(serie, n);
 }
 
-/* Si se borra el almacenamiento del navegador —o se entra desde un equipo
-   nuevo— el contador arrancaría de nuevo en uno y repetiría números ya
-   emitidos. Al abrir con conexión se lo adelanta hasta el último número
-   que el servidor ya conoce. */
-export async function ponerNumeradorAlDia(empresaId, puntoVenta = "0001") {
+/* Pide otro bloque si quedan pocos. En segundo plano y sin avisar: si no
+   hay conexión, se vuelve a intentar con la próxima venta. */
+const pidiendo = new Set();
+async function reponer(empresaId, serie) {
+  const clave = claveDe(empresaId, serie);
+  if (pidiendo.has(clave) || quedan(leerBloques(empresaId, serie)) >= REPONER_CON) return;
+  pidiendo.add(clave);
+  try {
+    const { data, error } = await supabase.rpc("reservar_numeros", {
+      p_empresa: empresaId, p_serie: serie, p_cantidad: BLOQUE, p_minimo: leerUltimo(empresaId, serie),
+    });
+    if (error || !data) return;
+    /* Se relee: mientras la base contestaba se pudo haber cobrado. */
+    const bloques = leerBloques(empresaId, serie);
+    bloques.push([data, data + BLOQUE - 1]);
+    guardar(empresaId, serie, leerUltimo(empresaId, serie), bloques);
+  } catch { /* sin conexión: la próxima venta lo vuelve a pedir */ } finally {
+    pidiendo.delete(clave);
+  }
+}
+
+/* Al abrir: el contador de respaldo se adelanta hasta el último número
+   que la base ya conoce —si se borró el almacenamiento, o el equipo es
+   nuevo, arrancaría en uno—, y se pide el primer bloque para que la
+   primera venta ya salga de ahí. */
+export async function prepararNumeracion(empresaId, serie = "0001") {
   const { data, error } = await supabase
     .from("operaciones")
     .select("numero")
@@ -71,19 +136,15 @@ export async function ponerNumeradorAlDia(empresaId, puntoVenta = "0001") {
        si no se la mira acá el contador arranca por debajo y reemite
        números que ya se entregaron impresos. */
     .in("tipo", ["venta", "comanda"])
-    .like("numero", `${puntoVenta}-%`)
+    .like("numero", `${serie}-%`)
     .order("numero", { ascending: false })
     .limit(1);
 
-  if (error || !data || !data.length) return;
-
-  const ultimo = Number(String(data[0].numero).split("-")[1]) || 0;
-  const clave = claveDe(empresaId, puntoVenta);
-  try {
-    if ((Number(localStorage.getItem(clave)) || 0) < ultimo) {
-      localStorage.setItem(clave, String(ultimo));
-    }
-  } catch { /* sin storage no hay nada que poner al día */ }
+  if (!error && data && data.length) {
+    const enBase = Number(String(data[0].numero).split("-")[1]) || 0;
+    if (leerUltimo(empresaId, serie) < enBase) guardar(empresaId, serie, enBase, leerBloques(empresaId, serie));
+  }
+  await reponer(empresaId, serie);
 }
 
 /* Traduce lo que entrega el POS al formato que espera la base.

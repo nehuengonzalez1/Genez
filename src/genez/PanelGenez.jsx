@@ -20,7 +20,7 @@ import { cargarProductos, guardarProducto, crearProducto, cargarProducto, escuch
 import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.js";
 import { cargarProveedores, guardarProveedores } from "../datos/proveedores.js";
 import { cargarTablero, tableroVacio } from "../datos/tablero.js";
-import { armarVenta, registrarVenta, siguienteNumero, serieDe, ponerNumeradorAlDia, resumenDelDia, cargarSerieDiaria } from "../datos/ventas.js";
+import { armarVenta, registrarVenta, siguienteNumero, serieDe, prepararNumeracion, resumenDelDia, cargarSerieDiaria } from "../datos/ventas.js";
 import { encolar, quitar, cuantasPendientes, cuantasTrabadas, vigilarCola } from "../datos/cola.js";
 import { VentasSinGuardar } from "../modulos/VentasSinGuardar.jsx";
 import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
@@ -1582,10 +1582,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
   /* Antes de emitir el primer comprobante hay que saber por dónde va la
      numeración: si este equipo es nuevo, o le borraron el almacenamiento,
-     su contador arranca en uno y repetiría números ya usados. */
+     su contador arranca en uno y repetiría números ya usados. Y se pide el
+     primer bloque de números a la base (0094), para que la primera venta
+     ya salga de uno que ningún otro equipo tiene. */
   useEffect(() => {
-    ponerNumeradorAlDia(empresaId, serieDe(ajustes.fiscal, true));
-    ponerNumeradorAlDia(empresaId, serieDe(ajustes.fiscal, false));
+    prepararNumeracion(empresaId, serieDe(ajustes.fiscal, true));
+    prepararNumeracion(empresaId, serieDe(ajustes.fiscal, false));
   }, [empresaId]);
 
   useEffect(() => {
