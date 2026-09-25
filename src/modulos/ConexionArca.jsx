@@ -91,7 +91,20 @@ export function ConexionArca({ empresaId, toast, alCambiar }) {
     ev.target.value = "";
     if (!f) return;
     const pem = await f.text();
-    await hacer("certificado", { pem }, "Certificado cargado.");
+    /* Un pedido de otro CUIT que el que factura hoy es un cambio de
+       titular (0093): se confirma diciendo qué pasa, y el servidor exige
+       que lo haga la plataforma. */
+    const conexion = est && est.conexion;
+    const cambia = conexion && conexion.modo === "produccion" && est.pedido && est.pedido.cuit !== conexion.cuit;
+    if (cambia && !window.confirm(
+      `Cambio de titular: este comercio factura con el CUIT ${conexion.cuit} y el certificado es del ${est.pedido.cuit}.\n\n` +
+      `Al cargarlo, el comercio deja de facturar ya mismo (el cobro no ofrece "Factura" y los tickets siguen saliendo) ` +
+      `hasta que pruebes y actives con el CUIT nuevo. El certificado del ${conexion.cuit} se descarta: desde Genez no se va a poder ` +
+      `emitir nada más con ese CUIT, tampoco notas de crédito sobre sus facturas.\n\n` +
+      `Antes de activar, los datos fiscales tienen que decir el CUIT nuevo.\n\n¿Cambiar de titular?`
+    )) return;
+    const e = await hacer("certificado", { pem, cambiarTitular: !!cambia }, cambia ? "Titular cambiado. El comercio no factura hasta probar y activar." : "Certificado cargado.");
+    if (e && cambia && alCambiar) alCambiar();
   };
 
   const activar = async () => {
@@ -165,7 +178,10 @@ export function ConexionArca({ empresaId, toast, alCambiar }) {
             </Campo>
             <Boton variant={pedido || cert ? "ghost" : "primary"} disabled={!!ocupado || !cuit}
               onClick={() => {
-                if (cert && !window.confirm("Ya hay un certificado cargado. Generar un pedido nuevo sirve para renovarlo: el actual sigue andando hasta que cargues el que emita ARCA. ¿Seguir?")) return;
+                const otroCuit = cert && cuit.replace(/\D/g, "") !== cert.cuit;
+                if (cert && !window.confirm(otroCuit
+                  ? `El certificado en uso es del CUIT ${cert.cuit} y este pedido es para el ${cuit}: sirve para un cambio de titular. El actual sigue facturando hasta que cargues el certificado nuevo. ¿Seguir?`
+                  : "Ya hay un certificado cargado. Generar un pedido nuevo sirve para renovarlo: el actual sigue andando hasta que cargues el que emita ARCA. ¿Seguir?")) return;
                 hacer("generar", { cuit }, "Pedido generado.");
               }}>
               {ocupado === "generar" ? "Generando…" : pedido ? "Generar otro" : cert ? "Renovar certificado" : "Generar pedido"}
@@ -188,6 +204,12 @@ export function ConexionArca({ empresaId, toast, alCambiar }) {
             <p className="mt-2">
               Cargado: CUIT <span className="f-m">{cert.cuit}</span>, vence el {fecha(cert.vence)}
               {diasHasta(cert.vence) < 60 && <span className="text-mal"> · faltan {diasHasta(cert.vence)} días, generá el pedido para renovarlo</span>}.
+            </p>
+          )}
+          {enProduccion && pedido && pedido.cuit !== est.conexion.cuit && (
+            <p className="mt-2 text-ojo">
+              El pedido es del CUIT <span className="f-m">{pedido.cuit}</span> y hoy se factura con el <span className="f-m">{est.conexion.cuit}</span>:
+              cargar su certificado es cambiar de titular, y el comercio deja de facturar hasta probar y activar de nuevo. Lo hace Genez.
             </p>
           )}
           <input ref={archivo} type="file" accept=".crt,.pem,.cer" className="hidden" onChange={subir} />

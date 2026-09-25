@@ -30,6 +30,12 @@ const numeroFactura = (f) => `${f.letra} ${String(f.puntoVenta).padStart(5, "0")
 /* `nf` redondea a entero, y 0,4 kg de queso salía como "0". */
 const cantidad = (q) => q.toLocaleString("es-AR", { maximumFractionDigits: 3 });
 const anchoDe = (ajustes) => (ajustes.ancho === 58 ? 32 : 48);
+/* Una factura emitida con otro CUIT que el de los datos fiscales de hoy:
+   la de un titular anterior (0093). Se devuelve igual pero sin nota, y no
+   admite nota de débito; la base es la que manda, esto es para decirlo
+   antes de que la caja choque con el error. */
+const deOtroTitular = (v, ajustes) => !!(v.factura && !v.factura.homologacion
+  && String((ajustes.fiscal || {}).cuit || "").replace(/\D/g, "") !== String(v.factura.cuit));
 
 function Comprobante({ v }) {
   if (!v.fiscal) return <Sello>{v.tipo === "devolucion" ? "Devolución" : "Ticket"}</Sello>;
@@ -132,7 +138,7 @@ function DetalleVenta({ v, t, ajustes, toast, onCerrar, empresaId, caja, permiso
      (la base lo vuelve a controlar). */
   const puede = !!permisos.anular && !!caja && !!caja.abierta;
   const puedeDevolver = !esDevolucion && !esNota && (!v.fiscal || v.estadoFactura === "autorizada");
-  const puedeDebitar = !esDevolucion && !esNota && v.estadoFactura === "autorizada";
+  const puedeDebitar = !esDevolucion && !esNota && v.estadoFactura === "autorizada" && !deOtroTitular(v, ajustes);
   /* Corregir el medio (0092): un pago de una venta, no de una devolución,
      sin recargo y que no sea fiado. Los mismos permiso y caja abierta que
      devolver; la base además exige que sea la caja de esa venta. */
@@ -249,7 +255,7 @@ function DetalleVenta({ v, t, ajustes, toast, onCerrar, empresaId, caja, permiso
 
       {haciendo === "devolver" && (
         <Devolver v={v} t={t} ajustes={ajustes} toast={toast} empresaId={empresaId} caja={caja}
-          onCerrar={() => setHaciendo(null)} onHecha={(id) => { setHaciendo(null); alHacer(id, v.fiscal); }} />
+          onCerrar={() => setHaciendo(null)} onHecha={(id) => { setHaciendo(null); alHacer(id, v.fiscal && !deOtroTitular(v, ajustes)); }} />
       )}
       {corrigiendo && (
         <CorregirMedio v={v} pago={corrigiendo} ajustes={ajustes} toast={toast}
@@ -278,6 +284,7 @@ function Devolver({ v, t, ajustes, toast, empresaId, caja, onCerrar, onHecha }) 
   const [motivo, setMotivo] = useState("");
   const [guardando, setGuardando] = useState(false);
   const medios = mediosPara(ajustes, !!v.cliente);
+  const conNota = v.fiscal && !deOtroTitular(v, ajustes);
 
   useEffect(() => {
     cargarDevuelto(empresaId, v.id).then(setDevuelto).catch(() => setDevuelto({}));
@@ -304,7 +311,7 @@ function Devolver({ v, t, ajustes, toast, empresaId, caja, onCerrar, onHecha }) 
         ventaId: v.id, sesionId: caja && caja.sesionId, medio, motivo,
         lineas: elegidas.map((l) => ({ lineaId: l.lineaId, cantidad: cant[l.lineaId] })),
       });
-      toast(v.fiscal ? "Devolución registrada. Se pide la nota de crédito a ARCA." : "Devolución registrada.");
+      toast(conNota ? "Devolución registrada. Se pide la nota de crédito a ARCA." : "Devolución registrada.");
       onHecha(id);
     } catch (e) {
       toast(e.message, "mal");
@@ -317,7 +324,9 @@ function Devolver({ v, t, ajustes, toast, empresaId, caja, onCerrar, onHecha }) 
       <div className="p-6">
         <Encabezado icono={Undo2} onCerrar={onCerrar} rotulo="Devolución"
           titulo={`Venta ${v.numero}`}
-          bajada={v.fiscal ? "Es una factura: se emite una nota de crédito por lo que se devuelve." : "El stock vuelve y el reintegro sale de la caja."} />
+          bajada={conNota ? "Es una factura: se emite una nota de crédito por lo que se devuelve."
+            : v.fiscal ? `Es una factura del CUIT ${v.factura.cuit}, que ya no es el que factura hoy: el stock vuelve y el reintegro sale de la caja, pero la nota de crédito la tiene que hacer quien la emitió, desde ARCA.`
+            : "El stock vuelve y el reintegro sale de la caja."} />
 
         {devuelto === null ? (
           <p className="text-sm text-texto-tenue mt-5">Cargando…</p>
@@ -381,7 +390,7 @@ function Devolver({ v, t, ajustes, toast, empresaId, caja, onCerrar, onHecha }) 
         <div className="flex justify-end gap-2 mt-6">
           <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
           <Boton onClick={confirmar} disabled={guardando || !elegidas.length || nada}>
-            <Undo2 size={15} /> {guardando ? "Registrando…" : v.fiscal ? "Devolver y hacer nota de crédito" : "Devolver"}
+            <Undo2 size={15} /> {guardando ? "Registrando…" : conNota ? "Devolver y hacer nota de crédito" : "Devolver"}
           </Boton>
         </div>
       </div>

@@ -83,7 +83,7 @@ export default async function handler(req, res) {
     const acciones = { estado, generar, certificado, probar, activar };
     const hacer = acciones[cuerpo.accion];
     if (!hacer) return error(res, 400, "Acción desconocida.");
-    return res.status(200).json(await hacer({ admin, empresaId, cuerpo }));
+    return res.status(200).json(await hacer({ admin, empresaId, cuerpo, quien: { id: sesion.user.id, plataforma: !!yo.es_plataforma } }));
   } catch (e) {
     return error(res, e.estado || (e instanceof ErrorArca ? e.estado : 502), e.message || "No se pudo completar.");
   }
@@ -148,7 +148,7 @@ async function generar({ admin, empresaId, cuerpo }) {
   return estado({ admin, empresaId });
 }
 
-async function certificado({ admin, empresaId, cuerpo }) {
+async function certificado({ admin, empresaId, cuerpo, quien = {} }) {
   const { cred, con } = await leer(admin, empresaId);
   if (!cred || !cred.pedido_csr) throw new ErrorArca("Primero generá el pedido de certificado en Genez.", 409);
 
@@ -156,11 +156,53 @@ async function certificado({ admin, empresaId, cuerpo }) {
   if (c.cuit !== cred.pedido_cuit) {
     throw new ErrorArca(`El certificado es del CUIT ${c.cuit} y el pedido se hizo para ${cred.pedido_cuit}.`, 400);
   }
+
   /* Renovar no puede cambiar de dueño: un comercio que ya factura de
      verdad sigue facturando con el mismo CUIT. Cambiar de CUIT es otra
-     conexión, y se hace a propósito, no subiendo un archivo. */
-  if (con && con.modo === "produccion" && c.cuit !== con.cuit) {
-    throw new ErrorArca(`Este comercio factura con el CUIT ${con.cuit} y el certificado es del ${c.cuit}.`, 409);
+     conexión, y se hace a propósito, no subiendo un archivo.
+
+     EL CAMBIO DE TITULAR (0093)
+     ---------------------------
+     "A propósito" es `cambiarTitular`, y solo desde la plataforma: el
+     CUIT con que factura un comercio es la identidad fiscal de alguien, y
+     el cambio lo decide Genez con el comercio, no un botón en la caja.
+     Carga el certificado nuevo y BORRA la conexión: el comercio deja de
+     facturar (el cobro deja de ofrecer "Factura") hasta que se pruebe y
+     se active con el CUIT nuevo, como la primera vez. Activar exige que
+     los datos fiscales ya digan ese CUIT.
+
+     Nada puede quedar esperando CAE: se cobró con el titular anterior y,
+     pedido después, saldría a nombre del nuevo. Y el certificado viejo
+     se pierde —Genez no puede emitir nada más con ese CUIT—, que es lo
+     que se quiere. */
+  const cambiaTitular = con && con.modo === "produccion" && c.cuit !== con.cuit;
+  if (cambiaTitular) {
+    if (cuerpo.cambiarTitular !== true) {
+      throw new ErrorArca(`Este comercio factura con el CUIT ${con.cuit} y el certificado es del ${c.cuit}. Cambiar de titular se hace a propósito, desde Genez.`, 409);
+    }
+    if (!quien.plataforma) {
+      throw new ErrorArca("El cambio de titular fiscal lo hace Genez. Escribinos y lo hacemos con vos.", 403);
+    }
+    const { count, error: ec } = await admin.from("facturas_vista").select("operacion_id", { count: "exact", head: true })
+      .eq("empresa_id", empresaId).neq("estado", "autorizada");
+    if (ec) throw ec;
+    if (count) throw new ErrorArca(`Hay ${count} factura(s) esperando CAE del CUIT ${con.cuit}. Resolvelas en Caja → Facturas antes de cambiar de titular.`, 409);
+  }
+
+  /* Primero se deja de facturar y después se cambia el certificado: si
+     lo segundo fallara, el comercio queda sin conexión —que es seguro— y
+     no con la conexión vieja y un certificado de otro CUIT. */
+  if (cambiaTitular) {
+    const { error: ed } = await admin.from("arca_conexiones").delete().eq("empresa_id", empresaId);
+    if (ed) throw ed;
+    await admin.from("bitacora").insert({
+      empresa_id: empresaId,
+      usuario_id: quien.id || null,
+      accion: "arca.cambio_titular",
+      entidad: "empresas",
+      entidad_id: empresaId,
+      detalle: { de: con.cuit, a: c.cuit, punto_venta_anterior: con.punto_venta, certificado_nuevo_vence: c.vence.toISOString() },
+    });
   }
 
   /* El pedido pasa a ser el certificado en uso. El pase de ARCA se tira:

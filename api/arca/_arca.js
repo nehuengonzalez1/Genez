@@ -229,8 +229,18 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
   /* 3 · Qué se factura. */
   const { data: empresa, error: e4 } = await admin.from("empresas").select("config").eq("id", empresaId).single();
   if (e4) throw e4;
-  const emisor = (empresa.config && empresa.config.fiscal && empresa.config.fiscal.condicion) || null;
+  const fiscal = (empresa.config && empresa.config.fiscal) || {};
+  const emisor = fiscal.condicion || null;
   if (!emisor) throw new ErrorArca("Falta la condición frente al IVA del comercio (Ajustes → datos fiscales).");
+
+  /* El CUIT impreso sale de los datos fiscales y el de ARCA de la
+     conexión. Distintos, la factura diría un titular y ARCA tendría otro:
+     pasa en un cambio de titular (0093) si se cambian los datos antes de
+     conectar el CUIT nuevo, o al revés. Mejor no facturar. En homologación
+     el CUIT es el compartido de pruebas y no se compara. */
+  if (conexion.modo === "produccion" && String(fiscal.cuit || "").replace(/\D/g, "") !== conexion.cuit) {
+    throw new ErrorArca(`En Ajustes → Datos fiscales figura el CUIT ${fiscal.cuit || "(vacío)"} y ARCA factura con el ${conexion.cuit}. Hasta que coincidan no se factura: es el que va impreso.`, 409);
+  }
 
   /* Una nota va contra una factura que ARCA ya autorizó, del mismo
      ambiente, y repite su letra y su comprador: ARCA rechaza una nota de
@@ -243,6 +253,12 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     if (error) throw error;
     if (!data) throw new ErrorArca("La factura original todavía no tiene CAE: la nota se pide cuando ARCA la autorice.", 409);
     if (data.modo !== conexion.modo) throw new ErrorArca("La factura original es de otro ambiente de ARCA (pruebas o producción): no se le puede hacer una nota desde este.", 409);
+    /* De otro titular (0093): la nota saldría con el CUIT de hoy
+       acreditando una factura de otro. La base ya no las marca fiscales;
+       esto es por las que hubieran quedado de antes. */
+    if (conexion.modo === "produccion" && data.cuit !== conexion.cuit) {
+      throw new ErrorArca(`La factura original es del CUIT ${data.cuit} y hoy se factura con el ${conexion.cuit}: la nota la tiene que hacer quien la emitió.`, 409);
+    }
     asociada = data;
   }
 
@@ -340,6 +356,17 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     doc_nro: docNro,
     condicion_receptor: pedido.CondicionIVAReceptorId,
     pedido,
+    /* Lo que va impreso (0093): si mañana cambia el titular, esta factura
+       se sigue reimprimiendo con el suyo. */
+    emisor: {
+      razonSocial: fiscal.razonSocial || null,
+      nombreFactura: fiscal.nombreFactura || null,
+      cuit: fiscal.cuit || null,
+      iibb: fiscal.iibb || null,
+      inicio: fiscal.inicio || null,
+      domicilio: fiscal.domicilio || null,
+      condicion: fiscal.condicion || null,
+    },
     usuario_id: usuarioId,
   }).select().single();
 
@@ -394,6 +421,7 @@ export function comoFactura(c) {
     docTipo: c.doc_tipo,
     docNro: Number(c.doc_nro) || 0,
     homologacion: c.modo === "homologacion",
+    emisor: c.emisor || null,
   };
 }
 

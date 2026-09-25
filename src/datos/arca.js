@@ -85,6 +85,7 @@ const aFactura = (f) => f.estado === "autorizada"
       docTipo: f.doc_tipo,
       docNro: Number(f.doc_nro) || 0,
       homologacion: f.modo === "homologacion",
+      emisor: f.emisor || null,
     }
   : null;
 
@@ -106,7 +107,7 @@ export const facturaDeComprobante = (c, operacionId) => aFactura({
  */
 export async function cargarFacturas(empresaId, desde) {
   if (!empresaId) throw new Error("cargarFacturas necesita la empresa.");
-  const campos = "operacion_id, numero_interno, fecha, total, cliente, estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha_factura, doc_tipo, doc_nro, ultimo_error";
+  const campos = "operacion_id, numero_interno, fecha, total, cliente, estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha_factura, doc_tipo, doc_nro, ultimo_error, emisor";
 
   const [esperan, hechas] = await Promise.all([
     supabase.from("facturas_vista").select(campos).eq("empresa_id", empresaId)

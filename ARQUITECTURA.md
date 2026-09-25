@@ -45,6 +45,7 @@ node scripts/probar-cuenta-corriente.mjs  # fiado: cobrar, anular, ajustar, lím
 node scripts/probar-codigos.mjs    # códigos de barras propios: no pisan, no se repiten
 node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito, y contra ARCA de pruebas
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
+node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/backup.mjs            # copia toda la base a C:\Users\<vos>\Genez-backups\ (solo lee)
 ```
 
@@ -656,7 +657,7 @@ tiene que ser la misma en el `.env` y en Vercel: la base es una sola.
 puede conectar solo, con `configurar`: ARCA emite un certificado para un
 CUIT solo a quien tiene esa Clave Fiscal, y el certificado solo sirve con
 la clave que generó Genez. Ya en producción, renovar no puede cambiar de
-CUIT.
+CUIT: eso es un cambio de titular (abajo).
 
 **El pedido nuevo vive al lado del certificado en uso** (`pedido_*`): se
 renueva sin dejar de facturar, y el nuevo reemplaza al viejo recién
@@ -679,6 +680,36 @@ baja el nivel solo para hablar con ARCA.
 
 Lo que falta: las facturas A y B, que necesitan el IVA por alícuota. Las
 notas de crédito y de débito C están desde 0089 (ver abajo).
+
+### El cambio de titular
+
+Migración 0093 y la acción `certificado` con `cambiarTitular` en
+`api/arca/conexion.js`. Un comercio que pasa a facturar con otro CUIT
+(Super 25, septiembre de 2026).
+
+**Lo hace la plataforma, y apaga la facturación.** El pedido del CUIT
+nuevo se genera al lado del certificado en uso, como una renovación, y el
+titular lo lleva a ARCA con su Clave Fiscal. Cargar ese certificado borra
+la conexión: el cobro deja de ofrecer "Factura" hasta que se pruebe y se
+active con el CUIT nuevo, y activar exige que los datos fiscales ya lo
+digan. No puede haber nada esperando CAE: se cobró con el titular
+anterior. El certificado viejo se descarta.
+
+**Cada comprobante guarda su emisor** (`comprobantes.emisor`): razón
+social, CUIT, IIBB, inicio, domicilio y condición con que se pidió el
+CAE. El papel usa esos y no los Ajustes de hoy; si no, una factura
+reimpresa después del cambio sale con el titular nuevo y el número del
+viejo. Y `_arca.js` no factura si el CUIT de los datos fiscales no es el
+de la conexión, que es lo que pasa a mitad de un cambio.
+
+**Una factura del titular anterior no admite notas desde Genez.**
+`nota_posible()` compara la factura con la conexión de hoy. La devolución
+se hace igual —stock y plata— pero sin nota de crédito, y queda anotado
+que la hace quien emitió la factura, desde ARCA; la nota de débito no se
+deja. Si la nota entrara en la fila de CAE, ARCA la rechazaría y la fila,
+que corta en el primer error, no autorizaría nada más. Lo mismo con una
+factura de homologación cuando ya se factura de verdad. Sin conexión, en
+pleno cambio, la devolución de una factura espera.
 
 ## Devoluciones, notas de crédito y notas de débito
 

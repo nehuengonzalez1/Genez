@@ -665,11 +665,15 @@ export function Comandera({ lineas, ancho, qr, className = "" }) {
 }
 
 export function ticketVenta(t, ajustes, W) {
-  const f = ajustes.fiscal || FISCAL_INICIAL;
   const cli = t.cliente || null;
   /* Con CAE, la letra y el número son los que dio ARCA, no los que se
      deducen acá: el papel tiene que decir lo mismo que el comprobante. */
   const fac = t.fiscal ? t.factura || null : null;
+  /* Y el emisor, el que tenía cuando se pidió el CAE (0093), no el de los
+     Ajustes de hoy: una factura reimpresa después de un cambio de titular
+     sigue siendo de quien la emitió. Lo que el comprobante no guardó
+     (los de antes de 0093 que no se completaron) sale de los Ajustes. */
+  const f = { ...(ajustes.fiscal || FISCAL_INICIAL), ...((fac && fac.emisor) || {}) };
   const letra = t.fiscal ? (fac ? fac.letra : letraComprobante(f.condicion, cli ? cli.condicion : "CF")) : null;
   const discrimina = letra && discriminaIVA(letra);
 
