@@ -554,7 +554,7 @@ const ATAJOS = [
 ];
 
 export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos,
-  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null }) {
+  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → monto → fin
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -669,24 +669,43 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     setPendiente(null);
   }, [pendiente]);
 
-  const crearAlVuelo = (datos, agregar) => {
-    let creado = null;
-    setProductos((ps) => {
-      creado = productoNuevo(datos);
-      return [...ps, creado];
-    });
+  /* El producto nuevo se guarda en la base ANTES de entrar a la venta.
+     Antes se creaba solo en esta pantalla (productoNuevo) y nunca llegaba
+     a la base: la venta salía apuntando a un producto que no existía y la
+     base la rechazaba. El primer día de Super 25 pasó dos veces ("pote
+     helado acapulco 5L", "jabon en pan esencial"): ventas cobradas que
+     quedaron apartadas en el equipo.
+
+     Si no se puede guardar —sin internet, un error—, entra a la venta
+     como renglón suelto: nombre y precio, sin ficha. La venta se guarda
+     igual (un renglón sin producto es un concepto, como en una nota de
+     débito) y el aviso dice que hay que cargarlo después en Productos. */
+  const crearAlVuelo = async (datos, agregar) => {
     setAlta(null);
     setQ(""); setSel(0);
-    setTimeout(() => {
-      if (agregar && creado && creado.precio) {
-        setCart((c) => [...c, { pid: creado.id, qty: pasoDe(creado.unidad), precio: creado.precio, precios: creado.precios || {}, costo: creado.costo, nombre: creado.nombre, unidad: creado.unidad }]);
-        setUltimo({ pid: creado.id, nombre: creado.nombre, unidad: creado.unidad });
+    const creado = agregarProducto ? await agregarProducto(datos, null) : null;
+
+    if (creado) {
+      if (agregar && creado.precio) {
+        add(creado);
         beep(true, ajustes.sonido);
-        toast(`${datos.nombre} creado y agregado. Completá la ficha después.`);
+        toast(`${creado.nombre} creado y agregado. Completá la ficha después.`);
+      } else if (!creado.precio) {
+        toast(`${creado.nombre} creado sin precio: no se puede cobrar hasta completarlo.`, "mal");
       } else {
-        toast(`${datos.nombre} creado sin precio: no se puede cobrar hasta completarlo.`, "mal");
+        toast(`${creado.nombre} creado.`);
       }
-    }, 0);
+      return;
+    }
+
+    if (agregar && Number(datos.precio) > 0) {
+      setCart((c) => [...c, {
+        lid: uid(), pid: null, qty: 1, precio: Number(datos.precio), precios: {},
+        costo: Number(datos.costo) || 0, nombre: datos.nombre, unidad: "un", precioAbierto: false,
+      }]);
+      beep(true, ajustes.sonido);
+      toast(`No se pudo guardar "${datos.nombre}" como producto: entró a la venta como renglón suelto. Cargalo en Productos después.`, "mal");
+    }
   };
 
   /* Por renglón y no por producto: con precio abierto puede haber dos

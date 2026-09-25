@@ -1887,7 +1887,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
                 facturacion={facturacion} facturas={facturas} pedirCAEs={pedirCAEs}
-                empresaId={empresaId} caja={caja}
+                empresaId={empresaId} caja={caja} agregarProducto={agregarProducto}
                 recargarCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }} />
             ) : (
               <div className="py-8">
