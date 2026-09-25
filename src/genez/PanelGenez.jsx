@@ -21,7 +21,8 @@ import { cargarClientes, crearCliente, guardarCliente } from "../datos/clientes.
 import { cargarProveedores, guardarProveedores } from "../datos/proveedores.js";
 import { cargarTablero, tableroVacio } from "../datos/tablero.js";
 import { armarVenta, registrarVenta, siguienteNumero, serieDe, ponerNumeradorAlDia, resumenDelDia, cargarSerieDiaria } from "../datos/ventas.js";
-import { encolar, quitar, cuantasPendientes, vigilarCola } from "../datos/cola.js";
+import { encolar, quitar, cuantasPendientes, cuantasTrabadas, vigilarCola } from "../datos/cola.js";
+import { VentasSinGuardar } from "../modulos/VentasSinGuardar.jsx";
 import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
 import {
   cargarCaja, cargarCierres, cargarMovimientos, registrarMovimiento,
@@ -1611,8 +1612,17 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         : `Se guardaron en el servidor ${r.enviadas} ventas que habían quedado pendientes.`);
     }
     r.rechazadas.forEach((x) =>
-      toast(`La venta ${x.venta.numero} quedó sin guardar: ${x.motivo}`, "mal"));
+      toast(`La venta ${x.venta.numero} quedó sin guardar: ${x.motivo} Está en Caja para volver a guardarla.`, "mal"));
   }), []);
+
+  /* Al entrar, si en este equipo quedaron ventas que la base rechazó: un
+     aviso solo, al pasar, no alcanzaba (Super 25, 25/09). Están en Caja. */
+  useEffect(() => {
+    const n = cuantasTrabadas();
+    if (n) toast(n === 1
+      ? "Hay 1 venta cobrada que no se guardó. Está en Caja para volver a guardarla."
+      : `Hay ${n} ventas cobradas que no se guardaron. Están en Caja para volver a guardarlas.`, "mal");
+  }, []);
 
   // Un cobro que entra: suena, se lee en voz alta, se muestra y se registra.
   const recibirCobro = (c) => {
@@ -2139,6 +2149,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (
             <div className="space-y-4">
+              {/* Arriba de todo y con la caja cerrada también: es plata que
+                  está en el cajón y el arqueo no ve. */}
+              <VentasSinGuardar key={pendientes} empresaId={empresaId} ajustes={ajustes} toast={toast}
+                sesionAbiertaId={caja.abierta ? caja.sesionId : null}
+                onGuardadas={async ({ fiscal }) => {
+                  setPendientes(cuantasPendientes());
+                  try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ }
+                  if (fiscal && conexionArca) pedirCAEs({ avisar: false });
+                }} />
               <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes} empresaId={empresaId}
                 abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia}
                 permisos={permisos} pedirCAEs={conexionArca ? pedirCAEs : null}

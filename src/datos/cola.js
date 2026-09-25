@@ -79,6 +79,57 @@ export function quitar(id) {
   escribir(leer().filter((v) => v.id !== id));
 }
 
+/* ------------------------------------------------------------
+   Reenviar a mano
+   ------------------------------------------------------------
+   Todo lo que este equipo cobró y la base no tiene: lo que espera
+   internet y lo que la base rechazó. Se muestra en Caja: cada una es
+   plata que está en el cajón y que el arqueo no ve. */
+export function sinGuardar() {
+  return [
+    ...leer(CLAVE_TRABADAS).map((x) => ({ venta: x.venta, motivo: x.motivo, rechazada: true, cuando: x.cuando })),
+    ...leer().map((v) => ({ venta: v, motivo: null, rechazada: false, cuando: null })),
+  ].sort((a, b) => String(a.venta.fecha).localeCompare(String(b.venta.fecha)));
+}
+
+/* Sacar de la lista una que no se va a guardar nunca —se fió a un
+   cliente que ya no existe y se cobró de nuevo a mano—. No se borra: se
+   archiva aparte, con cuándo, por si alguien la tiene que buscar. */
+const CLAVE_DESCARTADAS = "genez.ventas.descartadas";
+export function descartar(id) {
+  const x = leer(CLAVE_TRABADAS).find((t) => t.venta.id === id) || (leer().find((v) => v.id === id) && { venta: leer().find((v) => v.id === id) });
+  if (!x) return;
+  const archivo = leer(CLAVE_DESCARTADAS);
+  archivo.push({ ...x, descartada: new Date().toISOString() });
+  escribir(archivo, CLAVE_DESCARTADAS);
+  escribir(leer(CLAVE_TRABADAS).filter((t) => t.venta.id !== id), CLAVE_TRABADAS);
+  quitar(id);
+}
+
+/* Manda una venta que quedó en el equipo, tal cual o reparada (ver
+   `repararVenta` en ventas.js). Si entra, sale de las dos listas; si la
+   base la vuelve a rechazar, queda apartada con el motivo nuevo. La
+   función de la base es idempotente: si en realidad ya había entrado, no
+   se duplica. */
+export async function reenviar(venta) {
+  try {
+    await registrarVenta(venta);
+  } catch (e) {
+    const motivo = e.message || "La base rechazó la venta.";
+    if (!esDeRed(e)) {
+      const lista = leer(CLAVE_TRABADAS);
+      const i = lista.findIndex((x) => x.venta.id === venta.id);
+      if (i >= 0) lista[i] = { ...lista[i], venta, motivo, cuando: new Date().toISOString() };
+      else lista.push({ venta, motivo, cuando: new Date().toISOString() });
+      escribir(lista, CLAVE_TRABADAS);
+      quitar(venta.id);
+    }
+    throw new Error(esDeRed(e) ? "No hay conexión con el servidor. Probá de nuevo en un rato." : motivo);
+  }
+  escribir(leer(CLAVE_TRABADAS).filter((x) => x.venta.id !== venta.id), CLAVE_TRABADAS);
+  quitar(venta.id);
+}
+
 /* Sale de la cola pero no del equipo: se archiva con el motivo para poder
    revisarla o reintentarla a mano una vez corregido el problema. */
 function trabar(venta, motivo) {

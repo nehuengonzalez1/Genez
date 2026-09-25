@@ -134,6 +134,59 @@ export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub
   };
 }
 
+/* Antes de reenviar una venta que quedó en el equipo, se mira en la base
+   qué de lo que dice ya no existe, y se arregla lo que se puede arreglar
+   sin inventar nada. El caso que la motivó: la pantalla de la caja quedó
+   abierta de un día para el otro, con datos que se borraron a la noche, y
+   la base rechazó ventas que apuntaban a ellos.
+
+   - Un cliente que ya no existe: la venta va sin cliente. Si la venta
+     fue fiada no se puede —un fiado siempre tiene cliente— y se dice.
+   - Un producto que ya no existe: el renglón queda con su descripción y
+     sin ficha, como el de un concepto suelto; el stock de ese renglón no
+     se descuenta porque no hay de qué.
+   - Una caja que ya no existe: se registra en la caja abierta, que es
+     donde está la plata.
+
+   Devuelve { venta, cambios, bloqueo }: los cambios en palabras, para
+   mostrarlos antes de reenviar, y el motivo si no se puede. */
+export async function repararVenta(venta, sesionAbiertaId = null) {
+  const cambios = [];
+  let bloqueo = null;
+  const v = { ...venta, lineas: (venta.lineas || []).map((l) => ({ ...l })) };
+
+  if (v.cliente_id) {
+    const { data } = await supabase.from("clientes").select("id").eq("id", v.cliente_id).maybeSingle();
+    if (!data) {
+      const fiada = (v.pagos || []).some((p) => p.medio === "cuenta_corriente");
+      if (fiada) bloqueo = "Se fió a un cliente que ya no existe. Hay que cobrarla de nuevo a un cliente que exista.";
+      else { v.cliente_id = null; cambios.push("Va sin cliente: el que tenía ya no existe."); }
+    }
+  }
+
+  const ids = [...new Set(v.lineas.map((l) => l.item_id).filter(Boolean))];
+  if (ids.length) {
+    const { data } = await supabase.from("items").select("id").in("id", ids);
+    const hay = new Set((data || []).map((x) => x.id));
+    const faltan = v.lineas.filter((l) => l.item_id && !hay.has(l.item_id));
+    faltan.forEach((l) => { l.item_id = null; });
+    if (faltan.length) cambios.push(`${faltan.length === 1 ? "Un producto ya no existe" : `${faltan.length} productos ya no existen`}: queda${faltan.length === 1 ? "" : "n"} con su descripción, sin descontar stock.`);
+  }
+
+  if (v.sesion_id) {
+    const { data } = await supabase.from("sesiones_caja").select("id").eq("id", v.sesion_id).maybeSingle();
+    if (!data) {
+      if (sesionAbiertaId) { v.sesion_id = sesionAbiertaId; cambios.push("Se registra en la caja abierta: la de la venta ya no existe."); }
+      else bloqueo = bloqueo || "La caja de esta venta ya no existe. Abrí la caja para registrarla ahí.";
+    }
+  } else if (sesionAbiertaId) {
+    v.sesion_id = sesionAbiertaId;
+    cambios.push("Se registra en la caja abierta.");
+  }
+
+  return { venta: v, cambios, bloqueo };
+}
+
 /* Devuelve el id si entró, o lanza. Quien llama decide qué hacer con el
    error: el ticket ya está impreso y la venta ya ocurrió en el mostrador,
    así que un fallo acá es un problema de sincronización, no de cobro. */
