@@ -15,9 +15,8 @@
 
    Ahora cada comprobante guarda en `emisor` los datos fiscales con que se
    pidió el CAE, y el papel usa esos. Los que ya existen se completan con
-   los Ajustes de hoy, que todavía son los del titular con que se
-   emitieron: esta migración tiene que correr ANTES de cambiar los datos
-   fiscales.
+   los Ajustes si son del mismo CUIT; los del titular anterior, con sus
+   datos escritos acá (ver abajo).
 
    2 · UNA NOTA SOBRE UNA FACTURA DEL TITULAR ANTERIOR
    ---------------------------------------------------
@@ -73,7 +72,34 @@ update comprobantes c
          'domicilio',     e.config->'fiscal'->>'domicilio',
          'condicion',     e.config->'fiscal'->>'condicion'))
   from empresas e
- where e.id = c.empresa_id and c.emisor is null;
+ where e.id = c.empresa_id and c.emisor is null
+   and (c.modo = 'homologacion'
+        or regexp_replace(coalesce(e.config->'fiscal'->>'cuit', ''), '\D', '', 'g') = c.cuit);
+
+/* Los de un CUIT que ya no es el de los datos fiscales no pueden salir de
+   ahí. Es Super 25: cuando se aplicó esto, sus datos fiscales ya eran los
+   de Alfredo Daniel Gonzalez, y la única factura de producción que tenía
+   —la C 00005-00000001, por $1— es de Alex Gonzalez. Sus datos, como
+   estaban en Ajustes cuando se emitió. */
+update comprobantes
+   set emisor = jsonb_build_object(
+         'razonSocial',   'Alex Gonzalez',
+         'nombreFactura', 'Super 25',
+         'cuit',          '20412574738',
+         'iibb',          '20412574738',
+         'inicio',        '01/08/2026',
+         'domicilio',     'Rio de la Plata 8905, Loma Hermosa',
+         'condicion',     'MONOTRIBUTO')
+ where emisor is null and modo = 'produccion' and cuit = '20412574738'
+   and empresa_id = '125cb871-351a-49f5-b984-a14983b788c4';
+
+/* Y si quedara alguno sin emisor, que se note acá y no en un papel. */
+do $$
+begin
+  if exists (select 1 from comprobantes where emisor is null) then
+    raise exception 'Quedaron comprobantes sin emisor: revisar antes de aplicar 0093.';
+  end if;
+end $$;
 
 alter table comprobantes enable trigger cuidar_comprobante;
 

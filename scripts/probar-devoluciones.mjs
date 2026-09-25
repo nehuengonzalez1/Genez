@@ -136,6 +136,10 @@ await c.query(
   `insert into comprobantes (empresa_id, operacion_id, modo, cuit, punto_venta, tipo, letra, numero, estado, cae, cae_vto, fecha, total, neto, doc_tipo, doc_nro, condicion_receptor)
    values ($1, $2, 'homologacion', '20409378472', 1, 11, 'C', 999999, 'autorizado', '12345678901234', current_date + 10, current_date, 2700, 2700, 99, 0, 5)`,
   [emp.id, v3.id]);
+/* Desde 0093 la nota sale solo si la factura es de la conexión de hoy:
+   Bnitori, conectada a homologación mientras dura la transacción. */
+await c.query("delete from arca_conexiones where empresa_id = $1", [emp.id]);
+await c.query("insert into arca_conexiones (empresa_id, modo, punto_venta) values ($1, 'homologacion', 1)", [emp.id]);
 await comoDueno();
 const d3 = await devolver(v3.id, v3.linea, 1);
 await comoAdmin();
