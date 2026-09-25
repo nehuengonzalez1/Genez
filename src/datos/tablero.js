@@ -75,17 +75,21 @@ export function tableroVacio() {
 async function operacionesDesde(empresaId, desde) {
   const { data, error } = await supabase
     .from("operaciones")
-    .select("id, total, fecha, cliente_id")
+    .select("id, total, fecha, cliente_id, tipo")
     .eq("empresa_id", empresaId)
     /* Una mesa cobrada es venta del día aunque su tipo siga siendo
        'comanda': lo que decide es el estado, no el tipo. Mismo criterio
        que `resumenDelDia`. */
-    .in("tipo", ["venta", "comanda"])
+    .in("tipo", ["venta", "comanda", "devolucion"])
     .eq("estado", "confirmada")
     .gte("fecha", desde.toISOString())
     .limit(5000);
   if (error) throw error;
-  return data || [];
+  /* Una devolución (0089) resta con su total en negativo, y se marca para
+     que no cuente como operación ni como ticket. */
+  return (data || []).map((o) => (o.tipo === "devolucion"
+    ? { ...o, total: -Number(o.total || 0), devolucion: true }
+    : o));
 }
 
 /* Serie por día para los gráficos chiquitos de las tarjetas. */
@@ -102,13 +106,19 @@ function serieDiaria(ops, dias, hasta) {
 async function lineasDelMes(empresaId, desde) {
   const { data, error } = await supabase
     .from("operacion_lineas")
-    .select("descripcion, cantidad, total, item_id, items(categoria), operaciones!inner(fecha, estado)")
+    .select("descripcion, cantidad, total, item_id, items(categoria), operaciones!inner(fecha, estado, tipo)")
     .eq("empresa_id", empresaId)
     .eq("operaciones.estado", "confirmada")
+    /* Sin este filtro también entraban las compras confirmadas, que sumaban
+       lo que se le pagó a un proveedor como si fuera plata que entró. */
+    .in("operaciones.tipo", ["venta", "comanda", "devolucion"])
     .gte("operaciones.fecha", desde.toISOString())
     .limit(5000);
   if (error) throw error;
-  return data || [];
+  /* Lo devuelto (0089) resta. */
+  return (data || []).map((l) => (l.operaciones.tipo === "devolucion"
+    ? { ...l, cantidad: -Number(l.cantidad || 0), total: -Number(l.total || 0) }
+    : l));
 }
 
 async function clientesNuevos(empresaId) {
@@ -176,8 +186,10 @@ export async function cargarTablero({ empresaId, demo = false }) {
   const totalAyer = suma(deAyer, (o) => o.total);
   const totalMes = suma(delMes, (o) => o.total);
   const totalPrevio = suma(delPrevio, (o) => o.total);
-  const ticket = delMes.length ? totalMes / delMes.length : 0;
-  const ticketPrevio = delPrevio.length ? totalPrevio / delPrevio.length : 0;
+  // El ticket y la cantidad de operaciones cuentan ventas, no devoluciones.
+  const ventas = (xs) => xs.filter((o) => !o.devolucion).length;
+  const ticket = ventas(delMes) ? totalMes / ventas(delMes) : 0;
+  const ticketPrevio = ventas(delPrevio) ? totalPrevio / ventas(delPrevio) : 0;
 
   /* Sin base contra la que comparar no hay variación. Un "+100%" contra
      cero no informa nada y encima alarma. */
@@ -196,7 +208,7 @@ export async function cargarTablero({ empresaId, demo = false }) {
   }
 
   const base = {
-    facturacionHoy: dato(totalHoy, { delta: variacion(totalHoy, totalAyer), serie: serieDiaria(ops, 14, ahora), operaciones: deHoy.length }),
+    facturacionHoy: dato(totalHoy, { delta: variacion(totalHoy, totalAyer), serie: serieDiaria(ops, 14, ahora), operaciones: ventas(deHoy) }),
     ingresosMes: dato(totalMes, { delta: variacion(totalMes, totalPrevio), serie: serieDiaria(delMes, 14, ahora) }),
     ticketPromedio: dato(Math.round(ticket), { delta: variacion(ticket, ticketPrevio) }),
     ingresosPorArea: dato([...porArea.entries()]

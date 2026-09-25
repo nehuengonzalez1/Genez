@@ -152,20 +152,22 @@ export async function resumenDelDia(empresaId) {
 
   const { data, error } = await supabase
     .from("operaciones")
-    .select("total")
+    .select("total, tipo")
     .eq("empresa_id", empresaId)
     /* Una mesa cobrada es venta del día aunque su tipo siga siendo
        'comanda'. El estado es lo que decide: una mesa todavía abierta no
-       se vendió, se está consumiendo. */
-    .in("tipo", ["venta", "comanda"])
+       se vendió, se está consumiendo. Las devoluciones (0089) restan y no
+       cuentan como ticket, igual que en ventas_diarias (0090). */
+    .in("tipo", ["venta", "comanda", "devolucion"])
     .eq("estado", "confirmada")
     .gte("fecha", desde.toISOString())
     .limit(5000);
 
   if (error) throw error;
+  const filas = data || [];
   return {
-    total: (data || []).reduce((s, v) => s + Number(v.total || 0), 0),
-    tickets: (data || []).length,
+    total: filas.reduce((s, v) => s + (v.tipo === "devolucion" ? -1 : 1) * Number(v.total || 0), 0),
+    tickets: filas.filter((v) => v.tipo !== "devolucion").length,
   };
 }
 

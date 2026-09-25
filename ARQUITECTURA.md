@@ -690,10 +690,15 @@ una factura (tipo 12). ARCA las numera aparte de las facturas.
 Las dos piden el permiso `anular`, la caja abierta, y que la factura
 original ya tenga CAE. Las numera la base: DEV-… y ND-….
 
-Lo que falta: Informes y el total del día todavía no restan las
-devoluciones (miran `tipo in ('venta', 'comanda')`); la caja sí, porque
-el reintegro es un egreso. Y devolver una parte de un producto por peso:
-hoy se devuelve el renglón entero.
+**Los informes restan las devoluciones (0090).** `ventas_diarias`,
+`ventas_por_item`, el total del día (`resumenDelDia`), el informe de
+servicios y el Inicio de servicios toman `tipo in ('venta', 'comanda',
+'devolucion')` con la devolución en negativo, el día en que se hizo. No
+cuenta como ticket ni como operación. Una consulta nueva que sume ventas
+tiene que hacer lo mismo, o va a mostrar plata que se devolvió.
+
+Lo que falta: devolver una parte de un producto por peso; hoy se devuelve
+el renglón entero.
 
 ## La cuenta corriente
 

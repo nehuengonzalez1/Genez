@@ -158,14 +158,21 @@ async function lineas(empresaId, desde, hasta, filtros) {
     .select("descripcion, cantidad, total, item_id, items(categoria, tipo), operaciones!inner(id, fecha, estado, tipo, cliente_id)")
     .eq("empresa_id", empresaId)
     .eq("operaciones.estado", "confirmada")
-    .in("operaciones.tipo", ["venta", "comanda"])
+    .in("operaciones.tipo", ["venta", "comanda", "devolucion"])
     .gte("operaciones.fecha", desde.toISOString())
     .lte("operaciones.fecha", hasta.toISOString())
     .limit(20000);
 
   if (filtros.item) q = q.eq("item_id", filtros.item);
-  const { data, error } = await q;
+  const { data: filas, error } = await q;
   if (error) throw error;
+
+  /* Un renglón devuelto (0089) entra en negativo, así resta del total, del
+     área y de la prestación sin que cada cuenta tenga que acordarse. El
+     ticket promedio, que cuenta operaciones, las deja afuera aparte. */
+  const data = (filas || []).map((l) => (l.operaciones && l.operaciones.tipo === "devolucion"
+    ? { ...l, cantidad: -Number(l.cantidad || 0), total: -Number(l.total || 0) }
+    : l));
 
   /* El área se filtra acá y no en la consulta porque vive en el item
      enlazado, y filtrar por una tabla anidada obligaría a un `inner` que
@@ -406,8 +413,9 @@ function armarIngresos(ahora, antes, hayComparacion) {
   /* El ticket se cuenta por operación y no por línea: un pack vendido
      junto con una crema bajaría el promedio sin que nadie haya gastado
      menos. */
-  const ops = new Set(ahora.map((l) => l.operaciones.id));
-  const opsAntes = new Set(antes.map((l) => l.operaciones.id));
+  const esVenta = (l) => l.operaciones.tipo !== "devolucion";
+  const ops = new Set(ahora.filter(esVenta).map((l) => l.operaciones.id));
+  const opsAntes = new Set(antes.filter(esVenta).map((l) => l.operaciones.id));
   const ticket = ops.size ? Math.round(total / ops.size) : 0;
   const ticketAntes = opsAntes.size ? totalAntes / opsAntes.size : 0;
 

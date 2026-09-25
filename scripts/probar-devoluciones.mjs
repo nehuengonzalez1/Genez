@@ -37,6 +37,11 @@ if (hay.n === "0") {
   console.log("\n(0089 no está aplicada: se carga adentro de la transacción, como ensayo)");
   await c.query(readFileSync("supabase/migrations/0089_devoluciones_y_notas.sql", "utf8"));
 }
+const conInformes = await una("select pg_get_functiondef('ventas_diarias(uuid,integer)'::regprocedure) ~ 'devolucion' as si");
+if (!conInformes.si) {
+  console.log("(0090 no está aplicada: se carga adentro de la transacción, como ensayo)");
+  await c.query(readFileSync("supabase/migrations/0090_informes_restan_devoluciones.sql", "utf8"));
+}
 
 /* Como administrador se arma el escenario; como el dueño se opera. */
 const comoDueno = async () => {
@@ -59,6 +64,14 @@ const prod = await una("select i.id, i.nombre, v.stock from items i join items_v
 const ajena = await una("select o.id from operaciones o join empresas e on e.id = o.empresa_id where e.nombre = 'Super 25' and o.tipo = 'venta' limit 1");
 const ses = await una("insert into sesiones_caja (empresa_id, sucursal_id, monto_inicial) values ($1, $2, 0) returning id", [emp.id, suc.id]);
 const cli = await una("insert into clientes (empresa_id, razon_social, condicion) values ($1, 'Cliente de prueba', 'CF') returning id", [emp.id]);
+
+/* Cómo estaban los informes antes de todo lo de esta prueba (0090). */
+const informeHoy = async () => {
+  const d = await una("select ventas, tickets from ventas_diarias($1, 1)", [emp.id]);
+  const p = await una("select coalesce(sum(unidades), 0) u, coalesce(sum(venta), 0) v from ventas_por_item($1, 1) where item_id = $2", [emp.id, prod.id]);
+  return { ventas: Number(d.ventas), tickets: Number(d.tickets), unidades: Number(p.u), venta: Number(p.v) };
+};
+const antes = await informeHoy();
 
 /* Tres unidades a $1.000 con 10 % de descuento: se cobran $2.700. */
 const vender = async ({ fiscal = false, medio = "efectivo", cliente = null } = {}) => {
@@ -141,6 +154,19 @@ const ndm = await una("select tipo, monto from movimientos_caja where operacion_
 decir(ndm && ndm.tipo === "ingreso" && Number(ndm.monto) === 500, "se cobra y entra a la caja");
 const ndo = await una("select numero, origen_id, total from operaciones where id = $1", [nd.id]);
 decir(ndo.origen_id === v3.id && ndo.numero.startsWith("ND-"), `apunta a la factura (${ndo.numero})`);
+
+/* Lo que pasó hoy en esta prueba: tres ventas de $2.700 (3 unidades cada
+   una), la primera devuelta entera en dos veces, la segunda entera a
+   cuenta corriente, de la tercera 1 unidad ($900), y una nota de débito
+   de $500. Neto: 2.700 − 900 + 500 = $2.300, 4 tickets (las devoluciones
+   no cuentan), y del producto quedan 2 unidades por $2.000 (el informe
+   por producto suma renglones, sin el descuento de la venta). */
+console.log("\nInformes (0090)");
+const despues = await informeHoy();
+decir(despues.ventas - antes.ventas === 2300, `las ventas del día restan lo devuelto (${despues.ventas - antes.ventas}, esperaba 2300)`);
+decir(despues.tickets - antes.tickets === 4, `las devoluciones no cuentan como ticket (${despues.tickets - antes.tickets}, esperaba 4)`);
+decir(despues.unidades - antes.unidades === 2, `el producto resta las unidades devueltas (${despues.unidades - antes.unidades}, esperaba 2)`);
+decir(despues.venta - antes.venta === 2000, `y lo que se había vendido de ellas (${despues.venta - antes.venta}, esperaba 2000)`);
 
 await c.query("rollback");
 
