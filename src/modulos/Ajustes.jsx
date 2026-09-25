@@ -17,6 +17,7 @@ import { Card, Boton, Modal, Kpi, Vacio } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
+import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
 const Vol2 = Volume2;
 
 /* ============================================================
@@ -261,8 +262,8 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           <div>
             <h3 className="f-d text-lg">Avisos de Mercado Pago</h3>
             <p className="text-sm text-texto-suave mt-1">
-              Cuando entra una transferencia o un pago por QR, salta un cartel, suena una campanita y una voz dice el monto en voz alta.
-              El cobro queda registrado en caja solo.
+              Cuando entra una transferencia o un pago por QR a la cuenta del negocio, salta un cartel, suena una campanita y una voz dice el monto.
+              Es la confirmación de que el pago llegó: la plata entra a la caja cuando se cobra la venta con "Mercado Pago".
             </p>
           </div>
           <button onClick={() => setMp({ ...mp, activo: !mp.activo })}
@@ -272,16 +273,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           </button>
         </div>
 
-        <div className={`mt-3 rounded-xl p-3 text-sm border ${
-          mp.configurado === null ? "bg-superficie-2 border-borde text-texto-suave"
-          : mp.configurado ? "bg-bien-suave border-bien text-emerald-800"
-          : "bg-ojo-suave border-ojo text-amber-800"}`}>
-          {mp.configurado === null ? "Consultando el estado de la conexión…"
-            : mp.configurado
-              ? <>Conectado a Mercado Pago. Consultando cada 6 segundos{mp.ultimoChequeo ? ` · último chequeo ${mp.ultimoChequeo.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}.</>
-              : <>Todavía sin conectar: falta cargar <strong>MP_ACCESS_TOKEN</strong> en Vercel. El aviso se puede probar igual con el botón de abajo.</>}
-          {mp.error && <div className="text-xs mt-1 opacity-80">{mp.error}</div>}
-        </div>
+        {/* La cuenta es de cada comercio (0091): se conecta acá, no en Vercel. */}
+        <ConexionMercadoPago empresaId={empresaId} toast={toast} />
+        {mp.activo && mp.error && <p className="text-xs text-mal mt-2">{mp.error}</p>}
 
         <div className="flex flex-wrap items-center gap-3 mt-3">
           <button onClick={() => setMp({ ...mp, voz: !mp.voz })}
@@ -297,13 +291,13 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
         <details className="mt-4 text-sm">
           <summary className="cursor-pointer text-texto-suave font-semibold">Cómo conectar la cuenta</summary>
           <ol className="list-decimal ml-5 mt-2 space-y-1 text-texto-suave">
-            <li>Entrá a <span className="f-m text-xs">mercadopago.com.ar/developers</span> con la cuenta del negocio y creá una aplicación.</li>
-            <li>Copiá el <strong>Access Token de producción</strong> (empieza con APP_USR).</li>
-            <li>En Vercel, Settings → Environment Variables, creá <span className="f-m text-xs">MP_ACCESS_TOKEN</span> en Production.</li>
-            <li>Volvé a desplegar. Este panel va a pasar a "Conectado" solo.</li>
+            <li>Entrá a <span className="f-m text-xs">mercadopago.com.ar/developers/panel</span> con la cuenta del negocio y creá una aplicación. Si pide completar los datos del negocio para las credenciales de producción, completalos.</li>
+            <li>En la aplicación, abrí <strong>Credenciales de producción</strong> y copiá el <strong>Access Token</strong> (empieza con APP_USR-).</li>
+            <li>Pegalo arriba y apretá <strong>Conectar</strong>. Tiene que aparecer el nombre de la cuenta del negocio.</li>
+            <li>Prendé los avisos y probá con un pago chico por QR: tiene que sonar.</li>
           </ol>
           <p className="text-xs text-texto-tenue mt-2">
-            La API de Mercado Pago no tiene costo. El token nunca llega al navegador: se usa del lado del servidor.
+            La API de Mercado Pago no tiene costo. El token se guarda cifrado y nunca vuelve a la pantalla. Conviene pegarlo acá directamente y no mandarlo por mensaje: da acceso a la cuenta.
           </p>
         </details>
       </Card>
@@ -577,7 +571,7 @@ export function TarjetaCobro({ c, onCerrar }) {
       <div className="px-3 py-2.5">
         <div className="f-d text-3xl tabular-nums text-bien leading-none">{money(c.monto)}</div>
         <div className="text-[11px] text-texto-tenue mt-1.5">
-          Mercado Pago · {hora(c.fecha)} · ya está en caja
+          Mercado Pago · {hora(c.fecha)} · cobralo con "Mercado Pago"
         </div>
       </div>
     </div>

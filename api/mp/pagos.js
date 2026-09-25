@@ -13,7 +13,13 @@
  * aprobado y deja que el cliente decida. Con ?debug=1 se ve en crudo qué
  * devolvió Mercado Pago, para poder comprobarlo con una transferencia real.
  *
- * El token vive solo del lado del servidor: MP_ACCESS_TOKEN en Vercel.
+ * CADA COMERCIO, SU CUENTA (0091)
+ * -------------------------------
+ * El token es el del comercio de quien llama, cifrado en mp_credenciales;
+ * lo carga el comercio desde Ajustes → Mercado Pago (api/mp/conexion.js).
+ * Antes era uno solo para toda la plataforma (MP_ACCESS_TOKEN en Vercel), y
+ * cualquier usuario de cualquier comercio veía los cobros de esa cuenta.
+ * La plataforma, que no tiene comercio, nombra el que está mirando.
  *
  * POR QUÉ PIDE SESIÓN
  * -------------------
@@ -29,27 +35,10 @@
  * que entran es parte de cobrar, y cobrar ya lo decide el rol.
  */
 
-import { origenValido, quienLlama } from "../_comun.js";
+import { origenValido } from "../_comun.js";
+import { comercioDe, credencialDe, ErrorMP } from "./_mp.js";
 
 const MINUTOS_MAXIMO = 30;
-
-/* Id de la cuenta, para distinguir lo que entra de lo que sale.
-   /v1/payments/search devuelve todas las operaciones de la cuenta, así que una
-   transferencia enviada figura igual que una recibida. La diferencia está en
-   quién cobra: si collector_id es esta cuenta, entró plata. Se cachea entre
-   invocaciones para no pedirlo en cada sondeo. */
-let _idCuenta = null;
-
-async function idCuenta(token) {
-  if (_idCuenta) return _idCuenta;
-  const r = await fetch("https://api.mercadopago.com/users/me", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!r.ok) return null;
-  const d = await r.json();
-  _idCuenta = d.id != null ? String(d.id) : null;
-  return _idCuenta;
-}
 
 function normalizar(p) {
   return {
@@ -82,18 +71,20 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: { message: "Origen no autorizado." } });
   }
 
-  const yo = await quienLlama(req);
-  if (!yo) {
-    return res.status(401).json({ error: { message: "Necesitás una sesión abierta para ver los cobros." } });
+  let cred;
+  try {
+    const { admin, empresaId } = await comercioDe(req, req.query.empresa);
+    cred = await credencialDe(admin, empresaId);
+  } catch (e) {
+    return res.status(e instanceof ErrorMP ? e.estado : 502).json({ error: { message: e.message || "No se pudo leer la cuenta de Mercado Pago." } });
   }
-
-  const token = process.env.MP_ACCESS_TOKEN;
-  if (!token) {
+  if (!cred) {
     return res.status(200).json({
       configurado: false, pagos: [],
-      mensaje: "Falta MP_ACCESS_TOKEN. Podés probar el aviso con el botón de simulación en Ajustes.",
+      mensaje: "Este comercio todavía no conectó su cuenta de Mercado Pago (Ajustes → Mercado Pago).",
     });
   }
+  const token = cred.token;
 
   // Nunca más de 30 minutos hacia atrás: si la caja estuvo cerrada, no tiene
   // sentido que al abrir suene una catarata de avisos viejos.
@@ -113,7 +104,10 @@ export default async function handler(req, res) {
     }
     if (error) return res.status(502).json({ configurado: true, pagos: [], error: { message: error } });
 
-    const yo = await idCuenta(token);
+    /* Id de la cuenta, para distinguir lo que entra de lo que sale:
+       /v1/payments/search trae todas las operaciones, y una transferencia
+       enviada figura igual que una recibida. Se guardó al conectar. */
+    const yo = cred.cuentaId;
     const entrante = (p) => {
       if (p.status !== "approved") return false;
       if (!yo) return true;                                  // sin id, no se filtra

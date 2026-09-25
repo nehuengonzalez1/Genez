@@ -248,12 +248,20 @@ vivo.
 
 ### Mercado Pago
 
-`api/mp/pagos.js` consulta `/v1/payments/search` con `MP_ACCESS_TOKEN`. No hay
-webhooks ni tabla propia a propósito: el navegador sondea cada 6 s desde `Sistema`
-pidiendo una **ventana fija de los últimos 5 minutos** (solapada, no incremental,
-porque MP indexa con demora) y deduplica con el ref `vistos`. La primera vuelta se
-marca como vista sin avisar. Un cobro entrante suena, se lee en voz alta y genera un
-movimiento de caja. Sin token, Ajustes tiene un botón para simular un cobro.
+**Cada comercio conecta su propia cuenta** (0091): pega su Access Token en
+Ajustes → Mercado Pago, `api/mp/conexion.js` le pregunta a MP de quién es y lo
+guarda cifrado en `mp_credenciales` (la misma llave que ARCA; la tabla no tiene
+políticas para el navegador). `api/mp/pagos.js` consulta `/v1/payments/search` con
+el token **del comercio de quien llama**. Ya no hay un `MP_ACCESS_TOKEN` global: con
+uno solo, cualquier usuario de cualquier comercio veía los cobros de esa cuenta.
+
+No hay webhooks a propósito: el navegador sondea cada 6 s desde `Sistema` pidiendo
+una **ventana fija de los últimos 5 minutos** (solapada, no incremental, porque MP
+indexa con demora) y deduplica con el ref `vistos`. La primera vuelta se marca como
+vista sin avisar. Un cobro entrante suena y se lee en voz alta, y **no carga plata
+en la caja**: la plata entra con la venta cobrada con "Mercado Pago". Antes el aviso
+también la cargaba y cada venta por QR entraba dos veces. Sin cuenta conectada,
+Ajustes tiene un botón para simular el aviso.
 
 ## Convenciones
 

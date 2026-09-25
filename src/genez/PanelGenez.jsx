@@ -1635,7 +1635,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     setCobrosMP((x) => [...x, c]);
     campanita(ajustes.sonido);
     hablar(`Recibiste un pago de ${numeroALetras(c.monto)} pesos`, mp.voz && ajustes.sonido);
-    movCaja({ tipo: "ingreso", medio: "mp", monto: c.monto, detalle: `Mercado Pago${c.pagador ? " · " + c.pagador : ""}` });
+    /* El aviso NO carga plata en la caja. Antes sí, y una venta cobrada
+       con "Mercado Pago" entraba dos veces: una por la venta y otra por el
+       aviso de ese mismo pago. La plata entra a la caja con la venta; el
+       aviso es la confirmación para el cajero de que el pago llegó. */
   };
 
   /* Se consulta siempre una ventana de los últimos minutos, no "lo nuevo desde
@@ -1651,7 +1654,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     const consultar = async () => {
       try {
         const desde = new Date(Date.now() - 5 * 60000).toISOString();
-        const d = await consultarCobros(desde);
+        const d = await consultarCobros(desde, empresaId);
         if (!vivo) return;
         setMp((m) => ({ ...m, configurado: !!d.configurado, ultimoChequeo: new Date(), error: d.error ? d.error.message : null }));
         const pagos = (d.pagos || []).slice().reverse();

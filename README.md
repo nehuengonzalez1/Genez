@@ -79,8 +79,9 @@ como administrador y sirven para la lógica, no para los permisos.
 - **Asistente y lectura de remitos por foto.** Necesitan `ANTHROPIC_API_KEY`
   del lado del servidor. Sin clave, todo lo demás funciona igual: los
   diagnósticos se calculan localmente.
-- **Cobros por Mercado Pago.** Con `MP_ACCESS_TOKEN` en el servidor, la caja
-  avisa cada cobro entrante; sin token, Ajustes tiene un botón para simularlo.
+- **Cobros por Mercado Pago.** Cada comercio conecta su cuenta en Ajustes →
+  Mercado Pago; la caja avisa cada cobro entrante (la plata entra con la venta).
+  Sin cuenta, Ajustes tiene un botón para simular el aviso.
 
 ## Dónde está cada cosa
 
