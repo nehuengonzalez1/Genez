@@ -40,14 +40,21 @@ import { comercioDe, credencialDe, ErrorMP } from "./_mp.js";
 
 const MINUTOS_MAXIMO = 30;
 
-function normalizar(p) {
+function normalizar(p, yo) {
+  /* En una carga por CVU el "pagador" es el mismo dueño de la cuenta:
+     mostrar su mail como si fuera el cliente sería mentir. */
+  const propio = yo && p.payer && String(p.payer.id) === yo;
   return {
     id: String(p.id),
     monto: Number(p.transaction_amount) || 0,
     fecha: p.date_approved || p.date_created,
-    pagador: [p.payer?.first_name, p.payer?.last_name].filter(Boolean).join(" ") || p.payer?.email || "",
+    pagador: propio ? "" : [p.payer?.first_name, p.payer?.last_name].filter(Boolean).join(" ") || p.payer?.email || "",
     medio: p.payment_method_id || "",
     tipo: p.operation_type || "",
+    /* Por dónde entró, para el aviso: una transferencia bancaria (desde
+       otro banco o billetera, por CVU o DEBIN) o un cobro de Mercado Pago
+       (QR, saldo, tarjeta). */
+    origen: p.payment_type_id === "bank_transfer" || p.operation_type === "account_fund" ? "transferencia" : "mercadopago",
     detalle: p.description || "",
   };
 }
@@ -112,13 +119,21 @@ export default async function handler(req, res) {
       if (p.status !== "approved") return false;
       if (!yo) return true;                                  // sin id, no se filtra
       if (String(p.collector_id) !== yo) return false;       // no soy quien cobra: es un pago mío
-      if (p.payer && String(p.payer.id) === yo) return false; // movimiento entre mis propias cuentas
+      /* Una transferencia desde otro banco o billetera al CVU de la
+         cuenta, Mercado Pago la anota como `account_fund` y con el mismo
+         dueño de la cuenta como pagador: no dice de quién vino. Antes se
+         descartaba por "movimiento entre mis propias cuentas", y el cliente
+         que pagaba desde su banco no hacía sonar nada (Super 25, 25/09:
+         once en dos días). Ahora avisa. El costo: si el dueño carga plata
+         desde su propio banco, también suena; Mercado Pago no da con qué
+         distinguirlo. */
+      if (p.payer && String(p.payer.id) === yo && p.operation_type !== "account_fund") return false;
       return true;
     };
     const aprobados = results.filter(entrante);
     const respuesta = {
       configurado: true,
-      pagos: aprobados.map(normalizar),
+      pagos: aprobados.map((p) => normalizar(p, yo)),
       consultadoHasta: ahora.toISOString(),
     };
 

@@ -571,7 +571,7 @@ export function TarjetaCobro({ c, onCerrar }) {
       <div className="px-3 py-2.5">
         <div className="f-d text-3xl tabular-nums text-bien leading-none">{money(c.monto)}</div>
         <div className="text-[11px] text-texto-tenue mt-1.5">
-          Mercado Pago · {hora(c.fecha)} · cobralo con "Mercado Pago"
+          {c.origen === "transferencia" ? "Transferencia" : "Mercado Pago"} · {hora(c.fecha)} · cobralo con "Mercado Pago"
         </div>
       </div>
     </div>
