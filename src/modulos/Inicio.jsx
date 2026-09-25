@@ -29,7 +29,7 @@ function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar })
         <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-acento/15" />
         <div className="relative">
           <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">
-            {negocio} · {fdatel(HOY)}
+            {negocio} · {fdatel(new Date())}
           </div>
           <h1 className="f-d text-2xl md:text-4xl leading-tight mt-3 max-w-3xl">
             Hoy llevás <span className="text-acento-vivo tabular-nums">{money(ventasHoy)}</span> en{" "}

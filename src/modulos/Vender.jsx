@@ -175,7 +175,8 @@ function descargar(nombre, contenido, tipo) {
 
 export async function exportarCatalogo(productos, listas, toast) {
   const filas = filasCatalogo(productos, listas);
-  const fecha = `${HOY.getFullYear()}-${String(HOY.getMonth() + 1).padStart(2, "0")}-${String(HOY.getDate()).padStart(2, "0")}`;
+  const hoy = new Date();
+  const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
   const XLSX = await cargarPlanilla();
   if (XLSX) {
     const hoja = XLSX.utils.json_to_sheet(filas);

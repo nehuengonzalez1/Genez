@@ -512,7 +512,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
             <Boton disabled={!nombreNuevo.trim()} onClick={() => {
               const nuevo = {
                 id: "cm" + uid(), nombre: nombreNuevo.trim(), plan: "Base", modulos: [...MODULOS_BASE],
-                alta: `${String(HOY.getMonth() + 1).padStart(2, "0")}/${HOY.getFullYear()}`, activo: true, usuarios: [],
+                alta: `${String(new Date().getMonth() + 1).padStart(2, "0")}/${new Date().getFullYear()}`, activo: true, usuarios: [],
               };
               setComercios((cs) => [...cs, nuevo]);
               setAltaComercio(false); setAbierto(nuevo.id);
@@ -1829,7 +1829,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 <div className="w-8 h-8 rounded-xl bg-acento flex items-center justify-center"><Store size={17} /></div>
                 <div>
                   <div className="f-d text-sm leading-tight">{ajustes.negocio}</div>
-                  <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Cobro · {fdatel(HOY)}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Cobro · {fdatel(new Date())}</div>
                 </div>
               </div>
 
@@ -1905,7 +1905,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 <div className="w-8 h-8 rounded-xl bg-acento text-sobre-acento flex items-center justify-center"><Store size={17} /></div>
                 <div>
                   <div className="f-d text-sm leading-tight">{ajustes.negocio}</div>
-                  <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Comandas · {fdatel(HOY)}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Comandas · {fdatel(new Date())}</div>
                 </div>
               </div>
 
@@ -2070,7 +2070,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               <p className="text-sm text-texto-suave">{bajada}</p>
             </div>
             <div className="flex items-center gap-2 text-xs text-texto-suave">
-              <CalendarDays size={14} /> {fdatel(HOY)}
+              <CalendarDays size={14} /> {fdatel(new Date())}
               <span className="text-texto-tenue">·</span>
               <span className="f-m">{money(ventasHoy)} hoy</span>
               <BotonTema tema={tema} setTema={setTema} />
