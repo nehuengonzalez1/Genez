@@ -19,10 +19,10 @@
    ============================================================ */
 
 import React, { useState, useEffect } from "react";
-import { Printer, Receipt, FileText, ArrowDownRight, ArrowUpRight, X, Undo2, FilePlus2, RefreshCw, Minus, Plus } from "lucide-react";
+import { Printer, Receipt, FileText, ArrowDownRight, ArrowUpRight, X, Undo2, FilePlus2, RefreshCw, Minus, Plus, ArrowLeftRight } from "lucide-react";
 import { money, hora, medioPorK, mediosDe, FISCAL_INICIAL, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
 import { fdatel } from "../datos/generador.js";
-import { cargarVenta, cargarDevuelto, registrarDevolucion, registrarNotaDebito } from "../datos/ventas.js";
+import { cargarVenta, cargarDevuelto, registrarDevolucion, registrarNotaDebito, corregirMedioPago } from "../datos/ventas.js";
 import { cargarTicketDeVenta } from "../datos/arca.js";
 import { Modal, Boton, Sello, Comandera, ticketVenta, qrDeFactura, imprimirTicket, armarLineas, imprimirComandera } from "../ui/Base.jsx";
 
@@ -116,6 +116,7 @@ function Encabezado({ icono: Ico, rotulo, titulo, bajada, onCerrar }) {
 function DetalleVenta({ v, t, ajustes, toast, onCerrar, empresaId, caja, permisos, pedirCAEs, alHacer, releer }) {
   const [verPapel, setVerPapel] = useState(false);
   const [haciendo, setHaciendo] = useState(null);   // devolver | debitar
+  const [corrigiendo, setCorrigiendo] = useState(null);   // el pago
   const [pidiendo, setPidiendo] = useState(false);
   /* Lo que va al papel. La simulada del prototipo sale como ticket: no
      tiene número de factura que imprimir y no va a tenerlo. */
@@ -132,6 +133,10 @@ function DetalleVenta({ v, t, ajustes, toast, onCerrar, empresaId, caja, permiso
   const puede = !!permisos.anular && !!caja && !!caja.abierta;
   const puedeDevolver = !esDevolucion && !esNota && (!v.fiscal || v.estadoFactura === "autorizada");
   const puedeDebitar = !esDevolucion && !esNota && v.estadoFactura === "autorizada";
+  /* Corregir el medio (0092): un pago de una venta, no de una devolución,
+     sin recargo y que no sea fiado. Los mismos permiso y caja abierta que
+     devolver; la base además exige que sea la caja de esa venta. */
+  const corregible = (p) => !esDevolucion && p.id && !p.recargo && p.medio !== MEDIO_CUENTA_CORRIENTE;
   const porQueNo = !permisos.anular ? "Tu usuario no puede hacer devoluciones ni notas."
     : !caja || !caja.abierta ? "Abrí la caja: el reintegro sale de ahí." : "";
 
@@ -206,7 +211,15 @@ function DetalleVenta({ v, t, ajustes, toast, onCerrar, empresaId, caja, permiso
             {esDevolucion ? (
               <div className="flex justify-between"><dt>{medioPorK(ajustes, t.medio).n}</dt><dd className="f-m">{money(t.total)}</dd></div>
             ) : t.pagos.map((p, i) => (
-              <div key={i} className="flex justify-between"><dt>{medioPorK(ajustes, p.medio).n}</dt><dd className="f-m">{money(p.monto)}</dd></div>
+              <div key={i} className="flex items-baseline gap-3">
+                <dt className="flex-1">{medioPorK(ajustes, p.medio).n}</dt>
+                {puede && corregible(p) && (
+                  <button onClick={() => setCorrigiendo(p)} className="text-xs font-semibold text-acento hover:underline">
+                    Corregir medio
+                  </button>
+                )}
+                <dd className="f-m">{money(p.monto)}</dd>
+              </div>
             ))}
           </dl>
         </>
@@ -237,6 +250,10 @@ function DetalleVenta({ v, t, ajustes, toast, onCerrar, empresaId, caja, permiso
       {haciendo === "devolver" && (
         <Devolver v={v} t={t} ajustes={ajustes} toast={toast} empresaId={empresaId} caja={caja}
           onCerrar={() => setHaciendo(null)} onHecha={(id) => { setHaciendo(null); alHacer(id, v.fiscal); }} />
+      )}
+      {corrigiendo && (
+        <CorregirMedio v={v} pago={corrigiendo} ajustes={ajustes} toast={toast}
+          onCerrar={() => setCorrigiendo(null)} onHecha={() => { setCorrigiendo(null); alHacer(v.id, false); }} />
       )}
       {haciendo === "debitar" && (
         <Debitar v={v} ajustes={ajustes} toast={toast} caja={caja}
@@ -365,6 +382,77 @@ function Devolver({ v, t, ajustes, toast, empresaId, caja, onCerrar, onHecha }) 
           <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
           <Boton onClick={confirmar} disabled={guardando || !elegidas.length || nada}>
             <Undo2 size={15} /> {guardando ? "Registrando…" : v.fiscal ? "Devolver y hacer nota de crédito" : "Devolver"}
+          </Boton>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------
+   Corregir el medio de un cobro: se tocó Débito y era efectivo
+   ------------------------------------------------------------
+   Solo el medio: el importe y el total no cambian. Por eso quedan afuera
+   los medios con recargo (cambiarían el total) y la cuenta corriente, que
+   es deuda y no plata en la caja. */
+function CorregirMedio({ v, pago, ajustes, toast, onCerrar, onHecha }) {
+  const medios = mediosDe(ajustes).filter((m) => m.activo !== false && m.k !== pago.medio
+    && m.k !== MEDIO_CUENTA_CORRIENTE && !(m.recargo && m.tasa > 0));
+  const [medio, setMedio] = useState((medios.find((m) => m.k === "efectivo") || medios[0] || {}).k || "");
+  const [motivo, setMotivo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const antes = medioPorK(ajustes, pago.medio).n;
+  const despues = medio ? medioPorK(ajustes, medio).n : "";
+
+  const confirmar = async () => {
+    setGuardando(true);
+    try {
+      await corregirMedioPago({ pagoId: pago.id, medio, motivo: motivo.trim() });
+      toast(`Cobro corregido: ${money(pago.monto)} en ${despues}.`);
+      onHecha();
+    } catch (e) {
+      toast(e.message, "mal");
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-6">
+        <Encabezado icono={ArrowLeftRight} onCerrar={onCerrar} rotulo="Corregir medio de pago"
+          titulo={`Venta ${v.numero}`}
+          bajada={`Se cobraron ${money(pago.monto)} y quedaron registrados en ${antes}.`} />
+
+        {medios.length === 0 ? (
+          <p className="text-sm text-texto-suave mt-5">No hay otro medio sin recargo al que pasarlo.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            <label className="text-sm">
+              <span className="block text-xs text-texto-suave mb-1">Se cobró en realidad con</span>
+              <select value={medio} onChange={(e) => setMedio(e.target.value)} autoFocus
+                className="w-full border border-borde rounded-md px-2.5 py-2 text-sm bg-superficie outline-none focus:border-acento">
+                {medios.map((m) => <option key={m.k} value={m.k}>{m.n}</option>)}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="block text-xs text-texto-suave mb-1">Motivo (opcional)</span>
+              <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Se tocó mal el botón"
+                className="w-full border border-borde rounded-md px-2.5 py-2 text-sm bg-superficie outline-none focus:border-acento" />
+            </label>
+          </div>
+        )}
+
+        {medio && (
+          <p className="text-xs text-texto-suave mt-4">
+            Al cerrar la caja, {antes} espera <span className="f-m">{money(pago.monto)}</span> menos
+            y {despues} <span className="f-m">{money(pago.monto)}</span> más. Queda anotado en la bitácora.
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2 mt-6">
+          <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
+          <Boton onClick={confirmar} disabled={guardando || !medio}>
+            <ArrowLeftRight size={15} /> {guardando ? "Corrigiendo…" : `Pasar a ${despues || "…"}`}
           </Boton>
         </div>
       </div>

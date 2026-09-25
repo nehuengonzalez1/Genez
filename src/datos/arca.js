@@ -139,7 +139,7 @@ export async function cargarTicketDeVenta(empresaId, operacionId) {
   if (!empresaId) throw new Error("cargarTicketDeVenta necesita la empresa.");
   const { data: o, error } = await supabase
     .from("operaciones")
-    .select("id, numero, fecha, total, subtotal, descuento, recargo, tipo, comprobante, campos_extra, origen_id, clientes ( razon_social, tipo_doc, doc, condicion, domicilio ), pagos ( medio, monto ), operacion_lineas ( id, descripcion, cantidad, precio_unitario, total )")
+    .select("id, numero, fecha, total, subtotal, descuento, recargo, tipo, comprobante, campos_extra, origen_id, clientes ( razon_social, tipo_doc, doc, condicion, domicilio ), pagos ( id, medio, monto, recargo ), operacion_lineas ( id, descripcion, cantidad, precio_unitario, total )")
     .eq("empresa_id", empresaId).eq("id", operacionId)
     .single();
   if (error) throw error;
@@ -157,7 +157,9 @@ export async function cargarTicketDeVenta(empresaId, operacionId) {
 
   const f = new Date(o.fecha);
   const cl = o.clientes;
-  const pagos = (o.pagos || []).map((p) => ({ medio: p.medio, monto: Number(p.monto) }));
+  /* El id y el recargo de cada pago son para corregir el medio desde Caja
+     (0092): se corrige un pago, no la venta. */
+  const pagos = (o.pagos || []).map((p) => ({ id: p.id, medio: p.medio, monto: Number(p.monto), recargo: Number(p.recargo) || 0 }));
   const extra = o.campos_extra || {};
   return {
     id: o.id,

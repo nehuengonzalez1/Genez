@@ -44,6 +44,7 @@ node scripts/probar-arca.mjs       # factura electrónica: candado, permisos y h
 node scripts/probar-cuenta-corriente.mjs  # fiado: cobrar, anular, ajustar, límite y permisos por rol
 node scripts/probar-codigos.mjs    # códigos de barras propios: no pisan, no se repiten
 node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito, y contra ARCA de pruebas
+node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/backup.mjs            # copia toda la base a C:\Users\<vos>\Genez-backups\ (solo lee)
 ```
 
@@ -715,6 +716,24 @@ tiene que hacer lo mismo, o va a mostrar plata que se devolvió.
 
 Lo que falta: devolver una parte de un producto por peso; hoy se devuelve
 el renglón entero.
+
+### Corregir el medio de pago
+
+Migración 0092, `corregir_medio_pago` en la base, y "Corregir medio" en
+cada pago del detalle de una venta en Caja. Es para el botón mal tocado:
+se cobró en efectivo y quedó en débito.
+
+**Se cambian dos filas juntas**: el pago (`pagos`, lo que leen los
+informes) y su ingreso en la caja (`movimientos_caja`, lo que suma el
+arqueo). El importe y el total no se tocan. Por eso no se deja con
+recargo de ningún lado —cambiaría el total— ni hacia o desde cuenta
+corriente, que es deuda y no plata en la caja: eso va por devolución o
+por pago. Tampoco con la caja de esa venta cerrada, porque el arqueo ya
+se contó con ese medio.
+
+**Pide `anular`**, como las devoluciones, y queda en la bitácora
+(`venta.medio_corregido`). No es un detalle: de efectivo a débito es
+exactamente cómo se tapa un faltante del cajón.
 
 ## La cuenta corriente
 

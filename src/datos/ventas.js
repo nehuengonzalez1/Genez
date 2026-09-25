@@ -379,6 +379,18 @@ export async function registrarNotaDebito({ ventaId, concepto, monto, sesionId, 
   return data;
 }
 
+/* Se cobró con un medio y se tocó otro (0092): cambia el medio de un pago
+   y de su ingreso en la caja, los dos juntos. La base controla el permiso,
+   la caja abierta y que no cambie el total. */
+export async function corregirMedioPago({ pagoId, medio, motivo }) {
+  const { error } = await supabase.rpc("corregir_medio_pago", {
+    p_pago: pagoId,
+    p_medio: medio,
+    p_motivo: motivo || null,
+  });
+  if (error) throw new Error(error.message || "No se pudo corregir el cobro.");
+}
+
 /* Lo que se vendió de cada producto en el período (migración 0080).
 
    Reemplaza a la proyección que hacían los cuadros de Informes: tomaban
