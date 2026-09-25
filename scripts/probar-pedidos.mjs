@@ -22,33 +22,23 @@ const env = Object.fromEntries(
 
 const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL });
 await c.connect();
-/* Desde cuándo corre esta prueba, según el reloj de la base y no el de
-   Node. Lo usa la limpieza del final para borrar de la bitácora solo lo
-   que escribió esta corrida.
-
-   Antes se borraba por acción —o directamente entera— y eso se llevaba
-   puesto el registro de los tres comercios. Daba igual mientras nadie la
-   leyera; desde que la auditoría tiene pantalla, es destruir un dato
-   real cada vez que alguien corre las pruebas. */
-const arranque = (await c.query("select now() as t")).rows[0].t;
+/* TODO ADENTRO DE UNA TRANSACCIÓN QUE SE DESHACE
+   La base es la de producción. Antes esta prueba escribía de verdad y
+   limpiaba al final —incluida la bitácora de todos los comercios desde
+   la hora de arranque, que se llevaba las acciones reales de un cajero en
+   esos segundos— y si se cortaba a la mitad dejaba restos. Ahora nada se
+   confirma: la aplicación no lo ve y, si se corta, Postgres lo deshace.
+   Ver probar-venta.mjs. */
+await c.query("begin");
 
 const una = async (sql, args = []) => (await c.query(sql, args)).rows[0];
 const hechos = [];
 let fallas = 0;
 const decir = (ok, texto) => { if (!ok) fallas++; console.log(`  ${ok ? "ok " : "MAL"}  ${texto}`); };
 
-/* Lo que quedó de una corrida cortada a la mitad ensucia los conteos:
-   las estadísticas contarían pedidos de prueba viejos como si fueran de
-   hoy. Se los marca con una referencia propia para poder barrerlos. */
+/* Los pedidos de la prueba llevan esta referencia. Ya no hace falta
+   barrer restos de una corrida cortada: con la transacción no quedan. */
 const MARCA = "PRUEBA-PED";
-async function barrer() {
-  const cond = `referencia like '${MARCA}%'`;
-  await c.query(`delete from movimientos_stock where operacion_id in (select id from operaciones where ${cond})`);
-  await c.query(`delete from movimientos_caja  where operacion_id in (select id from operaciones where ${cond})`);
-  const r = await c.query(`delete from operaciones where ${cond}`);
-  if (r.rowCount) console.log(`\n(se limpiaron ${r.rowCount} pedidos de una corrida anterior)`);
-}
-await barrer();
 
 const bar = await una("select id from empresas where nombre = 'Bar Rivadavia'");
 if (!bar) {
@@ -100,12 +90,14 @@ decir(Number(v.total) === Number(plato.precio) + Number(bebida.precio), `y el to
 const h0 = await una("select count(*) n from pedido_estados where operacion_id = $1", [mostrador]);
 decir(h0.n === "1", "y deja su primera línea de historial");
 
+await c.query("savepoint esperado");
 try {
   await mover(mostrador, "en_camino");
   decir(false, "mostrador no pasa por 'en camino'");
 } catch (e) {
   decir(e.code === "P0013", "mostrador no pasa por 'en camino'");
 }
+await c.query("rollback to savepoint esperado");
 
 /* ------------------------------------------------------------
    2 · Mover el pedido mueve la cocina
@@ -123,12 +115,14 @@ decir(await cuantas(mostrador, "listo") === 2, "marcarlo listo marca sus platos"
 v = await lee(mostrador);
 decir(v.estado_pedido === "listo" && v.estado_desde != null, "y se sabe desde cuándo está listo");
 
+await c.query("savepoint esperado");
 try {
   await mover(mostrador, "completado");
   decir(false, "no se completa un pedido sin cobrarlo");
 } catch (e) {
   decir(e.code === "P0012", "no se completa un pedido sin cobrarlo");
 }
+await c.query("rollback to savepoint esperado");
 
 /* ------------------------------------------------------------
    3 · Completar es cobrar
@@ -154,17 +148,25 @@ const partes = await una(`
 decir(partes.pagos === "1" && partes.caja === "1", "la plata entra por la caja de siempre");
 decir(partes.stock === "1", "y descuenta solo lo que lleva stock");
 
-const hist = (await c.query(
-  "select estado from pedido_estados where operacion_id = $1 order by fecha, estado", [mostrador])).rows.map((r) => r.estado);
+/* El orden sale de la cadena de `anterior`, no de la hora: adentro de la
+   transacción now() es el mismo para todos los pasos. */
+const filasHist = (await c.query(
+  "select estado, anterior from pedido_estados where operacion_id = $1", [mostrador])).rows;
+const hist = [];
+for (let previo = null, f; (f = filasHist.find((x) => x.anterior === previo && !hist.includes(x.estado))); previo = f.estado) {
+  hist.push(f.estado);
+}
 decir(hist.length === 4 && hist[3] === "completado",
   `el historial guarda las cuatro etapas (${hist.join(" → ")})`);
 
+await c.query("savepoint esperado");
 try {
   await mover(mostrador, "listo");
   decir(false, "un pedido cobrado ya no se mueve");
 } catch (e) {
   decir(e.code === "P0011", "un pedido cobrado ya no se mueve");
 }
+await c.query("rollback to savepoint esperado");
 
 /* ------------------------------------------------------------
    4 · Otro canal, otro flujo
@@ -215,16 +217,8 @@ decir(Array.isArray(d.por_canal) && d.por_canal.some((x) => x.canal === "pedidos
   "abre por canal con el nombre que ve el comercio");
 decir(d.minutos_preparacion !== null, "y sabe cuánto tardó la cocina");
 
-/* ------------------------------------------------------------
-   Limpieza
-   ------------------------------------------------------------ */
-for (const id of hechos) {
-  await c.query("delete from movimientos_stock where operacion_id = $1", [id]);
-  await c.query("delete from movimientos_caja  where operacion_id = $1", [id]);
-  await c.query("delete from operaciones where id = $1", [id]);
-}
-await c.query("delete from sesiones_caja where id = $1", [sesion.id]);
-await c.query("delete from bitacora where fecha >= $1", [arranque]);
+/* Nada de lo que se escribió queda, ni la bitácora. */
+await c.query("rollback");
 
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien. Base como estaba.");
 await c.end();

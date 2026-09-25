@@ -12,7 +12,6 @@
 
 import { readFileSync } from "node:fs";
 import pg from "pg";
-import { createClient } from "@supabase/supabase-js";
 
 const env = Object.fromEntries(
   readFileSync(".env", "utf8").split("\n").filter((l) => l.includes("=") && !l.trim().startsWith("#"))
@@ -21,6 +20,10 @@ const env = Object.fromEntries(
 
 const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL });
 await c.connect();
+/* Todo adentro de una transacción que se deshace: la base es la de
+   producción (ver probar-venta.mjs). Tampoco queda la bitácora que anota
+   enviar_a_cocina, que antes quedaba escrita. */
+await c.query("begin");
 
 const una = async (sql, args = []) => (await c.query(sql, args)).rows[0];
 let fallas = 0;
@@ -85,8 +88,7 @@ const nuevo = (await c.query(
   "select count(*) n from operacion_lineas where operacion_id = $1 and estado = 'borrador'", [cm.id])).rows[0];
 decir(nuevo.n === "1", "y queda solo eso sin despachar");
 
-await c.query("delete from operacion_lineas where operacion_id = $1", [cm.id]);
-await c.query("delete from operaciones where id = $1", [cm.id]);
+await c.query("rollback");
 console.log(fallas ? `\n${fallas} fallaron.` : "\nTodo bien. Base como estaba.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

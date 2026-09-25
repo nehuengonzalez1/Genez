@@ -19,15 +19,14 @@ const env = Object.fromEntries(
 
 const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL });
 await c.connect();
-/* Desde cuándo corre esta prueba, según el reloj de la base y no el de
-   Node. Lo usa la limpieza del final para borrar de la bitácora solo lo
-   que escribió esta corrida.
-
-   Antes se borraba por acción —o directamente entera— y eso se llevaba
-   puesto el registro de los tres comercios. Daba igual mientras nadie la
-   leyera; desde que la auditoría tiene pantalla, es destruir un dato
-   real cada vez que alguien corre las pruebas. */
-const arranque = (await c.query("select now() as t")).rows[0].t;
+/* TODO ADENTRO DE UNA TRANSACCIÓN QUE SE DESHACE
+   La base es la de producción. Antes esta prueba escribía de verdad y
+   limpiaba al final —incluida la bitácora de todos los comercios desde
+   la hora de arranque, que se llevaba las acciones reales de un cajero en
+   esos segundos— y si se cortaba a la mitad dejaba restos. Ahora nada se
+   confirma: la aplicación no lo ve y, si se corta, Postgres lo deshace.
+   Ver probar-venta.mjs. */
+await c.query("begin");
 const una = async (s, a = []) => (await c.query(s, a)).rows[0];
 let fallas = 0;
 const decir = (ok, t) => { if (!ok) fallas++; console.log(`  ${ok ? "ok " : "MAL"}  ${t}`); };
@@ -68,23 +67,26 @@ await c.query("select aplicar_descuento($1, null, 500)", [cm.id]);
 const f = await una("select descuento, descuento_pct from operaciones where id = $1", [cm.id]);
 decir(Number(f.descuento) === 500 && f.descuento_pct === null, "por importe se guarda el monto y se limpia el porcentaje");
 
-/* Sin savepoint: acá cada sentencia es su propia transacción, así que un
-   fallo no deja nada trabado. Los savepoints hacen falta solo adentro de
-   un begin explícito. */
+/* Cada error esperado va en su punto de guardado: adentro de la
+   transacción, un error la invalida entera. */
+await c.query("savepoint esperado");
 try {
   await c.query("select aplicar_descuento($1, null, 999999)", [cm.id]);
   decir(false, "no deja descontar mas que la cuenta");
 } catch (e) {
   decir(e.code === "P0009", "no deja descontar mas que la cuenta");
 }
+await c.query("rollback to savepoint esperado");
 
 /* El tope (0088): hasta 99,99 %, medido en plata. La mesa nunca queda
    en cero, ni por porcentaje, ni por importe, ni por redondeo. */
 console.log("\nTope de 99,99 %");
 
 const rechaza = async (sql, args, texto) => {
+  await c.query("savepoint esperado");
   try { await c.query(sql, args); decir(false, texto); }
   catch (e) { decir(e.code === "P0009" || e.code === "23514", texto); }
+  await c.query("rollback to savepoint esperado");
 };
 const tope = Number((await una("select tope_descuento($1) t", [sub2])).t);
 decir(tope === Math.floor(sub2 * 99.99 / 100) && tope < sub2, `el tope de ${sub2} es ${tope}, por debajo del subtotal`);
@@ -108,8 +110,10 @@ const ventaCon = (desc) => c.query(
   `insert into operaciones (id, empresa_id, sucursal_id, tipo, estado, numero, subtotal, descuento, total)
    values (gen_random_uuid(), $1, $2, 'venta', 'confirmada', 'PRUEBA-TOPE', 1500, $3::numeric, 1500 - $3::numeric) returning id`,
   [emp.id, suc.id, desc]);
+await c.query("savepoint esperado");
 try { await ventaCon(1500); decir(false, "una venta confirmada en $0 no entra"); }
 catch (e) { decir(e.code === "P0009", "una venta confirmada en $0 no entra"); }
+await c.query("rollback to savepoint esperado");
 const entra = (await ventaCon(1499)).rows[0];
 decir(!!entra, "una venta confirmada con el tope justo entra");
 await c.query("delete from operaciones where id = $1", [entra.id]);
@@ -131,12 +135,8 @@ decir(Number(fin.descuento) === Math.round(sub2 * 0.1), `el descuento sobrevivio
 decir(Number(fin.total) === esperado, `el total cobrado los resta (${fin.total})`);
 decir(Number(fin.comensales) === 3, "los comensales quedan guardados para el ticket por persona");
 
-await c.query("delete from movimientos_stock where operacion_id = $1", [cm.id]);
-await c.query("delete from movimientos_caja where operacion_id = $1", [cm.id]);
-await c.query("delete from operacion_lineas where operacion_id = $1", [cm.id]);
-await c.query("delete from operaciones where id = $1", [cm.id]);
-await c.query("delete from sesiones_caja where id = $1", [ses.id]);
-await c.query("delete from bitacora where fecha >= $1", [arranque]);
+/* Nada de lo que se escribió queda, ni la bitácora. */
+await c.query("rollback");
 
 console.log(fallas ? `\n${fallas} fallaron.` : "\nTodo bien. Base como estaba.");
 await c.end();

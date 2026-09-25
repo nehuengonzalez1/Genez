@@ -22,15 +22,14 @@ const env = Object.fromEntries(
 
 const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL });
 await c.connect();
-/* Desde cuándo corre esta prueba, según el reloj de la base y no el de
-   Node. Lo usa la limpieza del final para borrar de la bitácora solo lo
-   que escribió esta corrida.
-
-   Antes se borraba por acción —o directamente entera— y eso se llevaba
-   puesto el registro de los tres comercios. Daba igual mientras nadie la
-   leyera; desde que la auditoría tiene pantalla, es destruir un dato
-   real cada vez que alguien corre las pruebas. */
-const arranque = (await c.query("select now() as t")).rows[0].t;
+/* TODO ADENTRO DE UNA TRANSACCIÓN QUE SE DESHACE
+   La base es la de producción. Antes esta prueba escribía de verdad y
+   limpiaba al final —incluida la bitácora de todos los comercios desde
+   la hora de arranque, que se llevaba las acciones reales de un cajero en
+   esos segundos— y si se cortaba a la mitad dejaba restos. Ahora nada se
+   confirma: la aplicación no lo ve y, si se corta, Postgres lo deshace.
+   Ver probar-venta.mjs. */
+await c.query("begin");
 
 const una = async (sql, args = []) => (await c.query(sql, args)).rows[0];
 let fallas = 0;
@@ -121,18 +120,8 @@ const asientos = (await c.query(
 decir(asientos.includes("reserva.crear"), "queda quién tomó la reserva");
 decir(asientos.includes("reserva.sentada"), "y quién la sentó");
 
-/* ------------------------------------------------------------
-   Limpieza
-   ------------------------------------------------------------ */
-for (const id of limpiar) {
-  await c.query("delete from movimientos_stock where operacion_id = $1", [id]);
-  await c.query("delete from movimientos_caja  where operacion_id = $1", [id]);
-  await c.query("delete from reservas where operacion_id = $1", [id]);
-  await c.query("delete from operaciones where id = $1", [id]);
-}
-await c.query("delete from reservas where id = $1", [reserva.id]);
-await c.query("delete from sesiones_caja where id = $1", [sesion.id]);
-await c.query("delete from bitacora where fecha >= $1", [arranque]);
+/* Nada de lo que se escribió queda, ni la bitácora. */
+await c.query("rollback");
 
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien. Base como estaba.");
 await c.end();

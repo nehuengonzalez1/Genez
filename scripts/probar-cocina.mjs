@@ -18,12 +18,20 @@ const env = Object.fromEntries(
 
 const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL });
 await c.connect();
+/* Todo adentro de una transacción que se deshace: la base es la de
+   producción (ver probar-venta.mjs). */
+await c.query("begin");
 const una = async (s, a = []) => (await c.query(s, a)).rows[0];
 let fallas = 0;
 const decir = (ok, t) => { if (!ok) fallas++; console.log(`  ${ok ? "ok " : "MAL"}  ${t}`); };
 
 const emp = await una("select id from empresas where nombre = 'Bar Rivadavia'");
-const mesa = await una("select id, nombre from recursos where empresa_id = $1 and tipo = 'mesa' order by orden limit 1", [emp.id]);
+/* Una mesa libre: en una ocupada, abrir_comanda devuelve la cuenta real
+   que está ahí y la prueba le cargaría platos. */
+const mesa = await una(
+  `select r.id, r.nombre from recursos r where r.empresa_id = $1 and r.tipo = 'mesa'
+     and not exists (select 1 from operaciones o where o.recurso_id = r.id and o.estado = 'abierta')
+   order by r.orden limit 1`, [emp.id]);
 const platos = (await c.query("select id, nombre, precio, costo from items where empresa_id = $1 and controla_stock = false limit 2", [emp.id])).rows;
 
 const hechas = [];
@@ -78,10 +86,7 @@ await c.query("update operacion_lineas set estado = 'preparando' where operacion
 const n = await una("select count(*) n from operacion_lineas where operacion_id = $1 and estado = 'preparando'", [enMesa]);
 decir(n.n === "2", "empezar la comanda mueve sus dos platos de una");
 
-for (const id of hechas) {
-  await c.query("delete from operacion_lineas where operacion_id = $1", [id]);
-  await c.query("delete from operaciones where id = $1", [id]);
-}
+await c.query("rollback");
 console.log(fallas ? `\n${fallas} fallaron.` : "\nTodo bien. Base como estaba.");
 await c.end();
 process.exitCode = fallas ? 1 : 0;

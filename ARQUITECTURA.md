@@ -60,12 +60,28 @@ authenticated`, así las políticas se aplican igual que desde el navegador.
 Las demás corren como administrador y **saltean RLS**: sirven para la
 lógica, no para los permisos. Esa diferencia ya dejó pasar un bug.
 
-Cada script deja la base como estaba, y **la bitácora la limpia por fecha**:
-guarda la hora de arranque —la del reloj de la base, no el de Node— y borra
-solo lo que escribió esa corrida. Antes borraba por acción, o entera, y eso
-se llevaba puesto el registro de los tres comercios. Daba igual mientras
-nadie la leyera; desde que la auditoría tiene pantalla, es destruir un dato
-real cada vez que alguien corre las pruebas.
+**Las pruebas corren contra la base de producción, con comercios
+vendiendo.** Por eso cada una corre **adentro de una transacción que se
+deshace**: nada de lo que escribe se confirma, la aplicación no lo ve
+mientras corre, y si se corta a la mitad Postgres lo deshace solo. No hay
+limpieza por patrón ni por fecha. Antes limpiaban al final, y eso rompió
+datos reales: un barrido de "restos" borró una venta cobrada de Bar
+Rivadavia, una caja de prueba que quedó abierta se hizo pasar por la de
+Super 25, y borrar la bitácora "desde la hora de arranque" se llevaba las
+acciones reales de un cajero en esos segundos.
+
+Tres cosas a tener en cuenta al escribir una:
+- **Un error esperado va en su `savepoint`**: adentro de la transacción,
+  un error la invalida entera.
+- **`now()` queda fijo** durante toda la transacción. Un orden no puede
+  salir de la hora (el historial de pedidos se reconstruye con `anterior`).
+- **Una mesa, siempre una libre**: en una ocupada, `abrir_comanda` devuelve
+  la cuenta real que está ahí.
+
+La excepción es lo que habla con ARCA (`probar-arca.mjs` parte 3,
+`probar-devoluciones.mjs` al final): la función del servidor lee por otra
+conexión y no ve lo que no está confirmado. Ahí se crea un comercio
+temporal y se borra por su id al terminar, pase lo que pase.
 
 ## El modelo de datos
 

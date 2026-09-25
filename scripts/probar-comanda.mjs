@@ -22,24 +22,20 @@ const env = Object.fromEntries(
 
 const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL });
 await c.connect();
-/* Desde cuándo corre esta prueba, según el reloj de la base y no el de
-   Node. Lo usa la limpieza del final para borrar de la bitácora solo lo
-   que escribió esta corrida.
-
-   Antes se borraba por acción —o directamente entera— y eso se llevaba
-   puesto el registro de los tres comercios. Daba igual mientras nadie la
-   leyera; desde que la auditoría tiene pantalla, es destruir un dato
-   real cada vez que alguien corre las pruebas. */
-const arranque = (await c.query("select now() as t")).rows[0].t;
+/* TODO ADENTRO DE UNA TRANSACCIÓN QUE SE DESHACE
+   La base es la de producción. Antes esta prueba escribía de verdad y
+   limpiaba al final —incluida la bitácora de todos los comercios desde
+   la hora de arranque, que se llevaba las acciones reales de un cajero en
+   esos segundos— y si se cortaba a la mitad dejaba restos. Ahora nada se
+   confirma: la aplicación no lo ve y, si se corta, Postgres lo deshace.
+   Ver probar-venta.mjs. */
+await c.query("begin");
 
 const una = async (sql, args = []) => (await c.query(sql, args)).rows[0];
 let fallas = 0;
 const decir = (ok, texto) => { if (!ok) fallas++; console.log(`  ${ok ? "ok " : "MAL"}  ${texto}`); };
 
 const MARCA = "PRUEBA-COM";
-await c.query(`delete from movimientos_caja  where operacion_id in (select id from operaciones where referencia like '${MARCA}%')`);
-await c.query(`delete from movimientos_stock where operacion_id in (select id from operaciones where referencia like '${MARCA}%')`);
-await c.query(`delete from operaciones where referencia like '${MARCA}%'`);
 
 const bar = await una("select id from empresas where nombre = 'Bar Rivadavia'");
 if (!bar) { console.log("Sin Bar Rivadavia cargado."); await c.end(); process.exit(1); }
@@ -99,21 +95,25 @@ const enCaja = await una(
   "select count(*) n, sum(monto)::int total from movimientos_caja where operacion_id = $1", [comanda.id]);
 decir(enCaja.n === "2" && enCaja.total === parte * 2, "cada parte entró a la caja por separado");
 
+await c.query("savepoint esperado");
 try {
   await c.query("select registrar_pago($1, $2, 'efectivo', $3)", [comanda.id, sesion.id, total]);
   decir(false, "no deja cobrar más de lo que falta");
 } catch (e) {
   decir(e.code === "P0014", "no deja cobrar más de lo que falta");
 }
+await c.query("rollback to savepoint esperado");
 
 /* Sin caja abierta no hay pago parcial que valga: entraría plata que
    ningún arqueo ve. */
+await c.query("savepoint esperado");
 try {
   await c.query("select registrar_pago($1, null, 'efectivo', 100)", [comanda.id]);
   decir(false, "exige caja abierta igual que el cobro entero");
 } catch (e) {
   decir(e.code === "P0001", "exige caja abierta igual que el cobro entero");
 }
+await c.query("rollback to savepoint esperado");
 
 /* ------------------------------------------------------------
    3 · Cerrar cobrando solo el saldo
@@ -162,16 +162,8 @@ const desc = await una(
   "select detalle from bitacora where entidad_id = $1 and accion = 'comanda.descuento'", [otra.id]);
 decir(desc && Number(desc.detalle.porcentaje) === 10, "un descuento también, con su porcentaje");
 
-/* ------------------------------------------------------------
-   Limpieza
-   ------------------------------------------------------------ */
-for (const id of [comanda.id, otra.id]) {
-  await c.query("delete from movimientos_stock where operacion_id = $1", [id]);
-  await c.query("delete from movimientos_caja  where operacion_id = $1", [id]);
-  await c.query("delete from operaciones where id = $1", [id]);
-}
-await c.query("delete from sesiones_caja where id = $1", [sesion.id]);
-await c.query("delete from bitacora where fecha >= $1", [arranque]);
+/* Nada de lo que se escribió queda, ni la bitácora. */
+await c.query("rollback");
 
 console.log(fallas ? `\n${fallas} prueba(s) fallaron.` : "\nTodo bien. Base como estaba.");
 await c.end();
