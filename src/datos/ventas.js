@@ -195,6 +195,38 @@ export async function cargarSerieDiaria(empresaId, dias = 90) {
   });
 }
 
+/* Las últimas ventas del comercio, para reimprimir desde el cobro sin ir a
+   Caja: "no salió el ticket", "¿me das la factura?". Ventas y mesas
+   cobradas, de la más nueva a la más vieja, de cualquier caja. Trae lo
+   justo para la lista; el papel se arma al imprimir con
+   `cargarTicketDeVenta`, como en Caja. */
+export async function cargarUltimasVentas(empresaId, cuantas = 5) {
+  if (!empresaId) throw new Error("cargarUltimasVentas necesita la empresa.");
+  const { data, error } = await supabase
+    .from("operaciones")
+    .select("id, numero, fecha, total, comprobante, clientes ( razon_social ), comprobantes ( estado, letra, punto_venta, numero )")
+    .eq("empresa_id", empresaId)
+    .in("tipo", ["venta", "comanda"])
+    .eq("estado", "confirmada")
+    .order("fecha", { ascending: false })
+    .limit(cuantas);
+  if (error) throw error;
+  return (data || []).map((o) => {
+    const fiscal = !!(o.comprobante && o.comprobante.fiscal);
+    const c = (o.comprobantes || []).find((x) => x.estado === "autorizado") || null;
+    return {
+      id: o.id,
+      numero: o.numero,
+      fecha: new Date(o.fecha),
+      total: Number(o.total),
+      cliente: (o.clientes && o.clientes.razon_social) || null,
+      fiscal,
+      nota: (o.comprobante && o.comprobante.nota) || null,
+      factura: c ? { letra: c.letra, puntoVenta: c.punto_venta, numero: c.numero } : null,
+    };
+  });
+}
+
 /* Una venta, para abrirla desde un movimiento de Caja: quién la cobró,
    el cliente y la factura. Los renglones y los importes los trae
    `cargarTicketDeVenta`, que es lo mismo que se imprime. La factura sale

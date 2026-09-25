@@ -1876,7 +1876,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
-                facturacion={facturacion} facturas={facturas} pedirCAEs={pedirCAEs} />
+                facturacion={facturacion} facturas={facturas} pedirCAEs={pedirCAEs}
+                empresaId={empresaId} caja={caja}
+                recargarCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }} />
             ) : (
               <div className="py-8">
                 <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia}

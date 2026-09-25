@@ -6,7 +6,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Barcode, ScanLine, Camera as Cam, CameraOff, Zap, ZapOff, Loader2,
   Minus, Plus, Trash2, Printer, FileText, MessageCircle, Mail, QrCode,
-  ArrowRight, Check, X, Percent, Users, Search
+  ArrowRight, Check, X, Percent, Users, Search, History
 } from "lucide-react";
 import { HOY, uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
@@ -22,6 +22,7 @@ import {
   Vacio, Modal, Boton, Card, Comandera
 } from "../ui/Base.jsx";
 import { FormCliente } from "./Clientes.jsx";
+import { UltimasVentas } from "./UltimasVentas.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 
 function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) {
@@ -548,12 +549,12 @@ function PrecioEditable({ linea, puede, onCambiar, className = "" }) {
 }
 
 const ATAJOS = [
-  ["F2", "Cobrar"], ["F4", "Descuento"], ["F7", "Quitar último"], ["F8", "Anular venta"],
+  ["F2", "Cobrar"], ["F3", "Últimas ventas"], ["F4", "Descuento"], ["F7", "Quitar último"], ["F8", "Anular venta"],
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
 export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos,
-  facturacion = { puede: false }, facturas = {}, pedirCAEs }) {
+  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → monto → fin
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -570,6 +571,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const tk = ticket && ticket.fiscal ? { ...ticket, factura: facturas[ticket.id] || null } : ticket;
   const [verTicket, setVerTicket] = useState(false);
   const [ayuda, setAyuda] = useState(false);
+  const [ultimas, setUltimas] = useState(false);   // F3: las últimas ventas, para reimprimir
   const [alta, setAlta] = useState(null);
   /* `{ p, qty }` mientras se pide el importe de un producto de precio
      abierto; null el resto del tiempo. */
@@ -838,8 +840,14 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   // ---- Teclado ----
   useEffect(() => {
     const h = (e) => {
+      /* Con las últimas ventas abiertas, las teclas son de esa ventana
+         (1 a 5 imprime, Esc cierra); F3 la vuelve a cerrar. */
+      if (ultimas) { if (e.key === "F3") { e.preventDefault(); setUltimas(false); } return; }
       if (alta || camara || buscarCliente) return;
       if (e.key === "F1") { e.preventDefault(); return setAyuda((a) => !a); }
+      /* F3 desde cualquier paso: el cliente vuelve a pedir el papel
+         también mientras se está cobrando al siguiente. */
+      if (e.key === "F3" && empresaId) { e.preventDefault(); return setUltimas(true); }
       if (ayuda) { if (e.key === "Escape") { e.preventDefault(); setAyuda(false); } return; }
 
       if (paso === "carga") {
@@ -918,7 +926,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -990,6 +998,13 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               title="Leer con la cámara">
               <Cam size={16} className="text-acento-vivo" /> <span className="hidden sm:inline">Cámara</span>
             </button>
+            {empresaId && (
+              <button onClick={() => setUltimas(true)}
+                className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/10 active:bg-superficie/20 border border-borde-fuerte rounded-xl px-2.5 py-2"
+                title="Las últimas ventas, para volver a imprimir (F3)">
+                <History size={16} className="text-acento-vivo" /> <span className="hidden sm:inline">Últimas</span>
+              </button>
+            )}
             <Tecla>Enter</Tecla>
           </div>
           {cantidadPendiente && (
@@ -1508,6 +1523,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           beep(true, ajustes.sonido);
         }} />
 
+      {ultimas && (
+        <UltimasVentas empresaId={empresaId} ajustes={ajustes} toast={toast}
+          caja={caja} permisos={permisos} pedirCAEs={pedirCAEs} onCambio={recargarCaja}
+          onCerrar={() => { setUltimas(false); inp.current && inp.current.focus(); }} />
+      )}
       {ayuda && (
         <Overlay ancho="max-w-md">
           <div className="p-5">
@@ -1516,7 +1536,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <ul className="mt-4 space-y-1.5 text-sm">
               {[["Escribir / escanear", "busca y carga el producto"], ["Enter", "agrega el producto marcado"],
                 ["Un número + Enter", "cambia la cantidad del último producto"], ["Enter con el campo vacío", "pasa a cobrar"], ["↑ ↓", "elegir en la lista"],
-                ["F2", "cobrar"], ["F4", "cambiar descuento"], ["F7", "quitar el último renglón"],
+                ["F2", "cobrar"], ["F3", "últimas ventas, para reimprimir"], ["F4", "cambiar descuento"], ["F7", "quitar el último renglón"],
                 ["F8", "anular la venta"], ["F9", "vender recorriendo el salón"], ["F10", "ir al panel"],
                 ["1 – 5", "elegir medio de pago"], ["6", "pago combinado"], ["Supr", "borrar el último pago parcial"], ["I / T / W / E", "imprimir, ver, WhatsApp, email"],
                 ["Esc", "volver un paso"]].map(([k2, d]) => (
