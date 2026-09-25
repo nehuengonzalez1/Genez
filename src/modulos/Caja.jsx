@@ -9,7 +9,7 @@ import { DetalleMovimiento } from "./DetalleMovimiento.jsx";
 import { mediosDe, medioPorK, money, nf, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
 import { Kpi, Card, Boton, Modal, Vacio } from "../ui/Base.jsx";
 
-export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empresaId }) {
+export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empresaId, permisos = {}, pedirCAEs = null, recargarCaja = null }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ monto: "", detalle: "", medio: "efectivo" });
   const [contado, setContado] = useState("");
@@ -101,7 +101,8 @@ export function Caja({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, emp
             </ul>
           )}
           {abierto && (
-            <DetalleMovimiento m={abierto} empresaId={empresaId} ajustes={ajustes} toast={toast} onCerrar={() => setAbierto(null)} />
+            <DetalleMovimiento m={abierto} empresaId={empresaId} ajustes={ajustes} toast={toast} onCerrar={() => setAbierto(null)}
+              caja={caja} permisos={permisos} pedirCAEs={pedirCAEs} onCambio={recargarCaja} />
           )}
         </Card>
 

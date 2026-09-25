@@ -687,7 +687,13 @@ export function ticketVenta(t, ajustes, W) {
   if (t.fiscal && f.iibb) b.push({ t: "c", v: `IIBB ${f.iibb}  Inicio ${f.inicio || ""}`.trim() });
   b.push({ t: "c", v: t.fiscal ? condicionLegal(f.condicion) : "NO VALIDO COMO FACTURA" });
   b.push({ t: "sep", c: "=" });
-  b.push({ t: "c", v: t.fiscal ? `FACTURA ${letra}` : "TICKET DE VENTA" });
+  /* 0089: una devolución de factura sale como nota de crédito, un cargo de
+     más sobre una factura como nota de débito, y la devolución de un
+     ticket como comprobante de devolución, no válido como factura. */
+  b.push({ t: "c", v: t.nota === "credito" ? `NOTA DE CREDITO ${letra}`
+    : t.nota === "debito" ? `NOTA DE DEBITO ${letra}`
+    : t.tipo === "devolucion" ? "DEVOLUCION"
+    : t.fiscal ? `FACTURA ${letra}` : "TICKET DE VENTA" });
   /* Homologación es el ARCA de pruebas: el CAE es real pero no vale nada.
      Se dice arriba, porque ese papel puede terminar en la mano de un
      cliente mientras el comercio prueba. */
@@ -703,6 +709,14 @@ export function ticketVenta(t, ajustes, W) {
     b.push({ t: "c", v: `${t.fecha || fdatel(new Date())} ${t.hora}` });
   } else {
     b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${t.fecha || fdatel(new Date())} ${t.hora}` });
+  }
+  /* A qué comprobante corresponde una nota o una devolución: ARCA lo pide
+     en la nota, y en el papel es lo que se mira para saber qué se anuló. */
+  if (t.origen) {
+    const of = t.origen.factura;
+    b.push({ t: "w", v: `ASOCIADO: ${of
+      ? `FACTURA ${of.letra} ${String(of.puntoVenta).padStart(5, "0")}-${String(of.numero).padStart(8, "0")}`
+      : `VENTA ${t.origen.numero || ""}`}` });
   }
 
   if (t.fiscal) {
@@ -739,8 +753,12 @@ export function ticketVenta(t, ajustes, W) {
   b.push({ t: "lr", a: "TOTAL", b: money(t.total) });
   b.push({ t: "sep", c: "=" });
 
-  const pagos = t.pagos && t.pagos.length ? t.pagos : [{ medio: t.medio, monto: t.total }];
-  pagos.forEach((p) => b.push({ t: "lr", a: medioPorK(ajustes, p.medio).n.toUpperCase(), b: money(p.monto) }));
+  if (t.tipo === "devolucion") {
+    b.push({ t: "lr", a: `REINTEGRO ${medioPorK(ajustes, t.medio).n.toUpperCase()}`, b: money(t.total) });
+  } else {
+    const pagos = t.pagos && t.pagos.length ? t.pagos : [{ medio: t.medio, monto: t.total }];
+    pagos.forEach((p) => b.push({ t: "lr", a: medioPorK(ajustes, p.medio).n.toUpperCase(), b: money(p.monto) }));
+  }
   if (t.recibe) {
     b.push({ t: "lr", a: "RECIBIDO EN EFECTIVO", b: money(t.recibe) });
     b.push({ t: "lr", a: "VUELTO", b: money(t.vuelto != null ? t.vuelto : t.recibe - t.total) });

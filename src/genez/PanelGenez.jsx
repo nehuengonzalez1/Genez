@@ -2138,7 +2138,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "caja" && (
             <div className="space-y-4">
               <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes} empresaId={empresaId}
-                abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia} />
+                abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia}
+                permisos={permisos} pedirCAEs={conexionArca ? pedirCAEs : null}
+                recargarCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }} />
               {/* Con la caja cerrada también: una factura sin CAE de ayer se
                   resuelve aunque hoy todavía no se haya abierto. Y aparece
                   si quedaron pendientes aunque la conexión se haya dado de

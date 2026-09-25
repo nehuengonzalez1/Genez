@@ -139,16 +139,32 @@ export async function cargarTicketDeVenta(empresaId, operacionId) {
   if (!empresaId) throw new Error("cargarTicketDeVenta necesita la empresa.");
   const { data: o, error } = await supabase
     .from("operaciones")
-    .select("id, numero, fecha, total, subtotal, descuento, recargo, comprobante, clientes ( razon_social, tipo_doc, doc, condicion, domicilio ), pagos ( medio, monto ), operacion_lineas ( descripcion, cantidad, precio_unitario, total )")
+    .select("id, numero, fecha, total, subtotal, descuento, recargo, tipo, comprobante, campos_extra, origen_id, clientes ( razon_social, tipo_doc, doc, condicion, domicilio ), pagos ( medio, monto ), operacion_lineas ( id, descripcion, cantidad, precio_unitario, total )")
     .eq("empresa_id", empresaId).eq("id", operacionId)
     .single();
   if (error) throw error;
 
+  /* Una nota o una devolución dice a qué comprobante corresponde (0089):
+     el número de la venta y, si fue factura, su número de ARCA. */
+  let origen = null;
+  if (o.origen_id) {
+    const [{ data: ov }, { data: oc }] = await Promise.all([
+      supabase.from("operaciones").select("numero").eq("id", o.origen_id).maybeSingle(),
+      supabase.from("comprobantes").select("letra, punto_venta, numero").eq("operacion_id", o.origen_id).eq("estado", "autorizado").maybeSingle(),
+    ]);
+    origen = { id: o.origen_id, numero: ov ? ov.numero : null, factura: oc ? { letra: oc.letra, puntoVenta: oc.punto_venta, numero: oc.numero } : null };
+  }
+
   const f = new Date(o.fecha);
   const cl = o.clientes;
   const pagos = (o.pagos || []).map((p) => ({ medio: p.medio, monto: Number(p.monto) }));
+  const extra = o.campos_extra || {};
   return {
     id: o.id,
+    tipo: o.tipo,
+    nota: (o.comprobante && o.comprobante.nota) || null,
+    origen,
+    motivo: extra.motivo || null,
     nro: o.numero,
     fecha: fdatel(f),
     hora: hora(f),
@@ -156,11 +172,14 @@ export async function cargarTicketDeVenta(empresaId, operacionId) {
        renglón con el precio bajado a mano guarda ahí el de lista, y el
        papel tiene que sumar lo mismo que el total. */
     items: (o.operacion_lineas || []).map((l) => ({
+      lineaId: l.id,
       nombre: l.descripcion, qty: Number(l.cantidad),
       precio: Number(l.cantidad) ? Number(l.total) / Number(l.cantidad) : Number(l.precio_unitario),
     })),
     sub: Number(o.subtotal), desc: Number(o.descuento), recargo: Number(o.recargo), total: Number(o.total),
-    pagos, medio: pagos.length ? pagos[0].medio : null,
+    /* Una devolución no tiene pagos: el medio con que se reintegró queda
+       en campos_extra. */
+    pagos, medio: pagos.length ? pagos[0].medio : (extra.medio || null),
     fiscal: !!(o.comprobante && o.comprobante.fiscal),
     cliente: cl ? { razonSocial: cl.razon_social, tipoDoc: cl.tipo_doc || "CUIT", doc: cl.doc || "", condicion: cl.condicion, domicilio: cl.domicilio } : null,
   };

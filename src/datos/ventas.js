@@ -205,10 +205,10 @@ export async function cargarVenta(empresaId, operacionId) {
   if (!empresaId) throw new Error("cargarVenta necesita la empresa.");
   const { data, error } = await supabase
     .from("operaciones")
-    .select("id, numero, fecha, total, comprobante, clientes ( razon_social ), cajero:perfiles!usuario_id ( nombre ), comprobantes ( estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha, total, doc_tipo, doc_nro )")
+    .select("id, numero, fecha, total, tipo, comprobante, campos_extra, origen_id, clientes ( razon_social ), cajero:perfiles!usuario_id ( nombre ), comprobantes ( estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha, total, doc_tipo, doc_nro )")
     .eq("empresa_id", empresaId)
     .eq("id", operacionId)
-    .in("tipo", ["venta", "comanda"])
+    .in("tipo", ["venta", "comanda", "devolucion"])
     .limit(1);
   if (error) throw error;
 
@@ -225,6 +225,12 @@ export async function cargarVenta(empresaId, operacionId) {
     total: Number(o.total),
     cliente: (o.clientes && o.clientes.razon_social) || (o.comprobante && o.comprobante.cliente && o.comprobante.cliente.nombre) || null,
     cajero: (o.cajero && o.cajero.nombre) || "",
+    /* venta | comanda | devolucion, y si es nota de crédito o de débito
+       (0089). Una nota de débito es una venta que apunta a una factura. */
+    tipo: o.tipo,
+    nota: (o.comprobante && o.comprobante.nota) || null,
+    origenId: o.origen_id || null,
+    motivo: (o.campos_extra && o.campos_extra.motivo) || null,
     fiscal,
     factura,
     /* autorizada | pidiendo | sin_cae | simulada, o null si es un
@@ -237,6 +243,53 @@ export async function cargarVenta(empresaId, operacionId) {
       : !c && o.comprobante.cae ? "simulada"
       : "sin_cae",
   };
+}
+
+/* ------------------------------------------------------------
+   DEVOLUCIONES Y NOTAS (0089)
+   ------------------------------------------------------------
+   Las dos las hace la base, que controla el permiso, la caja, que no se
+   devuelva más de lo vendido y la numeración. Necesitan internet: tocan
+   una venta que ya está en la base. */
+
+/* Cuánto se devolvió ya de cada renglón de una venta: lineaId → cantidad. */
+export async function cargarDevuelto(empresaId, ventaId) {
+  const { data, error } = await supabase
+    .from("operaciones")
+    .select("operacion_lineas ( origen_linea_id, cantidad )")
+    .eq("empresa_id", empresaId).eq("origen_id", ventaId).eq("tipo", "devolucion").eq("estado", "confirmada");
+  if (error) throw error;
+  const devuelto = {};
+  for (const o of data || []) for (const l of o.operacion_lineas || []) {
+    if (l.origen_linea_id) devuelto[l.origen_linea_id] = (devuelto[l.origen_linea_id] || 0) + Number(l.cantidad);
+  }
+  return devuelto;
+}
+
+/* lineas: [{ lineaId, cantidad }]. Devuelve el id de la devolución. */
+export async function registrarDevolucion({ ventaId, lineas, sesionId, medio, motivo }) {
+  const { data, error } = await supabase.rpc("registrar_devolucion", {
+    p_venta: ventaId,
+    p_lineas: lineas.map((l) => ({ linea_id: l.lineaId, cantidad: l.cantidad })),
+    p_sesion: sesionId || null,
+    p_medio: medio,
+    p_motivo: motivo || null,
+  });
+  if (error) throw new Error(error.message || "No se pudo registrar la devolución.");
+  return data;
+}
+
+/* Un cargo de más sobre una factura. Devuelve el id de la nota. */
+export async function registrarNotaDebito({ ventaId, concepto, monto, sesionId, medio }) {
+  const { data, error } = await supabase.rpc("registrar_nota_debito", {
+    p_venta: ventaId,
+    p_concepto: concepto,
+    p_monto: Math.round(monto),
+    p_sesion: sesionId || null,
+    p_medio: medio,
+  });
+  if (error) throw new Error(error.message || "No se pudo registrar la nota de débito.");
+  return data;
 }
 
 /* Lo que se vendió de cada producto en el período (migración 0080).

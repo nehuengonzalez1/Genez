@@ -33,8 +33,15 @@ import { cifrar, descifrar } from "./_cifrado.js";
 /* El CUIT de pruebas de Afip SDK: en homologación no pide certificado. */
 export const CUIT_PRUEBAS = "20409378472";
 
-/* Los códigos de ARCA, distintos de la letra que ve el cliente. */
-const TIPO_FACTURA = { A: 1, B: 6, C: 11 };
+/* Los códigos de ARCA, distintos de la letra que ve el cliente. Una nota
+   de crédito o de débito tiene su propio tipo, y ARCA la numera aparte:
+   la primera nota de crédito C de un punto de venta es la 1 aunque ya
+   haya cien facturas. */
+const TIPOS = {
+  factura: { A: 1, B: 6, C: 11 },
+  debito: { A: 2, B: 7, C: 12 },
+  credito: { A: 3, B: 8, C: 13 },
+};
 
 /* Condición frente al IVA del comprador (RG 5616). Sin este dato ARCA ya
    no autoriza. */
@@ -174,13 +181,18 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
      venta de otro. */
   const { data: venta, error: e1 } = await admin
     .from("operaciones")
-    .select("id, empresa_id, tipo, estado, total, cliente_id, comprobante")
+    .select("id, empresa_id, tipo, estado, total, cliente_id, comprobante, origen_id")
     .eq("id", operacionId).eq("empresa_id", empresaId)
     .maybeSingle();
   if (e1) throw e1;
   if (!venta) throw new ErrorArca("La venta no existe o todavía no llegó a la base.", 404);
-  if (venta.tipo !== "venta" || venta.estado !== "confirmada") throw new ErrorArca("Solo se factura una venta confirmada.");
+  if (!["venta", "devolucion"].includes(venta.tipo) || venta.estado !== "confirmada") throw new ErrorArca("Solo se factura una venta confirmada.");
   if (!(Number(venta.total) > 0)) throw new ErrorArca("Una venta en cero no se factura.");
+
+  /* Qué comprobante es (0089): una devolución de una factura es una nota
+     de crédito; una venta marcada `nota: debito`, una nota de débito.
+     Las dos van asociadas a la factura original. */
+  const clase = venta.tipo === "devolucion" ? "credito" : (venta.comprobante && venta.comprobante.nota === "debito" ? "debito" : "factura");
 
   /* Solo las que el mostrador cobró como factura. Una que se entregó con
      ticket no fiscal ya tiene su papel, y facturarla después serían dos
@@ -220,23 +232,46 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
   const emisor = (empresa.config && empresa.config.fiscal && empresa.config.fiscal.condicion) || null;
   if (!emisor) throw new ErrorArca("Falta la condición frente al IVA del comercio (Ajustes → datos fiscales).");
 
-  let comprador = null;
-  if (venta.cliente_id) {
-    const { data, error } = await admin.from("clientes").select("condicion, tipo_doc, doc").eq("id", venta.cliente_id).eq("empresa_id", empresaId).maybeSingle();
+  /* Una nota va contra una factura que ARCA ya autorizó, del mismo
+     ambiente, y repite su letra y su comprador: ARCA rechaza una nota de
+     crédito a otro receptor que el de la factura. */
+  let asociada = null;
+  if (clase !== "factura") {
+    if (!venta.origen_id) throw new ErrorArca("La nota no dice a qué factura corresponde.");
+    const { data, error } = await admin.from("comprobantes").select("*")
+      .eq("operacion_id", venta.origen_id).eq("empresa_id", empresaId).eq("estado", "autorizado").maybeSingle();
     if (error) throw error;
-    comprador = data;
+    if (!data) throw new ErrorArca("La factura original todavía no tiene CAE: la nota se pide cuando ARCA la autorice.", 409);
+    if (data.modo !== conexion.modo) throw new ErrorArca("La factura original es de otro ambiente de ARCA (pruebas o producción): no se le puede hacer una nota desde este.", 409);
+    asociada = data;
   }
-  const condicion = (comprador && comprador.condicion) || "CF";
-  const letra = letraDe(emisor, condicion);
+
+  let letra, docTipo, docNro, condicionId;
+  if (asociada) {
+    letra = asociada.letra;
+    docTipo = asociada.doc_tipo;
+    docNro = Number(asociada.doc_nro) || 0;
+    condicionId = asociada.condicion_receptor;
+  } else {
+    let comprador = null;
+    if (venta.cliente_id) {
+      const { data, error } = await admin.from("clientes").select("condicion, tipo_doc, doc").eq("id", venta.cliente_id).eq("empresa_id", empresaId).maybeSingle();
+      if (error) throw error;
+      comprador = data;
+    }
+    const condicion = (comprador && comprador.condicion) || "CF";
+    letra = letraDe(emisor, condicion);
+    docNro = comprador && comprador.doc ? Number(String(comprador.doc).replace(/\D/g, "")) : 0;
+    docTipo = docNro ? (DOC_TIPO[String(comprador.tipo_doc || "").toUpperCase()] || (String(docNro).length === 11 ? 80 : 96)) : 99;
+    condicionId = CONDICION_RECEPTOR[condicion] || 5;
+  }
 
   /* A y B discriminan o informan el IVA por alícuota, y eso necesita la
      alícuota de cada producto repartida con el descuento de la venta.
      Todavía no está: mejor decirlo que mandar un IVA mal calculado. */
   if (letra !== "C") throw new ErrorArca(`La factura ${letra} todavía no está disponible; por ahora solo C.`, 501);
 
-  const docNro = comprador && comprador.doc ? Number(String(comprador.doc).replace(/\D/g, "")) : 0;
-  const docTipo = docNro ? (DOC_TIPO[String(comprador.tipo_doc || "").toUpperCase()] || (String(docNro).length === 11 ? 80 : 96)) : 99;
-  const tipo = TIPO_FACTURA[letra];
+  const tipo = TIPOS[clase][letra];
   const total = redondo(venta.total);
   const fecha = hoyEnArgentina();
 
@@ -275,12 +310,22 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     ImpTrib: 0,
     MonId: "PES",
     MonCotiz: 1,
-    CondicionIVAReceptorId: CONDICION_RECEPTOR[condicion] || 5,
+    CondicionIVAReceptorId: condicionId,
+    ...(asociada ? {
+      CbtesAsoc: [{
+        Tipo: asociada.tipo,
+        PtoVta: asociada.punto_venta,
+        Nro: asociada.numero,
+        Cuit: asociada.cuit,
+        CbteFch: Number(String(asociada.fecha).slice(0, 10).replace(/-/g, "")),
+      }],
+    } : {}),
   };
 
   const { data: fila, error: e5 } = await admin.from("comprobantes").insert({
     empresa_id: empresaId,
     operacion_id: operacionId,
+    asociado_id: asociada ? asociada.id : null,
     modo: conexion.modo,
     cuit,
     punto_venta: conexion.punto_venta,

@@ -218,6 +218,11 @@ export function clienteDirecto({ produccion, cuit, certPem, clavePem, cargarTA, 
 
     async createVoucher(d) {
       const iva = d.Iva ? el("Iva", d.Iva.map((a) => el("AlicIva", [el("Id", a.Id), el("BaseImp", a.BaseImp), el("Importe", a.Importe)]))) : "";
+      /* La factura a la que corresponde una nota de crédito o de débito. En
+         el WSDL va después de CondicionIVAReceptorId y antes de Iva. */
+      const asociados = d.CbtesAsoc ? el("CbtesAsoc", d.CbtesAsoc.map((a) => el("CbteAsoc", [
+        el("Tipo", a.Tipo), el("PtoVta", a.PtoVta), el("Nro", a.Nro), el("Cuit", a.Cuit), el("CbteFch", a.CbteFch),
+      ]))) : "";
       const det = el("FECAEDetRequest", [
         el("Concepto", d.Concepto), el("DocTipo", d.DocTipo), el("DocNro", d.DocNro),
         el("CbteDesde", d.CbteDesde), el("CbteHasta", d.CbteHasta), el("CbteFch", d.CbteFch),
@@ -226,6 +231,7 @@ export function clienteDirecto({ produccion, cuit, certPem, clavePem, cargarTA, 
         el("FchServDesde", d.FchServDesde), el("FchServHasta", d.FchServHasta), el("FchVtoPago", d.FchVtoPago),
         el("MonId", d.MonId), el("MonCotiz", d.MonCotiz),
         el("CondicionIVAReceptorId", d.CondicionIVAReceptorId),
+        asociados,
         iva,
       ]);
       const pedido = el("FeCAEReq", [

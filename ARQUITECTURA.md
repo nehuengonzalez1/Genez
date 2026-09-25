@@ -43,6 +43,8 @@ node scripts/probar-dominio.mjs    # qué aplicación sirve cada host
 node scripts/probar-arca.mjs       # factura electrónica: candado, permisos y homologación
 node scripts/probar-cuenta-corriente.mjs  # fiado: cobrar, anular, ajustar, límite y permisos por rol
 node scripts/probar-codigos.mjs    # códigos de barras propios: no pisan, no se repiten
+node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito, y contra ARCA de pruebas
+node scripts/backup.mjs            # copia toda la base a C:\Users\<vos>\Genez-backups\ (solo lee)
 ```
 
 `probar-dominio.mjs` es el único que no toca la base ni la red: le pasa un
@@ -658,8 +660,40 @@ CAE, que si no saldría de verdad.
 OpenSSL de Node rechaza ("dh key too small"). El agente de `_directo.js`
 baja el nivel solo para hablar con ARCA.
 
-Lo que falta: las facturas A y B, que necesitan el IVA por alícuota, y la
-nota de crédito.
+Lo que falta: las facturas A y B, que necesitan el IVA por alícuota. Las
+notas de crédito y de débito C están desde 0089 (ver abajo).
+
+## Devoluciones, notas de crédito y notas de débito
+
+Migración 0089, `registrar_devolucion` y `registrar_nota_debito` en la
+base, y el detalle de un movimiento de Caja (`DetalleMovimiento.jsx`),
+que es desde donde se hacen.
+
+**Nada de la venta original se toca.** Una devolución es otra operación,
+`tipo = 'devolucion'`, que apunta a la venta (`origen_id`) y a cada
+renglón que vuelve (`origen_linea_id`). Así se sabe cuánto queda por
+devolver, y la base no deja pasar de lo vendido. Reintegra lo cobrado por
+esos renglones con el descuento o recargo de la venta repartido.
+
+**Dónde va la plata.** Un reintegro sale como egreso de la caja abierta.
+A cuenta corriente no sale plata: se registra un ajuste de descuento,
+porque el saldo (0085) suma los pagos a cuenta de las operaciones del
+cliente y un pago en una devolución lo habría subido en vez de bajarlo.
+
+**La nota de crédito la pide el mismo camino que las facturas.** Si la
+venta fue factura, la devolución queda marcada `fiscal` con `nota:
+credito`, entra en `facturas_vista` y `facturarVenta` la manda como tipo
+13 con `CbtesAsoc` apuntando a la factura, con su letra y su comprador.
+La nota de débito es una venta de un renglón libre, `nota: debito`, sobre
+una factura (tipo 12). ARCA las numera aparte de las facturas.
+
+Las dos piden el permiso `anular`, la caja abierta, y que la factura
+original ya tenga CAE. Las numera la base: DEV-… y ND-….
+
+Lo que falta: Informes y el total del día todavía no restan las
+devoluciones (miran `tipo in ('venta', 'comanda')`); la caja sí, porque
+el reintegro es un egreso. Y devolver una parte de un producto por peso:
+hoy se devuelve el renglón entero.
 
 ## La cuenta corriente
 
