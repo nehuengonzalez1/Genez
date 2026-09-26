@@ -24,6 +24,7 @@ import {
 import { FormCliente } from "./Clientes.jsx";
 import { UltimasVentas } from "./UltimasVentas.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
+import { useOcupado } from "../ui/actualizacion.js";
 
 function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) {
   const [camara, setCamara] = useState(false);
@@ -565,6 +566,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [pagos, setPagos] = useState([]);
   const [montoMix, setMontoMix] = useState("");
   const [ticket, setTicket] = useState(null);
+  /* Con una venta a medio cargar o a medio cobrar, la página no se
+     actualiza sola (src/ui/actualizacion.js): se perdería el carrito. Con
+     la venta ya cobrada ("fin") sí: la venta está guardada. */
+  useOcupado(paso !== "fin" && (cart.length > 0 || pagos.length > 0));
   /* El ticket que se muestra, con la factura si ARCA ya la autorizó. El
      CAE llega después del cobro —a veces mucho después—, así que no se
      guarda en `ticket`: se mira cada vez en lo que va llegando. */

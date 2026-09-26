@@ -864,6 +864,26 @@ reimpresa es la misma factura. La que espera CAE no se imprime tampoco
 desde acá, por lo mismo que en el cobro. Reimprimir no pide permiso: es
 tarea de mostrador.
 
+## Las actualizaciones llegan solas
+
+`src/ui/actualizacion.js`, el plugin `publicarVersion` de
+`vite.config.js` y el aviso de `Genezapp.jsx`.
+
+La gestión no se cachea —el HTML se revalida siempre—, así que un F5
+común trae lo nuevo. El problema es que en un local la pestaña queda
+abierta días. Cada build publica `/version.json` con el mismo número que
+lleva adentro el bundle; la página pregunta cada cinco minutos y al
+volver a la pestaña, y si cambió muestra un aviso y **se recarga sola
+cuando la caja está libre**: dos minutos sin que nadie toque nada, nadie
+marcado ocupado (`useOcupado`: el cobro con productos o a medio pagar) y
+nada abierto encima (cualquier `.fixed.inset-0`, que es como están hechos
+todos los cuadros, o un campo con texto). Lo explícito es para lo que no
+se ve; lo genérico, para que una pantalla nueva no tenga que acordarse.
+
+Una pantalla con estado que se pierde al recargar y que no vive en un
+cuadro tiene que llamar a `useOcupado`. Una venta cobrada nunca se pierde:
+la cola la escribe en el equipo antes de mandarla.
+
 ## Lo que ya funciona y no hay que rehacer
 
 Comandas de salón y mostrador, centro de pedidos con estados reales y

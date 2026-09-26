@@ -114,7 +114,26 @@ function servirApi() {
    sea que la validación de sesión que la función hace existía únicamente en
    producción: se probaba desplegando. Ahora los dos entornos entran por el
    mismo archivo y lo que se prueba local es lo que va a correr publicado. */
-export default defineConfig(({ mode }) => {
+/* El número de versión de cada despliegue (src/ui/actualizacion.js). Va
+   adentro del bundle y publicado aparte en /version.json: una página
+   abierta compara el suyo con el de afuera y, si cambió, se actualiza
+   sola cuando no está en medio de nada. En Vercel es el commit, más la
+   hora del build por si se redespliega el mismo commit con otras
+   variables; en local, la hora. */
+function publicarVersion(version) {
+  return {
+    name: "genez-version",
+    apply: "build",
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ version }) });
+    },
+  };
+}
+
+export default defineConfig(({ mode, command }) => {
+  const version = command === "build"
+    ? `${(process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 7)}-${Date.now().toString(36)}`
+    : "dev";
   const env = loadEnv(mode, process.cwd(), "");
 
   /* Las funciones de api/ leen process.env, igual que en Vercel. En
@@ -136,7 +155,8 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react(), servirApi()],
+    plugins: [react(), servirApi(), publicarVersion(version)],
+    define: { __GENEZ_VERSION__: JSON.stringify(version) },
 
     /* Dos entradas, dos bundles. La app del cliente no tiene por qué
        cargar el punto de venta, el salón, los reportes ni los gráficos:

@@ -7,6 +7,7 @@ import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
 import { cargarSesion, cargarComercios, salir, alRecuperarClave, vinoDeRecuperacion } from "./datos/sesion.js";
 import { cargarRubro } from "./datos/rubros.js";
 import { cargarRoles } from "./datos/permisos.js";
+import { useVersionNueva, estaOcupado } from "./ui/actualizacion.js";
 
 /* La sesión sobrevive al refresco: Supabase la guarda en el navegador.
    Mientras se resuelve no se puede mostrar ni el login ni el sistema,
@@ -15,6 +16,26 @@ function Cargando() {
   return (
     <div className="min-h-screen bg-fondo flex items-center justify-center">
       <div className="w-8 h-8 rounded-full border-2 border-borde-fuerte border-t-acento animate-spin" />
+    </div>
+  );
+}
+
+/* Hay una versión nueva desplegada (src/ui/actualizacion.js). Se va a
+   actualizar sola apenas la caja quede libre; el botón es para no
+   esperar. Abajo a la izquierda, chico: el toast y los avisos de cobro
+   van a la derecha, y esto no tiene que tapar nada ni asustar. */
+function AvisoVersion() {
+  const { nueva, actualizar } = useVersionNueva();
+  if (!nueva) return null;
+  const ahora = () => {
+    if (estaOcupado() && !window.confirm("Hay una venta a medio cargar. Si actualizás ahora, se pierde lo que está en pantalla. ¿Actualizar igual?")) return;
+    actualizar();
+  };
+  return (
+    <div className="fixed bottom-4 left-4 z-[80] max-w-xs bg-superficie border border-borde rounded-lg px-4 py-3 text-sm shadow-sm">
+      <div className="font-semibold">Hay una versión nueva de Genez</div>
+      <div className="text-xs text-texto-suave mt-0.5">Se actualiza sola cuando la caja quede libre.</div>
+      <button onClick={ahora} className="mt-2 text-xs font-semibold text-acento hover:underline">Actualizar ahora</button>
     </div>
   );
 }
@@ -136,7 +157,7 @@ export default function App() {
   /* La clase no dice "poné el tema oscuro" sino "cambiá al claro": el
      oscuro son los valores de fábrica y no necesita que nadie lo active. */
   const envolver = (hijo) => (
-    <div className={`${tema === "claro" ? "tema-claro" : ""} min-h-screen bg-fondo text-texto`}>{hijo}</div>
+    <div className={`${tema === "claro" ? "tema-claro" : ""} min-h-screen bg-fondo text-texto`}>{hijo}<AvisoVersion /></div>
   );
 
   if (iniciando) return envolver(<Cargando />);
