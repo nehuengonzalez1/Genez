@@ -18,46 +18,68 @@ const ATAJOS = [7, 30, 90];
    trescientos mil días y deje la pantalla colgada armando el gráfico. */
 const TOPE_DIAS = 3650;
 
-export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
-  const [dias, setDias] = useState(30);
-  const [aMedida, setAMedida] = useState("");
+/* Un día a las doce: así ni el cambio de hora ni la zona corren la fecha. */
+const alMediodia = (d) => { const x = new Date(d); x.setHours(12, 0, 0, 0); return x; };
+const haceDias = (n) => { const x = alMediodia(new Date()); x.setDate(x.getDate() - (n - 1)); return x; };
+const diasEntre = (a, b) => Math.round((alMediodia(b) - alMediodia(a)) / 86400000) + 1;
+const paraInput = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const deInput = (v) => (v ? new Date(`${v}T12:00:00`) : null);
 
-  /* `k.diario` son los noventa días que Sistema carga al entrar, y con eso
-     alcanza para los atajos. Para un período más largo hay que ir a
-     buscarlo: `ventas_diarias` acepta cualquier cantidad y devuelve la
-     serie continua igual, con ceros en los días sin ventas. */
-  const [serieLarga, setSerieLarga] = useState(null);
+export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
+  /* El período es de una fecha a otra, las dos incluidas. Los atajos son
+     "los últimos N días hasta hoy"; lo demás se elige con las dos fechas.
+     Antes "otros" pedía una cantidad de días hacia atrás desde hoy, y no
+     había forma de mirar, por ejemplo, del 1 al 15 del mes pasado
+     (Super 25, 26/09). */
+  const [rango, setRango] = useState(() => ({ desde: haceDias(30), hasta: alMediodia(new Date()), atajo: 30 }));
+  const [elegido, setElegido] = useState(() => ({ desde: paraInput(haceDias(30)), hasta: paraInput(new Date()) }));
+  const dias = diasEntre(rango.desde, rango.hasta);
+  const hoy = paraInput(new Date());
+
+  /* `k.diario` son los noventa días hasta hoy que Sistema carga al
+     entrar, y con eso alcanza para los atajos. Otro período se va a
+     buscar: `ventas_diarias_rango` (0096) devuelve la serie continua, con
+     ceros en los días sin ventas. */
+  const [serieRango, setSerieRango] = useState(null);
   const [cargando, setCargando] = useState(false);
 
-  const alcanzaLaCargada = dias <= k.diario.length;
-  const diario = alcanzaLaCargada ? k.diario : (serieLarga || []);
+  const alcanzaLaCargada = paraInput(rango.hasta) === hoy && dias <= k.diario.length;
+  const serieBase = alcanzaLaCargada ? k.diario.slice(-dias) : (serieRango || []);
 
   useEffect(() => {
-    if (alcanzaLaCargada || !empresaId) return;
-    if (serieLarga && serieLarga.length >= dias) return;
+    if (alcanzaLaCargada || !empresaId) return undefined;
     let vigente = true;
     setCargando(true);
-    cargarSerieDiaria(empresaId, dias)
-      .then((s) => { if (vigente) setSerieLarga(s); })
+    setSerieRango(null);
+    cargarSerieDiaria(empresaId, { desde: rango.desde, hasta: rango.hasta })
+      .then((s) => { if (vigente) setSerieRango(s); })
       .catch((e) => {
         if (!vigente) return;
         /* Sin serie el gráfico queda vacío y los indicadores en cero, que
            es lo que ya hacía Sistema si la consulta fallaba. Un cero
            honesto antes que una curva recortada sin avisar. */
-        setSerieLarga([]);
+        setSerieRango([]);
         console.error("No se pudo cargar la serie del período pedido:", e);
       })
       .finally(() => { if (vigente) setCargando(false); });
     return () => { vigente = false; };
-  }, [dias, empresaId, alcanzaLaCargada]);
+  }, [rango, empresaId, alcanzaLaCargada]);
 
-  const aplicarAMedida = () => {
-    const n = Math.floor(Number(aMedida));
-    if (!(n >= 1)) return;
-    setDias(Math.min(n, TOPE_DIAS));
+  const usarAtajo = (n) => {
+    setRango({ desde: haceDias(n), hasta: alMediodia(new Date()), atajo: n });
+    setElegido({ desde: paraInput(haceDias(n)), hasta: hoy });
   };
 
-  const serie = diario.slice(-dias).map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
+  const d0 = deInput(elegido.desde);
+  const d1 = deInput(elegido.hasta);
+  const problema = !d0 || !d1 ? "Elegí las dos fechas."
+    : d0 > d1 ? "La fecha de inicio es después de la de fin."
+    : elegido.hasta > hoy ? "La fecha de fin no puede ser después de hoy."
+    : diasEntre(d0, d1) > TOPE_DIAS ? "Como mucho, diez años." : null;
+  const cambioElegido = !problema && (paraInput(rango.desde) !== elegido.desde || paraInput(rango.hasta) !== elegido.hasta);
+  const aplicarFechas = () => { if (!problema) setRango({ desde: d0, hasta: d1, atajo: null }); };
+
+  const serie = serieBase.map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
   const ventas = serie.reduce((s, d) => s + d.ventas, 0);
   const costo = serie.reduce((s, d) => s + d.costo, 0);
   /* LOS TRES CUADROS SALEN DEL HISTORIAL
@@ -72,7 +94,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
   useEffect(() => {
     if (!empresaId) return;
     let vigente = true;
-    cargarVentasPorItem(empresaId, dias)
+    cargarVentasPorItem(empresaId, { desde: rango.desde, hasta: rango.hasta })
       .then((v) => { if (vigente) setPorItem(v); })
       .catch((e) => {
         if (!vigente) return;
@@ -80,7 +102,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
         console.error("No se pudieron cargar las ventas por producto:", e);
       });
     return () => { vigente = false; };
-  }, [empresaId, dias]);
+  }, [empresaId, rango]);
 
   /* Ya viene ordenado por venta desde la base. */
   const topVenta = porItem.slice(0, 10);
@@ -102,35 +124,35 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-1.5">
         {ATAJOS.map((d) => (
-          <button key={d} onClick={() => { setDias(d); setAMedida(""); }}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${dias === d ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>
+          <button key={d} onClick={() => usarAtajo(d)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${rango.atajo === d ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>
             {d} días
           </button>
         ))}
 
-        {/* El campo a medida vive al lado de los atajos y no detrás de un
-            menú: es un número y un Enter, y esconderlo lo volvería el
-            camino largo para algo que se pide todo el tiempo. */}
-        <div className={`flex items-center gap-1 rounded-full border pl-3 pr-1 py-0.5 ${
-          ATAJOS.includes(dias) ? "bg-superficie border-borde" : "bg-superficie-3 border-superficie-3"}`}>
-          <input value={aMedida} inputMode="numeric" placeholder="otros"
-            onChange={(e) => setAMedida(e.target.value.replace(/\D/g, ""))}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aplicarAMedida(); } }}
-            onBlur={aplicarAMedida}
-            className="f-m w-14 bg-transparent text-xs text-right outline-none placeholder:text-texto-tenue placeholder:font-semibold" />
-          <span className="text-xs text-texto-suave">días</span>
-          <Boton size="sm" variant="ghost" onClick={aplicarAMedida}>Ver</Boton>
-        </div>
+        {/* Las dos fechas viven al lado de los atajos y no detrás de un
+            menú: se piden todo el tiempo. Se aplican con "Ver" (o Enter),
+            no al tocar cada una: si no, elegir el desde ya pediría a la
+            base un período que nadie quiso mirar. */}
+        <form onSubmit={(e) => { e.preventDefault(); aplicarFechas(); }}
+          className={`flex flex-wrap items-center gap-1.5 rounded-full border pl-3 pr-1 py-0.5 ${
+            rango.atajo ? "bg-superficie border-borde" : "bg-superficie-3 border-superficie-3"}`}>
+          <span className="text-xs text-texto-suave">Desde</span>
+          <input type="date" value={elegido.desde} max={elegido.hasta || hoy}
+            onChange={(e) => setElegido((x) => ({ ...x, desde: e.target.value }))}
+            className="f-m bg-transparent text-xs outline-none [color-scheme:inherit]" />
+          <span className="text-xs text-texto-suave">hasta</span>
+          <input type="date" value={elegido.hasta} min={elegido.desde || undefined} max={hoy}
+            onChange={(e) => setElegido((x) => ({ ...x, hasta: e.target.value }))}
+            className="f-m bg-transparent text-xs outline-none [color-scheme:inherit]" />
+          <Boton size="sm" variant={cambioElegido ? "primary" : "ghost"} disabled={!!problema}>Ver</Boton>
+        </form>
 
         {cargando && <Loader2 size={14} className="animate-spin text-texto-tenue" />}
+        {problema && <span className="text-xs text-mal">{problema}</span>}
 
-        {/* Qué período se está mirando, dicho con fechas. "212 días" no se
-            entiende solo; "desde el 23/02" sí. */}
-        {serie.length > 0 && (
-          <span className="text-xs text-texto-tenue ml-1">
-            {serie[0].label} — {serie[serie.length - 1].label}
-          </span>
-        )}
+        {/* Cuántos días son: "del 01/09 al 15/09" no dice solo que son 15. */}
+        {!problema && <span className="text-xs text-texto-tenue ml-1">{dias} {dias === 1 ? "día" : "días"}</span>}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -140,7 +162,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
         <Kpi label="Promedio por día" valor={money(ventas / dias)} />
       </div>
 
-      {conPedidos && <PorCanal empresaId={empresaId} dias={dias} ir={ir} />}
+      {conPedidos && <PorCanal empresaId={empresaId} rango={rango} ir={ir} />}
 
       <Card className="p-4">
         <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Ventas y ganancia por día</div>
@@ -268,23 +290,25 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
    números distintos del mismo día.
    ============================================================ */
 
-function PorCanal({ empresaId, dias, ir }) {
+function PorCanal({ empresaId, rango, ir }) {
   const [d, setD] = useState(null);
   const [error, setError] = useState(false);
   const vigente = useRef(0);
 
+  /* De las 00:00 del primer día a las 00:00 del siguiente al último:
+     `estadisticas_pedidos` toma el final sin incluirlo. */
   useEffect(() => {
     const mio = ++vigente.current;
-    const desde = new Date();
+    const desde = new Date(rango.desde);
     desde.setHours(0, 0, 0, 0);
-    desde.setDate(desde.getDate() - (dias - 1));
-    const hasta = new Date();
+    const hasta = new Date(rango.hasta);
+    hasta.setHours(0, 0, 0, 0);
     hasta.setDate(hasta.getDate() + 1);
 
     estadisticas(empresaId, desde, hasta)
       .then((r) => { if (mio === vigente.current) { setD(r); setError(false); } })
       .catch(() => { if (mio === vigente.current) setError(true); });
-  }, [empresaId, dias]);
+  }, [empresaId, rango]);
 
   if (error) return null;
   if (!d) return <Card className="p-4"><Vacio>Calculando los pedidos…</Vacio></Card>;

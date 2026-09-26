@@ -292,10 +292,17 @@ export async function resumenDelDia(empresaId) {
    —fecha, label, ventas, costo, tickets— para que `calcular()` y las
    pantallas no cambien. La fecha se arma al mediodía para que "2026-09-13"
    no se corra de día al pasar por la zona horaria del navegador. */
-export async function cargarSerieDiaria(empresaId, dias = 90) {
+/* La fecha como la quiere la base (aaaa-mm-dd), en la hora de acá: con
+   toISOString un día a la noche ya sería el siguiente en UTC. */
+export const diaISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/* `periodo` es una cantidad de días hasta hoy, o { desde, hasta } (0096). */
+export async function cargarSerieDiaria(empresaId, periodo = 90) {
   if (!empresaId) throw new Error("cargarSerieDiaria necesita la empresa.");
 
-  const { data, error } = await supabase.rpc("ventas_diarias", { p_empresa: empresaId, p_dias: dias });
+  const { data, error } = typeof periodo === "number"
+    ? await supabase.rpc("ventas_diarias", { p_empresa: empresaId, p_dias: periodo })
+    : await supabase.rpc("ventas_diarias_rango", { p_empresa: empresaId, p_desde: diaISO(periodo.desde), p_hasta: diaISO(periodo.hasta) });
   if (error) throw error;
 
   return (data || []).map((d) => {
@@ -461,10 +468,14 @@ export async function corregirMedioPago({ pagoId, medio, motivo }) {
    La venta es la suma de las líneas, así que no incluye el descuento ni
    el recargo de la operación —viven arriba, sin repartir por línea—. Con
    descuentos, esto queda por encima de `cargarSerieDiaria`. */
-export async function cargarVentasPorItem(empresaId, dias = 30) {
+/* `periodo` es una cantidad de días hasta hoy, o { desde, hasta } (0096):
+   dos fechas, las dos incluidas. */
+export async function cargarVentasPorItem(empresaId, periodo = 30) {
   if (!empresaId) throw new Error("cargarVentasPorItem necesita la empresa.");
 
-  const { data, error } = await supabase.rpc("ventas_por_item", { p_empresa: empresaId, p_dias: dias });
+  const { data, error } = typeof periodo === "number"
+    ? await supabase.rpc("ventas_por_item", { p_empresa: empresaId, p_dias: periodo })
+    : await supabase.rpc("ventas_por_item_rango", { p_empresa: empresaId, p_desde: diaISO(periodo.desde), p_hasta: diaISO(periodo.hasta) });
   if (error) throw error;
 
   return (data || []).map((d) => {
