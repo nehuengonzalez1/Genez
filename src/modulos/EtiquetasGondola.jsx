@@ -12,10 +12,10 @@
    hay que cambiar en la góndola. Sale del historial de precios, que lo
    escribe la base sola (0005), así que no depende de acordarse.
 
-   Hoja A4 de 21 etiquetas (3 × 7) de 67 × 40 mm con líneas para
-   recortar. Las 70 × 42 mm de las hojas de etiquetas autoadhesivas no
-   entran en papel común: la impresora no llega a los bordes, y la
-   primera y la última columna saldrían cortadas.
+   Hoja A4 de 12 etiquetas (2 × 6) de 100 × 47 mm, con líneas para
+   recortar. Empezaron de 67 × 40 y 21 por hoja, y se veían apretadas:
+   Nehuen las quiso con la proporción y el aire de la maqueta, con la
+   franja oscura más ancha y el logo de Genez al lado de su nombre.
 
    El precio por kilo o litro es obligatorio en la góndola. Sale del
    contenido del envase, que se lee del nombre ("500g", "2l") o que el
@@ -32,20 +32,24 @@ import { GENEZ_CLARO, PALABRA_CLARO } from "../ui/Logo.jsx";
 import { imprimirDocumento } from "./Etiquetas.jsx";
 import { Boton, Vacio, escaparHTML } from "../ui/Base.jsx";
 
-const POR_HOJA = 21;
+const POR_HOJA = 12;
 const paraInput = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const haceDias = (n) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - n); return d; };
 const ddmm = (d) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 const esHoy = (d) => paraInput(d) === paraInput(new Date());
 
+/* "$ 4.590", con el espacio de la maqueta: a ese tamaño, pegado se lee
+   como un 5. */
+const precioGrande = (n) => money(n).replace("$", "$ ");
+
 /* Una etiqueta, igual en la vista previa y en el papel. */
 function htmlEtiqueta(e, comercio, logo) {
-  const codigo = e.barcode && formatoDe(e.barcode) ? svgCodigo(e.barcode, { anchoMM: 30, altoMM: 5.5 }) : "";
+  const codigo = e.barcode && formatoDe(e.barcode) ? svgCodigo(e.barcode, { anchoMM: 40, altoMM: 7 }) : "";
   return `<div class="gon">
     <div class="izq">
       <div class="nom">${escaparHTML(e.nombre)}</div>
       ${e.contenido ? `<div class="cont">${escaparHTML(e.contenido)}</div>` : ""}
-      <div class="pre">${escaparHTML(money(e.precio))}</div>
+      <div class="pre${precioGrande(e.precio).length > 8 ? " largo" : ""}">${escaparHTML(precioGrande(e.precio))}</div>
       <div class="pie">
         ${codigo ? `<div class="cod">${codigo}</div>` : ""}
         ${e.porMedida ? `<div class="med">Precio por ${e.porMedida.por}: ${escaparHTML(money(e.porMedida.precio))}</div>` : ""}
@@ -55,7 +59,7 @@ function htmlEtiqueta(e, comercio, logo) {
       ${logo
         ? `<div class="logo"><img src="${logo}" alt=""></div>`
         : `<div class="com">${escaparHTML(comercio)}</div>`}
-      <div class="fec">Precio actualizado ${e.fecha ? (esHoy(e.fecha) ? "hoy" : `el ${ddmm(e.fecha)}`) : ""}</div>
+      <div class="fec">Precio actualizado<br>${e.fecha ? (esHoy(e.fecha) ? "hoy." : `el ${ddmm(e.fecha)}.`) : ""}</div>
       <div class="gz"><img src="${GENEZ_CLARO}" class="iso" alt=""><img src="${PALABRA_CLARO}" class="pal" alt=""></div>
     </div>
   </div>`;
@@ -66,30 +70,36 @@ function htmlEtiqueta(e, comercio, logo) {
 const CSS = `
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { margin: 0; background: #fff; }
-  .hoja { width: 210mm; height: 297mm; padding: 8.5mm 4.5mm; display: grid;
-          grid-template-columns: repeat(3, 67mm); grid-auto-rows: 40mm; align-content: start;
+  .hoja { width: 210mm; height: 297mm; padding: 7.5mm 5mm; display: grid;
+          grid-template-columns: repeat(2, 100mm); grid-auto-rows: 47mm; align-content: start;
           page-break-after: always; break-after: page; }
   .hoja:last-child { page-break-after: auto; break-after: auto; }
-  .gon { display: flex; width: 67mm; height: 40mm; overflow: hidden; outline: 0.2mm dashed #bbb; outline-offset: -0.1mm;
+  .gon { display: flex; width: 100mm; height: 47mm; overflow: hidden; outline: 0.2mm dashed #bbb; outline-offset: -0.1mm;
          font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; }
-  .izq { flex: 1; min-width: 0; padding: 2.2mm 2.4mm 1.6mm; display: flex; flex-direction: column; }
-  .nom { font-size: 8.5pt; font-weight: 700; text-transform: uppercase; line-height: 1.12;
-         max-height: 2.24em; overflow: hidden; }
-  .cont { font-size: 7pt; color: #333; margin-top: 0.4mm; }
-  .pre { font-size: 23pt; font-weight: 800; letter-spacing: -0.3pt; line-height: 1; margin-top: auto; padding: 1mm 0 1.2mm; white-space: nowrap; }
+  .izq { flex: 1; min-width: 0; padding: 4mm 4.5mm 3.2mm; display: flex; flex-direction: column; }
+  /* Nada se achica para hacerle lugar a otra cosa: en una columna flex,
+     un nombre de dos líneas quedaba tapado por el contenido. Con todo a
+     su tamaño, dos líneas de nombre entran justo en los 47 mm. */
+  .izq > * { flex-shrink: 0; }
+  .nom { font-size: 11pt; font-weight: 700; text-transform: uppercase; line-height: 1.18;
+         max-height: 2.36em; overflow: hidden; }
+  .cont { font-size: 10pt; font-weight: 700; text-transform: uppercase; margin-top: 1mm; }
+  .pre { font-size: 34pt; font-weight: 800; letter-spacing: -0.4pt; line-height: 1; margin-top: auto; padding: 1.2mm 0 1.4mm; white-space: nowrap; }
+  .pre.largo { font-size: 28pt; }
   .pie { line-height: 1; }
   .cod svg { display: block; }
-  .med { font-size: 6.5pt; color: #222; margin-top: 0.8mm; }
-  .der { width: 24mm; background: #111; color: #fff; padding: 2.2mm 2mm 1.8mm; display: flex; flex-direction: column; }
+  .med { font-size: 7.5pt; color: #222; margin-top: 1.2mm; }
+  .der { width: 36mm; background: #111; color: #fff; padding: 4mm 3.5mm 3.5mm; display: flex; flex-direction: column; }
   /* El logo del comercio va sobre blanco: sobre el negro, un logo con
      letras oscuras no se vería. */
-  .logo { background: #fff; border-radius: 1mm; height: 11mm; padding: 1mm; display: flex; align-items: center; justify-content: center; }
+  .logo { background: #fff; border-radius: 1.2mm; height: 13mm; padding: 1.5mm; display: flex; align-items: center; justify-content: center; }
   .logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  .com { font-size: 9.5pt; font-weight: 800; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
-  .fec { font-size: 6pt; line-height: 1.25; margin-top: 1.5mm; color: #ddd; }
-  .gz { margin-top: auto; display: flex; flex-direction: column; gap: 0.8mm; }
-  .gz .iso { width: 4.5mm; height: 4.5mm; }
-  .gz .pal { width: 17mm; height: auto; }
+  .com { font-size: 15pt; font-weight: 800; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
+  .fec { font-size: 9pt; line-height: 1.35; margin-top: 3mm; color: #eee; }
+  /* El isotipo y la palabra, uno al lado del otro, como en la marca. */
+  .gz { margin-top: auto; display: flex; align-items: center; gap: 1.6mm; }
+  .gz .iso { width: 7mm; height: 7mm; }
+  .gz .pal { width: 20mm; height: auto; }
 `;
 
 export function documento(etiquetas, comercio, logo = null) {
@@ -179,7 +189,7 @@ export function EtiquetasGondola({ productos, empresaId, ajustes, toast }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3 className="f-d text-lg">Etiquetas de góndola</h3>
-          <p className="text-sm text-texto-suave mt-1">Las de los productos que cambiaron de precio, o se dieron de alta, desde una fecha. Hoja A4 de 21, con líneas para recortar.</p>
+          <p className="text-sm text-texto-suave mt-1">Las de los productos que cambiaron de precio, o se dieron de alta, desde una fecha. Hoja A4 de 12, con líneas para recortar.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-sm flex items-center gap-2">
@@ -240,8 +250,8 @@ export function EtiquetasGondola({ productos, empresaId, ajustes, toast }) {
           {elegidas.length > 0 && (
             <div className="border border-borde rounded-lg p-3 bg-superficie-2">
               <div className="text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold mb-2">Cómo sale</div>
-              <iframe title="Vista de las etiquetas" srcDoc={documento(elegidas.slice(0, 6), comercio, logo).replace(/height: 297mm;/, "height: auto;")}
-                className="bg-white rounded" style={{ width: "215mm", height: "90mm", border: 0, transform: "scale(0.6)", transformOrigin: "top left", marginBottom: "-36mm", marginRight: "-86mm" }} />
+              <iframe title="Vista de las etiquetas" srcDoc={documento(elegidas.slice(0, 4), comercio, logo).replace(/height: 297mm;/, "height: auto;")}
+                className="bg-white rounded" style={{ width: "215mm", height: "104mm", border: 0, transform: "scale(0.55)", transformOrigin: "top left", marginBottom: "-47mm", marginRight: "-97mm" }} />
             </div>
           )}
         </div>
