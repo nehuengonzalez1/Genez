@@ -94,6 +94,8 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
         </div>
       </Card>
 
+      <LogoDelComercio ajustes={ajustes} setAjustes={setAjustes} toast={toast} />
+
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -462,6 +464,88 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
 /* ============================================================
    13 bis. FICHA RÁPIDA (escaneo desde cualquier pantalla)
    ============================================================ */
+
+/* ============================================================
+   13 quater. EL LOGO DEL COMERCIO
+   ============================================================
+   Uno solo para todo: las etiquetas de góndola y la app del cliente lo
+   leen del mismo lugar (`marca.logo`, ver `marca_de` en la base). Se
+   guarda achicado —400 px de ancho alcanzan para imprimirlo a 2 cm y
+   para la pantalla de un teléfono— y con su transparencia, que es lo
+   que deja ponerlo sobre cualquier fondo. Va dentro de la configuración
+   del comercio, como las fotos de productos van en el producto. */
+const ANCHO_LOGO = 400;
+const PESO_MAXIMO = 200 * 1024;
+
+function achicarLogo(archivo) {
+  return new Promise((resolver, fallar) => {
+    const lector = new FileReader();
+    lector.onerror = () => fallar(new Error("No se pudo leer la imagen."));
+    lector.onload = () => {
+      const img = new Image();
+      img.onerror = () => fallar(new Error("Ese archivo no es una imagen."));
+      img.onload = () => {
+        const escala = Math.min(1, ANCHO_LOGO / img.width);
+        const lienzo = document.createElement("canvas");
+        lienzo.width = Math.round(img.width * escala);
+        lienzo.height = Math.round(img.height * escala);
+        lienzo.getContext("2d").drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        resolver(lienzo.toDataURL("image/png"));
+      };
+      img.src = lector.result;
+    };
+    lector.readAsDataURL(archivo);
+  });
+}
+
+function LogoDelComercio({ ajustes, setAjustes, toast }) {
+  const archivo = useRef(null);
+  const marca = ajustes.marca || {};
+  const logo = marca.logo || null;
+
+  const cargar = async (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!f) return;
+    try {
+      const datos = await achicarLogo(f);
+      if (datos.length > PESO_MAXIMO * 1.37) {
+        toast("El logo quedó muy pesado aun achicado. Probá con un PNG más simple o un JPG.", "mal");
+        return;
+      }
+      setAjustes({ ...ajustes, marca: { ...marca, logo: datos } });
+      toast("Logo cargado.");
+    } catch (e) {
+      toast(e.message, "mal");
+    }
+  };
+
+  return (
+    <Card className="p-5">
+      <h3 className="f-d text-lg">Logo del comercio</h3>
+      <p className="text-sm text-texto-suave mt-1">
+        Sale en las etiquetas de góndola y en la app de tus clientes. Mejor un PNG con fondo transparente.
+      </p>
+      <div className="flex flex-wrap items-center gap-4 mt-4">
+        <div className="w-40 h-20 rounded-lg border border-borde bg-superficie-2 flex items-center justify-center overflow-hidden shrink-0">
+          {logo
+            ? <img src={logo} alt="Logo del comercio" className="max-w-full max-h-full object-contain p-2" />
+            : <span className="text-xs text-texto-tenue text-center px-2">{ajustes.negocio || "Sin logo"}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <input ref={archivo} type="file" accept="image/*" className="hidden" onChange={cargar} />
+          <Boton size="sm" onClick={() => archivo.current && archivo.current.click()}>{logo ? "Cambiar logo" : "Cargar logo"}</Boton>
+          {logo && (
+            <Boton size="sm" variant="quiet" onClick={() => { const { logo: _, ...resto } = marca; setAjustes({ ...ajustes, marca: resto }); }}>
+              Sacar
+            </Boton>
+          )}
+        </div>
+      </div>
+      {!logo && <p className="text-xs text-texto-tenue mt-2">Sin logo, las etiquetas llevan el nombre del comercio.</p>}
+    </Card>
+  );
+}
 
 export function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaja, toast }) {
   const [cant, setCant] = useState("");

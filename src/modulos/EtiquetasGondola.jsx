@@ -4,7 +4,8 @@
 
    Las etiquetas de precio que van en el riel de la góndola: el nombre,
    el precio grande, el precio por kilo o litro, el código de barras, y
-   una franja con el comercio, la fecha del precio y Genez.
+   una franja con el logo del comercio (el de Ajustes; si no cargó
+   ninguno, su nombre), la fecha del precio y Genez.
 
    Se imprimen las de los productos que cambiaron de precio (o se dieron
    de alta) desde una fecha: después de actualizar precios, eso es lo que
@@ -38,7 +39,7 @@ const ddmm = (d) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth
 const esHoy = (d) => paraInput(d) === paraInput(new Date());
 
 /* Una etiqueta, igual en la vista previa y en el papel. */
-function htmlEtiqueta(e, comercio) {
+function htmlEtiqueta(e, comercio, logo) {
   const codigo = e.barcode && formatoDe(e.barcode) ? svgCodigo(e.barcode, { anchoMM: 30, altoMM: 5.5 }) : "";
   return `<div class="gon">
     <div class="izq">
@@ -51,7 +52,9 @@ function htmlEtiqueta(e, comercio) {
       </div>
     </div>
     <div class="der">
-      <div class="com">${escaparHTML(comercio)}</div>
+      ${logo
+        ? `<div class="logo"><img src="${logo}" alt=""></div>`
+        : `<div class="com">${escaparHTML(comercio)}</div>`}
       <div class="fec">Precio actualizado ${e.fecha ? (esHoy(e.fecha) ? "hoy" : `el ${ddmm(e.fecha)}`) : ""}</div>
       <div class="gz"><img src="${GENEZ_CLARO}" class="iso" alt=""><img src="${PALABRA_CLARO}" class="pal" alt=""></div>
     </div>
@@ -77,18 +80,22 @@ const CSS = `
   .pie { line-height: 1; }
   .cod svg { display: block; }
   .med { font-size: 6.5pt; color: #222; margin-top: 0.8mm; }
-  .der { width: 18.5mm; background: #111; color: #fff; padding: 2.2mm 1.8mm 1.8mm; display: flex; flex-direction: column; }
-  .com { font-size: 8.5pt; font-weight: 800; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
+  .der { width: 24mm; background: #111; color: #fff; padding: 2.2mm 2mm 1.8mm; display: flex; flex-direction: column; }
+  /* El logo del comercio va sobre blanco: sobre el negro, un logo con
+     letras oscuras no se vería. */
+  .logo { background: #fff; border-radius: 1mm; height: 11mm; padding: 1mm; display: flex; align-items: center; justify-content: center; }
+  .logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .com { font-size: 9.5pt; font-weight: 800; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
   .fec { font-size: 6pt; line-height: 1.25; margin-top: 1.5mm; color: #ddd; }
   .gz { margin-top: auto; display: flex; flex-direction: column; gap: 0.8mm; }
   .gz .iso { width: 4.5mm; height: 4.5mm; }
-  .gz .pal { width: 14.5mm; height: auto; }
+  .gz .pal { width: 17mm; height: auto; }
 `;
 
-export function documento(etiquetas, comercio) {
+export function documento(etiquetas, comercio, logo = null) {
   const hojas = [];
   for (let i = 0; i < etiquetas.length; i += POR_HOJA) {
-    hojas.push(`<div class="hoja">${etiquetas.slice(i, i + POR_HOJA).map((e) => htmlEtiqueta(e, comercio)).join("")}</div>`);
+    hojas.push(`<div class="hoja">${etiquetas.slice(i, i + POR_HOJA).map((e) => htmlEtiqueta(e, comercio, logo)).join("")}</div>`);
   }
   return `<!doctype html><html><head><meta charset="utf-8"><style>@page { size: A4; margin: 0; } ${CSS}</style></head><body>${hojas.join("")}</body></html>`;
 }
@@ -102,6 +109,8 @@ export function EtiquetasGondola({ productos, empresaId, ajustes, toast }) {
      Sistema no se relea: id → texto. */
   const [corregidos, setCorregidos] = useState({});
   const comercio = ajustes.negocio || "";
+  /* El logo que el comercio cargó en Ajustes; sin logo, va el nombre. */
+  const logo = (ajustes.marca && ajustes.marca.logo) || null;
 
   useEffect(() => {
     let vivo = true;
@@ -162,7 +171,7 @@ export function EtiquetasGondola({ productos, empresaId, ajustes, toast }) {
 
   const imprimir = () => {
     if (!elegidas.length) return;
-    imprimirDocumento(documento(elegidas, comercio));
+    imprimirDocumento(documento(elegidas, comercio, logo));
   };
 
   return (
@@ -231,7 +240,7 @@ export function EtiquetasGondola({ productos, empresaId, ajustes, toast }) {
           {elegidas.length > 0 && (
             <div className="border border-borde rounded-lg p-3 bg-superficie-2">
               <div className="text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold mb-2">Cómo sale</div>
-              <iframe title="Vista de las etiquetas" srcDoc={documento(elegidas.slice(0, 6), comercio).replace(/height: 297mm;/, "height: auto;")}
+              <iframe title="Vista de las etiquetas" srcDoc={documento(elegidas.slice(0, 6), comercio, logo).replace(/height: 297mm;/, "height: auto;")}
                 className="bg-white rounded" style={{ width: "215mm", height: "90mm", border: 0, transform: "scale(0.6)", transformOrigin: "top left", marginBottom: "-36mm", marginRight: "-86mm" }} />
             </div>
           )}
