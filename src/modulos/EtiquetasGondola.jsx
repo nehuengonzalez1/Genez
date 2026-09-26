@@ -29,6 +29,7 @@ import { contenidoDe, leerContenido, precioPorMedida } from "../utils/contenido.
 import { cargarCambiosDePrecio, guardarProducto } from "../datos/items.js";
 import { svgCodigo, formatoDe } from "../ui/codigoBarras.js";
 import { GENEZ_CLARO, PALABRA_CLARO } from "../ui/Logo.jsx";
+import { useLogos } from "../ui/logos.js";
 import { imprimirDocumento } from "./Etiquetas.jsx";
 import { Boton, Vacio, escaparHTML } from "../ui/Base.jsx";
 
@@ -90,10 +91,10 @@ const CSS = `
   .cod svg { display: block; }
   .med { font-size: 7.5pt; color: #222; margin-top: 1.2mm; }
   .der { width: 36mm; background: #111; color: #fff; padding: 4mm 3.5mm 3.5mm; display: flex; flex-direction: column; }
-  /* El logo del comercio va sobre blanco: sobre el negro, un logo con
-     letras oscuras no se vería. */
-  .logo { background: #fff; border-radius: 1.2mm; height: 13mm; padding: 1.5mm; display: flex; align-items: center; justify-content: center; }
-  .logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  /* El logo para fondo oscuro, sin recuadro: sin fondo se ve solo, y una
+     foto con fondo, con el suyo (src/ui/logos.js). */
+  .logo { height: 13mm; display: flex; align-items: center; }
+  .logo img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0.8mm; }
   .com { font-size: 15pt; font-weight: 800; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
   .fec { font-size: 9pt; line-height: 1.35; margin-top: 3mm; color: #eee; }
   /* El isotipo y la palabra, uno al lado del otro, como en la marca. */
@@ -119,8 +120,9 @@ export function EtiquetasGondola({ productos, empresaId, ajustes, toast }) {
      Sistema no se relea: id → texto. */
   const [corregidos, setCorregidos] = useState({});
   const comercio = ajustes.negocio || "";
-  /* El logo que el comercio cargó en Ajustes; sin logo, va el nombre. */
-  const logo = (ajustes.marca && ajustes.marca.logo) || null;
+  /* El logo que el comercio cargó en Ajustes, el de fondo oscuro: la
+     franja es negra. Sin logo, va el nombre. */
+  const logo = useLogos(ajustes.marca).paraOscuro;
 
   useEffect(() => {
     let vivo = true;
@@ -251,7 +253,7 @@ export function EtiquetasGondola({ productos, empresaId, ajustes, toast }) {
             <div className="border border-borde rounded-lg p-3 bg-superficie-2">
               <div className="text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold mb-2">Cómo sale</div>
               <iframe title="Vista de las etiquetas" srcDoc={documento(elegidas.slice(0, 4), comercio, logo).replace(/height: 297mm;/, "height: auto;")}
-                className="bg-white rounded" style={{ width: "215mm", height: "104mm", border: 0, transform: "scale(0.55)", transformOrigin: "top left", marginBottom: "-47mm", marginRight: "-97mm" }} />
+                className="bg-muestra-clara rounded" style={{ width: "215mm", height: "104mm", border: 0, transform: "scale(0.55)", transformOrigin: "top left", marginBottom: "-47mm", marginRight: "-97mm" }} />
             </div>
           )}
         </div>

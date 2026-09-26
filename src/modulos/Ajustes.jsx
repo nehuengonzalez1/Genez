@@ -18,6 +18,7 @@ import { Campo, inputCls } from "../ui/Campos.jsx";
 import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
+import { useLogos } from "../ui/logos.js";
 const Vol2 = Volume2;
 
 /* ============================================================
@@ -468,12 +469,15 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
 /* ============================================================
    13 quater. EL LOGO DEL COMERCIO
    ============================================================
-   Uno solo para todo: las etiquetas de góndola y la app del cliente lo
-   leen del mismo lugar (`marca.logo`, ver `marca_de` en la base). Se
-   guarda achicado —400 px de ancho alcanzan para imprimirlo a 2 cm y
-   para la pantalla de un teléfono— y con su transparencia, que es lo
-   que deja ponerlo sobre cualquier fondo. Va dentro de la configuración
-   del comercio, como las fotos de productos van en el producto. */
+   Uno para fondo oscuro y otro para fondo claro (ver src/ui/logos.js):
+   la barra de arriba cambia con el tema y la franja de las etiquetas de
+   góndola es negra. Si se sube uno solo, el otro se arma pasándolo a
+   blanco o a negro, y acá se muestra cuál es automático.
+
+   Se guarda achicado —400 px de ancho alcanzan para 2 cm impresos y para
+   la pantalla de un teléfono— y en PNG, que no pierde la transparencia.
+   `marca.logo`, el que lee la app del cliente, queda con el de fondo
+   claro, o con el único que haya. */
 const ANCHO_LOGO = 400;
 const PESO_MAXIMO = 200 * 1024;
 
@@ -498,51 +502,88 @@ function achicarLogo(archivo) {
   });
 }
 
-function LogoDelComercio({ ajustes, setAjustes, toast }) {
-  const archivo = useRef(null);
-  const marca = ajustes.marca || {};
-  const logo = marca.logo || null;
+const LUGARES = [
+  { k: "logoParaOscuro", n: "Para fondo oscuro", d: "Letras claras. Va en la barra con el tema oscuro y en la franja negra de las etiquetas.", fondo: "bg-muestra-oscura", auto: "oscuro" },
+  { k: "logoParaClaro", n: "Para fondo claro", d: "Letras oscuras. Va en la barra con el tema claro.", fondo: "bg-muestra-clara", auto: "claro" },
+];
 
-  const cargar = async (ev) => {
+export function LogoDelComercio({ ajustes, setAjustes, toast }) {
+  const marca = ajustes.marca || {};
+  const logos = useLogos(marca);
+  const archivos = { logoParaOscuro: useRef(null), logoParaClaro: useRef(null) };
+
+  const guardar = (cambios) => {
+    const m = { ...marca, ...cambios };
+    for (const k of Object.keys(cambios)) if (!m[k]) delete m[k];
+    /* El que lee la app del cliente: el de fondo claro, o el que haya.
+       Sin ninguno de los dos nuevos, se va también el de antes. */
+    const paraApp = m.logoParaClaro || m.logoParaOscuro || null;
+    if (paraApp) m.logo = paraApp; else delete m.logo;
+    setAjustes({ ...ajustes, marca: m });
+  };
+
+  const cargar = (clave) => async (ev) => {
     const f = ev.target.files && ev.target.files[0];
     ev.target.value = "";
     if (!f) return;
     try {
       const datos = await achicarLogo(f);
       if (datos.length > PESO_MAXIMO * 1.37) {
-        toast("El logo quedó muy pesado aun achicado. Probá con un PNG más simple o un JPG.", "mal");
+        toast("El logo quedó muy pesado aun achicado. Probá con un PNG más simple.", "mal");
         return;
       }
-      setAjustes({ ...ajustes, marca: { ...marca, logo: datos } });
+      /* Si todavía estaba el logo de antes, se reemplaza: ahora hay lugar
+         para cada fondo. */
+      guardar({ [clave]: datos });
       toast("Logo cargado.");
     } catch (e) {
       toast(e.message, "mal");
     }
   };
 
+  const hay = logos.paraOscuro || logos.paraClaro;
+
   return (
     <Card className="p-5">
       <h3 className="f-d text-lg">Logo del comercio</h3>
       <p className="text-sm text-texto-suave mt-1">
-        Sale en las etiquetas de góndola y en la app de tus clientes. Mejor un PNG con fondo transparente.
+        Va arriba a la izquierda, al lado del nombre, y en las etiquetas de góndola. Mejor un PNG sin fondo.
+        Si subís uno solo, para el otro fondo lo pasamos a blanco o a negro.
       </p>
-      <div className="flex flex-wrap items-center gap-4 mt-4">
-        <div className="w-40 h-20 rounded-lg border border-borde bg-superficie-2 flex items-center justify-center overflow-hidden shrink-0">
-          {logo
-            ? <img src={logo} alt="Logo del comercio" className="max-w-full max-h-full object-contain p-2" />
-            : <span className="text-xs text-texto-tenue text-center px-2">{ajustes.negocio || "Sin logo"}</span>}
-        </div>
-        <div className="flex items-center gap-2">
-          <input ref={archivo} type="file" accept="image/*" className="hidden" onChange={cargar} />
-          <Boton size="sm" onClick={() => archivo.current && archivo.current.click()}>{logo ? "Cambiar logo" : "Cargar logo"}</Boton>
-          {logo && (
-            <Boton size="sm" variant="quiet" onClick={() => { const { logo: _, ...resto } = marca; setAjustes({ ...ajustes, marca: resto }); }}>
-              Sacar
-            </Boton>
-          )}
-        </div>
+      <div className="grid sm:grid-cols-2 gap-3 mt-4">
+        {LUGARES.map((l) => {
+          const propio = marca[l.k] || (!marca.logoParaOscuro && !marca.logoParaClaro && marca.logo && logos.automatico !== l.auto ? marca.logo : null);
+          const ver = l.k === "logoParaOscuro" ? logos.paraOscuro : logos.paraClaro;
+          const esAuto = hay && logos.automatico === l.auto;
+          return (
+            <div key={l.k} className="border border-borde rounded-lg p-3">
+              <div className="text-sm font-semibold">{l.n}</div>
+              <div className="text-xs text-texto-tenue mt-0.5">{l.d}</div>
+              {/* La muestra va sobre el fondo en el que se va a ver: es lo
+                  único que dice si el logo se lee. */}
+              <div className={`h-16 rounded-md border border-borde mt-3 flex items-center justify-center overflow-hidden ${l.fondo}`}>
+                {ver ? <img src={ver} alt="" className="max-h-12 max-w-[85%] object-contain" />
+                  : <span className="text-xs text-texto-tenue">Sin logo</span>}
+              </div>
+              <div className="flex items-center justify-between gap-2 mt-2">
+                <span className="text-[11px] text-texto-tenue">{esAuto ? "Armado automático" : propio ? "Subido" : ""}</span>
+                <span className="flex gap-1">
+                  <input ref={archivos[l.k]} type="file" accept="image/*" className="hidden" onChange={cargar(l.k)} />
+                  <Boton size="sm" variant="ghost" onClick={() => archivos[l.k].current && archivos[l.k].current.click()}>{marca[l.k] ? "Cambiar" : "Subir"}</Boton>
+                  {marca[l.k] && <Boton size="sm" variant="quiet" onClick={() => guardar({ [l.k]: null })}>Sacar</Boton>}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      {!logo && <p className="text-xs text-texto-tenue mt-2">Sin logo, las etiquetas llevan el nombre del comercio.</p>}
+      {!hay && <p className="text-xs text-texto-tenue mt-2">Sin logo, la barra y las etiquetas llevan el nombre del comercio.</p>}
+      {marca.logo && !marca.logoParaOscuro && !marca.logoParaClaro && (
+        <div className="flex items-center justify-between gap-2 mt-3 text-xs text-texto-suave">
+          <span>El logo que subiste antes se usa {logos.automatico === "claro" ? "para fondo oscuro" : logos.automatico === "oscuro" ? "para fondo claro" : "para los dos fondos"}.</span>
+          <Boton size="sm" variant="quiet" onClick={() => guardar({ logo: null })}>Sacar</Boton>
+        </div>
+      )}
     </Card>
   );
 }

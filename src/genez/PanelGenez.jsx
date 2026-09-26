@@ -36,6 +36,7 @@ import { PreciosPanel } from "./PreciosPanel.jsx";
 import { SolicitudesPanel } from "./SolicitudesPanel.jsx";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
+import { useLogos } from "../ui/logos.js";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
@@ -83,16 +84,20 @@ import { MODULOS, MODULOS_BASE } from "../datos/modulos.js";
    "todos" evita tener que actualizar el rol del dueño cada vez que se agrega
    un módulo nuevo. */
 /* El logo del comercio al lado de su nombre, arriba a la izquierda. Es
-   el mismo que va en las etiquetas de góndola y en la app del cliente
-   (Ajustes → Logo del comercio). Va sobre un fondo claro fijo: un logo con
-   letras oscuras sobre la barra oscura no se vería. Sin logo, el cuadrado
-   de siempre. */
-function MarcaComercio({ logo, claseSinLogo }) {
-  if (logo) {
+   el mismo que va en las etiquetas de góndola (Ajustes → Logo del
+   comercio). Sin recuadro ni contorno: un logo sin fondo se muestra
+   solo. Hay uno para fondo oscuro y otro para fondo claro
+   (src/ui/logos.js), y el tema decide cuál se ve (`.logo-tema-*` en
+   index.css): la barra es oscura en el tema oscuro y clara en el claro.
+   Sin logo, el cuadrado de siempre. */
+function MarcaComercio({ logos, claseSinLogo }) {
+  if (logos.paraOscuro || logos.paraClaro) {
+    const img = "h-8 w-auto max-w-[7rem] object-contain shrink-0";
     return (
-      <div className="h-8 max-w-[7rem] rounded-md bg-lienzo-logo px-1.5 flex items-center justify-center shrink-0">
-        <img src={logo} alt="" className="max-h-6 max-w-full object-contain" />
-      </div>
+      <>
+        <img src={logos.paraOscuro} alt="" className={`logo-tema-oscuro ${img}`} />
+        <img src={logos.paraClaro} alt="" className={`logo-tema-claro ${img}`} />
+      </>
     );
   }
   return <div className={claseSinLogo}><Store size={17} /></div>;
@@ -1035,7 +1040,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      nombre de otro. */
   const [ajustes, setAjustesLocal] = useState(() => ajustesDe(sesion.comercio));
   /* El logo que el comercio cargó en Ajustes, para la barra de arriba. */
-  const logoComercio = (ajustes.marca && ajustes.marca.logo) || null;
+  const logosComercio = useLogos(ajustes.marca);
   const [toasts, setToasts] = useState([]);
 
   /* Las pantallas siguen llamando a setAjustes como siempre; lo que cambia
@@ -1877,7 +1882,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           <header className="sticky top-0 z-30 bg-superficie-3 text-texto">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5">
               <div className="flex items-center gap-2 shrink-0">
-                <MarcaComercio logo={logoComercio} claseSinLogo="w-8 h-8 rounded-xl bg-acento flex items-center justify-center" />
+                <MarcaComercio logos={logosComercio} claseSinLogo="w-8 h-8 rounded-xl bg-acento flex items-center justify-center" />
                 <div>
                   <div className="f-d text-sm leading-tight">{ajustes.negocio}</div>
                   <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Cobro · {fdatel(new Date())}</div>
@@ -1955,7 +1960,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           <header className="shrink-0 z-30 bg-superficie-3 text-texto">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 md:px-4 py-2.5">
               <div className="flex items-center gap-2 shrink-0">
-                <MarcaComercio logo={logoComercio} claseSinLogo="w-8 h-8 rounded-xl bg-acento text-sobre-acento flex items-center justify-center" />
+                <MarcaComercio logos={logosComercio} claseSinLogo="w-8 h-8 rounded-xl bg-acento text-sobre-acento flex items-center justify-center" />
                 <div>
                   <div className="f-d text-sm leading-tight">{ajustes.negocio}</div>
                   <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Comandas · {fdatel(new Date())}</div>
@@ -2008,7 +2013,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         {/* Barra lateral */}
         <aside className="hidden md:flex flex-col w-56 shrink-0 h-screen sticky top-0 bg-superficie border-r border-borde p-3">
           <div className="flex items-center gap-2 px-2 py-3">
-            <MarcaComercio logo={logoComercio} claseSinLogo="w-8 h-8 rounded-xl bg-acento flex items-center justify-center text-sobre-acento" />
+            <MarcaComercio logos={logosComercio} claseSinLogo="w-8 h-8 rounded-xl bg-acento flex items-center justify-center text-sobre-acento" />
             <div className="min-w-0">
               <div className="f-d text-sm truncate">{ajustes.negocio}</div>
               {/* Lo dice el rubro. Un rubro que no lo define no muestra

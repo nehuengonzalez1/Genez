@@ -53,13 +53,14 @@
   --telon:       10 10 10;
   --sobre-telon: 168 162 158;
 
-  /* EL LIENZO DEL LOGO
+  /* LAS MUESTRAS DEL LOGO
 
-     El fondo claro sobre el que va el logo del comercio en la barra de
-     arriba. Vale lo mismo en todos los temas, como el telón: un logo con
-     letras oscuras sobre la barra oscura no se ve, y el comercio no
-     tiene por qué subir una versión para cada fondo. */
-  --lienzo-logo: 255 255 255;
+     En Ajustes, cada logo se muestra sobre el fondo en el que se va a
+     ver: uno oscuro y uno claro, fijos en todos los temas como el telón.
+     Si acompañaran al tema, en el claro los dos serían claros y la
+     muestra no diría si el logo se lee. */
+  --muestra-oscura: 23 23 23;
+  --muestra-clara:  245 245 244;
   /* El naranja de Genez. `sobre-acento` es lo que se lee encima. */
   --acento:        249 115 22;
   --acento-vivo:   251 146 60;
@@ -301,3 +302,9 @@ body {
 /* El fondo del tema tiene que ganarle al del navegador también cuando se
    scrollea de más en celular. */
 html { background-color: rgb(var(--fondo)); }
+
+/* El logo del comercio: el de fondo oscuro en el tema oscuro, el de
+   fondo claro en el claro (src/ui/logos.js). */
+.logo-tema-claro { display: none; }
+.tema-claro .logo-tema-claro { display: block; }
+.tema-claro .logo-tema-oscuro { display: none; }
