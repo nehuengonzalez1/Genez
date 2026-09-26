@@ -62,7 +62,7 @@ const CSS_ETIQUETA = `
    estar dentro de la ventana y visible —si no, Chrome imprime la hoja en
    blanco—, el contenido se asigna antes de agregarlo, y se imprime
    después de que se pintó, no en el `load`. */
-function imprimirDocumento(html, { rolloMM = null } = {}) {
+export function imprimirDocumento(html, { rolloMM = null } = {}) {
   const marco = document.createElement("iframe");
   marco.setAttribute("aria-hidden", "true");
   marco.style.cssText = `position:fixed;left:0;top:0;z-index:2147483647;border:0;background:#fff;width:${rolloMM ? rolloMM + "mm" : "210mm"};height:100px`;

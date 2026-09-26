@@ -64,6 +64,10 @@ function aProducto(f, historial) {
     /* Su precio lo escribe el cajero al vender. Distinto de `precio: 0`,
        que es un producto al que le falta cargarle el precio. */
     precioAbierto: f.precio_abierto === true,
+    /* Datos sueltos del producto. Por ahora, `contenido` ("500 g", "2 l"):
+       lo que dice el envase, para el precio por kilo o litro de la
+       etiqueta de góndola cuando el nombre no lo dice o lo dice mal. */
+    camposExtra: f.campos_extra || {},
     activo: f.activo !== false,
     historial: historial || [],
   };
@@ -116,6 +120,8 @@ const COLUMNA = {
   descripcion: "descripcion",
   imagen: "imagen",
   precioAbierto: "precio_abierto",
+  /* Se manda entero: quien lo cambia parte del que leyó y le suma lo suyo. */
+  camposExtra: "campos_extra",
   activo: "activo",
 };
 
@@ -143,6 +149,18 @@ export async function guardarProducto(id, cambios) {
 
 /* El alta trae stock inicial como asiento aparte: el producto se crea sin
    stock y después entra la mercadería, que es lo que realmente pasó. */
+/* Cuándo cambió de precio por última vez cada producto que cambió desde
+   `desde`, o que se dio de alta: los dos necesitan etiqueta nueva en la
+   góndola. id → fecha. */
+export async function cargarCambiosDePrecio(empresaId, desde) {
+  if (!empresaId) throw new Error("cargarCambiosDePrecio necesita el comercio.");
+  const filas = await traerTodo("historial_precios", "item_id, fecha",
+    (q) => q.eq("empresa_id", empresaId).gte("fecha", desde.toISOString()).order("fecha"));
+  const ultima = new Map();
+  for (const f of filas) ultima.set(f.item_id, new Date(f.fecha));
+  return ultima;
+}
+
 export async function crearProducto(empresaId, datos) {
   const fila = { empresa_id: empresaId, tipo: "producto" };
   for (const [campo, valor] of Object.entries(datos)) {

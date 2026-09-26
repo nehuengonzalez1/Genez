@@ -13,6 +13,7 @@ import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "
 import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../datos/recetas.js";
 import { usoDelProducto } from "../datos/items.js";
 import { Etiquetas } from "./Etiquetas.jsx";
+import { EtiquetasGondola } from "./EtiquetasGondola.jsx";
 
 export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
   const [alta, setAlta] = useState(null);
@@ -194,8 +195,17 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
 
   const pestanas = (
     <Tabs value={pestana} onChange={setPestana}
-      items={[{ k: "catalogo", n: "Catálogo" }, { k: "codigos", n: "Códigos de barras" }]} />
+      items={[{ k: "catalogo", n: "Catálogo" }, { k: "codigos", n: "Códigos de barras" }, { k: "gondola", n: "Etiquetas de góndola" }]} />
   );
+
+  if (pestana === "gondola") {
+    return (
+      <div className="space-y-4">
+        {pestanas}
+        <EtiquetasGondola productos={productos} empresaId={empresaId} ajustes={ajustes} toast={toast} />
+      </div>
+    );
+  }
 
   if (pestana === "codigos") {
     return (
