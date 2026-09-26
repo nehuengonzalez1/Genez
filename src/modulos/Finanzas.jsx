@@ -223,7 +223,7 @@ export function Finanzas({ empresaId, caja, movCaja, abrirCaja, cerrarCaja, ajus
 
       {/* La caja es del día y se dibuja sola: no tiene mes ni filtros. */}
       {pestana === "caja" ? (
-        <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes}
+        <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes} empresaId={empresaId} permisos={permisos}
           abrirCaja={abrirCaja} cerrarCaja={cerrarCaja} />
       ) : error ? (
         <Card><ErrorEstado onReintentar={() => releer().catch((e) => setError(e.message))}>{error}</ErrorEstado></Card>

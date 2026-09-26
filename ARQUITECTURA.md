@@ -47,6 +47,7 @@ node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
+node scripts/probar-caja-grande.mjs  # el cierre con todos los medios y la caja grande: saldos, permisos, solo de agregar
 node scripts/backup.mjs            # copia toda la base a C:\Users\<vos>\Genez-backups\ (solo lee)
 ```
 
@@ -766,6 +767,39 @@ se contó con ese medio.
 **Pide `anular`**, como las devoluciones, y queda en la bitácora
 (`venta.medio_corregido`). No es un detalle: de efectivo a débito es
 exactamente cómo se tapa un faltante del cajón.
+
+## El cierre de caja y la caja grande
+
+Migración 0095, `cerrar_caja` y las funciones de `caja_grande` en la
+base, Caja → Caja del día / Caja grande.
+
+**El cierre cuenta todos los medios.** El efectivo se cuenta y arranca
+vacío —si arrancara en lo esperado, cuadraría sin que nadie contara—;
+Mercado Pago y las tarjetas arrancan en lo esperado y se corrigen con lo
+que dicen el resumen de Mercado Pago y el posnet. Se guarda lo declarado
+de cada medio (`sesiones_caja.declarado`) y el fondo que queda en el
+cajón (`fondo_siguiente`), que la próxima apertura propone. Lo esperado
+no se guarda: sale de los movimientos, como siempre.
+
+**Cerrar es una función, no una fila.** El cierre mueve plata a la caja
+grande y tiene que pasar entero o no pasar: un disparador rechaza cualquier
+cambio a `sesiones_caja` que venga del navegador —una pestaña vieja falla
+y pide actualizar, en vez de "cerrar" sin cerrar—. Pide
+`cerrarCaja`, que hasta 0095 solo apagaba un botón.
+
+**La caja grande es la plata del negocio fuera del cajón**, en tres
+cuentas: efectivo guardado, Mercado Pago y banco. Al cerrar, el efectivo
+menos el fondo va al efectivo, Mercado Pago a la suya, y las tarjetas y
+las transferencias al banco, con la comisión estimada de cada medio como
+egreso. En el día se puede pasar efectivo del cajón (`pasar_a_caja_grande`:
+egreso de la caja del día e ingreso de la grande, juntos). A mano: pagos,
+retiros del dueño, aportes, pases entre cuentas y ajustes.
+
+**Solo de agregar.** No se edita ni se borra: un error se corrige con un
+ajuste, que se carga como el saldo real de la cuenta. Verla y moverla pide
+`cajaGrande` (de fábrica dueño y encargado), verificado por la base en la
+política y en cada función. Lo que entra desde el cierre o desde el cajón
+no lo pide: lo hace quien tiene la caja del día.
 
 ## La cuenta corriente
 

@@ -71,19 +71,31 @@ export async function abrirCaja({ empresaId, sucursalId = null, montoInicial = 0
   return data;
 }
 
-export async function cerrarCaja({ sesionId, montoDeclarado, notas = null }) {
-  const { data: { user } } = await supabase.auth.getUser();
-  const { error } = await supabase
-    .from("sesiones_caja")
-    .update({
-      cerrada_en: new Date().toISOString(),
-      monto_declarado: Math.round(montoDeclarado),
-      cerrada_por: user ? user.id : null,
-      notas,
-    })
-    .eq("id", sesionId);
+/* El cierre con todos los medios (0095). `declarado` es lo que se contó o
+   lo que dicen Mercado Pago y el posnet, por medio: { efectivo, mp, … }.
+   `fondo` es el efectivo que queda en el cajón para mañana; el resto, y
+   los demás medios, pasan a la caja grande en la misma transacción. Por
+   eso ya no se cierra escribiendo la fila: tiene que pasar todo o nada. */
+export async function cerrarCaja({ sesionId, declarado, fondo, notas = null }) {
+  const limpio = Object.fromEntries(Object.entries(declarado || {})
+    .filter(([, v]) => v !== "" && v !== null && v !== undefined && isFinite(Number(v)))
+    .map(([k, v]) => [k, Math.round(Number(v))]));
+  const { error } = await supabase.rpc("cerrar_caja", {
+    p_sesion: sesionId,
+    p_declarado: limpio,
+    p_fondo: Math.round(Number(fondo) || 0),
+    p_notas: notas,
+  });
+  if (error) throw new Error(error.message || "No se pudo cerrar la caja.");
+}
 
-  if (error) throw error;
+/* Sacar efectivo del cajón en el día y guardarlo en la caja grande: un
+   egreso de la caja del día y un ingreso de la grande, juntos. */
+export async function pasarACajaGrande({ sesionId, monto, detalle }) {
+  const { error } = await supabase.rpc("pasar_a_caja_grande", {
+    p_sesion: sesionId, p_monto: Math.round(Number(monto) || 0), p_detalle: detalle || null,
+  });
+  if (error) throw new Error(error.message || "No se pudo pasar a la caja grande.");
 }
 
 export async function cargarMovimientos(sesionId) {
@@ -124,7 +136,7 @@ export async function registrarMovimiento({ empresaId, sucursalId = null, sesion
 export async function cargarCierres(empresaId, cuantos = 30) {
   const { data, error } = await supabase
     .from("sesiones_caja")
-    .select("id, abierta_en, cerrada_en, monto_inicial, monto_declarado, notas")
+    .select("id, abierta_en, cerrada_en, monto_inicial, monto_declarado, declarado, fondo_siguiente, notas")
     .eq("empresa_id", empresaId)
     .not("cerrada_en", "is", null)
     .order("cerrada_en", { ascending: false })

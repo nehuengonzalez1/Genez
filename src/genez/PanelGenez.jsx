@@ -86,12 +86,12 @@ const ROLES = [
   {
     k: "dueno", n: "Dueño", d: "Acceso completo al comercio",
     modulos: "todos",
-    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: true, fiar: true, ajustarCuentas: true },
+    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: true, fiar: true, ajustarCuentas: true, cajaGrande: true },
   },
   {
     k: "encargado", n: "Encargado", d: "Todo menos la configuración",
     modulos: ["cobro", "caja", "comandas", "productos", "stock", "compras", "pedidos", "clientes", "equipo", "agenda", "ventas", "finanzas", "servicios", "reportes", "informes", "crm", "comunicaciones", "asistente", "cuentas"],
-    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false, fiar: true, ajustarCuentas: true },
+    permisos: { verCostos: true, descuentos: true, anular: true, cerrarCaja: true, cambiarPrecios: true, ajustes: false, fiar: true, ajustarCuentas: true, cajaGrande: true },
   },
   {
     k: "cajero", n: "Cajero", d: "Cobra, sin ver costos ni ganancias",
@@ -1292,10 +1292,24 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     const filas = await cargarCierres(empresaId, 5);
     return Promise.all(filas.map(async (f) => {
       const movs = await cargarMovimientos(f.id);
-      const neto = movs.reduce((s, m) => (m.medio !== "efectivo" ? s : s + (m.tipo === "ingreso" ? m.monto : -m.monto)), 0);
-      const esperado = Number(f.monto_inicial || 0) + neto;
+      /* Lo esperado de cada medio (0095): el efectivo con la apertura, y
+         los demás lo que entró menos lo que salió por ese medio. */
+      const netoDe = (medio) => movs.reduce((s, m) => (m.medio !== medio ? s : s + (m.tipo === "ingreso" ? m.monto : -m.monto)), 0);
+      const esperado = Number(f.monto_inicial || 0) + netoDe("efectivo");
       const contado = Number(f.monto_declarado || 0);
-      return { id: f.id, fecha: new Date(f.cerrada_en), esperado, contado, dif: contado - esperado };
+      const declarado = f.declarado || { efectivo: contado };
+      const medios = [...new Set([...movs.map((m) => m.medio), ...Object.keys(declarado)])]
+        .filter((k) => k !== "cuenta_corriente")
+        .map((k) => {
+          const esp = k === "efectivo" ? esperado : netoDe(k);
+          const dec = declarado[k] === undefined ? null : Number(declarado[k]);
+          return { k, esperado: esp, declarado: dec, dif: dec === null ? null : dec - esp };
+        });
+      return {
+        id: f.id, abierta: new Date(f.abierta_en), fecha: new Date(f.cerrada_en), esperado, contado, dif: contado - esperado,
+        apertura: Number(f.monto_inicial || 0), fondo: f.fondo_siguiente === null ? null : Number(f.fondo_siguiente),
+        medios, notas: f.notas || "",
+      };
     }));
   }, [empresaId]);
 
@@ -1474,14 +1488,18 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cerrarCajaDelDia = async (contado) => {
-    if (!caja.sesionId) return;
+  /* { declarado, fondo, notas } (0095). Devuelve si cerró, para que el
+     cuadro del cierre se quede abierto con lo cargado si no. */
+  const cerrarCajaDelDia = async ({ declarado, fondo, notas }) => {
+    if (!caja.sesionId) return false;
     try {
-      await cerrarCajaEnBase({ sesionId: caja.sesionId, montoDeclarado: contado });
+      await cerrarCajaEnBase({ sesionId: caja.sesionId, declarado, fondo, notas });
       setCaja(await leerCaja());
-      toast("Caja cerrada. Se guardó el arqueo del día.");
+      toast("Caja cerrada. El arqueo quedó guardado y el resto pasó a la caja grande.");
+      return true;
     } catch (e) {
       toast(e.message || "No se pudo cerrar la caja.", "mal");
+      return false;
     }
   };
 

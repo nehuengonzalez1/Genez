@@ -39,6 +39,9 @@ export const BANDERAS = [
   { k: "ajustarCuentas", n: "Ajustar cuentas corrientes", d: "Anular pagos, cargar o perdonar deuda, fijar límites y fiar más allá del límite. Queda en la bitácora.", pesado: true },
   { k: "anular", n: "Anular ventas", d: "Dar de baja algo ya cobrado. Queda en la bitácora." },
   { k: "cerrarCaja", n: "Cerrar la caja", d: "Hacer el arqueo y cerrar el día." },
+  /* 0095. La plata del negocio fuera del cajón: saldos, pagos, retiros
+     del dueño. Lo que entra desde el cierre no lo pide. */
+  { k: "cajaGrande", n: "Ver y mover la caja grande", d: "La plata del negocio fuera del cajón: saldos, pagos, retiros del dueño y pases entre cuentas.", pesado: true },
   { k: "cambiarPrecios", n: "Cambiar precios", d: "Editar el precio de venta del catálogo." },
   { k: "ajustes", n: "Entrar a Ajustes", d: "La configuración del negocio y del sistema." },
   { k: "verBitacora", n: "Ver la auditoría", d: "Leer lo que hicieron los demás." },
