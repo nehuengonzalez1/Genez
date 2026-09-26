@@ -52,6 +52,14 @@
      de remapearlo. */
   --telon:       10 10 10;
   --sobre-telon: 168 162 158;
+
+  /* EL LIENZO DEL LOGO
+
+     El fondo claro sobre el que va el logo del comercio en la barra de
+     arriba. Vale lo mismo en todos los temas, como el telón: un logo con
+     letras oscuras sobre la barra oscura no se ve, y el comercio no
+     tiene por qué subir una versión para cada fondo. */
+  --lienzo-logo: 255 255 255;
   /* El naranja de Genez. `sobre-acento` es lo que se lee encima. */
   --acento:        249 115 22;
   --acento-vivo:   251 146 60;

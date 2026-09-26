@@ -25,6 +25,7 @@ export default {
 
         telon:        color("telon"),
         "sobre-telon": color("sobre-telon"),
+        "lienzo-logo": color("lienzo-logo"),
 
         acento:       color("acento"),
         "acento-vivo": color("acento-vivo"),
