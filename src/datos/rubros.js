@@ -12,6 +12,13 @@
 
 import { supabase } from "./supabase.js";
 
+/* Los rubros para elegir al dar de alta un comercio. */
+export async function cargarRubros() {
+  const { data, error } = await supabase.from("rubros").select("clave, nombre").eq("activo", true).order("nombre");
+  if (error) throw error;
+  return data || [];
+}
+
 export async function cargarRubro(clave) {
   if (!clave) return null;
 

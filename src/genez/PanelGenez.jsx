@@ -11,7 +11,8 @@ import {
   Heart, MessageSquare, FileText, NotebookPen
 } from "lucide-react";
 import { mulberry32, uid, HOY, PEDIDOS_INICIALES, fdatel } from "../datos/generador.js";
-import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios, guardarComercio } from "../datos/sesion.js";
+import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios, guardarComercio, crearComercio } from "../datos/sesion.js";
+import { cargarRubros } from "../datos/rubros.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { consultarCobros } from "../datos/mercadopago.js";
 import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras, letraComprobante, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
@@ -314,6 +315,11 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
   const [altaComercio, setAltaComercio] = useState(false);
   const archivoFondo = useRef(null);
   const [nombreNuevo, setNombreNuevo] = useState("");
+  const [rubroNuevo, setRubroNuevo] = useState("");
+  const [rubros, setRubros] = useState([]);
+  const [creando, setCreando] = useState(false);
+  const [errorAlta, setErrorAlta] = useState(null);
+  useEffect(() => { cargarRubros().then(setRubros).catch(() => setRubros([])); }, []);
   const c = comercios.find((x) => x.id === abierto) || null;
 
   const actualizar = (id, cambios) => setComercios((cs) => cs.map((x) => (x.id === id ? { ...x, ...cambios } : x)));
@@ -369,7 +375,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                 <h1 className="f-d text-2xl">Comercios</h1>
                 <p className="text-sm text-texto-tenue">{comercios.length} cuentas · {comercios.filter((x) => x.activo).length} activas</p>
               </div>
-              <button onClick={() => { setAltaComercio(true); setNombreNuevo(""); }}
+              <button onClick={() => { setAltaComercio(true); setNombreNuevo(""); setRubroNuevo(""); setErrorAlta(null); }}
                 className="flex items-center gap-1.5 bg-acento hover:bg-acento-vivo text-texto font-bold rounded-xl px-3.5 py-2 text-sm">
                 <Plus size={15} /> Nuevo comercio
               </button>
@@ -547,19 +553,30 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
       <Modal open={altaComercio} onClose={() => setAltaComercio(false)} ancho="max-w-md">
         <div className="p-5">
           <h3 className="f-d text-lg">Nuevo comercio</h3>
-          <p className="text-sm text-texto-suave mt-1">Arranca con los módulos base. Los demás se activan después.</p>
+          <p className="text-sm text-texto-suave mt-1">Arranca con los módulos base. Los demás se activan después. El rubro decide el menú y por dónde entra.</p>
           <input value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} autoFocus placeholder="Nombre del comercio"
             className={`${inputCls} mt-3`} />
+          <select value={rubroNuevo} onChange={(e) => setRubroNuevo(e.target.value)} className={`${inputCls} mt-2`}>
+            <option value="">Elegí el rubro</option>
+            {rubros.map((r) => <option key={r.clave} value={r.clave}>{r.nombre}</option>)}
+          </select>
+          {errorAlta && <p className="text-sm text-mal mt-2">{errorAlta}</p>}
           <div className="flex justify-end gap-2 mt-4">
-            <Boton variant="quiet" onClick={() => setAltaComercio(false)}>Cancelar</Boton>
-            <Boton disabled={!nombreNuevo.trim()} onClick={() => {
-              const nuevo = {
-                id: "cm" + uid(), nombre: nombreNuevo.trim(), plan: "Base", modulos: [...MODULOS_BASE],
-                alta: `${String(new Date().getMonth() + 1).padStart(2, "0")}/${new Date().getFullYear()}`, activo: true, usuarios: [],
-              };
-              setComercios((cs) => [...cs, nuevo]);
-              setAltaComercio(false); setAbierto(nuevo.id);
-            }}><Check size={15} /> Crear</Boton>
+            <Boton variant="quiet" onClick={() => setAltaComercio(false)} disabled={creando}>Cancelar</Boton>
+            <Boton disabled={!nombreNuevo.trim() || !rubroNuevo || creando} onClick={async () => {
+              /* Se guarda en la base (antes quedaba solo en pantalla, con
+                 un id inventado, y desaparecía al refrescar). */
+              setCreando(true); setErrorAlta(null);
+              try {
+                const nuevo = await crearComercio({ nombre: nombreNuevo, rubro: rubroNuevo, modulos: [...MODULOS_BASE] });
+                setComercios((cs) => [...cs, nuevo]);
+                setAltaComercio(false); setAbierto(nuevo.id);
+              } catch (e) {
+                setErrorAlta(e.message || "No se pudo crear el comercio.");
+              } finally {
+                setCreando(false);
+              }
+            }}><Check size={15} /> {creando ? "Creando…" : "Crear"}</Boton>
           </div>
         </div>
       </Modal>

@@ -138,6 +138,32 @@ export async function leerLoComercial(id) {
   return data ? { modulos: data.modulos || [], activo: data.activa } : null;
 }
 
+/* Un comercio nuevo, desde el panel de Genez. Antes el panel lo armaba
+   en pantalla con un id inventado y no lo guardaba: desaparecía al
+   refrescar. Lo inserta la plataforma (`empresas_administrar`); la base
+   le pone sola el slug —su dirección, nombre.genez.com.ar— y los canales
+   de pedidos. Se le crea una sucursal "Principal", como tienen todos.
+
+   El rubro va de entrada porque decide la forma del sistema: el menú,
+   por dónde entra y qué tablero muestra el inicio. */
+export async function crearComercio({ nombre, rubro, modulos }) {
+  const { data, error } = await supabase
+    .from("empresas")
+    .insert({ nombre: nombre.trim(), rubro, modulos, plan: "base" })
+    .select(SELECT_EMPRESA)
+    .single();
+  if (error) {
+    /* El slug sale del nombre y es único. */
+    if (error.code === "23505") throw new Error(`Ya hay un comercio que se llama "${nombre.trim()}". Usá otro nombre.`);
+    throw new Error(error.message || "No se pudo crear el comercio.");
+  }
+  const { error: e2 } = await supabase.from("sucursales").insert({ empresa_id: data.id, nombre: "Principal" });
+  /* Sin sucursal el comercio anda igual (hoy nada la lee): se avisa en
+     la consola y se sigue, antes que dejar a medias un alta que ya está. */
+  if (e2) console.error("El comercio se creó, pero no su sucursal:", e2);
+  return aComercio(data);
+}
+
 export async function entrar(email, clave) {
   const { error } = await supabase.auth.signInWithPassword({
     email: email.trim(),
