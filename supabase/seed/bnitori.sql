@@ -36,7 +36,7 @@ if v_emp is null then
         'nombreFactura', 'Bnitori',
         'razonSocial',   'Bnitori Sanitarios SRL (datos de ejemplo)',
         'cuit',          '30-71234567-8',
-        'condicion',     'RESPONSABLE_INSCRIPTO',
+        'condicion',     'RI',
         'iibb',          '901-999888-7',
         'inicio',        '01/01/2020',
         'puntoVenta',    '0001',

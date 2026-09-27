@@ -48,6 +48,7 @@ node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
 node scripts/probar-caja-grande.mjs  # el cierre con todos los medios y la caja grande: saldos, permisos, solo de agregar
+node scripts/probar-alicuotas.mjs  # la alícuota de IVA: las que acepta ARCA, y de dónde la toma cada renglón
 node scripts/backup.mjs            # copia toda la base a C:\Users\<vos>\Genez-backups\ (solo lee)
 ```
 
@@ -679,6 +680,18 @@ CAE, que si no saldría de verdad.
 **El TLS de ARCA**: el WSFE de producción negocia una clave DH que el
 OpenSSL de Node rechaza ("dh key too small"). El agente de `_directo.js`
 baja el nivel solo para hablar con ARCA.
+
+**La alícuota de cada producto (0097)** es el primer paso de la A y la
+B. Son dos columnas, `iva` y `iva_condicion` (gravado, exento, no
+gravado), porque ARCA informa en campos distintos lo gravado al 0%, lo
+exento y lo no gravado; en pantalla es un solo selector (`ALICUOTAS` en
+`helpers.js`). La base solo acepta las alícuotas de ARCA (0, 2,5, 5,
+10,5, 21, 27). **El renglón vendido la toma de la base, no del
+navegador**: el disparador `renglon_con_su_iva` la copia del producto, o
+del renglón original en una devolución, para que la nota de crédito
+cierre contra la factura aunque el producto haya cambiado después. Se
+corrigen de a muchos desde Productos → Editar en tabla, filtrando por
+rubro.
 
 Lo que falta: las facturas A y B, que necesitan el IVA por alícuota. Las
 notas de crédito y de débito C están desde 0089 (ver abajo).

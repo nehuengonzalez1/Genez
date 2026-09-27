@@ -998,7 +998,10 @@ function aDatosDeBase(d) {
     stock: numero(d.stock),
     stockMin: numero(d.stockMin),
     bulto: numero(d.bulto, 1),
-    iva: numero(d.iva, 21),
+    /* No `numero(d.iva, 21)`: trata el 0 como vacío, y un exento se
+       guardaba al 21%. */
+    iva: d.iva === "" || d.iva == null ? 21 : Number(d.iva),
+    ivaCondicion: d.ivaCondicion || "gravado",
     precios: Object.fromEntries(
       Object.entries(d.precios || {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)])
     ),
