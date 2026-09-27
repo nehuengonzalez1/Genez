@@ -11,7 +11,7 @@ import {
   Heart, MessageSquare, FileText, NotebookPen
 } from "lucide-react";
 import { mulberry32, uid, HOY, PEDIDOS_INICIALES, fdatel } from "../datos/generador.js";
-import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios } from "../datos/sesion.js";
+import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios, guardarComercio } from "../datos/sesion.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
 import { consultarCobros } from "../datos/mercadopago.js";
 import { MEDIOS_INICIALES, FISCAL_INICIAL, LISTAS_INICIALES, money, nf, hora, numeroALetras, letraComprobante, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
@@ -317,6 +317,23 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
   const c = comercios.find((x) => x.id === abierto) || null;
 
   const actualizar = (id, cambios) => setComercios((cs) => cs.map((x) => (x.id === id ? { ...x, ...cambios } : x)));
+  const [errorGuardar, setErrorGuardar] = useState(null);
+
+  /* Los módulos y el estado se guardan en la base. Antes solo cambiaban
+     acá, en pantalla: al refrescar volvían como estaban. Se muestra el
+     cambio enseguida y, si la base no lo acepta, vuelve atrás y lo dice. */
+  const guardarEnBase = async (id, cambios) => {
+    const antes = comercios.find((x) => x.id === id);
+    actualizar(id, cambios);
+    setErrorGuardar(null);
+    try {
+      const guardado = await guardarComercio(id, cambios);
+      actualizar(id, { modulos: guardado.modulos, activo: guardado.activo });
+    } catch (e) {
+      if (antes) actualizar(id, { modulos: antes.modulos, activo: antes.activo });
+      setErrorGuardar(e.message || "No se pudo guardar el cambio.");
+    }
+  };
 
   /* Después de un alta se vuelve a preguntar a la base. La lista de
      usuarios de cada comercio sale del embed de `perfiles`, así que
@@ -329,7 +346,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
   const alternarModulo = (k) => {
     if (MODULOS_BASE.includes(k)) return;             // el piso mínimo no se saca
     const tiene = c.modulos.includes(k);
-    actualizar(c.id, { modulos: tiene ? c.modulos.filter((x) => x !== k) : [...c.modulos, k] });
+    guardarEnBase(c.id, { modulos: tiene ? c.modulos.filter((x) => x !== k) : [...c.modulos, k] });
   };
 
   return (
@@ -443,7 +460,10 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                 <p className="text-sm text-texto-tenue">Alta {c.alta}</p>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => actualizar(c.id, { activo: !c.activo })}
+                <button onClick={() => {
+                  if (c.activo && !window.confirm(`¿Suspender ${c.nombre}? Nadie del comercio va a poder entrar, y los que están adentro salen solos en menos de un minuto.`)) return;
+                  guardarEnBase(c.id, { activo: !c.activo });
+                }}
                   className={`text-sm font-semibold rounded-xl px-3 py-2 border ${c.activo ? "border-borde-fuerte text-texto-tenue hover:bg-superficie-3" : "border-emerald-500/40 text-emerald-400"}`}>
                   {c.activo ? "Suspender" : "Reactivar"}
                 </button>
@@ -456,6 +476,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
 
             <section className="mt-6">
               <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold mb-2">Módulos contratados</h2>
+              {errorGuardar && <p className="text-sm text-mal mb-2">{errorGuardar}</p>}
               <div className="grid sm:grid-cols-2 gap-2">
                 {MODULOS.map((m) => {
                   const tiene = c.modulos.includes(m.k);
@@ -1007,6 +1028,14 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     entradaPedida || entradaPorDefecto;
   const [vista, setVista] = useState(entrada);
   const [tab, setTab] = useState("inicio");
+  /* Si Genez le saca al comercio el módulo de la pantalla en la que
+     alguien está parado, el menú ya no lo muestra pero la pantalla seguía
+     abierta. Se vuelve al Inicio; y del salón, al panel. */
+  const modulosClave = modulos.join(",");
+  useEffect(() => {
+    if (!puedeVer(tab)) setTab("inicio");
+    if (vista === "comanda" && !puedeVer("comandas")) setVista("panel");
+  }, [modulosClave]);
   const [foco, setFoco] = useState(null);
   const [productos, setProductos] = useState([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);

@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
-import { cargarSesion, cargarComercios, salir, alRecuperarClave, vinoDeRecuperacion } from "./datos/sesion.js";
+import { cargarSesion, cargarComercios, salir, alRecuperarClave, vinoDeRecuperacion, leerLoComercial } from "./datos/sesion.js";
 import { cargarRubro } from "./datos/rubros.js";
 import { cargarRoles } from "./datos/permisos.js";
 import { useVersionNueva, estaOcupado } from "./ui/actualizacion.js";
@@ -106,6 +106,45 @@ export default function App() {
       .catch((e) => console.error("No se pudieron cargar los comercios:", e));
     return () => { vigente = false; };
   }, [sesion && sesion.tipo, sesion && sesion.nombre]);
+
+  /* Lo que Genez le cambió al comercio mientras alguien lo tenía abierto:
+     un módulo que se sacó, o la cuenta suspendida. Se relee cada minuto y
+     al volver a la pestaña. Sin esto, una caja que no se refresca en días
+     seguía teniendo un módulo que ya no contrató. La plataforma "entrando
+     como" no lo necesita: el comercio que mira es el de su panel, que ya
+     tiene el cambio. */
+  const comercioPropio = sesion && sesion.tipo === "comercio" ? sesion.comercio.id : null;
+  useEffect(() => {
+    if (!comercioPropio) return undefined;
+    let vivo = true;
+    const mirar = async () => {
+      let c;
+      try { c = await leerLoComercial(comercioPropio); } catch { return; }   // sin conexión: la próxima
+      if (!vivo || !c) return;
+      if (c.activo === false) {
+        await salir();
+        if (!vivo) return;
+        setSesion(null);
+        setErrorInicio("Esta cuenta está suspendida. Contactate con el administrador.");
+        return;
+      }
+      setSesion((s) => {
+        if (!s || s.tipo !== "comercio") return s;
+        const antes = (s.comercio.modulos || []).join(",");
+        return antes === c.modulos.join(",") ? s : { ...s, comercio: { ...s.comercio, modulos: c.modulos } };
+      });
+    };
+    const id = setInterval(mirar, 60000);
+    const alVolver = () => { if (document.visibilityState === "visible") mirar(); };
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("focus", alVolver);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("focus", alVolver);
+    };
+  }, [comercioPropio]);
 
   /* El comercio que se está mirando: el propio, o el que abrió la
      plataforma. En el panel de plataforma no hay ninguno. */

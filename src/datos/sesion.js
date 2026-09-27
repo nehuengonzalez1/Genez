@@ -112,6 +112,32 @@ export async function cargarComercios() {
   return (data || []).map(aComercio);
 }
 
+/* Lo comercial de un comercio —qué módulos contrató, si está activo—,
+   que cambia solo Genez desde su panel. Antes el panel lo cambiaba en
+   pantalla y no lo guardaba: al refrescar volvía todo como estaba, y
+   sacarle un módulo a un comercio no le sacaba nada. La base deja
+   escribirlo solo a la plataforma (`empresas_administrar`, y
+   `proteger_lo_comercial` frena al comercio). */
+export async function guardarComercio(id, cambios) {
+  const fila = {};
+  if (cambios.modulos !== undefined) fila.modulos = cambios.modulos;
+  if (cambios.activo !== undefined) fila.activa = cambios.activo;
+  const { data, error } = await supabase.from("empresas").update(fila).eq("id", id).select(SELECT_EMPRESA);
+  if (error) throw new Error(error.message || "No se pudo guardar el comercio.");
+  /* Sin filas es que la base no lo dejó (no es la plataforma): con RLS,
+     un update que no puede tocar nada no da error, devuelve vacío. */
+  if (!data || !data.length) throw new Error("La base no dejó guardar el cambio.");
+  return aComercio(data[0]);
+}
+
+/* Lo comercial del propio comercio, para que una sesión abierta se entere
+   de que Genez le sacó un módulo o lo suspendió sin tener que refrescar. */
+export async function leerLoComercial(id) {
+  const { data, error } = await supabase.from("empresas").select("modulos, activa").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? { modulos: data.modulos || [], activo: data.activa } : null;
+}
+
 export async function entrar(email, clave) {
   const { error } = await supabase.auth.signInWithPassword({
     email: email.trim(),
