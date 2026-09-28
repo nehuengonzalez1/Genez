@@ -35,7 +35,7 @@ values (
       'nombreFactura', 'Bar Rivadavia',
       'razonSocial',   'Rivadavia Gastronomica SRL',
       'cuit',          '30-71455872-9',
-      'condicion',     'RESPONSABLE INSCRIPTO',
+      'condicion',     'RI',
       'iibb',          '902-887654-1',
       'inicio',        '15/06/2022',
       'puntoVenta',    '0003',

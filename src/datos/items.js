@@ -47,6 +47,8 @@ function aProducto(f, historial) {
     precioPrev: n(f.precio_prev),
     precios: f.precios || {},
     iva: n(f.iva),
+    /* gravado, exento o no_gravado (0097). */
+    ivaCondicion: f.iva_condicion || "gravado",
     stock: n(f.stock),
     stockMin: n(f.stock_min),
     bulto: n(f.bulto),
@@ -114,6 +116,7 @@ const COLUMNA = {
   precio: "precio",
   precios: "precios",
   iva: "iva",
+  ivaCondicion: "iva_condicion",
   stockMin: "stock_min",
   bulto: "bulto",
   proveedorId: "proveedor_id",

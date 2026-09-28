@@ -15,7 +15,8 @@ import {
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
   condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
   leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE,
-  TOPE_DESCUENTO, topeDescuento, limpiarPorcentaje, leerPorcentaje
+  TOPE_DESCUENTO, topeDescuento, limpiarPorcentaje, leerPorcentaje,
+  ALICUOTAS, claveAlicuota, alicuotaDe
 } from "../utils/helpers.js";
 import {
   beep, useScanHandler, ticketVenta, imprimirTicket, qrDeFactura, esperaCAE,
@@ -161,6 +162,8 @@ function filasCatalogo(productos, listas) {
     const fila = {};
     for (const [titulo, campo] of cols) {
       if (campo.startsWith("lista:")) fila[titulo] = (p.precios || {})[campo.slice(6)] || "";
+      /* "Exento" y no 0: al volver a importarla, un 0 sería gravado al 0%. */
+      else if (campo === "iva") fila[titulo] = (ALICUOTAS.find((a) => a.k === claveAlicuota(p.iva, p.ivaCondicion)) || {}).n || "";
       else fila[titulo] = p[campo] != null ? p[campo] : "";
     }
     return fila;
@@ -1777,8 +1780,8 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
             <div className={`${inputCls} f-m text-right bg-superficie-2 ${margen > 0 && margen < 0.12 ? "text-mal" : ""}`}>{d.precioAbierto || !precio ? "—" : pct(margen)}</div>
           </Campo>
           <Campo label="IVA">
-            <select value={d.iva} onChange={(e) => set("iva", Number(e.target.value))} className={inputCls}>
-              <option value={21}>21%</option><option value={10.5}>10,5%</option><option value={0}>Exento</option>
+            <select value={claveAlicuota(d.iva, d.ivaCondicion)} onChange={(e) => setD((x) => ({ ...x, ...alicuotaDe(e.target.value) }))} className={inputCls}>
+              {ALICUOTAS.map((a) => <option key={a.k} value={a.k}>{a.n}</option>)}
             </select>
           </Campo>
         </div>

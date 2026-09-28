@@ -6,7 +6,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode, Trash2, ChefHat, Ban } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { fdate, fdatel } from "../datos/generador.js";
-import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad } from "../utils/helpers.js";
+import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad, ALICUOTAS, claveAlicuota, alicuotaDe, alicuotaDesdeTexto } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } from "../ui/Base.jsx";
 import { NumeroDiferido, TextoDiferido, Campo, inputCls } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
@@ -55,7 +55,9 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
      válido —un precio que se borra— y `||` lo confundiría con "sin tocar". */
   const enBorrador = (p, campo) => (borrador[p.id] && borrador[p.id][campo] !== undefined ? borrador[p.id][campo] : p[campo]);
 
-  const cuantosCambios = Object.values(borrador).reduce((s, c) => s + Object.keys(c).length, 0);
+  /* La alícuota son dos campos (`iva` e `ivaCondicion`) pero un solo
+     cambio para quien la toca: contar los dos diría "2 cambios" por uno. */
+  const cuantosCambios = Object.values(borrador).reduce((s, c) => s + Object.keys(c).filter((k) => k !== "ivaCondicion").length, 0);
 
   const descartar = () => setBorrador({});
 
@@ -74,6 +76,29 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
   const [destinoMarkup, setDestinoMarkup] = useState("precio");
 
   const listasActivas = (ajustes.listas || []).filter((l) => l.activa !== false);
+
+  /* EL IVA DE MUCHOS A LA VEZ
+
+     El 27/09 los 1.462 productos de la base estaban al 21%, porque es lo
+     que se pone de fábrica y nadie lo cambió: la leche, el pan y los
+     fideos van al 10,5. Para un monotributista no importa; para una
+     factura A o B es el IVA que se le informa a ARCA. Corregirlo de a uno
+     no lo va a hacer nadie, y se corrige por rubro: se filtra "Lácteos" y
+     se aplica. Como el markup, va al borrador y se guarda después de
+     mirarlo. */
+  const [ivaMasivo, setIvaMasivo] = useState("10.5");
+  const aplicarIvaMasivo = () => {
+    const nuevos = {};
+    for (const p of lista) {
+      if (claveAlicuota(enBorrador(p, "iva"), enBorrador(p, "ivaCondicion")) === ivaMasivo) continue;
+      nuevos[p.id] = { ...(borrador[p.id] || {}), ...alicuotaDe(ivaMasivo) };
+    }
+    const n = Object.keys(nuevos).length;
+    const nombre = (ALICUOTAS.find((a) => a.k === ivaMasivo) || {}).n;
+    if (!n) return toast(`Ya estaban todos en ${nombre}.`, "mal");
+    setBorrador((b) => ({ ...b, ...nuevos }));
+    toast(`${n} ${n === 1 ? "producto pasa" : "productos pasan"} a ${nombre}. Revisalos y guardá.`);
+  };
 
   const sugerirPorMarkup = () => {
     const m = Number(markup);
@@ -244,7 +269,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
         <span className="text-xs text-texto-tenue self-center ml-1">{nf.format(lista.length)} productos</span>
         {modoPrecios && (
           <span className="text-xs text-texto-suave basis-full sm:basis-auto">
-            Nombre, rubro, costo y precios: editá lo que haga falta y guardá al final. Debajo de cada precio: <b>mg</b> margen, <b>mk</b> markup.
+            Nombre, rubro, IVA, costo y precios: editá lo que haga falta y guardá al final. Debajo de cada precio: <b>mg</b> margen, <b>mk</b> markup.
           </span>
         )}
         <Boton size="sm" variant={modoPrecios ? "dark" : "ghost"} onClick={alternarModoPrecios}>
@@ -353,6 +378,16 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
             {/* Pegada a la grilla y no en la barra de filtros de arriba: los
                 rótulos `mg` y `mk` se leen acá abajo, y una aclaración que
                 hay que ir a buscar a otra parte de la pantalla no aclara. */}
+            <span className="mx-1 h-5 w-px bg-borde" aria-hidden="true" />
+            <span className="text-xs uppercase tracking-widest text-texto-tenue font-bold">IVA</span>
+            <select value={ivaMasivo} onChange={(e) => setIvaMasivo(e.target.value)}
+              className="text-sm border border-borde rounded-lg px-2 py-1 bg-superficie outline-none focus:border-acento">
+              {ALICUOTAS.map((a) => <option key={a.k} value={a.k}>{a.n}</option>)}
+            </select>
+            <Boton size="sm" variant="ghost" onClick={aplicarIvaMasivo}>
+              Aplicar a {nf.format(lista.length)}
+            </Boton>
+
             <span className="ml-auto text-[11px] text-texto-tenue">
               <b className="text-texto-suave">mg</b> margen = ganancia ÷ precio
               <span className="mx-1.5">·</span>
@@ -360,10 +395,11 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
             </span>
           </div>
           <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
-            <table className="w-full text-sm min-w-[790px]">
+            <table className="w-full text-sm min-w-[880px]">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde bg-superficie-2">
                   <th className="px-4 py-2.5 font-semibold">Producto</th>
+                  <th className="px-2 py-2.5 font-semibold w-24">IVA</th>
                   <th className="px-2 py-2.5 font-semibold text-right w-24">Costo</th>
                   <th className="px-2 py-2.5 font-semibold text-right w-24">
                     Markup
@@ -461,6 +497,14 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
                           placeholder="Sin rubro" lista="rubros-de-la-grilla"
                           className={`w-full f-m text-[11px] text-texto-tenue bg-transparent border rounded-lg px-2 py-0.5 mt-0.5 outline-none focus:border-acento ${
                             tocado("categoria") ? "border-acento bg-acento-suave/40" : "border-transparent hover:border-borde"}`} />
+                      </td>
+                      <td className={`px-2 py-1.5 ${tocado("iva") ? "bg-acento-suave/40" : ""}`}>
+                        <select value={claveAlicuota(enBorrador(p, "iva"), enBorrador(p, "ivaCondicion"))}
+                          onChange={(e) => anotar(p.id, alicuotaDe(e.target.value))}
+                          className={`f-m w-24 border rounded-lg px-1.5 py-1 text-sm bg-superficie outline-none focus:border-acento ${
+                            tocado("iva") ? "border-acento" : "border-borde"}`}>
+                          {ALICUOTAS.map((a) => <option key={a.k} value={a.k}>{a.n}</option>)}
+                        </select>
                       </td>
                       <td className={`px-2 py-1.5 text-right ${tocado("costo") ? "bg-acento-suave/40" : ""}`}>
                         <NumeroDiferido valor={enBorrador(p, "costo")} onGuardar={(n) => anotar(p.id, { costo: n })}
@@ -624,6 +668,8 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
               precio: tomar("precio", p.precio),
               stockMin: tomar("stock_minimo", p.stockMin),
               precios: preciosDe(f, p.precios),
+              /* La columna de IVA vacía o ilegible deja la que tenía. */
+              ...(alicuotaDesdeTexto(f.iva) || {}),
             });
           }));
 
@@ -632,7 +678,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
             await agregarProducto({
               nombre: f.nombre, barcode: String(f.codigo || "").replace(/\D/g, ""),
               categoria: f.rubro, marca: f.marca, proveedor: f.proveedor,
-              unidad: unidadDesdeTexto(f.unidad), iva: num(f.iva) || 21, bulto: num(f.bulto) || 1,
+              unidad: unidadDesdeTexto(f.unidad), ...(alicuotaDesdeTexto(f.iva) || alicuotaDe("21")), bulto: num(f.bulto) || 1,
               stock: num(f.stock) || 0, stockMin: num(f.stock_minimo) || 0,
               costo: num(f.costo) || 0, precio: num(f.precio) || 0, precios: preciosDe(f, {}),
             }, null);
@@ -661,7 +707,9 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
               nombre: d.nombre, categoria: d.categoria, marca: d.marca, unidad: d.unidad,
               barcode: String(d.barcode || "").replace(/\D/g, ""),
               costo: Number(d.costo) || 0, precio: Number(d.precio) || 0,
-              stockMin: Number(d.stockMin) || 0, bulto: Number(d.bulto) || 1, iva: Number(d.iva) || 21,
+              stockMin: Number(d.stockMin) || 0, bulto: Number(d.bulto) || 1,
+              /* No `Number(d.iva) || 21`: el 0 de un exento se guardaba al 21%. */
+              iva: d.iva == null || d.iva === "" ? 21 : Number(d.iva), ivaCondicion: d.ivaCondicion || "gravado",
               descripcion: d.descripcion || null, imagen: d.imagen || null,
               precios: Object.fromEntries(Object.entries(d.precios || {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)])),
             }, faltan.length ? `Guardado. Todavía falta ${faltan.join(", ")}.` : "Producto actualizado.");

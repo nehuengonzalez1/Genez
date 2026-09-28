@@ -275,6 +275,46 @@ export function letraComprobante(emisor, cliente) {
   return cliente === "RI" ? "A" : "B";
 }
 
+/* --- La alícuota de IVA de un producto (0097) --------------------------
+   Dos datos en la base —`iva` y `ivaCondicion`— y uno solo en pantalla:
+   quien carga un producto elige "10,5%" o "Exento", no dos campos. La
+   separación existe porque ARCA informa en campos distintos lo gravado
+   al 0%, lo exento y lo no gravado, y un "0" solo no dice cuál es.
+   Son las únicas que ARCA acepta; la base rechaza cualquier otra.      */
+export const ALICUOTAS = [
+  { k: "21", n: "21%", iva: 21, condicion: "gravado" },
+  { k: "10.5", n: "10,5%", iva: 10.5, condicion: "gravado" },
+  { k: "27", n: "27%", iva: 27, condicion: "gravado" },
+  { k: "5", n: "5%", iva: 5, condicion: "gravado" },
+  { k: "2.5", n: "2,5%", iva: 2.5, condicion: "gravado" },
+  { k: "0", n: "0%", iva: 0, condicion: "gravado" },
+  { k: "exento", n: "Exento", iva: 0, condicion: "exento" },
+  { k: "no_gravado", n: "No gravado", iva: 0, condicion: "no_gravado" },
+];
+
+export const claveAlicuota = (iva, condicion) =>
+  condicion && condicion !== "gravado" ? condicion : String(Number(iva ?? 21));
+
+/* Lo que se guarda: `{ iva, ivaCondicion }`. Una clave desconocida cae en
+   21%, que es lo que la base pone de fábrica. */
+export function alicuotaDe(k) {
+  const a = ALICUOTAS.find((x) => x.k === k) || ALICUOTAS[0];
+  return { iva: a.iva, ivaCondicion: a.condicion };
+}
+
+/* Lo que viene de una planilla: "10,5", "10.5%", "Exento", "no gravado".
+   Vacío o ilegible devuelve null, para que quien llama decida si deja lo
+   que había. */
+export function alicuotaDesdeTexto(v) {
+  const t = String(v ?? "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (!t) return null;
+  if (t.startsWith("exent")) return alicuotaDe("exento");
+  if (t.startsWith("no grav") || t === "no_gravado") return alicuotaDe("no_gravado");
+  const n = Number(t.replace("%", "").replace(",", ".").trim());
+  const a = ALICUOTAS.find((x) => x.condicion === "gravado" && x.iva === n);
+  return a ? alicuotaDe(a.k) : null;
+}
+
 /* La factura A discrimina el IVA; en B y C va incluido en el precio. */
 export function discriminaIVA(letra) {
   return letra === "A";
