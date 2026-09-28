@@ -821,6 +821,18 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       toast("Elegí un cliente antes de cobrar a cuenta corriente.", "mal");
       return setBuscarCliente(true);
     }
+    /* La A se le hace a un responsable inscripto, y ARCA lo identifica
+       por el CUIT: sin él la rechaza. Pero la venta ya estaría cobrada y
+       su factura trabaría la fila de CAE de todas las que vienen atrás
+       (se piden en orden). Por eso se frena acá, antes de cobrar. */
+    if (fiscal && facturacion.puede && letra === "A") {
+      const doc = String((cliente && cliente.doc) || "").replace(/\D/g, "");
+      const tipo = String((cliente && cliente.tipoDoc) || "").toUpperCase();
+      if (doc.length !== 11 || (tipo && tipo !== "CUIT")) {
+        beep(false, ajustes.sonido);
+        return toast(`La factura A necesita el CUIT de ${cliente ? cliente.razonSocial : "quien compra"}. Cargalo en su ficha, o cobrá con ticket.`, "mal");
+      }
+    }
     const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre,
       precioLista: l.manual != null ? l.precio : null }));
     const m = medioPorK(ajustes, k);
