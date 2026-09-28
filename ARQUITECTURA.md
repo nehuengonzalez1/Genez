@@ -46,6 +46,7 @@ node scripts/probar-codigos.mjs    # códigos de barras propios: no pisan, no se
 node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito, y contra ARCA de pruebas
 node scripts/probar-iva.mjs        # el IVA por alícuota de un comprobante: cuentas a mano y diez mil al azar (sin base)
 node scripts/probar-factura-ab.mjs # el pedido de la A y la B a ARCA, con una base y un ARCA de mentira (sin base, sin red)
+node scripts/probar-arca-ab.mjs    # la A, la B y una nota A contra el ARCA de pruebas (punto de venta 6; ver el archivo)
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
