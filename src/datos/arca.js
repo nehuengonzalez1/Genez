@@ -86,6 +86,11 @@ const aFactura = (f) => f.estado === "autorizada"
       docNro: Number(f.doc_nro) || 0,
       homologacion: f.modo === "homologacion",
       emisor: f.emisor || null,
+      /* Lo que se informó a ARCA (0098): el papel de la A y la B lo
+         imprime tal cual, sin recalcularlo. Null en la C. */
+      neto: f.neto != null ? Number(f.neto) : null,
+      iva: f.iva != null ? Number(f.iva) : null,
+      detalleIva: f.detalle_iva || null,
     }
   : null;
 
@@ -107,7 +112,7 @@ export const facturaDeComprobante = (c, operacionId) => aFactura({
  */
 export async function cargarFacturas(empresaId, desde) {
   if (!empresaId) throw new Error("cargarFacturas necesita la empresa.");
-  const campos = "operacion_id, numero_interno, fecha, total, cliente, estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha_factura, doc_tipo, doc_nro, ultimo_error, emisor";
+  const campos = "operacion_id, numero_interno, fecha, total, cliente, estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha_factura, doc_tipo, doc_nro, ultimo_error, emisor, neto, iva, detalle_iva";
 
   const [esperan, hechas] = await Promise.all([
     supabase.from("facturas_vista").select(campos).eq("empresa_id", empresaId)
@@ -140,7 +145,7 @@ export async function cargarTicketDeVenta(empresaId, operacionId) {
   if (!empresaId) throw new Error("cargarTicketDeVenta necesita la empresa.");
   const { data: o, error } = await supabase
     .from("operaciones")
-    .select("id, numero, fecha, total, subtotal, descuento, recargo, tipo, comprobante, campos_extra, origen_id, clientes ( razon_social, tipo_doc, doc, condicion, domicilio ), pagos ( id, medio, monto, recargo ), operacion_lineas ( id, descripcion, cantidad, precio_unitario, total )")
+    .select("id, numero, fecha, total, subtotal, descuento, recargo, tipo, comprobante, campos_extra, origen_id, clientes ( razon_social, tipo_doc, doc, condicion, domicilio ), pagos ( id, medio, monto, recargo ), operacion_lineas ( id, descripcion, cantidad, precio_unitario, total, iva, iva_condicion )")
     .eq("empresa_id", empresaId).eq("id", operacionId)
     .single();
   if (error) throw error;
@@ -178,6 +183,8 @@ export async function cargarTicketDeVenta(empresaId, operacionId) {
       lineaId: l.id,
       nombre: l.descripcion, qty: Number(l.cantidad),
       precio: Number(l.cantidad) ? Number(l.total) / Number(l.cantidad) : Number(l.precio_unitario),
+      /* Para el papel de la A, que muestra cada renglón sin IVA. */
+      iva: Number(l.iva), ivaCondicion: l.iva_condicion || "gravado",
     })),
     sub: Number(o.subtotal), desc: Number(o.descuento), recargo: Number(o.recargo), total: Number(o.total),
     /* Una devolución no tiene pagos: el medio con que se reintegró queda

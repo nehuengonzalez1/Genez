@@ -1146,11 +1146,11 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     return () => { vigente = false; };
   }, [empresaId]);
 
-  /* Por ahora solo la C: A y B necesitan el IVA por alícuota, y el
-     servidor las rechaza. Ofrecerlas dejaría ventas esperando un CAE que
-     nunca va a llegar. */
+  /* Con la A y la B (0098) factura también un responsable inscripto. Lo
+     que no factura es un comercio sin condición cargada: la letra sale de
+     ahí, y sin ella el servidor no puede pedir el CAE. */
   const puedeFacturar = !!conexionArca &&
-    letraComprobante((ajustes.fiscal || FISCAL_INICIAL).condicion, "CF") === "C";
+    ["MONOTRIBUTO", "EXENTO", "RI"].includes((ajustes.fiscal || FISCAL_INICIAL).condicion);
   const facturacion = { puede: puedeFacturar, modo: conexionArca ? conexionArca.modo : null };
 
   /* Pide el CAE de todo lo que espera, en orden (ver src/datos/arca.js).

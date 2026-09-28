@@ -35,7 +35,9 @@ import { clienteDeProduccion, ErrorArca } from "./_arca.js";
 
 const error = (res, estado, message) => res.status(estado).json({ error: { message } });
 
-const TIPO_C = 11;
+/* Qué numeraciones se miran al probar, según quién factura: un
+   monotributista o exento emite C; un responsable inscripto, A y B. */
+const TIPOS_DE = { C: [[11, "factura C"]], AB: [[1, "factura A"], [6, "factura B"]] };
 /* Una prueba vieja no vale para activar: en un día el dueño puede haber
    dado de baja el punto de venta o revocado la autorización. */
 const PRUEBA_VIGENTE_MS = 24 * 60 * 60 * 1000;
@@ -237,7 +239,8 @@ async function certificado({ admin, empresaId, cuerpo, quien = {} }) {
  * que falla: los que siguen dependen de él.
  */
 async function probar({ admin, empresaId, cuerpo }) {
-  const { con } = await leer(admin, empresaId);
+  const { con, emp } = await leer(admin, empresaId);
+  const inscripto = fiscalDe(emp).condicion === "RI";
   const puntoVenta = Number(cuerpo.puntoVenta) || (con && con.modo === "produccion" ? con.punto_venta : null);
   const pasos = [];
   const paso = (clave, nombre, ok, detalle) => pasos.push({ clave, nombre, ok, detalle });
@@ -299,7 +302,7 @@ async function probar({ admin, empresaId, cuerpo }) {
     return terminar();
   }
   if (!elegido) {
-    paso("puntos", "Punto de venta", false, `El ${puntoVenta} no es un punto de venta de web service de este CUIT. Los habilitados son: ${lista}. En ARCA se crea en "Administración de puntos de venta y domicilios", eligiendo "Factura electrónica - Monotributo - Web Services".`);
+    paso("puntos", "Punto de venta", false, `El ${puntoVenta} no es un punto de venta de web service de este CUIT. Los habilitados son: ${lista}. En ARCA se crea en "Administración de puntos de venta y domicilios", eligiendo el sistema de web services ("Factura electrónica - Monotributo - Web Services" o, para un responsable inscripto, "RECE para aplicativo y web services").`);
     return terminar();
   }
   if (elegido.bloqueado || elegido.baja) {
@@ -309,8 +312,12 @@ async function probar({ admin, empresaId, cuerpo }) {
   paso("puntos", "Punto de venta", true, `El ${puntoVenta} está habilitado para web service.`);
 
   try {
-    const ultimo = await cliente.ElectronicBilling.getLastVoucher(puntoVenta, TIPO_C);
-    paso("numeracion", "Numeración", true, `La última factura C del punto ${puntoVenta} es la ${ultimo}; la próxima va a ser la ${ultimo + 1}.`);
+    const partes = [];
+    for (const [tipo, nombre] of TIPOS_DE[inscripto ? "AB" : "C"]) {
+      const ultimo = await cliente.ElectronicBilling.getLastVoucher(puntoVenta, tipo);
+      partes.push(`la última ${nombre} es la ${ultimo}`);
+    }
+    paso("numeracion", "Numeración", true, `En el punto ${puntoVenta}, ${partes.join(" y ")}.`);
   } catch (e) {
     paso("numeracion", "Numeración", false, e.message);
   }
@@ -328,10 +335,10 @@ async function activar({ admin, empresaId, cuerpo }) {
     throw new ErrorArca("Probá la conexión con este punto de venta antes de activar.", 409);
   }
 
-  /* Solo factura C, por ahora (ver `_arca.js`). Activar a un
-     responsable inscripto lo dejaría "conectado" sin poder facturar nada. */
-  if (!["MONOTRIBUTO", "EXENTO"].includes(f.condicion)) {
-    throw new ErrorArca("Por ahora Genez emite solo factura C, para monotributistas y exentos.", 409);
+  /* Sin condición no hay letra: la factura saldría con cualquiera. Desde
+     la A y la B (0098) se activa también un responsable inscripto. */
+  if (!["MONOTRIBUTO", "EXENTO", "RI"].includes(f.condicion)) {
+    throw new ErrorArca("Falta la condición frente al IVA en Ajustes → Datos fiscales: de ella sale la letra de cada factura.", 409);
   }
 
   /* El CUIT impreso en el ticket sale de los datos fiscales. Si no es el

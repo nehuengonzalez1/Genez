@@ -45,6 +45,8 @@ node scripts/probar-cuenta-corriente.mjs  # fiado: cobrar, anular, ajustar, lím
 node scripts/probar-codigos.mjs    # códigos de barras propios: no pisan, no se repiten
 node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito, y contra ARCA de pruebas
 node scripts/probar-iva.mjs        # el IVA por alícuota de un comprobante: cuentas a mano y diez mil al azar (sin base)
+node scripts/probar-factura-ab.mjs # el pedido de la A y la B a ARCA, con una base y un ARCA de mentira (sin base, sin red)
+node scripts/probar-arca-ab.mjs    # la A, la B y una nota A contra el ARCA de pruebas (punto de venta 6; ver el archivo)
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -704,8 +706,35 @@ enteros y con reparto por mayor resto, porque ARCA rechaza un total que
 no sea exactamente la suma de sus partes. `importesParaArca` lo pasa a
 los campos de WSFEv1 según la letra.
 
-Lo que falta: las facturas A y B, que necesitan el IVA por alícuota. Las
-notas de crédito y de débito C están desde 0089 (ver abajo).
+**La A y la B (0098).** `_arca.js` lee los renglones de la venta, los
+pasa por `desglosarIva` y manda el IVA por alícuota en el pedido; el
+comprobante guarda el desglose entero en `detalle_iva`, que es lo que
+imprime el papel y lo que va a leer el Libro IVA. La C no cambió: todo
+neto, sin `Iva`, `detalle_iva` en null. Las notas A y B salen por el
+mismo camino, con la letra y el comprador de su factura.
+
+**La A sin CUIT no sale, y se frena antes de cobrar.** ARCA la rechaza,
+pero para entonces la venta ya estaría cobrada y su factura trabaría la
+fila de CAE, que corta en el primer error. El cobro no deja confirmarla;
+el servidor lo vuelve a mirar antes de reservar número.
+
+Un responsable inscripto se activa igual que un monotributista, y
+"Probar conexión" mira la numeración de la A y la B en vez de la C.
+
+**El papel imprime el IVA que se informó, no lo recalcula.** Sale de
+`detalle_iva` (también por `facturas_vista`, para reimprimir): si mañana
+cambia la alícuota de un producto, una factura reimpresa dice lo mismo
+que tiene ARCA. La A va con centavos: cada renglón sin IVA y con su
+alícuota —(21%), (EX), (NG)—, el subtotal sin IVA, el descuento o
+recargo sin IVA (lo que falta para llegar al neto informado, así cierra
+al centavo) y el neto y el IVA de cada alícuota. Si a algún renglón le
+falta la alícuota (uno suelto, un papel viejo), los renglones van con
+IVA y el pie igual se discrimina. La B va como un ticket, más "IVA
+contenido" (Ley 27.743); "otros impuestos nacionales indirectos" no se
+imprime porque Genez no los conoce, y está pendiente de contador. La C
+no cambió.
+
+Las notas de crédito y de débito C están desde 0089 (ver abajo).
 
 ### El cambio de titular
 

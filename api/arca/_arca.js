@@ -27,6 +27,7 @@
  */
 
 import Afip from "@afipsdk/afip.js";
+import { desglosarIva, importesParaArca, ErrorIva } from "../../src/utils/iva.js";
 import { clienteDirecto } from "./_directo.js";
 import { cifrar, descifrar } from "./_cifrado.js";
 
@@ -282,13 +283,34 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     condicionId = CONDICION_RECEPTOR[condicion] || 5;
   }
 
-  /* A y B discriminan o informan el IVA por alícuota, y eso necesita la
-     alícuota de cada producto repartida con el descuento de la venta.
-     Todavía no está: mejor decirlo que mandar un IVA mal calculado. */
-  if (letra !== "C") throw new ErrorArca(`La factura ${letra} todavía no está disponible; por ahora solo C.`, 501);
+  /* La A es para otro responsable inscripto, y ARCA la identifica por su
+     CUIT: con un DNI o sin documento la rechaza. Mejor decirlo acá, con
+     la venta todavía esperando, que dejar trabada la fila de CAE. */
+  if (letra === "A" && docTipo !== 80) {
+    throw new ErrorArca("La factura A necesita el CUIT del comprador. Cargalo en su ficha de cliente y volvé a pedirla.", 409);
+  }
 
   const tipo = TIPOS[clase][letra];
   const total = redondo(venta.total);
+
+  /* EL IVA, POR ALÍCUOTA (A y B)
+     Sale de los renglones —que guardan la alícuota de la base, no la del
+     navegador (0097)— y del total cobrado, con el descuento y el recargo
+     repartidos (src/utils/iva.js). La C no lo informa: quien la emite no
+     discrimina IVA, y se sigue mandando todo como neto, como siempre. */
+  let desglose = null;
+  if (letra !== "C") {
+    const { data: renglones, error: e6 } = await admin.from("operacion_lineas")
+      .select("total, iva, iva_condicion").eq("operacion_id", operacionId).eq("empresa_id", empresaId);
+    if (e6) throw e6;
+    try {
+      desglose = desglosarIva((renglones || []).map((r) => ({ total: Number(r.total), iva: Number(r.iva), ivaCondicion: r.iva_condicion })), total);
+    } catch (e) {
+      if (e instanceof ErrorIva) throw new ErrorArca(`No se puede calcular el IVA de esta venta: ${e.message}`, 422);
+      throw e;
+    }
+  }
+  const importes = importesParaArca(desglose || { total }, letra);
   const fecha = hoyEnArgentina();
 
   /* Un pendiente de otra venta en la misma serie: si es de un servidor
@@ -318,12 +340,7 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     CbteDesde: numero,
     CbteHasta: numero,
     CbteFch: Number(fecha),
-    ImpTotal: total,
-    ImpTotConc: 0,
-    ImpNeto: total,
-    ImpOpEx: 0,
-    ImpIVA: 0,
-    ImpTrib: 0,
+    ...importes,
     MonId: "PES",
     MonCotiz: 1,
     CondicionIVAReceptorId: condicionId,
@@ -350,8 +367,11 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     numero,
     fecha: comoFecha(fecha),
     total,
-    neto: total,
-    iva: 0,
+    neto: importes.ImpNeto,
+    iva: importes.ImpIVA,
+    /* El desglose entero (0098): lo imprime el papel de la A y la B, y lo
+       va a leer el Libro IVA. En la C, null. */
+    detalle_iva: desglose,
     doc_tipo: docTipo,
     doc_nro: docNro,
     condicion_receptor: pedido.CondicionIVAReceptorId,
@@ -418,6 +438,10 @@ export function comoFactura(c) {
     fecha: c.fecha,
     cuit: c.cuit,
     total: Number(c.total),
+    /* Para el papel de la A y la B (0098): lo que se informó a ARCA. */
+    neto: Number(c.neto),
+    iva: Number(c.iva),
+    detalleIva: c.detalle_iva || null,
     docTipo: c.doc_tipo,
     docNro: Number(c.doc_nro) || 0,
     homologacion: c.modo === "homologacion",
