@@ -28,6 +28,7 @@
 
 import Afip from "@afipsdk/afip.js";
 import { desglosarIva, importesParaArca, ErrorIva } from "../../src/utils/iva.js";
+import { letraDeComprobante, pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../../src/utils/fiscal.js";
 import { clienteDirecto } from "./_directo.js";
 import { cifrar, descifrar } from "./_cifrado.js";
 
@@ -39,9 +40,9 @@ export const CUIT_PRUEBAS = "20409378472";
    la primera nota de crédito C de un punto de venta es la 1 aunque ya
    haya cien facturas. */
 const TIPOS = {
-  factura: { A: 1, B: 6, C: 11 },
-  debito: { A: 2, B: 7, C: 12 },
-  credito: { A: 3, B: 8, C: 13 },
+  factura: { A: 1, B: 6, C: 11, M: 51 },
+  debito: { A: 2, B: 7, C: 12, M: 52 },
+  credito: { A: 3, B: 8, C: 13, M: 53 },
 };
 
 /* Condición frente al IVA del comprador (RG 5616). Sin este dato ARCA ya
@@ -63,14 +64,6 @@ export class ErrorArca extends Error {
     super(mensaje);
     this.estado = estado;
   }
-}
-
-/* La misma regla que `letraComprobante` en src/utils/helpers.js. Se copia
-   en vez de importarla porque ese archivo arrastra el generador del
-   prototipo, y una función de servidor no tiene por qué cargarlo. */
-function letraDe(emisor, receptor) {
-  if (emisor === "MONOTRIBUTO" || emisor === "EXENTO") return "C";
-  return receptor === "RI" ? "A" : "B";
 }
 
 /* La fecha de hoy en Argentina, como la quiere ARCA (aaaammdd).
@@ -277,21 +270,31 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
       comprador = data;
     }
     const condicion = (comprador && comprador.condicion) || "CF";
-    letra = letraDe(emisor, condicion);
+    /* La misma regla que la pantalla (src/utils/fiscal.js): antes estaba
+       copiada acá y un inscripto le hacía B a un monotributista. */
+    letra = letraDeComprobante(emisor, condicion, fiscal.claseInscripto || "A");
     docNro = comprador && comprador.doc ? Number(String(comprador.doc).replace(/\D/g, "")) : 0;
     docTipo = docNro ? (DOC_TIPO[String(comprador.tipo_doc || "").toUpperCase()] || (String(docNro).length === 11 ? 80 : 96)) : 99;
     condicionId = CONDICION_RECEPTOR[condicion] || 5;
   }
 
-  /* La A es para otro responsable inscripto, y ARCA la identifica por su
-     CUIT: con un DNI o sin documento la rechaza. Mejor decirlo acá, con
-     la venta todavía esperando, que dejar trabada la fila de CAE. */
-  if (letra === "A" && docTipo !== 80) {
-    throw new ErrorArca("La factura A necesita el CUIT del comprador. Cargalo en su ficha de cliente y volvé a pedirla.", 409);
+  /* La A y la M son para un inscripto o un monotributista, y ARCA los
+     identifica por su CUIT: con un DNI o sin documento las rechaza. Mejor
+     decirlo acá, con la venta todavía esperando, que dejar trabada la
+     fila de CAE. */
+  if (pideCuit(letra) && docTipo !== 80) {
+    throw new ErrorArca(`La factura ${letra} necesita el CUIT del comprador. Cargalo en su ficha de cliente y volvé a pedirla.`, 409);
   }
 
   const tipo = TIPOS[clase][letra];
   const total = redondo(venta.total);
+
+  /* Desde $10 millones el comprobante tiene que identificar a quien
+     compra (RG 5700/2025), en cualquier letra. El cobro ya lo frena;
+     esto es por lo que llegue de otro lado. */
+  if (docTipo === 99 && total >= MONTO_IDENTIFICAR_CONSUMIDOR) {
+    throw new ErrorArca("Una factura de $10.000.000 o más tiene que identificar a quien compra (RG 5700). Asignale un cliente con documento.", 409);
+  }
 
   /* EL IVA, POR ALÍCUOTA (A y B)
      Sale de los renglones —que guardan la alícuota de la base, no la del
@@ -386,6 +389,9 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
       inicio: fiscal.inicio || null,
       domicilio: fiscal.domicilio || null,
       condicion: fiscal.condicion || null,
+      /* La clase de ese momento: la A con leyenda la imprime, y ARCA la
+         puede cambiar cada cuatro meses. */
+      claseInscripto: fiscal.claseInscripto || null,
     },
     usuario_id: usuarioId,
   }).select().single();

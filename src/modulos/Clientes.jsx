@@ -116,6 +116,7 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
     : lista;
 
   const emisor = (ajustes.fiscal || FISCAL_INICIAL).condicion;
+  const clase = (ajustes.fiscal || FISCAL_INICIAL).claseInscripto;
   const conAlertas = lista.filter((c) => c.alertas > 0).length;
 
   return (
@@ -143,7 +144,7 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
         ) : (
           <ul className="divide-y divide-borde">
             {filtrados.map((c) => {
-              const letra = letraComprobante(emisor, c.condicion);
+              const letra = letraComprobante(emisor, c.condicion, clase);
               const debe = c.gastado > 0 && c.compras > 0;
               return (
                 <li key={c.id}>

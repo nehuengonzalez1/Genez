@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { HOY, uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
+import { pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../utils/fiscal.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
@@ -777,7 +778,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
      preferencia de Ajustes decide con cuál arranca cada venta. */
   const arrancaFactura = !!ajustes.arca && facturacion.puede;
   const [fiscal, setFiscal] = useState(arrancaFactura);
-  const letra = letraComprobante((ajustes.fiscal || FISCAL_INICIAL).condicion, cliente ? cliente.condicion : "CF");
+  const letra = letraComprobante((ajustes.fiscal || FISCAL_INICIAL).condicion, cliente ? cliente.condicion : "CF", (ajustes.fiscal || FISCAL_INICIAL).claseInscripto);
   const rec = conRecargo(total, medio);
   const totalFinal = rec.total;
   // El vuelto se calcula sobre el total con recargo, así que va después.
@@ -824,16 +825,24 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       toast("Elegí un cliente antes de cobrar a cuenta corriente.", "mal");
       return setBuscarCliente(true);
     }
-    /* La A se le hace a un responsable inscripto, y ARCA lo identifica
-       por el CUIT: sin él la rechaza. Pero la venta ya estaría cobrada y
-       su factura trabaría la fila de CAE de todas las que vienen atrás
-       (se piden en orden). Por eso se frena acá, antes de cobrar. */
-    if (fiscal && facturacion.puede && letra === "A") {
+    /* La A y la M se le hacen a un inscripto o a un monotributista, y
+       ARCA los identifica por el CUIT: sin él las rechaza. Pero la venta
+       ya estaría cobrada y su factura trabaría la fila de CAE de todas las
+       que vienen atrás (se piden en orden). Por eso se frena acá, antes de
+       cobrar. Lo mismo con una factura de $10 millones o más sin
+       documento (RG 5700/2025), que vale también para la C. */
+    if (fiscal && facturacion.puede) {
       const doc = String((cliente && cliente.doc) || "").replace(/\D/g, "");
       const tipo = String((cliente && cliente.tipoDoc) || "").toUpperCase();
-      if (doc.length !== 11 || (tipo && tipo !== "CUIT")) {
+      if (pideCuit(letra) && (doc.length !== 11 || (tipo && tipo !== "CUIT"))) {
         beep(false, ajustes.sonido);
-        return toast(`La factura A necesita el CUIT de ${cliente ? cliente.razonSocial : "quien compra"}. Cargalo en su ficha, o cobrá con ticket.`, "mal");
+        return toast(`La factura ${letra} necesita el CUIT de ${cliente ? cliente.razonSocial : "quien compra"}. Cargalo en su ficha, o cobrá con ticket.`, "mal");
+      }
+      const totalFactura = listaPagos ? total : conRecargo(total, medioPorK(ajustes, k)).total;
+      if (totalFactura >= MONTO_IDENTIFICAR_CONSUMIDOR && !doc) {
+        beep(false, ajustes.sonido);
+        toast(`Una factura de ${money(MONTO_IDENTIFICAR_CONSUMIDOR)} o más tiene que decir el documento de quien compra (RG 5700). Elegí o cargá el cliente.`, "mal");
+        return setBuscarCliente(true);
       }
     }
     const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre,

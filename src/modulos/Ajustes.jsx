@@ -3,6 +3,7 @@
    ============================================================ */
 
 import React, { useState, useEffect, useRef } from "react";
+import { CLASES_INSCRIPTO } from "../utils/fiscal.js";
 import {
   Plus, X, Check, Trash2, BellOff, Bell, Volume2, VolumeX, Printer,
   ScanLine, Barcode
@@ -52,6 +53,16 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
               {CONDICIONES.filter((c) => c.k !== "CF").map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
             </select>
           </Campo>
+          {/* No la elige el comercio: se la asigna ARCA a cada inscripto y
+              la revisa cada cuatro meses (RG 1575, RG 5716/2025). Con M,
+              lo que sería una A sale M, y el comprador retiene. */}
+          {f.condicion === "RI" && (
+            <Campo label="Clase que te asignó ARCA">
+              <select value={f.claseInscripto || "A"} onChange={(e) => setFiscal({ claseInscripto: e.target.value })} className={inputCls}>
+                {CLASES_INSCRIPTO.map((c) => <option key={c.k} value={c.k}>{c.n}</option>)}
+              </select>
+            </Campo>
+          )}
           <Campo label="CUIT">
             <input value={f.cuit || ""} onChange={(e) => setFiscal({ cuit: e.target.value })} className={`${inputCls} f-m`} />
           </Campo>
@@ -82,10 +93,18 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
         <div className="mt-4 rounded-xl border border-borde bg-superficie-2 p-3 text-sm">
           <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-1.5">Qué vas a emitir</div>
           <ul className="space-y-1 text-texto-suave">
-            <li>A un <strong>responsable inscripto</strong>: Factura <strong>{letraComprobante(f.condicion, "RI")}</strong>
-              {discriminaIVA(letraComprobante(f.condicion, "RI")) ? ", con IVA discriminado al pie." : ", con IVA incluido en el precio."}</li>
-            <li>A un <strong>consumidor final</strong> o monotributista: Factura <strong>{letraComprobante(f.condicion, "CF")}</strong>, con IVA incluido.</li>
+            <li>A un <strong>responsable inscripto</strong> o <strong>monotributista</strong>: Factura <strong>{letraComprobante(f.condicion, "RI", f.claseInscripto)}</strong>
+              {discriminaIVA(letraComprobante(f.condicion, "RI", f.claseInscripto)) ? ", con IVA discriminado al pie." : ", con IVA incluido en el precio."}</li>
+            <li>A un <strong>consumidor final</strong> o exento: Factura <strong>{letraComprobante(f.condicion, "CF")}</strong>, con IVA incluido.</li>
           </ul>
+          {f.condicion === "RI" && (
+            <p className="text-xs text-texto-suave mt-2">
+              La clase la decide ARCA y puede cambiar en febrero, junio y octubre: se mira en Regímenes de
+              Facturación y Registración → Habilitación de Comprobantes.
+              {f.claseInscripto === "A_RETENCION" && " Tus facturas A llevan la leyenda \"Operación sujeta a retención\"."}
+              {f.claseInscripto === "M" && " Con M, el comprador te retiene el IVA y Ganancias."}
+            </p>
+          )}
           {f.condicion !== "RI" && (
             <p className="text-xs text-texto-suave mt-2">
               Como {condicionNombre(f.condicion).toLowerCase()} no discriminás IVA, así que la Factura A no aplica

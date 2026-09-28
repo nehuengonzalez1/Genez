@@ -10,6 +10,7 @@ import { armarEscPos } from "./escpos.js";
 import { impresoraElegida, imprimirDirecto } from "./agenteImpresion.js";
 import { HOY, fdatel } from "../datos/generador.js";
 import { pct, money, nf, nf2, moneyk, FISCAL_INICIAL, letraComprobante, discriminaIVA, condicionLegal, medioPorK } from "../utils/helpers.js";
+import { LEYENDA_MONOTRIBUTO, LEYENDA_RETENCION } from "../utils/fiscal.js";
 
 export const SEV = {
   alta: { pill: "bg-mal-suave text-mal border-mal", dot: "bg-mal", label: "Urgente" },
@@ -674,7 +675,7 @@ export function ticketVenta(t, ajustes, W) {
      sigue siendo de quien la emitió. Lo que el comprobante no guardó
      (los de antes de 0093 que no se completaron) sale de los Ajustes. */
   const f = { ...(ajustes.fiscal || FISCAL_INICIAL), ...((fac && fac.emisor) || {}) };
-  const letra = t.fiscal ? (fac ? fac.letra : letraComprobante(f.condicion, cli ? cli.condicion : "CF")) : null;
+  const letra = t.fiscal ? (fac ? fac.letra : letraComprobante(f.condicion, cli ? cli.condicion : "CF", f.claseInscripto)) : null;
   /* El IVA del papel es el que se le informó a ARCA (0098), guardado con
      el comprobante: no se recalcula. Sin CAE todavía no hay desglose, y
      ese papel no sale (`imprimirTicket` lo frena): se ve sin discriminar. */
@@ -712,6 +713,10 @@ export function ticketVenta(t, ajustes, W) {
      Se dice arriba, porque ese papel puede terminar en la mano de un
      cliente mientras el comercio prueba. */
   if (fac && fac.homologacion) b.push({ t: "c", v: "PRUEBA - SIN VALIDEZ FISCAL" });
+  /* La clase que ARCA le asignó al inscripto (RG 1575): la A con leyenda
+     la lleva impresa. Sale del emisor guardado con el comprobante, porque
+     la clase puede cambiar cada cuatro meses. */
+  if (letra === "A" && f.claseInscripto === "A_RETENCION") b.push({ t: "c", v: LEYENDA_RETENCION });
   /* La fecha viene del ticket, no de `HOY`: la venta ocurrió hoy de verdad.
      El respaldo es la fecha real y no la congelada, para que un ticket
      viejo que se reimprima tampoco mienta. */
@@ -789,13 +794,15 @@ export function ticketVenta(t, ajustes, W) {
 
   /* La B no discrimina el IVA, pero desde la Ley 27.743 (Régimen de
      Transparencia Fiscal al Consumidor) tiene que decir cuánto IVA hay
-     adentro del precio. "Otros impuestos nacionales indirectos" no se
-     imprime: Genez no los conoce (los internos de bebidas y cigarrillos),
-     y un 0 que no es cierto es peor que no decirlo. Pendiente de
-     contador. */
+     adentro del precio, y debajo "Otros Impuestos Nacionales Indirectos"
+     (RG 5614, art. 2): las dos líneas, cada una con su importe. La
+     segunda son los impuestos internos, que Genez no conoce todavía: va
+     en cero. Si un comercio vende con internos a su cargo, hace falta un
+     dato más por producto. */
   if (letra === "B" && det) {
     b.push({ t: "w", v: "REGIMEN DE TRANSPARENCIA FISCAL AL CONSUMIDOR (LEY 27.743)" });
     b.push({ t: "lr", a: "IVA CONTENIDO", b: "$" + nf2.format(det.iva) });
+    b.push({ t: "lr", a: "OTROS IMP. NAC. INDIRECTOS", b: "$0,00" });
     b.push({ t: "sep" });
   }
 
@@ -820,6 +827,13 @@ export function ticketVenta(t, ajustes, W) {
       b.push({ t: "c", v: "ESPERANDO CAE DE ARCA" });
       b.push({ t: "c", v: "NO ENTREGAR" });
     }
+  }
+  /* A un monotributista, la A o la M llevan esta leyenda (RG 5003/2021,
+     art. 20): el crédito fiscal solo lo puede usar al pasar al régimen
+     general. */
+  if (discriminaIVA(letra || "") && cli && cli.condicion === "MONOTRIBUTO") {
+    b.push({ t: "b" });
+    b.push({ t: "w", v: LEYENDA_MONOTRIBUTO.toUpperCase() });
   }
   b.push({ t: "b" });
   b.push({ t: "c", v: `${t.items.length} items` });

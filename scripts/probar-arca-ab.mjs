@@ -141,6 +141,31 @@ try {
   } else {
     decir(false, "la nota de crédito A no se probó: no hubo factura A");
   }
+
+  /* RG 5003: a un monotributista, A con condición 6 (Responsable
+     Monotributo). La leyenda de la Ley 27.618 es del papel: ARCA no la
+     pide en el web service. */
+  console.log("\nFactura A a un monotributista (RG 5003)");
+  const { id: mono } = await una(
+    "insert into clientes (empresa_id, razon_social, condicion, tipo_doc, doc) values ($1, 'Monotributista de prueba', 'MONOTRIBUTO', 'CUIT', $2) returning id",
+    [emp, cuitCon("2030123456") || cuitCon("2030123457")]
+  );
+  const am = await venta({ total: 1210, cliente: mono, lineas: [{ total: 1210, iva: 21 }] });
+  try {
+    const f = await facturarVenta({ admin, empresaId: emp, operacionId: am.id });
+    decir(f.letra === "A" && f.tipo === 1 && f.condicion_receptor === 6 && /^\d{14}$/.test(f.cae), `ARCA autorizó la A ${f.punto_venta}-${f.numero} a un monotributista, CAE ${f.cae}`);
+  } catch (e) { decir(false, `la A a un monotributista: ${e.message}`); }
+
+  /* RG 1575: un inscripto en clase M. Necesita 0099 (tipos 51 a 53).
+     El CUIT de pruebas puede no estar habilitado para M en ARCA: si lo
+     rechaza por eso, es un límite de homologación y no de Genez. */
+  console.log("\nFactura M (clase M, RG 1575)");
+  await c.query(`update empresas set config = jsonb_set(config, '{fiscal,claseInscripto}', '"M"') where id = $1`, [emp]);
+  const vm = await venta({ total: 2315, cliente: cli, lineas: [{ total: 1210, iva: 21 }, { total: 1105, iva: 10.5 }] });
+  try {
+    const f = await facturarVenta({ admin, empresaId: emp, operacionId: vm.id });
+    decir(f.letra === "M" && f.tipo === 51 && /^\d{14}$/.test(f.cae), `ARCA autorizó la M ${f.punto_venta}-${f.numero}, CAE ${f.cae}`);
+  } catch (e) { decir(false, `la M: ${e.message}`); }
 } catch (e) {
   decir(false, `se cortó: ${e.message}`);
 } finally {
