@@ -44,6 +44,7 @@ node scripts/probar-arca.mjs       # factura electrónica: candado, permisos y h
 node scripts/probar-cuenta-corriente.mjs  # fiado: cobrar, anular, ajustar, límite y permisos por rol
 node scripts/probar-codigos.mjs    # códigos de barras propios: no pisan, no se repiten
 node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito, y contra ARCA de pruebas
+node scripts/probar-iva.mjs        # el IVA por alícuota de un comprobante: cuentas a mano y diez mil al azar (sin base)
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -679,6 +680,16 @@ CAE, que si no saldría de verdad.
 **El TLS de ARCA**: el WSFE de producción negocia una clave DH que el
 OpenSSL de Node rechaza ("dh key too small"). El agente de `_directo.js`
 baja el nivel solo para hablar con ARCA.
+
+**El IVA por alícuota** lo calcula `desglosarIva` (`src/utils/iva.js`),
+una función pura sin imports para que la pueda cargar el servidor. Los
+precios ya traen el IVA: se saca de adentro. El descuento y el recargo
+de la operación se reparten en proporción, con el mismo criterio que la
+devolución (total ÷ subtotal), para que una nota calcule igual que su
+factura; está pendiente que lo confirme un contador. Todo en centavos
+enteros y con reparto por mayor resto, porque ARCA rechaza un total que
+no sea exactamente la suma de sus partes. `importesParaArca` lo pasa a
+los campos de WSFEv1 según la letra.
 
 Lo que falta: las facturas A y B, que necesitan el IVA por alícuota. Las
 notas de crédito y de débito C están desde 0089 (ver abajo).
