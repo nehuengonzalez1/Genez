@@ -720,9 +720,20 @@ el servidor lo vuelve a mirar antes de reservar número.
 Un responsable inscripto se activa igual que un monotributista, y
 "Probar conexión" mira la numeración de la A y la B en vez de la C.
 
-Lo que falta: el papel de la A (IVA discriminado por alícuota) y de la
-B (IVA contenido, Ley 27.743). Las notas de crédito y de débito C están
-desde 0089 (ver abajo).
+**El papel imprime el IVA que se informó, no lo recalcula.** Sale de
+`detalle_iva` (también por `facturas_vista`, para reimprimir): si mañana
+cambia la alícuota de un producto, una factura reimpresa dice lo mismo
+que tiene ARCA. La A va con centavos: cada renglón sin IVA y con su
+alícuota —(21%), (EX), (NG)—, el subtotal sin IVA, el descuento o
+recargo sin IVA (lo que falta para llegar al neto informado, así cierra
+al centavo) y el neto y el IVA de cada alícuota. Si a algún renglón le
+falta la alícuota (uno suelto, un papel viejo), los renglones van con
+IVA y el pie igual se discrimina. La B va como un ticket, más "IVA
+contenido" (Ley 27.743); "otros impuestos nacionales indirectos" no se
+imprime porque Genez no los conoce, y está pendiente de contador. La C
+no cambió.
+
+Las notas de crédito y de débito C están desde 0089 (ver abajo).
 
 ### El cambio de titular
 

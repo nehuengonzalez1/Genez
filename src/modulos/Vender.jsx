@@ -644,6 +644,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
            lista de "desde 3 unidades" no significa nada acá. */
         precios: p.precioAbierto ? {} : (p.precios || {}),
         costo: p.costo, nombre: p.nombre, unidad: p.unidad, precioAbierto: !!p.precioAbierto,
+        /* Solo para el papel de la A, que muestra cada renglón sin IVA. Lo
+           que se le informa a ARCA sale de la base (0097), no de acá. */
+        iva: p.iva, ivaCondicion: p.ivaCondicion,
       }];
     });
     setUltimo({ pid: p.id, nombre: p.nombre, unidad: p.unidad });
@@ -834,7 +837,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       }
     }
     const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre,
-      precioLista: l.manual != null ? l.precio : null }));
+      precioLista: l.manual != null ? l.precio : null, iva: l.iva, ivaCondicion: l.ivaCondicion }));
     const m = medioPorK(ajustes, k);
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
 

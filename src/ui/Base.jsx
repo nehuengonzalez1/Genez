@@ -675,7 +675,17 @@ export function ticketVenta(t, ajustes, W) {
      (los de antes de 0093 que no se completaron) sale de los Ajustes. */
   const f = { ...(ajustes.fiscal || FISCAL_INICIAL), ...((fac && fac.emisor) || {}) };
   const letra = t.fiscal ? (fac ? fac.letra : letraComprobante(f.condicion, cli ? cli.condicion : "CF")) : null;
-  const discrimina = letra && discriminaIVA(letra);
+  /* El IVA del papel es el que se le informó a ARCA (0098), guardado con
+     el comprobante: no se recalcula. Sin CAE todavía no hay desglose, y
+     ese papel no sale (`imprimirTicket` lo frena): se ve sin discriminar. */
+  const det = fac && fac.detalleIva ? fac.detalleIva : null;
+  const discrimina = !!(letra && discriminaIVA(letra) && det);
+  /* En la A cada renglón va sin IVA, con su alícuota. Hace falta saberla
+     de todos; si falta la de alguno (un renglón suelto, un papel viejo),
+     los renglones van con IVA y el pie igual se discrimina. */
+  const sinIva = (l, monto) => (l.ivaCondicion && l.ivaCondicion !== "gravado" ? monto : monto / (1 + Number(l.iva) / 100));
+  const renglonesSinIva = discrimina && t.items.every((l) => l.ivaCondicion && l.iva != null && !isNaN(Number(l.iva)));
+  const marca = (l) => (l.ivaCondicion === "exento" ? "EX" : l.ivaCondicion === "no_gravado" ? "NG" : `${String(Number(l.iva)).replace(".", ",")}%`);
 
   const b = [
     { t: "c", v: (f.nombreFactura || f.razonSocial || ajustes.negocio).toUpperCase() },
@@ -734,28 +744,60 @@ export function ticketVenta(t, ajustes, W) {
   }
 
   b.push({ t: "sep" });
+  /* En la A, con centavos: es el IVA discriminado, y redondeado a pesos
+     el neto más el IVA no daría el total. */
+  const plata = renglonesSinIva ? (v) => "$" + nf2.format(v) : money;
+  let subSinIva = 0;
   for (const l of t.items) {
-    b.push({ t: "w", v: l.nombre.toUpperCase() });
-    // En factura A los importes van sin IVA, porque se discrimina al pie.
-    const unit = discrimina ? l.precio / 1.21 : l.precio;
-    const cant = l.unidad === "kg" ? `${l.qty.toFixed(3)} kg x ${money(unit)}` : `${l.qty} x ${money(unit)}`;
-    b.push({ t: "lr", a: "  " + cant, b: money(unit * l.qty) });
+    b.push({ t: "w", v: renglonesSinIva ? `${l.nombre.toUpperCase()} (${marca(l)})` : l.nombre.toUpperCase() });
+    const unit = renglonesSinIva ? sinIva(l, l.precio) : l.precio;
+    const importe = Math.round(unit * l.qty * 100) / 100;
+    subSinIva += importe;
+    const cant = l.unidad === "kg" ? `${l.qty.toFixed(3)} kg x ${plata(unit)}` : `${l.qty} x ${plata(unit)}`;
+    b.push({ t: "lr", a: "  " + cant, b: plata(importe) });
     if (l.lista) b.push({ t: "v", v: `  ${String(l.listaNombre || "PRECIO ESPECIAL").toUpperCase()}` });
   }
 
   b.push({ t: "sep" });
   if (discrimina) {
-    const neto = t.total / 1.21;
-    b.push({ t: "lr", a: "SUBTOTAL NETO", b: money(neto) });
-    b.push({ t: "lr", a: "IVA 21%", b: money(t.total - neto) });
+    const p2 = (v) => "$" + nf2.format(v);
+    const neto = det.neto + det.exento + det.noGravado;
+    if (renglonesSinIva) {
+      b.push({ t: "lr", a: "SUBTOTAL SIN IVA", b: p2(subSinIva) });
+      /* El descuento y el recargo, también sin IVA: lo que falta para
+         llegar al neto que se informó. Sale de la resta, así el papel
+         cierra al centavo con lo que tiene ARCA. */
+      const ajuste = Math.round((neto - subSinIva) * 100) / 100;
+      if (ajuste <= -0.01) b.push({ t: "lr", a: "DESCUENTO", b: "-" + p2(-ajuste) });
+      if (ajuste >= 0.01) b.push({ t: "lr", a: `RECARGO ${t.recargoNombre || ""}`.trim(), b: "+" + p2(ajuste) });
+    }
+    for (const a of det.alicuotas) {
+      const n = String(a.alicuota).replace(".", ",");
+      b.push({ t: "lr", a: `NETO GRAVADO ${n}%`, b: p2(a.base) });
+      b.push({ t: "lr", a: `IVA ${n}%`, b: p2(a.importe) });
+    }
+    if (det.exento) b.push({ t: "lr", a: "EXENTO", b: p2(det.exento) });
+    if (det.noGravado) b.push({ t: "lr", a: "NO GRAVADO", b: p2(det.noGravado) });
   } else {
     b.push({ t: "lr", a: "SUBTOTAL", b: money(t.sub) });
     if (t.desc > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc) });
     if (t.recargo > 0) b.push({ t: "lr", a: `RECARGO ${t.recargoNombre || ""}`.trim(), b: "+" + money(t.recargo) });
   }
   b.push({ t: "sep", c: "=" });
-  b.push({ t: "lr", a: "TOTAL", b: money(t.total) });
+  b.push({ t: "lr", a: "TOTAL", b: discrimina ? "$" + nf2.format(t.total) : money(t.total) });
   b.push({ t: "sep", c: "=" });
+
+  /* La B no discrimina el IVA, pero desde la Ley 27.743 (Régimen de
+     Transparencia Fiscal al Consumidor) tiene que decir cuánto IVA hay
+     adentro del precio. "Otros impuestos nacionales indirectos" no se
+     imprime: Genez no los conoce (los internos de bebidas y cigarrillos),
+     y un 0 que no es cierto es peor que no decirlo. Pendiente de
+     contador. */
+  if (letra === "B" && det) {
+    b.push({ t: "w", v: "REGIMEN DE TRANSPARENCIA FISCAL AL CONSUMIDOR (LEY 27.743)" });
+    b.push({ t: "lr", a: "IVA CONTENIDO", b: "$" + nf2.format(det.iva) });
+    b.push({ t: "sep" });
+  }
 
   if (t.tipo === "devolucion") {
     b.push({ t: "lr", a: `REINTEGRO ${medioPorK(ajustes, t.medio).n.toUpperCase()}`, b: money(t.total) });
