@@ -67,6 +67,7 @@ node scripts/probar-puntos.mjs          # 0112: sumar, canjear, vencer por lotes
 node scripts/probar-founder-seguridad.mjs  # 0113+: la frontera de Founder con seis perfiles, en todas las tablas interno_*
 node scripts/probar-founder-crm.mjs      # 0114: la oportunidad que nace sola, etapas, seguimiento, series de tareas, teléfonos y duplicados, áreas
 node scripts/probar-importar-prospectos.mjs  # sin base: columnas, filas con error o aviso, repetidos en la planilla y ya cargados
+node scripts/probar-founder-clientes.mjs  # 0115: pasar a cliente, desde un comercio, implementación por módulos, tickets, Storage y áreas
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1429,6 +1430,63 @@ no hay una meta inventada.
 **Las fechas son de Buenos Aires.** Los horarios se guardan `timestamptz` y los
 formularios leen y escriben con `-03:00` (`founder/util.js`): "hoy", "vencido" y la
 grilla de la agenda se calculan con el día argentino, no con el del navegador.
+
+### Clientes, implementación y soporte (0115)
+
+`src/datos/internoClientes.js`, las secciones Clientes (con su ficha) y Soporte (con el
+ticket), `founder/Adjuntos.jsx` y `scripts/probar-founder-clientes.mjs`. Áreas nuevas:
+`clientes`, `soporte` y `docs` (esta última, para la fase 3b).
+
+**Un cliente es un prospecto que compró.** `interno_clientes` apunta al prospecto y no
+copia el negocio: nombre, teléfonos, contactos y la línea de tiempo comercial son los
+del prospecto, y la ficha del cliente los lee de ahí (el botón "Historial comercial").
+Guarda solo lo que nace con la venta: importe mensual, plan, alta, renovación, estado,
+responsable. Un prospecto es cliente una sola vez, y un comercio tiene un solo cliente.
+
+**Los módulos se leen del comercio, no se copian.** El comercio real ya dice qué plan y
+qué módulos tiene; una lista en Founder se desincronizaba. El cliente se vincula por
+`empresa_id` e `interno_comercio()` devuelve nombre, rubro, plan, módulos y sucursales
+—nunca ventas, caja, clientes ni configuración— a quien tenga el área `clientes`. Es la
+única ventana de Founder a los comercios, y es security definer para que la frontera la
+ponga esa función y no la llave de plataforma.
+
+**Pasar a cliente es una transacción** (`interno_convertir_en_cliente`): el cliente, la
+implementación armada y los recordatorios (primer seguimiento, revisión de uso,
+testimonio, renovación) como tareas comunes, que aparecen en Mi día. Se ofrece al ganar
+una oportunidad en el pipeline y queda el botón en la ficha del prospecto. Los comercios
+que ya eran clientes antes de Founder entran con `interno_cliente_desde_comercio`, sin
+implementación: su oportunidad pasa a ganada y queda en la línea de tiempo.
+
+**Implementación a medida.** Diez etapas (lista configurable) y pasos que salen de
+`interno_impl_modelo` filtrado por rubro y módulos: a un pilates no le toca el stock.
+`interno_impl_armar` suma lo que falte sin tocar lo tildado: se usa al convertir, al
+vincular el comercio y después de cambiar el modelo. Lo que igual no corresponde se
+marca "no aplica". Una etapa bloqueada tiene que decir qué la bloquea (check). Con todo
+hecho o sin aplicar, el cliente pasa de implementación a activo solo.
+
+**Requiere atención** se calcula en la pantalla (`motivosDeAtencion`) con los conteos
+de `interno_clientes_vista`, y dice el motivo: en riesgo, implementación bloqueada,
+tickets urgentes, tareas vencidas, renovación cerca, un mes en implementación o un mes
+sin contacto (sin contactos, se cuenta desde el alta). Los conteos pasan por las
+políticas de quien mira: sin `soporte`, los tickets dan cero.
+
+**Soporte.** Tickets numerados con su conversación. Las fechas de resolución y cierre
+las pone la base, y no se resuelve ni se cierra sin escribir la solución (check): es lo
+que se lee la próxima vez. Los parecidos se buscan por palabras en común
+(`interno_palabras`), sin `pg_trgm`, para no sumar una extensión a producción. Un ticket
+genera tareas (`interno_tareas.ticket_id`) sin perder al cliente.
+
+**Adjuntos en Storage**, bucket privado `interno`: la primera carpeta es el área y la
+política de `storage.objects` pide `es_interno` de esa área y que sea una de las que
+existen. Hasta 10 MB; imágenes, PDF, texto y planillas; ni HTML ni SVG. Se abren con un
+link firmado de diez minutos. Sin política de borrar: se archiva el registro en
+`interno_adjuntos`.
+
+**Lo que se escribe pasa por una lista de columnas** (`COLUMNAS` en
+`internoClientes.js`), no por "todo menos lo leído": las vistas traen `nombre` y otros
+campos que en otras tablas son columnas de verdad. Las fechas sin hora (alta,
+renovación, la fecha de una etapa) viajan como `AAAA-MM-DD`; convertidas a `Date` caen
+a la medianoche de Londres, que acá es el día anterior.
 
 ## La cuenta corriente
 
