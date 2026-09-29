@@ -8,7 +8,8 @@
    que hacer y qué está agendado. "Registrar seguimiento" es el botón
    de todos los días: lo que pasó y lo que sigue, en un solo paso.
 
-   Archivos llega con Storage (fase 3): no hay pestaña vacía.
+   Una oportunidad ganada pasa a cliente desde acá; el cliente no copia
+   nada de esto, lo lee (0115).
    ============================================================ */
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -19,8 +20,10 @@ import { money } from "../utils/helpers.js";
 import { cargarProspecto, editarProspecto, archivarProspecto, guardarOportunidad, guardarTarea, posiblesDuplicados, archivarContacto } from "../datos/internoCrm.js";
 import { useConfig, fechaHora, fecha, relativo, vencido, INTERES, PRIORIDAD, ESTADO_TAREA, linkWA, aInput } from "./util.js";
 import { SeguimientoRapido, FormTarea, FormEvento, FormContacto } from "./Formularios.jsx";
+import { AltaCliente } from "./Clientes.jsx";
+import { clienteDeProspecto } from "../datos/internoClientes.js";
 
-export function Ficha({ id, volver, toast }) {
+export function Ficha({ id, volver, abrirCliente, toast }) {
   const { cfg, de, nombre } = useConfig();
   const [d, setD] = useState(null);
   const [error, setError] = useState("");
@@ -41,7 +44,7 @@ export function Ficha({ id, volver, toast }) {
   return (
     <div className="space-y-4">
       <button onClick={volver} className="inline-flex items-center gap-1.5 text-sm font-semibold text-texto-suave hover:text-texto">
-        <ChevronLeft size={16} /> Prospectos
+        <ChevronLeft size={16} /> Volver
       </button>
 
       <Card className="p-5">
@@ -52,6 +55,8 @@ export function Ficha({ id, volver, toast }) {
               {p.etapaNombre && <span className="text-xs px-2 py-0.5 rounded-md border border-acento text-acento">{p.etapaNombre}</span>}
               {p.interes && <span className="text-xs text-texto-tenue">{INTERES[p.interes]}</span>}
               {p.archivadoEn && <span className="text-xs text-texto-tenue">archivado</span>}
+              {p.clienteDesde && <button onClick={async () => { const c = await clienteDeProspecto(p.id); if (c) abrirCliente(c); else toast("No tenés acceso a los clientes.", "mal"); }}
+                className="text-xs px-2 py-0.5 rounded-md bg-bien-suave text-bien hover:underline">Es cliente · ver ficha</button>}
             </div>
             <p className="text-sm text-texto-suave mt-1">
               {[nombre("rubro", p.rubro), p.direccion, p.localidad || nombre("zona", p.zona)].filter(Boolean).join(" · ") || "Sin rubro ni dirección"}
@@ -161,6 +166,7 @@ export function Ficha({ id, volver, toast }) {
                     </span>
                   </span>
                   <span className="f-m">{Number(o.valor) ? `${money(Number(o.valor))}/mes` : "sin valor"}</span>
+                  {o.estado === "ganada" && !p.clienteDesde && <Boton size="sm" onClick={() => setModal({ tipo: "cliente", datos: o })}>Pasar a cliente</Boton>}
                   <Boton size="sm" variant="ghost" onClick={() => setModal({ tipo: "oportunidad", datos: o })}>Editar</Boton>
                 </li>
               ))}
@@ -257,6 +263,10 @@ export function Ficha({ id, volver, toast }) {
       )}
       {modal && modal.tipo === "contacto" && <FormContacto prospectoId={p.id} inicial={modal.datos} toast={toast} onCerrar={() => setModal(null)} onListo={listo} />}
       {modal && modal.tipo === "oportunidad" && <FormOportunidad inicial={modal.datos} etapas={cfg.etapas} motivos={de("motivo_perdida")} toast={toast} onCerrar={() => setModal(null)} onListo={listo} />}
+      {modal && modal.tipo === "cliente" && (
+        <AltaCliente modo="oportunidad" oportunidad={modal.datos} nombreNegocio={p.nombre} toast={toast} onCerrar={() => setModal(null)}
+          onListo={(clienteId) => { setModal(null); leer(); abrirCliente(clienteId); }} />
+      )}
       {modal && modal.tipo === "editar" && <EditarProspecto p={p} de={de} toast={toast} onCerrar={() => setModal(null)} onListo={listo} />}
     </div>
   );

@@ -34,6 +34,10 @@ export const TIPOS_DE_LISTA = [
   { k: "tipo_evento", n: "Tipos de evento" },
   { k: "categoria_tarea", n: "Categorías de tareas" },
   { k: "etiqueta", n: "Etiquetas" },
+  { k: "etapa_implementacion", n: "Etapas de implementación" },
+  { k: "modulo", n: "Módulos (para soporte)" },
+  { k: "categoria_ticket", n: "Categorías de tickets" },
+  { k: "canal_ticket", n: "Canales de soporte" },
 ];
 
 const traducir = (error, que) => {
