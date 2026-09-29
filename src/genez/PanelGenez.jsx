@@ -1013,6 +1013,11 @@ function aDatosDeBase(d) {
 
 function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema }) {
   const { modulos, permisos, esPlataforma } = permisosDe(sesion, roles);
+  /* Arriba de todo: las cajas y las promociones (0101, 0102) lo usan en
+     sus useCallback, y con `const` más abajo el componente se caía al
+     montar ("Cannot access 'empresaId' before initialization") y dejaba
+     la pantalla en negro al elegir el local. La compilación no lo ve. */
+  const empresaId = sesion.comercio.id;
 
   /* La configuración del comercio se lee directo de la sesión. `ajustes`
      todavía arranca con valores fijos del minimercado, así que para lo que
@@ -1146,8 +1151,6 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     setToasts((t) => [...t, { id, texto, tono }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3200);
   };
-
-  const empresaId = sesion.comercio.id;
 
   /* Cómo se imprime lo decide el comercio en Ajustes (ver imprimirComandera). */
   /* El PDF es opcional y apagado de fábrica: en la térmica de Super 25
