@@ -766,6 +766,12 @@ export function ticketVenta(t, ajustes, W) {
     const cant = l.unidad === "kg" ? `${l.qty.toFixed(3)} kg x ${plata(unit)}` : `${l.qty} x ${plata(unit)}`;
     b.push({ t: "lr", a: "  " + cant, b: plata(importe) });
     if (l.lista) b.push({ t: "v", v: `  ${String(l.listaNombre || "PRECIO ESPECIAL").toUpperCase()}` });
+    /* La promo (0102), debajo del renglón y restando: así lo impreso suma
+       lo mismo que el subtotal. En la A no: ahí los renglones van sin IVA
+       y la promo ya entra en el DESCUENTO del pie. */
+    if (l.promo > 0 && !renglonesSinIva) {
+      b.push({ t: "lr", a: `  PROMO ${String(l.promoNombre || "").toUpperCase()}`.slice(0, W - 12), b: "-" + money(l.promo) });
+    }
   }
 
   b.push({ t: "sep" });

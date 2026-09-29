@@ -52,6 +52,8 @@ node scripts/probar-arca-caea.mjs  # el CAEA contra el ARCA de pruebas: pedirlo,
 node scripts/probar-planillas.mjs  # las planillas para el contador: columnas, notas restando, totales (sin base)
 node scripts/probar-cajas.mjs      # varias cajas: una sesión abierta por caja, la app de antes, la caja de otro comercio
 node scripts/probar-lista-proveedor.mjs  # leer la lista de un proveedor: títulos, columnas, importes, cruce por EAN (sin base)
+node scripts/probar-promociones.mjs      # la cuenta de las promos: 2x1, segunda, pack, porcentaje, orden, cuándo valen (sin base)
+node scripts/probar-promociones-base.mjs # la tabla de promos: lo que acepta, lo que no, y quién puede cargarlas
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -926,6 +928,36 @@ ajuste, que se carga como el saldo real de la cuenta. Verla y moverla pide
 `cajaGrande` (de fábrica dueño y encargado), verificado por la base en la
 política y en cada función. Lo que entra desde el cierre o desde el cajón
 no lo pide: lo hace quien tiene la caja del día.
+
+## Promociones
+
+Migración 0102, `src/utils/promociones.js` (la cuenta),
+`src/datos/promociones.js` y Productos → Promociones. Cuatro clases:
+NxM (2x1, 3x2), segunda unidad con descuento, porcentaje y pack (N por
+$P), sobre productos sueltos y/o rubros enteros, con fechas y días de la
+semana.
+
+**La cuenta la hace el mostrador**, no la base: se cobra sin internet y
+el ticket sale en el momento. Las promos se cargan con el resto y quedan
+también en el navegador, para una caja que se recarga sin red.
+
+**Reglas**, para que no haya sorpresas: no entran los renglones con
+precio a mano, precio por cantidad o precio abierto (ya tienen su
+descuento); cada unidad va en una sola promo, en el orden NxM, pack,
+segunda, porcentaje; en un NxM o una segunda, lo gratis o lo rebajado es
+lo más barato del grupo; lo que se vende por peso solo entra en el
+porcentaje.
+
+**Dónde queda**: el descuento baja el total de cada renglón y se suma a
+su `descuento` (que ya leen el IVA de la factura y los informes), y qué
+promo fue y cuánto, en `operaciones.campos_extra.promos`, que
+`registrar_venta` ya guardaba (0010): no se tocó el cobro. El ticket
+imprime "PROMO …" restando debajo de cada renglón (en la A no: ahí va en
+el descuento del pie).
+
+Cargarlas pide `cambiarPrecios`, en la base. No se borran: se apagan.
+Todavía no: la comanda (gastronomía) no aplica promos, ni hay descuento
+por medio de pago.
 
 ## Remarcar precios
 

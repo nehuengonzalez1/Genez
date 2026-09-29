@@ -151,7 +151,7 @@ export async function prepararNumeracion(empresaId, serie = "0001") {
    El costo se copia a la línea a propósito: si mañana cambia el costo
    del producto, el margen de esta venta tiene que seguir siendo el que
    fue, no el que sería hoy. */
-export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub, desc, recargo, total, pagos, medio, cliente, fiscal, comprobante }) {
+export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub, desc, recargo, total, pagos, medio, cliente, fiscal, comprobante, promos = [] }) {
   const lista = pagos && pagos.length ? pagos : [{ medio, monto: total }];
 
   return {
@@ -167,6 +167,10 @@ export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub
     recargo: Math.round(recargo || 0),
     total: Math.round(total || 0),
     comprobante: comprobante || (fiscal ? { fiscal: true } : {}),
+    /* Qué promos se aplicaron y cuánto (0102). En la operación y no en el
+       renglón: registrar_venta ya guarda este campo (0010), y así no hubo
+       que tocar el cobro. El descuento de cada una ya está en sus renglones. */
+    campos_extra: promos && promos.length ? { promos } : {},
     lineas: (items || []).map((l) => {
       /* Un precio bajado a mano en el mostrador queda escrito: el
          renglón guarda el de lista y lo que se rebajó, y el total es lo
@@ -175,6 +179,9 @@ export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub
          Subir el precio no es un descuento: ahí el precio es el cobrado. */
       const rebaja = l.precioLista && l.precioLista > l.precio
         ? Math.round((l.precioLista - l.precio) * l.qty) : 0;
+      /* La promo (0102) también es un descuento del renglón, como la
+         rebaja a mano: el total es lo que se cobró. */
+      const promo = Math.round(l.promo || 0);
       return {
         item_id: l.pid,
         descripcion: l.nombre,
@@ -182,8 +189,8 @@ export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub
         precio_unitario: rebaja ? l.precioLista : l.precio,
         costo_unitario: l.costo,
         iva: l.iva != null ? l.iva : 21,
-        descuento: rebaja,
-        total: Math.round(l.precio * l.qty),
+        descuento: rebaja + promo,
+        total: Math.round(l.precio * l.qty) - promo,
       };
     }),
     pagos: lista.map((p) => ({
