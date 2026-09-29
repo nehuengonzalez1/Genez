@@ -315,5 +315,19 @@ html { background-color: rgb(var(--fondo)); }
 /* El logo del comercio: el de fondo oscuro en el tema oscuro, el de
    fondo claro en el claro (src/ui/logos.js). */
 .logo-tema-claro { display: none; }
+/* GENEZ FOUNDER: el naranja de la marca, #F4510B (244 81 11), solo acá
+   adentro. El resto del sistema sigue con su acento; cambiarlo sería
+   cambiar la marca de todos los comercios. */
+.founder {
+  --acento:       244 81 11;
+  --acento-vivo:  250 116 58;
+  --acento-suave: 58 22 8;
+}
+.tema-claro .founder {
+  --acento:       244 81 11;
+  --acento-vivo:  220 68 8;
+  --acento-suave: 254 231 219;
+}
+
 .tema-claro .logo-tema-claro { display: block; }
 .tema-claro .logo-tema-oscuro { display: none; }
