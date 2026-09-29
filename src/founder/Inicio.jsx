@@ -19,6 +19,8 @@ import { Card, Cargando, ErrorEstado, Boton, Tabs } from "../ui/Base.jsx";
 import { money } from "../utils/helpers.js";
 import { cargarProspectos, cargarOportunidadesAbiertas, cargarTareas, cargarEventos, actividadReciente, actividadesDesde, guardarTarea } from "../datos/internoCrm.js";
 import { contarSolicitudes } from "../datos/interno.js";
+import { cargarClientes, cargarTickets, abierto, ESTADO_TICKET } from "../datos/internoClientes.js";
+import { motivosDeAtencion } from "./Clientes.jsx";
 import { useConfig, diaLargo, hora, relativo, fechaHora, diaAR, hoyAR, vencido } from "./util.js";
 
 const CONTACTO = new Set(["llamada", "whatsapp", "email", "visita", "reunion", "demo", "propuesta"]);
@@ -30,7 +32,7 @@ function desdeDe(periodo) {
   return new Date(d.getTime() - 29 * 86400000);
 }
 
-export function InicioFounder({ sesion, ir, abrir, toast, nuevo }) {
+export function InicioFounder({ sesion, ir, abrir, abrirCliente, toast, nuevo }) {
   const { cfg, nombre } = useConfig();
   const [d, setD] = useState(null);
   const [error, setError] = useState("");
@@ -44,7 +46,9 @@ export function InicioFounder({ sesion, ir, abrir, toast, nuevo }) {
       cargarProspectos().catch(() => []), cargarOportunidadesAbiertas().catch(() => []), cargarTareas().catch(() => []),
       cargarEventos(hoy0, new Date(hoy0.getTime() + 8 * 86400000)).catch(() => []),
       actividadReciente(8).catch(() => []), actividadesDesde(new Date(hoy0.getTime() - 40 * 86400000)).catch(() => []), contarSolicitudes(),
-    ]).then(([prospectos, ops, tareas, eventos, recientes, actividades, solicitudes]) => setD({ prospectos, ops, tareas, eventos, recientes, actividades, solicitudes }))
+      cargarClientes().catch(() => null), cargarTickets().catch(() => null),
+    ]).then(([prospectos, ops, tareas, eventos, recientes, actividades, solicitudes, clientes, tickets]) =>
+      setD({ prospectos, ops, tareas, eventos, recientes, actividades, solicitudes, clientes, tickets }))
       .catch((e) => setError(e.message || "No se pudo leer Founder."));
   };
   useEffect(() => { leer(); }, []);
@@ -189,6 +193,47 @@ export function InicioFounder({ sesion, ir, abrir, toast, nuevo }) {
           </ul>
         </div>
       </Card>
+
+      {(d.clientes || d.tickets) && (() => {
+        /* null = sin acceso a esa área: la parte no se muestra, en vez de un cero que miente. */
+        const atencion = (d.clientes || []).map((c) => ({ ...c, motivos: motivosDeAtencion(c) })).filter((c) => c.motivos.length);
+        const vigentes = (d.clientes || []).filter((c) => ["implementacion", "activo", "en_riesgo"].includes(c.estado));
+        const abiertos = (d.tickets || []).filter(abierto);
+        return (
+          <Card className="p-5 grid md:grid-cols-3 gap-5">
+            {d.clientes && (
+              <div className="md:col-span-2">
+                <div className="flex items-baseline justify-between gap-3 mb-2">
+                  <h2 className="f-d text-lg"><button onClick={() => ir("clientes")} className="hover:text-acento">Clientes</button></h2>
+                  <span className="text-sm text-texto-suave"><span className="f-m">{vigentes.length}</span> {vigentes.length === 1 ? "vigente" : "vigentes"} · <span className="f-m">{money(Math.round(vigentes.reduce((x, c) => x + Number(c.importeMensual || 0), 0)))}</span>/mes acordado</span>
+                </div>
+                {atencion.length === 0 ? <p className="text-sm text-texto-tenue">{d.clientes.length ? "Ninguno requiere atención." : "Todavía no hay clientes."}</p> : (
+                  <ul className="space-y-1">
+                    {atencion.slice(0, 5).map((c) => (
+                      <li key={c.id} className="text-sm flex flex-wrap gap-x-2">
+                        <button onClick={() => abrirCliente(c.id)} className="font-medium hover:text-acento">{c.nombre}</button>
+                        <span className="text-mal text-[12px]">{c.motivos.join(" · ")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {d.tickets && (
+              <div>
+                <h2 className="f-d text-lg mb-2"><button onClick={() => ir("soporte")} className="hover:text-acento">Soporte</button> <span className="f-m text-sm text-texto-suave">{abiertos.length} {abiertos.length === 1 ? "abierto" : "abiertos"}</span></h2>
+                {abiertos.length === 0 ? <p className="text-sm text-texto-tenue">Nada abierto.</p> : (
+                  <ul className="space-y-1">
+                    {abiertos.slice(0, 4).map((t) => (
+                      <li key={t.id} className="text-sm flex gap-2"><span className="f-m text-xs text-texto-tenue">#{t.numero}</span><span className="truncate flex-1">{t.titulo}</span><span className="text-[11px] text-texto-tenue shrink-0">{ESTADO_TICKET[t.estado]}</span></li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </Card>
+        );
+      })()}
 
       <Card className="p-5">
         <h2 className="f-d text-lg mb-3">Lo último</h2>

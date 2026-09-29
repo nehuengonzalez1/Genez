@@ -53,7 +53,12 @@ function founder(usuario) {
     ["rubro", "Gastronomía"], ["rubro", "Almacén, kiosco o supermercado"], ["fuente", "Visita en persona"], ["fuente", "WhatsApp"],
     ["motivo_perdida", "Precio"], ["motivo_perdida", "No le interesa"], ["tipo_actividad", "Llamada"], ["tipo_actividad", "WhatsApp"],
     ["tipo_actividad", "Visita"], ["tipo_actividad", "Demo"], ["tipo_actividad", "Propuesta"], ["tipo_actividad", "Nota"],
-    ["tipo_evento", "Demo de Genez", "demo"], ["tipo_evento", "Visita comercial", "visita"], ["categoria_tarea", "Comercial"], ["categoria_tarea", "Producto"]];
+    ["tipo_evento", "Demo de Genez", "demo"], ["tipo_evento", "Visita comercial", "visita"], ["categoria_tarea", "Comercial"], ["categoria_tarea", "Producto"],
+    ...["venta_confirmada", "relevamiento", "configuracion", "carga_datos", "usuarios", "capacitacion", "pruebas", "puesta_en_marcha", "seguimiento_inicial", "completada"]
+      .map((k, i) => ["etapa_implementacion", ["Venta confirmada", "Relevamiento", "Configuración", "Carga de datos", "Usuarios y permisos", "Capacitación", "Pruebas", "Puesta en marcha", "Seguimiento inicial", "Implementación completada"][i], k]),
+    ["modulo", "Cobro", "cobro"], ["modulo", "Productos", "productos"], ["modulo", "Stock", "stock"], ["modulo", "Impresión", "impresion"], ["modulo", "Agenda y turnos", "agenda"],
+    ["categoria_ticket", "Consulta de uso", "consulta"], ["categoria_ticket", "Error del sistema", "error"], ["categoria_ticket", "Impresión", "impresion"],
+    ["canal_ticket", "WhatsApp", "whatsapp"], ["canal_ticket", "Llamada", "llamada"]];
   const etapas = ETAPAS.map(([nombre, probabilidad, tipo], i) => ({ id: id(), nombre, orden: i + 1, probabilidad, tipo, activa: true }));
   /* Tres comercios inventados en etapas distintas, con una tarea de hoy,
      una vencida y una reunión de hoy: lo justo para que Mi día, el
@@ -76,6 +81,11 @@ function founder(usuario) {
     interno_actividades: [{ id: id(), prospecto_id: prospectos[1].id, tipo: "visita", fecha: hace(1), resultado: "Le interesa, pidió una demo", datos: {} }],
     interno_tareas: [{ id: id(), titulo: "Llamar al almacén de prueba", prospecto_id: prospectos[0].id, estado: "pendiente", prioridad: "alta", vence: hoyA(18), archivado_en: null, checklist: [] },
       { id: id(), titulo: "Mandar la propuesta de prueba", prospecto_id: prospectos[2].id, estado: "pendiente", prioridad: "normal", vence: hace(2), archivado_en: null, checklist: [] }],
+    /* El modelo de implementación de 0115, en chico: uno para todos y dos que dependen de módulos. */
+    interno_impl_modelo: [["relevamiento", "Cómo trabajan hoy", []], ["carga_datos", "Catálogo de productos con precio", ["productos"]],
+      ["carga_datos", "Profesionales y sus horarios", ["agenda"]], ["usuarios", "Un usuario por persona, con su rol", []]]
+      .map(([etapa, titulo, modulos], i) => ({ id: id(), etapa, titulo, modulos, rubros: [], orden: i, activo: true })),
+    interno_clientes: [], interno_impl_etapas: [], interno_tickets: [], interno_ticket_mensajes: [], interno_adjuntos: [],
     interno_eventos: [{ id: id(), titulo: "Demo en el bar de prueba", tipo: "demo", prospecto_id: prospectos[1].id, inicio: hoyA(16), fin: hoyA(17), estado: "programado", archivado_en: null }],
   };
 }

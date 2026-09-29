@@ -20,10 +20,11 @@ import { inputCls } from "../ui/Campos.jsx";
 import { money } from "../utils/helpers.js";
 import { cargarOportunidadesAbiertas, moverOportunidad } from "../datos/internoCrm.js";
 import { useConfig, relativo, vencido } from "./util.js";
+import { AltaCliente } from "./Clientes.jsx";
 
 const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-export function Pipeline({ abrir, toast }) {
+export function Pipeline({ abrir, abrirCliente, puedeClientes, toast }) {
   const { cfg, de } = useConfig();
   const [ops, setOps] = useState(null);
   const [error, setError] = useState("");
@@ -32,6 +33,7 @@ export function Pipeline({ abrir, toast }) {
   const [sobre, setSobre] = useState(null);
   const [perdiendo, setPerdiendo] = useState(null);   // { op, etapaId }
   const [cerradas, setCerradas] = useState(false);
+  const [ganando, setGanando] = useState(null);       // la oportunidad recién ganada, para pasarla a cliente
   const leer = () => cargarOportunidadesAbiertas().then(setOps).catch((e) => setError(e.message));
   useEffect(() => { leer(); }, []);
 
@@ -51,6 +53,9 @@ export function Pipeline({ abrir, toast }) {
       await moverOportunidad(op.id, etapaId, motivo);
       toast(`${op.prospecto ? op.prospecto.nombre : op.nombre} → ${etapa.nombre}`);
       leer();
+      /* Ganar es el momento de darlo de alta: se ofrece acá mismo, y si no,
+         queda el botón en la ficha del prospecto. */
+      if (etapa.tipo === "ganada" && puedeClientes && !(op.prospecto && op.prospecto.clienteDesde)) setGanando({ ...op, estado: "ganada" });
     } catch (e) {
       setOps(antes);
       toast(e.message, "mal");
@@ -126,6 +131,10 @@ export function Pipeline({ abrir, toast }) {
         </div>
       )}
 
+      {ganando && (
+        <AltaCliente modo="oportunidad" oportunidad={ganando} nombreNegocio={ganando.prospecto ? ganando.prospecto.nombre : ganando.nombre} toast={toast}
+          onCerrar={() => setGanando(null)} onListo={(id) => { setGanando(null); leer(); abrirCliente(id); }} />
+      )}
       {perdiendo && (
         <Modal open onClose={() => setPerdiendo(null)} ancho="max-w-sm">
           <div className="p-5 space-y-3">

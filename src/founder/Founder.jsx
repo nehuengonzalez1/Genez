@@ -17,7 +17,7 @@
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
-import { Home, Users, Columns3, ListChecks, CalendarDays, Settings, ArrowLeftRight, LogOut } from "lucide-react";
+import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Settings, ArrowLeftRight, LogOut } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { puedeArea } from "../datos/interno.js";
 import { InicioFounder } from "./Inicio.jsx";
@@ -27,6 +27,9 @@ import { Ficha } from "./Ficha.jsx";
 import { Pipeline } from "./Pipeline.jsx";
 import { Tareas } from "./Tareas.jsx";
 import { Agenda } from "./Agenda.jsx";
+import { Clientes } from "./Clientes.jsx";
+import { FichaCliente } from "./FichaCliente.jsx";
+import { Soporte, Ticket } from "./Soporte.jsx";
 
 const SECCIONES = [
   { k: "inicio", n: "Inicio", i: Home, area: null },
@@ -34,6 +37,8 @@ const SECCIONES = [
   { k: "pipeline", n: "Pipeline", i: Columns3, area: "crm" },
   { k: "tareas", n: "Tareas", i: ListChecks, area: "tareas" },
   { k: "agenda", n: "Agenda", i: CalendarDays, area: "agenda" },
+  { k: "clientes", n: "Clientes", i: Store, area: "clientes" },
+  { k: "soporte", n: "Soporte", i: LifeBuoy, area: "soporte" },
   { k: "config", n: "Configuración", i: Settings, area: "config" },
 ];
 
@@ -41,17 +46,24 @@ export default function Founder({ sesion, onComercios, onSalir }) {
   const interno = sesion.interno;
   const visibles = SECCIONES.filter((s) => !s.area || puedeArea(interno, s.area));
   const [seccion, setSeccionCruda] = useState("inicio");
-  /* La ficha de un prospecto se abre encima de cualquier sección y
-     "volver" lleva a donde estaba. "nuevo" es una acción rápida del
-     inicio: abre la sección con el alta ya abierta, una sola vez. */
-  const [ficha, setFicha] = useState(null);
+  /* Las fichas (prospecto, cliente, ticket) se abren encima de cualquier
+     sección, apiladas: del cliente a un ticket y "volver" vuelve al
+     cliente, no a la lista. Cambiar de sección vacía la pila. "nuevo" es
+     una acción rápida: abre la sección con el alta ya abierta, una vez. */
+  const [pila, setPila] = useState([]);
   const [nuevo, setNuevo] = useState(null);
-  const setSeccion = (k) => { setFicha(null); setNuevo(null); setSeccionCruda(k); };
-  const abrir = (id) => { if (id) setFicha(id); };
-  const crear = (que) => {
-    const destino = { prospecto: "prospectos", tarea: "tareas", evento: "agenda" }[que];
-    setFicha(null); setSeccionCruda(destino); setNuevo(que);
+  const encima = pila[pila.length - 1];
+  const apilar = (tipo) => (id) => { if (id) setPila((p) => [...p, { tipo, id }]); };
+  const volver = () => setPila((p) => p.slice(0, -1));
+  const setSeccion = (k) => { setPila([]); setNuevo(null); setSeccionCruda(k); };
+  const abrir = apilar("prospecto");
+  const abrirCliente = apilar("cliente");
+  const abrirTicket = apilar("ticket");
+  const crear = (que, para) => {
+    const destino = { prospecto: "prospectos", tarea: "tareas", evento: "agenda", ticket: "soporte" }[que];
+    setPila([]); setSeccionCruda(destino); setNuevo({ que, para });
   };
+  const nuevoQue = nuevo && nuevo.que;
   const [avisos, setAvisos] = useState([]);
   const toast = (texto, tono = "bien") => {
     const id = Math.random().toString(36).slice(2);
@@ -104,12 +116,19 @@ export default function Founder({ sesion, onComercios, onSalir }) {
       </aside>
 
       <main className="flex-1 min-w-0 px-4 md:px-8 py-6 md:py-8 max-w-6xl">
-        {ficha ? <Ficha key={ficha} id={ficha} volver={() => setFicha(null)} toast={toast} /> : <>
-          {actual && actual.k === "inicio" && <InicioFounder sesion={sesion} ir={setSeccion} abrir={abrir} toast={toast} nuevo={crear} />}
-          {actual && actual.k === "prospectos" && <Prospectos key={nuevo || "p"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevo === "prospecto"} />}
-          {actual && actual.k === "pipeline" && <Pipeline abrir={abrir} toast={toast} />}
-          {actual && actual.k === "tareas" && <Tareas key={nuevo || "t"} abrir={abrir} toast={toast} nuevaAlAbrir={nuevo === "tarea"} />}
-          {actual && actual.k === "agenda" && <Agenda key={nuevo || "a"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevo === "evento"} />}
+        {encima && encima.tipo === "prospecto" && <Ficha key={encima.id} id={encima.id} volver={volver} abrirCliente={abrirCliente} toast={toast} />}
+        {encima && encima.tipo === "cliente" && <FichaCliente key={encima.id} id={encima.id} volver={volver} abrirProspecto={abrir} abrirTicket={abrirTicket}
+          nuevoTicket={(clienteId) => crear("ticket", clienteId)} toast={toast} />}
+        {encima && encima.tipo === "ticket" && <Ticket key={encima.id} id={encima.id} volver={volver} abrirCliente={abrirCliente} abrirTicket={abrirTicket} toast={toast} />}
+        {!encima && <>
+          {actual && actual.k === "inicio" && <InicioFounder sesion={sesion} ir={setSeccion} abrir={abrir} abrirCliente={abrirCliente} toast={toast} nuevo={crear} />}
+          {actual && actual.k === "prospectos" && <Prospectos key={nuevoQue || "p"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevoQue === "prospecto"} />}
+          {actual && actual.k === "pipeline" && <Pipeline abrir={abrir} abrirCliente={abrirCliente} puedeClientes={puedeArea(interno, "clientes")} toast={toast} />}
+          {actual && actual.k === "tareas" && <Tareas key={nuevoQue || "t"} abrir={abrir} toast={toast} nuevaAlAbrir={nuevoQue === "tarea"} />}
+          {actual && actual.k === "agenda" && <Agenda key={nuevoQue || "a"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevoQue === "evento"} />}
+          {actual && actual.k === "clientes" && <Clientes abrirCliente={abrirCliente} toast={toast} />}
+          {actual && actual.k === "soporte" && <Soporte key={nuevoQue === "ticket" ? `n${nuevo.para || ""}` : "s"} abrirTicket={abrirTicket} toast={toast}
+            nuevoPara={nuevoQue === "ticket" ? nuevo.para || "" : undefined} />}
           {actual && actual.k === "config" && <ConfiguracionFounder interno={interno} toast={toast} />}
         </>}
       </main>

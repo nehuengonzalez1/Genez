@@ -18,7 +18,7 @@ import { supabase } from "./supabase.js";
 const aCamel = (s) => s.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
 const aSnake = (s) => s.replace(/[A-Z]/g, (l) => "_" + l.toLowerCase());
 const FECHAS = new Set(["creadoEn", "actualizadoEn", "archivadoEn", "ultimoContacto", "proximoContacto", "fecha", "proximaFecha",
-  "vence", "completadaEn", "inicio", "fin", "fechaSeguimiento", "ganadaEn", "cerradaEn", "clienteDesde"]);
+  "vence", "completadaEn", "inicio", "fin", "fechaSeguimiento", "ganadaEn", "cerradaEn", "clienteDesde", "resueltoEn", "cerradoEn"]);
 
 export function aApp(fila) {
   if (!fila) return fila;
@@ -34,7 +34,7 @@ const DE_LA_BASE = new Set(["id", "creadoEn", "creadoPor", "actualizadoEn", "act
 /* Lo que se leyó de otra tabla o de la vista no es columna de esta:
    si una pantalla edita un objeto leído y lo devuelve entero, se saca. */
 const DE_LECTURA = new Set(["prospecto", "prospectoNombre", "etapa", "oportunidadNombre", "etapaNombre", "etapaOrden", "oportunidadEstado"]);
-function aBase(obj) {
+export function aBase(obj) {
   const o = {};
   for (const [k, v] of Object.entries(obj || {})) {
     if (DE_LA_BASE.has(k) || DE_LECTURA.has(k) || k.startsWith("interno") || v === undefined) continue;
@@ -43,7 +43,7 @@ function aBase(obj) {
   return o;
 }
 
-const traducir = (error) => {
+export const traducir = (error) => {
   if (!error) return null;
   if (/row-level security|permission denied/i.test(error.message || "")) return new Error("Tu usuario no tiene acceso a esta parte de Founder.");
   if (error.code === "23514") {
@@ -53,7 +53,7 @@ const traducir = (error) => {
   }
   return new Error(error.message || "No se pudo guardar.");
 };
-const dato = ({ data, error }) => { if (error) throw traducir(error); return data; };
+export const dato = ({ data, error }) => { if (error) throw traducir(error); return data; };
 
 /* ---------- Prospectos ---------- */
 export const PROSPECTO_VACIO = { nombre: "", rubro: "", zona: "", localidad: "", direccion: "", telefono: "", whatsapp: "", email: "", instagram: "", fuente: "", interes: "", notas: "" };
@@ -150,7 +150,7 @@ export const archivarContacto = (id) => supabase.from("interno_contactos").updat
 /* ---------- Oportunidades ---------- */
 export async function cargarOportunidadesAbiertas() {
   const { data, error } = await supabase.from("interno_oportunidades")
-    .select("*, interno_prospectos(nombre, localidad, zona, rubro, proximo_contacto, proxima_accion)")
+    .select("*, interno_prospectos(nombre, localidad, zona, rubro, proximo_contacto, proxima_accion, cliente_desde)")
     .is("archivado_en", null).order("actualizado_en", { ascending: false }).limit(2000);
   if (error) throw traducir(error);
   return (data || []).map((o) => ({ ...aApp(o), prospecto: o.interno_prospectos ? aApp(o.interno_prospectos) : null }));

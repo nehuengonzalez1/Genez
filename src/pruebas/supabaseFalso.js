@@ -69,7 +69,29 @@ function consulta(tabla) {
 
 /* Las vistas de la base que se arman con otras tablas: acá se arman al
    leerlas, para que lo que se crea en una pantalla aparezca en la otra. */
+const hoyDia = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
+const masDias = (dia, n) => { const d = new Date(`${dia}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const tablaDe = (t) => T[t] || (T[t] = []);
+
 const VISTAS = {
+  /* Las de 0115, en chico: el cliente con su negocio y sus conteos, y el
+     ticket con el nombre del cliente y sus horas de resolución. */
+  interno_clientes_vista: () => tablaDe("interno_clientes").map((c) => {
+    const p = tablaDe("interno_prospectos").find((x) => x.id === c.prospecto_id) || {};
+    const et = tablaDe("interno_impl_etapas").filter((e) => e.cliente_id === c.id);
+    const tk = tablaDe("interno_tickets").filter((t) => t.cliente_id === c.id && !t.archivado_en && !["resuelto", "cerrado"].includes(t.estado));
+    return { ...c, nombre: p.nombre, rubro: p.rubro, zona: p.zona, localidad: p.localidad, telefono: p.telefono, whatsapp: p.whatsapp, email: p.email,
+      ultimo_contacto: p.ultimo_contacto || null, proximo_contacto: p.proximo_contacto || null, proxima_accion: p.proxima_accion || null,
+      impl_total: et.length, impl_hechas: et.filter((e) => ["hecha", "no_aplica"].includes(e.estado)).length, impl_bloqueadas: et.filter((e) => e.estado === "bloqueada").length,
+      tickets_abiertos: tk.length, tickets_urgentes: tk.filter((t) => ["alta", "urgente"].includes(t.prioridad) || ["grave", "critica"].includes(t.gravedad)).length,
+      tareas_vencidas: tablaDe("interno_tareas").filter((t) => t.prospecto_id === c.prospecto_id && !t.archivado_en && ["pendiente", "en_curso", "en_espera"].includes(t.estado) && t.vence && t.vence < new Date().toISOString()).length };
+  }),
+  interno_tickets_vista: () => tablaDe("interno_tickets").map((t) => {
+    const c = tablaDe("interno_clientes").find((x) => x.id === t.cliente_id);
+    const p = c && tablaDe("interno_prospectos").find((x) => x.id === c.prospecto_id);
+    return { ...t, cliente_nombre: p ? p.nombre : null, prospecto_id: c ? c.prospecto_id : null,
+      horas_resolucion: t.resuelto_en ? (new Date(t.resuelto_en) - new Date(t.creado_en)) / 3600000 : null };
+  }),
   /* La del CRM (0114): el prospecto con su oportunidad abierta. */
   interno_prospectos_vista: () => (T.interno_prospectos || []).map((p) => {
     const o = (T.interno_oportunidades || []).filter((x) => x.prospecto_id === p.id && !x.archivado_en)
@@ -93,11 +115,37 @@ const DEFECTOS = {
   interno_tareas: { estado: "pendiente", prioridad: "normal", etiquetas: [], checklist: [], archivado_en: null },
   interno_eventos: { tipo: "reunion", estado: "programado", archivado_en: null },
   interno_contactos: { principal: false, archivado_en: null },
+  interno_tickets: { estado: "nuevo", prioridad: "normal", gravedad: "moderada", archivado_en: null },
+  interno_ticket_mensajes: { tipo: "nota" },
+  interno_adjuntos: { archivado_en: null },
+  interno_impl_modelo: { rubros: [], modulos: [], activo: true, orden: 0 },
 };
 
 /* Lo que en la base hacen los disparadores de 0114, en chico: la primera
    oportunidad de un prospecto, y qué cambia al mover una de etapa. */
+let numeroTicket = 0;
 const DISPARADORES = {
+  /* Los checks de 0115 que la pantalla tiene que ver fallar: resolver sin
+     solución y bloquear sin decir qué bloquea. */
+  interno_tickets: (op, filas) => {
+    for (const t of filas) {
+      if (op === "insert") t.numero = ++numeroTicket;
+      if (["resuelto", "cerrado"].includes(t.estado)) {
+        if (!String(t.solucion || "").trim()) throw new Error('violates check constraint "interno_tickets_solucion"');
+        t.resuelto_en = t.resuelto_en || new Date().toISOString();
+      } else t.resuelto_en = null;
+      t.cerrado_en = t.estado === "cerrado" ? t.cerrado_en || new Date().toISOString() : null;
+    }
+  },
+  interno_impl_etapas: (op, filas, datos) => {
+    if (op !== "update" || !datos || !datos.estado) return;
+    for (const e of filas) {
+      if (e.estado === "bloqueada" && !String(e.bloqueo || "").trim()) throw new Error('violates check constraint "interno_impl_etapas_bloqueo"');
+      const todas = tablaDe("interno_impl_etapas").filter((x) => x.cliente_id === e.cliente_id);
+      const c = tablaDe("interno_clientes").find((x) => x.id === e.cliente_id);
+      if (c && c.estado === "implementacion" && todas.every((x) => ["hecha", "no_aplica"].includes(x.estado))) c.estado = "activo";
+    }
+  },
   interno_prospectos: (op, filas) => {
     if (op !== "insert") return;
     const primera = (T.interno_etapas || []).filter((e) => e.tipo === "abierta" && e.activa).sort((a, z) => a.orden - z.orden)[0];
@@ -155,6 +203,14 @@ function ejecutar(q) {
   const filas = T[q.tabla] || (T[q.tabla] = []);
   const cumple = (f) => q.filtros.every((fn) => fn(f));
   registro.push({ tabla: q.tabla, op: q.op });
+  /* Una escritura que un disparador rechaza no deja nada a medias, como
+     en la base: se vuelve a la foto de antes y se devuelve el error. */
+  const antes = q.op === "select" ? null : structuredClone(T);
+  try { return seguir(q, filas, cumple); }
+  catch (e) { for (const k of Object.keys(T)) delete T[k]; Object.assign(T, antes); return { data: null, error: { code: "23514", message: e.message } }; }
+}
+
+function seguir(q, filas, cumple) {
   let res;
   if (q.op === "insert" || q.op === "upsert") {
     const nuevas = (Array.isArray(q.datos) ? q.datos : [q.datos]).map((d) => ({ id: uuid(), creado_en: new Date().toISOString(), fecha: new Date().toISOString(), ...(DEFECTOS[q.tabla] || {}), ...d }));
@@ -202,7 +258,82 @@ function serie(desde, hasta) {
   return out;
 }
 let numero = 0;
+/* Las funciones de 0115, en chico. */
+function implArmar(clienteId) {
+  const c = tablaDe("interno_clientes").find((x) => x.id === clienteId);
+  const p = tablaDe("interno_prospectos").find((x) => x.id === c.prospecto_id) || {};
+  const em = c.empresa_id && tablaDe("empresas").find((x) => x.id === c.empresa_id);
+  const modulos = em ? em.modulos || [] : [];
+  let sumados = 0;
+  for (const l of tablaDe("interno_listas").filter((x) => x.tipo === "etapa_implementacion" && x.activo)) {
+    let e = tablaDe("interno_impl_etapas").find((x) => x.cliente_id === clienteId && x.etapa === l.clave);
+    if (!e) { e = { id: uuid(), cliente_id: clienteId, etapa: l.clave, orden: l.orden, estado: "pendiente", pasos: [], creado_en: new Date().toISOString() }; tablaDe("interno_impl_etapas").push(e); }
+    for (const m of tablaDe("interno_impl_modelo").filter((x) => x.activo && x.etapa === l.clave)) {
+      if (m.rubros.length && !m.rubros.includes(p.rubro)) continue;
+      if (m.modulos.length && !m.modulos.some((x) => modulos.includes(x))) continue;
+      if (e.pasos.some((x) => x.titulo === m.titulo)) continue;
+      e.pasos = [...e.pasos, { titulo: m.titulo, hecho: false }]; sumados++;
+    }
+  }
+  return sumados;
+}
+function convertir({ p_oportunidad, p_datos = {} }) {
+  const o = tablaDe("interno_oportunidades").find((x) => x.id === p_oportunidad);
+  if (!o) throw new Error("No existe la oportunidad");
+  if (o.estado !== "ganada") throw new Error("Solo una oportunidad ganada pasa a cliente");
+  if (tablaDe("interno_clientes").some((x) => x.prospecto_id === o.prospecto_id)) throw new Error("Ya es cliente");
+  const alta = p_datos.alta || hoyDia(); const sin = !!p_datos.sin_implementacion;
+  const c = { id: uuid(), prospecto_id: o.prospecto_id, oportunidad_id: o.id, empresa_id: p_datos.empresa_id || null, plan: p_datos.plan || null,
+    importe_mensual: p_datos.importe_mensual ?? o.valor ?? 0, alta, renovacion: p_datos.renovacion || null, estado: sin ? "activo" : "implementacion",
+    notas: p_datos.notas || null, archivado_en: null, creado_en: new Date().toISOString() };
+  tablaDe("interno_clientes").push(c);
+  const p = tablaDe("interno_prospectos").find((x) => x.id === o.prospecto_id);
+  if (p) Object.assign(p, { cliente_desde: p.cliente_desde || `${alta}T12:00:00Z`, empresa_id: c.empresa_id });
+  if (!sin) {
+    implArmar(c.id);
+    const v = tablaDe("interno_impl_etapas").find((x) => x.cliente_id === c.id && x.etapa === "venta_confirmada");
+    if (v) Object.assign(v, { estado: "hecha", fecha: alta });
+  }
+  const tarea = (titulo, dia) => tablaDe("interno_tareas").push({ id: uuid(), titulo, categoria: "comercial", prioridad: "normal", estado: "pendiente",
+    prospecto_id: o.prospecto_id, vence: `${dia}T13:00:00Z`, archivado_en: null, checklist: [], etiquetas: [], creado_en: new Date().toISOString() });
+  if (!sin) for (const [titulo, dias] of [["Primer seguimiento después del alta", 7], ["Revisar cómo lo están usando", 30], ["Pedir un testimonio o una recomendación", 60]]) tarea(titulo, masDias(alta, dias));
+  if (c.renovacion) tarea("Renovación: confirmar que sigue", masDias(c.renovacion, -15));
+  return c.id;
+}
+const palabras = (t) => [...new Set(String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length >= 4))];
+
 const FUNCIONES = {
+  interno_convertir_en_cliente: convertir,
+  interno_cliente_desde_comercio: ({ p_empresa, p_datos = {} }) => {
+    const em = tablaDe("empresas").find((x) => x.id === p_empresa);
+    if (!em) throw new Error("No existe el comercio");
+    if (tablaDe("interno_clientes").some((x) => x.empresa_id === p_empresa)) throw new Error("Ese comercio ya es cliente");
+    const ganada = tablaDe("interno_etapas").filter((e) => e.tipo === "ganada").sort((a, b) => a.orden - b.orden)[0];
+    const p = { id: uuid(), nombre: em.nombre, rubro: { minimercado: "almacen_kiosco_o_supermercado", gastronomia: "gastronomia" }[em.rubro] || null, empresa_id: em.id,
+      archivado_en: null, creado_en: new Date().toISOString(), modulos: [], etiquetas: [], campos_extra: {} };
+    tablaDe("interno_prospectos").push(p);
+    const o = { id: uuid(), prospecto_id: p.id, nombre: `Genez para ${p.nombre}`, etapa_id: ganada.id, valor: p_datos.importe_mensual || 0, probabilidad: 100,
+      estado: "ganada", ganada_en: new Date().toISOString(), modulos: [], archivado_en: null, creado_en: new Date().toISOString(), actualizado_en: new Date().toISOString() };
+    tablaDe("interno_oportunidades").push(o);
+    tablaDe("interno_actividades").push({ id: uuid(), prospecto_id: p.id, oportunidad_id: o.id, tipo: "cambio_etapa", fecha: new Date().toISOString(), resultado: `Nuevo → ${ganada.nombre}`, datos: {} });
+    return convertir({ p_oportunidad: o.id, p_datos: { ...p_datos, empresa_id: p_empresa } });
+  },
+  interno_comercio: ({ p_empresa }) => {
+    const e = tablaDe("empresas").find((x) => x.id === p_empresa);
+    return e ? { id: e.id, nombre: e.nombre, rubro: e.rubro, plan: e.plan, modulos: e.modulos || [], activa: e.activa !== false, slug: e.slug || null,
+      sucursales: tablaDe("sucursales").filter((s) => s.empresa_id === e.id && s.activa).map((s) => s.nombre) } : null;
+  },
+  interno_comercios_libres: () => tablaDe("empresas").filter((e) => !tablaDe("interno_clientes").some((c) => c.empresa_id === e.id))
+    .map((e) => ({ id: e.id, nombre: e.nombre, rubro: e.rubro, creada_en: e.creada_en })),
+  interno_impl_armar: ({ p_cliente }) => implArmar(p_cliente),
+  interno_tickets_parecidos: ({ p_texto, p_modulo, p_excluir }) => {
+    const buscadas = palabras(p_texto);
+    return tablaDe("interno_tickets").filter((t) => !t.archivado_en && t.id !== p_excluir)
+      .map((t) => ({ t, n: palabras(`${t.titulo} ${t.descripcion || ""}`).filter((w) => buscadas.includes(w)).length }))
+      .filter((x) => x.n > 0).map(({ t, n }) => ({ id: t.id, numero: t.numero, titulo: t.titulo, estado: t.estado, modulo: t.modulo,
+        coincidencias: n + (p_modulo && t.modulo === p_modulo ? 1 : 0), creado_en: t.creado_en }))
+      .sort((a, b) => b.coincidencias - a.coincidencias).slice(0, 5);
+  },
   permiso: () => true,
   interno_posibles_duplicados: ({ p_nombre, p_telefono, p_excluir }) => {
     const n = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
@@ -233,9 +364,11 @@ const FUNCIONES = {
 function rpc(nombre, params = {}) {
   registro.push({ rpc: nombre });
   const fn = FUNCIONES[nombre];
-  const data = fn ? fn(params) : null;
+  /* Una función que falla en la base devuelve el error, no revienta: acá igual. */
+  let data = null, error = null;
+  try { data = fn ? fn(params) : null; } catch (e) { error = { message: e.message }; }
   const b = {
-    then(ok, mal) { return Promise.resolve({ data, error: null }).then(ok, mal); },
+    then(ok, mal) { return Promise.resolve({ data, error }).then(ok, mal); },
     single() { return b; }, maybeSingle() { return b; }, select() { return b; },
   };
   return b;
@@ -260,7 +393,8 @@ export const supabase = {
   },
   storage: {
     from: () => ({
-      upload: async () => ({ data: { path: "prueba" }, error: null }),
+      upload: async (ruta) => { registro.push({ subir: ruta }); return { data: { path: ruta }, error: null }; },
+      createSignedUrl: async (ruta) => ({ data: { signedUrl: `data:text/plain,archivo de prueba: ${encodeURIComponent(ruta)}` }, error: null }),
       getPublicUrl: () => ({ data: { publicUrl: "" } }),
       remove: async () => ({ error: null }),
     }),

@@ -11,7 +11,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Plus } from "lucide-react";
 import { Card, Boton, Tabs, Cargando, ErrorEstado, Vacio } from "../ui/Base.jsx";
-import { inputCls } from "../ui/Campos.jsx";
+import { inputCls, TextoDiferido } from "../ui/Campos.jsx";
+import { cargarModelo, guardarPasoModelo } from "../datos/internoClientes.js";
 import {
   cargarEtapas, crearEtapa, editarEtapa, cargarListas, crearItemDeLista, editarItemDeLista, cargarMiembros, TIPOS_DE_LISTA,
 } from "../datos/interno.js";
@@ -26,9 +27,10 @@ export function ConfiguracionFounder({ interno, toast }) {
         <h1 className="f-d text-3xl">Configuración</h1>
         <p className="text-sm text-texto-suave mt-1">Cómo está armado Founder. Lo que se cambia acá lo ven todas las pantallas.</p>
       </header>
-      <Tabs value={pestana} onChange={setPestana} items={[{ k: "pipeline", n: "Pipeline" }, { k: "listas", n: "Listas" }, { k: "equipo", n: "Equipo" }]} />
+      <Tabs value={pestana} onChange={setPestana} items={[{ k: "pipeline", n: "Pipeline" }, { k: "listas", n: "Listas" }, { k: "implementacion", n: "Implementación" }, { k: "equipo", n: "Equipo" }]} />
       {pestana === "pipeline" && <Etapas toast={toast} />}
       {pestana === "listas" && <Listas toast={toast} />}
+      {pestana === "implementacion" && <ModeloImplementacion toast={toast} />}
       {pestana === "equipo" && <Equipo interno={interno} />}
     </div>
   );
@@ -191,5 +193,87 @@ function Equipo({ interno }) {
       </ul>
       <p className="px-5 py-3 border-t border-borde text-[11px] text-texto-tenue">Tu rol: {interno.rol}.</p>
     </Card>
+  );
+}
+
+/* ---------- El modelo de implementación ---------- */
+/* Los pasos que se le arman a cada cliente nuevo, por etapa. Un paso con
+   módulos marcados toca solo a quien tiene alguno de esos módulos en su
+   comercio; con rubros, solo a esos rubros. Sin nada marcado, a todos.
+   Cambiar el modelo no toca a los clientes que ya están: en su ficha,
+   "Sumar los pasos que falten" trae lo nuevo. */
+const MODULOS_DEL_SISTEMA = [["cobro", "Cobro"], ["caja", "Caja"], ["productos", "Productos"], ["stock", "Stock"], ["compras", "Compras"],
+  ["comandas", "Salón"], ["pedidos", "Pedidos"], ["clientes", "Clientes y facturación"], ["cuentas", "Cuenta corriente"], ["agenda", "Agenda"],
+  ["servicios", "Servicios"], ["ventas", "Ventas y abonos"], ["finanzas", "Finanzas"], ["equipo", "Equipo"], ["comunicaciones", "Avisos"]];
+
+function ModeloImplementacion({ toast }) {
+  const [pasos, setPasos] = useState(null);
+  const [listas, setListas] = useState(null);
+  const [error, setError] = useState("");
+  const [editando, setEditando] = useState(null);
+  const leer = useCallback(() => Promise.all([cargarModelo(), cargarListas()])
+    .then(([m, l]) => { setPasos(m); setListas(l); }).catch((e) => setError(e.message)), []);
+  useEffect(() => { leer(); }, [leer]);
+  if (error) return <Card><ErrorEstado onReintentar={() => { setError(""); leer(); }}>{error}</ErrorEstado></Card>;
+  if (!pasos || !listas) return <Card><Cargando /></Card>;
+  const etapas = listas.filter((l) => l.tipo === "etapa_implementacion" && l.activo).sort((a, b) => a.orden - b.orden);
+  const rubros = listas.filter((l) => l.tipo === "rubro" && l.activo);
+  const guardar = async (p, cambios) => {
+    try { await guardarPasoModelo({ ...p, ...cambios }); leer(); } catch (e) { toast(e.message, "mal"); }
+  };
+  const alternar = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-texto-suave">
+        Los pasos que se le arman a cada cliente nuevo. Con módulos marcados, el paso toca solo a quien tiene alguno de esos módulos en su comercio;
+        con rubros, solo a esos rubros; sin nada, a todos. Los clientes que ya están no cambian: en su ficha, "Sumar los pasos que falten" trae lo nuevo.
+      </p>
+      {etapas.map((e) => {
+        const deEsta = pasos.filter((p) => p.etapa === e.clave).sort((a, b) => a.orden - b.orden);
+        return (
+          <Card key={e.clave} className="overflow-hidden">
+            <h2 className="px-5 py-3 font-semibold border-b border-borde">{e.nombre}</h2>
+            <ul className="divide-y divide-borde">
+              {deEsta.map((p) => (
+                <li key={p.id} className={`px-5 py-2.5 text-sm ${p.activo ? "" : "opacity-50"}`}>
+                  <div className="flex items-center gap-3">
+                    <TextoDiferido valor={p.titulo} onGuardar={(t) => t && guardar(p, { titulo: t })} className={`${inputCls} mt-0 flex-1`} />
+                    <button onClick={() => setEditando(editando === p.id ? null : p.id)} className="text-[11px] text-texto-suave hover:text-texto whitespace-nowrap">
+                      {p.modulos.length || p.rubros.length ? [...p.modulos.map((m) => (MODULOS_DEL_SISTEMA.find(([k]) => k === m) || [m, m])[1]), ...p.rubros.map((r) => (rubros.find((x) => x.clave === r) || {}).nombre || r)].join(", ") : "para todos"}
+                    </button>
+                    <button onClick={() => guardar(p, { activo: !p.activo })} className="text-[11px] text-texto-suave hover:text-texto">{p.activo ? "Desactivar" : "Activar"}</button>
+                  </div>
+                  {editando === p.id && (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="text-[11px] text-texto-tenue w-16">Módulos</span>
+                        {MODULOS_DEL_SISTEMA.map(([k, n]) => (
+                          <button key={k} onClick={() => guardar(p, { modulos: alternar(p.modulos, k) })}
+                            className={`text-[11px] px-2 py-0.5 rounded-md border ${p.modulos.includes(k) ? "border-acento bg-acento-suave" : "border-borde text-texto-suave"}`}>{n}</button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="text-[11px] text-texto-tenue w-16">Rubros</span>
+                        {rubros.map((r) => (
+                          <button key={r.clave} onClick={() => guardar(p, { rubros: alternar(p.rubros, r.clave) })}
+                            className={`text-[11px] px-2 py-0.5 rounded-md border ${p.rubros.includes(r.clave) ? "border-acento bg-acento-suave" : "border-borde text-texto-suave"}`}>{r.nombre}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="px-5 py-2.5 border-t border-borde">
+              <Boton size="sm" variant="ghost" onClick={() => {
+                const t = window.prompt(`Paso nuevo en "${e.nombre}":`);
+                if (t && t.trim()) guardar({}, { etapa: e.clave, titulo: t.trim().slice(0, 200), orden: deEsta.length + 1, rubros: [], modulos: [], activo: true });
+              }}><Plus size={13} /> Paso</Boton>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
