@@ -10,7 +10,7 @@ import {
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
   Heart, MessageSquare, FileText, NotebookPen
 } from "lucide-react";
-import { mulberry32, uid, HOY, PEDIDOS_INICIALES, fdatel } from "../datos/generador.js";
+import { mulberry32, uid, HOY, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios, guardarComercio, crearComercio } from "../datos/sesion.js";
 import { cargarRubros } from "../datos/rubros.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
@@ -41,7 +41,7 @@ import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { ParaElContador } from "../modulos/ParaElContador.jsx";
-import { cargarPromociones } from "../datos/promociones.js";
+import { cargarPromociones, guardarPromocion } from "../datos/promociones.js";
 import { cargarSucursales } from "../datos/sucursales.js";
 import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
@@ -1088,7 +1088,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      cambiar de equipo muestra otra cifra. */
   const [resumenDia, setResumenDia] = useState({ total: 0, tickets: 0 });
   const [pedidos, setPedidos] = useState([]);
-  const [pedidosCli, setPedidosCli] = useState(PEDIDOS_INICIALES);
+  /* Los pedidos de picking arrancan vacíos: antes arrancaban con los que
+     inventa el generador, y el menú contaba como pendientes pedidos que
+     nadie hizo. Los que se arman acá se cobran con la venta de siempre. */
+  const [pedidosCli, setPedidosCli] = useState([]);
   const [provs, setProvs] = useState({});
   const [clientes, setClientes] = useState([]);
   const [tablero, setTablero] = useState(null);
@@ -2295,7 +2298,16 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 borrarProducto={borrarProducto}
                 toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes}
                 promos={promos} recargarPromos={leerPromos} puedePromos={!!permisos.cambiarPrecios} />)}
-          {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} empresaId={empresaId} lugar={lugar} />}
+          {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} empresaId={empresaId} lugar={lugar}
+            actualizarProducto={actualizarProducto}
+            crearPromo={async ({ producto, pct, hasta }) => {
+              const dia = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+              await guardarPromocion(empresaId, {
+                nombre: `${pct}% por vencer · ${producto.nombre}`.slice(0, 60), tipo: "porcentaje", parametros: { pct },
+                alcance: { productos: [producto.id], rubros: [] }, desde: dia(new Date()), hasta: hasta ? dia(hasta) : null,
+              });
+              await leerPromos();
+            }} />}
           {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} lugar={lugar} />}
           {tab === "caja" && (
             <div className="space-y-4">

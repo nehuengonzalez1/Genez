@@ -65,3 +65,15 @@ export async function transferirStock({ itemId, cantidad, desde, hacia, nota = n
   });
   if (error) throw new Error(error.message || "No se pudo pasar la mercadería.");
 }
+
+/* El conteo de inventario (0109): lo contado en esta sucursal. La base
+   calcula la diferencia contra lo que hay en ese momento y la guarda como
+   ajuste. Devuelve { antes, diferencia }. */
+export async function guardarConteo({ itemId, real, sucursalId = null, motivo = null }) {
+  const { data, error } = await supabase.rpc("ajustar_stock", {
+    p_item: itemId, p_real: Number(real), p_sucursal: sucursalId, p_motivo: motivo,
+  });
+  if (error) throw new Error(error.message || "No se pudo guardar el ajuste.");
+  const f = (data || [])[0] || {};
+  return { antes: Number(f.antes) || 0, diferencia: Number(f.diferencia) || 0 };
+}

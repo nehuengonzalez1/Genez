@@ -60,6 +60,7 @@ node scripts/probar-promos-comanda.mjs  # qué renglones de una mesa recalcula l
 node scripts/probar-catalogo-base.mjs   # las reglas del nombre y el rubro, la consulta que no traba el alta y los permisos de la tabla
 node scripts/probar-qr-dinamico.mjs    # api/mp/qr.js contra un Mercado Pago de mentira (orden, estados, cancelar pagada) y 0107
 node scripts/probar-multi-sucursal.mjs  # 0108: lo viejo completado, la sucursal que viaja sola, pasar mercadería, informes por sucursal y quién
+node scripts/probar-conteo.mjs         # 0109: el conteo contra lo que hay ahora, lo que no entra, y sin sesión no se llama
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1209,6 +1210,35 @@ lo avisa.
 
 Quedó afuera, a propósito: precios distintos por sucursal, y limitar a
 un empleado a su local. Productos sigue mostrando el stock total.
+
+## Lo que quedaba del prototipo en Stock
+
+Migración 0109. Tres botones de Stock venían del prototipo y cambiaban
+solo la memoria del navegador, en un comercio que ya los usaba de verdad:
+
+**El conteo de inventario se guarda.** `ajustar_stock` recibe lo contado
+y escribe un movimiento de tipo `ajuste` por la diferencia contra lo que
+hay en esa sucursal en ese momento, con quién lo hizo. La diferencia la
+calcula la base y no la pantalla: el número que tenía la pantalla puede
+ser de hace una hora, con ventas en el medio. Contar lo mismo que hay no
+escribe nada. Dos personas contando el mismo producto se ordenan con un
+lock.
+
+**"Poner 30% menos"** (antes "Poner en promo") crea una promoción de
+verdad sobre ese producto hasta que vence. Antes pisaba el precio en la
+memoria: el mostrador de esa computadora cobraba el 30% menos y la base
+seguía con el precio de antes. Vencido, no se ofrece.
+
+**"No reponer"** queda en el producto (`campos_extra.noReponer`): sale de
+"para reponer" y del pedido sugerido, y se sigue vendiendo lo que queda.
+Antes lo desactivaba en la memoria, y dejaba de aparecer en el mostrador
+hasta refrescar.
+
+**Los pedidos de picking arrancan vacíos.** Arrancaban con los que
+inventa el generador, y el menú contaba pendientes que nadie hizo.
+
+Los indicadores de Stock (reponer, vencimientos, sin rotación) siguen
+calculándose con la serie simulada y `HOY`: es lo que falta migrar.
 
 ## La cuenta corriente
 

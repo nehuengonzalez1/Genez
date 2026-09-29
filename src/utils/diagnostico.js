@@ -46,8 +46,11 @@ export function calcular(productos, diario, coberturaDias) {
     .sort((a, b) => b.impacto - a.impacto);
   const impactoTotal = subas.reduce((s, x) => s + x.impacto, 0);
 
+  /* Lo marcado "No reponer" en Stock (campos_extra.noReponer) no se pide:
+     se vende lo que queda y listo. */
+  const seRepone = (p) => !(p.camposExtra && p.camposExtra.noReponer);
   const criticos = productos
-    .filter((p) => p.activo && p.vel > 0.08 && p.stock <= Math.max(p.stockMin, p.vel * 3))
+    .filter((p) => p.activo && seRepone(p) && p.vel > 0.08 && p.stock <= Math.max(p.stockMin, p.vel * 3))
     .map((p) => ({ p, cobertura: p.vel > 0 ? p.stock / p.vel : 99 }))
     .sort((a, b) => a.cobertura - b.cobertura);
 
@@ -73,7 +76,7 @@ export function calcular(productos, diario, coberturaDias) {
     .sort((a, b) => b.vol - a.vol);
 
   const sugeridos = productos
-    .filter((p) => p.activo && p.vel > 0.05)
+    .filter((p) => p.activo && seRepone(p) && p.vel > 0.05)
     .map((p) => {
       const falta = p.vel * coberturaDias + p.stockMin - p.stock;
       if (falta <= 0) return null;
