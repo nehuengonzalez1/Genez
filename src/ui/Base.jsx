@@ -879,7 +879,12 @@ export function preCuenta(c, ajustes, W) {
   b.push({ t: "sep" });
   for (const l of c.items) {
     b.push({ t: "w", v: String(l.nombre).toUpperCase() });
-    b.push({ t: "lr", a: `  ${l.cantidad} x ${money(l.precio)}`, b: money(l.total) });
+    /* Con promo (0105) el total del renglón ya viene descontado: se
+       muestra el importe entero y la promo restando abajo, así la mesa
+       ve por qué paga menos y la columna suma el subtotal. */
+    const promo = l.promo && l.descuento > 0 ? l.descuento : 0;
+    b.push({ t: "lr", a: `  ${l.cantidad} x ${money(l.precio)}`, b: money(l.total + promo) });
+    if (promo) b.push({ t: "lr", a: `  PROMO ${String(l.promo).toUpperCase()}`.slice(0, W - 12), b: "-" + money(promo) });
   }
 
   b.push({ t: "sep" });

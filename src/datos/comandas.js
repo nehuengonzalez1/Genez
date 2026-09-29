@@ -84,6 +84,11 @@ function aLinea(f) {
        confirma o lo anula. */
     qr: !!(f.campos_extra && f.campos_extra.origen === "qr"),
     qrNombre: (f.campos_extra && f.campos_extra.nombre) || null,
+    /* La promo del renglón (0105): lo que se le descontó y cuál fue. */
+    descuento: n(f.descuento),
+    promo: (f.campos_extra && f.campos_extra.promo) || null,
+    pedidaEn: f.pedida_en ? new Date(f.pedida_en) : null,
+    extra: f.campos_extra || {},
   };
 }
 
@@ -260,7 +265,7 @@ export async function cargarComanda(comandaId) {
       recursos ( nombre, sector ),
       operacion_lineas (
         id, item_id, descripcion, cantidad, precio_unitario, costo_unitario,
-        total, estado, notas, destino, modificadores, enviada_en, campos_extra
+        total, estado, notas, destino, modificadores, enviada_en, campos_extra, descuento, pedida_en
       )
     `)
     .eq("id", comandaId)
@@ -680,4 +685,56 @@ export async function cargarCarta(empresaId) {
     });
   }
   return [...porCategoria.entries()].map(([categoria, items]) => ({ categoria, items }));
+}
+
+/* ------------------------------------------------------------
+   LAS PROMOS DE UNA COMANDA (0105)
+   ------------------------------------------------------------
+   Recalcula las promos de la mesa con la hora en que se pidió cada
+   renglón (el 2x1 de las 19:50 sigue valiendo aunque se cobre a las 21)
+   y guarda en cada renglón su descuento y su total. La cuenta, el
+   descuento de la mesa, los pagos parciales y el cierre suman `total`,
+   así que la toman sin cambios.
+
+   Solo escribe los renglones que cambian, y devuelve cuántos: con cero,
+   quien llama no tiene que volver a leer. Lo llama la pantalla de la
+   comanda cada vez que la lee; lo que pidió una mesa por QR se recalcula
+   la próxima vez que alguien la abre.
+
+   `categoriaDe`: Map itemId → rubro, para las promos por rubro. */
+export async function aplicarPromosEnComanda(comanda, promos, categoriaDe) {
+  if (!comanda || !(promos || []).some((p) => p.activa !== false && p.tipo !== "medio")) {
+    /* Sin promos, igual hay que sacar las que hubieran quedado de una
+       promo que se apagó. */
+    if (!comanda || !comanda.lineas.some((l) => l.descuento > 0 && l.promo)) return 0;
+  }
+  const { aplicarPromociones } = await import("../utils/promociones.js");
+  const lineas = comanda.lineas.filter((l) => l.precio > 0 && l.cantidad > 0);
+  const r = aplicarPromociones(lineas.map((l) => ({
+    lid: l.id, pid: l.itemId, qty: l.cantidad, unit: l.precio, unidad: "un",
+    categoria: categoriaDe.get(l.itemId) || "",
+    elegible: !!l.itemId,
+    fecha: l.pedidaEn || comanda.abiertaEn || new Date(),
+  })), promos || []);
+
+  const cambios = [];
+  for (const l of lineas) {
+    const pr = r.porLinea[l.id];
+    const descuento = pr ? pr.descuento : 0;
+    const promo = pr ? pr.promos.join(" + ") : null;
+    /* Solo los que traen promo o los que la tenían: un descuento que no
+       vino de una promo no se toca. */
+    if (!pr && !l.promo) continue;
+    const total = Math.round(l.precio * l.cantidad) - descuento;
+    if (descuento === l.descuento && total === l.total && promo === l.promo) continue;
+    const extra = { ...(l.extra || {}) };
+    if (promo) extra.promo = promo; else delete extra.promo;
+    cambios.push({ id: l.id, descuento, total, campos_extra: extra });
+  }
+  for (const c of cambios) {
+    const { error } = await supabase.from("operacion_lineas")
+      .update({ descuento: c.descuento, total: c.total, campos_extra: c.campos_extra }).eq("id", c.id);
+    if (error) throw error;
+  }
+  return cambios.length;
 }

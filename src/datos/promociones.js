@@ -22,6 +22,9 @@ const aPromo = (f) => ({
   desde: f.desde || null,
   hasta: f.hasta || null,
   dias: f.dias || [],
+  /* "HH:MM" (0105). La base guarda "HH:MM:SS". */
+  horaDesde: f.hora_desde ? String(f.hora_desde).slice(0, 5) : null,
+  horaHasta: f.hora_hasta ? String(f.hora_hasta).slice(0, 5) : null,
   activa: f.activa !== false,
 });
 
@@ -54,6 +57,8 @@ export async function guardarPromocion(empresaId, p) {
     desde: p.desde || null,
     hasta: p.hasta || null,
     dias: p.dias || [],
+    hora_desde: p.horaDesde && p.horaHasta ? p.horaDesde : null,
+    hora_hasta: p.horaDesde && p.horaHasta ? p.horaHasta : null,
     activa: p.activa !== false,
     actualizada_en: new Date().toISOString(),
   };
@@ -62,7 +67,7 @@ export async function guardarPromocion(empresaId, p) {
     : supabase.from("promociones").insert(fila);
   const { data, error } = await q.select("*").single();
   if (error) {
-    if (error.code === "23514") throw new Error("Los números de la promo no cierran: revisá cantidades y porcentajes.");
+    if (error.code === "23514") throw new Error(/horario/.test(error.message) ? "El horario tiene que tener desde y hasta, distintos." : "Los números de la promo no cierran: revisá cantidades y porcentajes.");
     if (error.code === "42501") throw new Error("Tu usuario no puede cargar promociones (hace falta el permiso de cambiar precios).");
     throw error;
   }

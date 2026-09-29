@@ -32,7 +32,7 @@ const TIPOS = [
 const DIAS = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
 const PARAMETROS_INICIALES = { nxm: { lleva: 2, paga: 1 }, segunda: { pct: 50 }, porcentaje: { pct: 10 }, pack: { cantidad: 3, precio: 1000 }, medio: { medio: "", pct: 10 } };
 
-const vacia = () => ({ nombre: "", tipo: "nxm", parametros: { ...PARAMETROS_INICIALES.nxm }, alcance: { productos: [], rubros: [] }, desde: "", hasta: "", dias: [], activa: true });
+const vacia = () => ({ nombre: "", tipo: "nxm", parametros: { ...PARAMETROS_INICIALES.nxm }, alcance: { productos: [], rubros: [] }, desde: "", hasta: "", dias: [], horaDesde: "", horaHasta: "", activa: true });
 
 function cuando(p) {
   const partes = [];
@@ -40,6 +40,7 @@ function cuando(p) {
   else if (p.desde) partes.push(`desde el ${p.desde.split("-").reverse().join("/")}`);
   else if (p.hasta) partes.push(`hasta el ${p.hasta.split("-").reverse().join("/")}`);
   if (p.dias && p.dias.length && p.dias.length < 7) partes.push(p.dias.slice().sort().map((d) => DIAS[d]).join(", "));
+  if (p.horaDesde && p.horaHasta) partes.push(`de ${p.horaDesde} a ${p.horaHasta}`);
   return partes.join(" · ") || "Siempre";
 }
 
@@ -122,11 +123,13 @@ function FormPromo({ inicial, productos, empresaId, toast, onCerrar, onGuardada,
 
   const guardar = async () => {
     if (!p.nombre.trim()) return toast("Ponele un nombre a la promo: es lo que sale en el ticket.", "mal");
+    if (!!p.horaDesde !== !!p.horaHasta) return toast("El horario necesita desde y hasta (o ninguno de los dos).", "mal");
+    if (p.horaDesde && p.horaDesde === p.horaHasta) return toast("El horario empieza y termina a la misma hora.", "mal");
     if (p.tipo === "medio" && !p.parametros.medio) return toast("Elegí con qué medio de pago vale el descuento.", "mal");
     if (p.tipo !== "medio" && !p.alcance.productos.length && !p.alcance.rubros.length) return toast("Elegí a qué productos o rubros se aplica.", "mal");
     setGuardando(true);
     try {
-      await guardarPromocion(empresaId, { ...p, desde: p.desde || null, hasta: p.hasta || null });
+      await guardarPromocion(empresaId, { ...p, desde: p.desde || null, hasta: p.hasta || null, horaDesde: p.horaDesde || null, horaHasta: p.horaHasta || null });
       toast(inicial.id ? "Promo guardada." : "Promo creada: la caja ya la aplica.");
       await onGuardada();
     } catch (e) {
@@ -221,6 +224,12 @@ function FormPromo({ inicial, productos, empresaId, toast, onCerrar, onGuardada,
         <div className="grid grid-cols-2 gap-3">
           <Campo label="Desde (opcional)"><input type="date" value={p.desde || ""} onChange={(e) => set({ desde: e.target.value })} className={inputCls} /></Campo>
           <Campo label="Hasta (opcional)"><input type="date" value={p.hasta || ""} onChange={(e) => set({ hasta: e.target.value })} className={inputCls} /></Campo>
+        </div>
+        {/* El happy hour (0105). En la comanda cuenta la hora en que se
+            pidió cada cosa, no la del cobro. Puede cruzar la medianoche. */}
+        <div className="grid grid-cols-2 gap-3">
+          <Campo label="Desde las (opcional)"><input type="time" value={p.horaDesde || ""} onChange={(e) => set({ horaDesde: e.target.value })} className={inputCls} /></Campo>
+          <Campo label="Hasta las"><input type="time" value={p.horaHasta || ""} onChange={(e) => set({ horaHasta: e.target.value })} className={inputCls} /></Campo>
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-1.5">Qué días (ninguno = todos)</div>

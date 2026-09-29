@@ -36,6 +36,15 @@ export function vigente(p, fecha = new Date()) {
   if (p.hasta && hoy > p.hasta) return false;
   const dias = p.dias || [];
   if (dias.length && !dias.includes(fecha.getDay())) return false;
+  /* El horario (0105): "de 18 a 20", o cruzando la medianoche, "de 22 a
+     2". El fin no entra: de 18 a 20 vale hasta las 19:59. */
+  if (p.horaDesde && p.horaHasta) {
+    const min = (h) => { const [a, b] = String(h).split(":").map(Number); return a * 60 + (b || 0); };
+    const ahora = fecha.getHours() * 60 + fecha.getMinutes();
+    const d = min(p.horaDesde), h = min(p.horaHasta);
+    const adentro = d < h ? ahora >= d && ahora < h : ahora >= d || ahora < h;
+    if (!adentro) return false;
+  }
   return true;
 }
 
@@ -56,15 +65,20 @@ export function describir(p) {
   return p.nombre;
 }
 
-/* lineas: [{ lid, pid, qty, unit, categoria, unidad, elegible }]
+/* lineas: [{ lid, pid, qty, unit, categoria, unidad, elegible, fecha? }]
    `unit` es el precio por unidad que se cobra hoy; `elegible` es false si
-   tiene precio a mano o de lista.
+   tiene precio a mano o de lista. `fecha`, si viene, es cuándo se pidió
+   ese renglón: en una comanda, la promo se decide con la hora del pedido
+   y no con la del cobro (0105). Sin `fecha`, vale la del cobro.
    Devuelve { porLinea: { [lid]: { descuento, promos: [nombre] } },
               aplicadas: [{ id, nombre, descuento }], total } */
 export function aplicarPromociones(lineas, promos, fecha = new Date()) {
   /* La de medio de pago no va por renglón: se aplica al cobrar
      (descuentoPorMedio), sobre el total. */
-  const activas = (promos || []).filter((p) => p.tipo !== "medio" && vigente(p, fecha))
+  /* Si cada renglón trae su hora, qué promo vale se decide renglón por
+     renglón (más abajo); si no, de una vez con la hora del cobro. */
+  const porRenglon = (lineas || []).some((l) => l.fecha);
+  const activas = (promos || []).filter((p) => p.tipo !== "medio" && (porRenglon ? p.activa !== false : vigente(p, fecha)))
     .map((p, i) => ({ p, i }))
     .sort((a, b) => (ORDEN[a.p.tipo] - ORDEN[b.p.tipo]) || (a.i - b.i))
     .map((x) => x.p);
@@ -88,7 +102,8 @@ export function aplicarPromociones(lineas, promos, fecha = new Date()) {
 
   for (const p of activas) {
     const x = p.parametros || {};
-    const libres = unidades.filter((u) => !u.usada && abarca(p, u.l)).sort((a, b) => b.precio - a.precio);
+    const valeEn = (l) => !porRenglon || vigente(p, l.fecha || fecha);
+    const libres = unidades.filter((u) => !u.usada && abarca(p, u.l) && valeEn(u.l)).sort((a, b) => b.precio - a.precio);
     let total = 0;
     const tomar = (u, monto) => { u.usada = true; if (monto > 0) { anotar(u.l, monto, p); total += monto; } };
 
@@ -115,7 +130,7 @@ export function aplicarPromociones(lineas, promos, fecha = new Date()) {
     } else if (p.tipo === "porcentaje") {
       for (const u of libres) tomar(u, u.precio * Number(x.pct) / 100);
       for (const r of restos) {
-        if (r.usada || !abarca(p, r.l)) continue;
+        if (r.usada || !abarca(p, r.l) || !valeEn(r.l)) continue;
         r.usada = true;
         const monto = r.l.unit * r.cant * Number(x.pct) / 100;
         anotar(r.l, monto, p); total += monto;
