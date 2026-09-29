@@ -2401,8 +2401,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
       <div className="fixed bottom-44 md:bottom-5 right-4 md:right-5 z-50 space-y-2 max-w-[calc(100vw-2rem)]">
         {toasts.map((t) => (
-          <div key={t.id} className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl shadow-lg border ${t.tono === "mal" ? "bg-red-600 text-texto border-red-700" : "bg-superficie-3 text-texto border-borde-fuerte"}`}>
-            {t.tono === "mal" ? <AlertTriangle size={15} /> : <Check size={15} className="text-emerald-400" />} {t.texto}
+          <div key={t.id} data-aviso={t.tono === "mal" ? "mal" : "bien"} className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl shadow-lg border ${t.tono === "mal" ? "bg-mal-suave text-mal border-mal" : "bg-superficie-3 text-texto border-borde-fuerte"}`}>
+            {t.tono === "mal" ? <AlertTriangle size={15} /> : <Check size={15} className="text-bien" />} {t.texto}
           </div>
         ))}
       </div>
