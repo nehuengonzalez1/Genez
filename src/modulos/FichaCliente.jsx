@@ -27,6 +27,91 @@ import { money, nf, pct, linkWhatsapp } from "../utils/helpers.js";
 import { EstadoDeCuenta } from "./CuentasCorrientes.jsx";
 import { Card, Kpi, Boton, Vacio, Tabs, Sello, Cargando, ErrorEstado } from "../ui/Base.jsx";
 import { inputCls } from "../ui/Campos.jsx";
+import { saldoDePuntos, movimientosDePuntos, ajustarPuntos } from "../datos/puntos.js";
+import { reglaDePuntos, valorDePuntos } from "../utils/puntos.js";
+
+/* ---------- Los puntos del cliente (0112) ----------
+   El saldo lo calcula la base, por lotes (lo que vence se pierde, lo
+   gastado sale de lo más viejo): acá no se suma nada, se muestra. La
+   lista es lo que la base registró, venta por venta. Corregir a mano
+   pide el permiso de ajustar cuentas y un motivo, y queda en la lista
+   como "Corrección": no se borra ni se edita ningún movimiento. */
+const TIPO_PUNTOS = { suma: "Compra", canje: "Canje", devolucion: "Devolución", ajuste: "Corrección" };
+
+function PuntosDelCliente({ clienteId, regla, puede, toast }) {
+  const [saldo, setSaldo] = useState(null);
+  const [movs, setMovs] = useState(null);
+  const [cant, setCant] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  const leer = useCallback(async () => {
+    const [s, m] = await Promise.all([saldoDePuntos(clienteId), movimientosDePuntos(clienteId)]);
+    setSaldo(s); setMovs(m);
+  }, [clienteId]);
+  useEffect(() => { leer().catch((e) => toast(e.message || "No se pudieron leer los puntos.", "mal")); }, [leer]);
+
+  const corregir = async () => {
+    const n = Math.round(Number(cant));
+    if (!n) return toast("Poné cuántos puntos: en positivo suma, en negativo resta.", "mal");
+    if (!motivo.trim()) return toast("Decí por qué se corrige.", "mal");
+    setGuardando(true);
+    try {
+      await ajustarPuntos(clienteId, n, motivo.trim());
+      setCant(""); setMotivo("");
+      toast(n > 0 ? `Se sumaron ${n} puntos.` : `Se restaron ${-n} puntos.`);
+      await leer();
+    } catch (e) {
+      toast(e.message, "mal");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (!saldo || !movs) return <Cargando />;
+  return (
+    <div>
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 px-4 py-4 border-b border-borde">
+        <div>
+          <span className="f-d f-m text-3xl">{nf.format(saldo.saldo)}</span>
+          <span className="text-sm text-texto-suave ml-2">puntos · valen {money(valorDePuntos(Math.max(0, saldo.saldo), regla))}</span>
+        </div>
+        {saldo.porVencer > 0 && (
+          <span className="text-sm text-ojo">
+            <span className="f-m">{nf.format(saldo.porVencer)}</span> vencen el {fecha(new Date(`${saldo.proximoVencimiento}T12:00:00`))}
+          </span>
+        )}
+      </div>
+      {movs.length === 0 ? (
+        <Vacio>Todavía no sumó ni usó puntos.</Vacio>
+      ) : (
+        <ul className="divide-y divide-borde">
+          {movs.map((m) => (
+            <li key={m.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+              <span className="f-m text-xs text-texto-tenue w-28 shrink-0">{fechaHora(m.fecha)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{TIPO_PUNTOS[m.tipo] || m.tipo}</span>
+                {m.detalle && m.tipo === "ajuste" && <span className="text-texto-suave"> · {m.detalle}</span>}
+                {m.vence && m.puntos > 0 && <span className="text-[11px] text-texto-tenue"> · vence {fecha(new Date(`${m.vence}T12:00:00`))}</span>}
+                {m.sin_saldo && <span className="text-[11px] text-ojo"> · se canjeó sin saldo</span>}
+              </span>
+              <span className={`f-m shrink-0 ${m.puntos > 0 ? "text-bien" : "text-mal"}`}>{m.puntos > 0 ? "+" : ""}{nf.format(m.puntos)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {puede && (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-borde">
+          <input value={cant} onChange={(e) => setCant(e.target.value.replace(/[^\d-]/g, ""))} placeholder="±puntos"
+            className={`${inputCls} f-m w-24 text-right`} />
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value.slice(0, 120))} placeholder="Por qué se corrige"
+            className={`${inputCls} flex-1 min-w-[12rem]`} />
+          <Boton size="sm" disabled={guardando} onClick={corregir}>Corregir</Boton>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const fecha = (d) => (d ? d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—");
 const fechaHora = (d) => `${fecha(d)} ${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
@@ -349,9 +434,14 @@ export function FichaCliente({ empresaId, clienteId, onVolver, onEditar, permiso
         { k: "pagos", n: "Pagos", badge: ventas.length || null },
         { k: "cc", n: "Cuenta corriente", badge: datos.saldoCC > 0 ? "!" : null },
         { k: "notas", n: "Notas", badge: notas.length || null },
+        /* Solo con los puntos prendidos (0112): sin eso es una pestaña vacía. */
+        ...(reglaDePuntos(ajustes).activo ? [{ k: "puntos", n: "Puntos" }] : []),
       ]} />
 
       <Card className="overflow-hidden">
+        {pestana === "puntos" && (
+          <PuntosDelCliente clienteId={clienteId} regla={reglaDePuntos(ajustes)} puede={!!permisos.ajustarCuentas} toast={toast} />
+        )}
         {/* ---------- Historial ---------- */}
         {pestana === "historial" && (
           turnos.length === 0 ? (

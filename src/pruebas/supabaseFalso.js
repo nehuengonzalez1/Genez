@@ -62,7 +62,17 @@ function consulta(tabla) {
   return p;
 }
 
+/* Las vistas de la base que se arman con otras tablas: acá se arman al
+   leerlas, para que lo que se crea en una pantalla aparezca en la otra. */
+const VISTAS = {
+  clientes_vista: () => (T.clientes || []).map((c) => ({
+    turnos: 0, asistio: 0, ausencias: 0, asistencia: null, gastado: 0, compras: 0, abonos_activos: 0, notas: 0,
+    ultima: null, proxima: null, activo: true, ...c,
+  })),
+};
+
 function ejecutar(q) {
+  if (q.op === "select" && VISTAS[q.tabla]) T[q.tabla] = VISTAS[q.tabla]();
   const filas = T[q.tabla] || (T[q.tabla] = []);
   const cumple = (f) => q.filtros.every((fn) => fn(f));
   registro.push({ tabla: q.tabla, op: q.op });
@@ -123,6 +133,10 @@ const FUNCIONES = {
   /* Cualquier cliente tiene 530 puntos, 30 por vencer: alcanza para ver
      el canje en el cobro. Sumar y restar lo hace la base de verdad. */
   saldo_puntos: () => [{ saldo: 530, por_vencer: 30, proximo_vencimiento: dia(new Date(Date.now() + 20 * 86400000)) }],
+  ajustar_puntos: ({ p_cliente, p_puntos, p_detalle }) => {
+    (T.puntos_movimientos || (T.puntos_movimientos = [])).push({ id: uuid(), cliente_id: p_cliente, puntos: p_puntos, tipo: "ajuste", detalle: p_detalle, vence: null, sin_saldo: false, fecha: new Date().toISOString() });
+    return null;
+  },
 };
 
 function rpc(nombre, params = {}) {
