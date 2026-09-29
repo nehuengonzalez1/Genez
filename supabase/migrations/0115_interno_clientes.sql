@@ -74,7 +74,9 @@ insert into interno_listas (tipo, clave, nombre, orden) values
   ('modulo', 'informes', 'Informes', 13), ('modulo', 'finanzas', 'Finanzas', 14), ('modulo', 'equipo', 'Equipo', 15),
   ('modulo', 'comunicaciones', 'Avisos', 16), ('modulo', 'permisos', 'Permisos', 17), ('modulo', 'ajustes', 'Ajustes', 18),
   ('modulo', 'app_cliente', 'App del cliente', 19), ('modulo', 'arca', 'Factura electrónica (ARCA)', 20),
-  ('modulo', 'mercado_pago', 'Mercado Pago', 21), ('modulo', 'impresion', 'Impresión', 22), ('modulo', 'otro', 'Otro', 99)
+  ('modulo', 'mercado_pago', 'Mercado Pago', 21), ('modulo', 'impresion', 'Impresión', 22),
+  ('modulo', 'reportes', 'Informes del comercio', 23), ('modulo', 'presupuestos', 'Presupuestos', 24),
+  ('modulo', 'crm', 'Seguimiento de clientes', 25), ('modulo', 'asistente', 'Asistente con IA', 26), ('modulo', 'otro', 'Otro', 99)
 on conflict (tipo, clave) do nothing;
 
 
