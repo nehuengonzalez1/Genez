@@ -51,12 +51,32 @@ function founder(usuario) {
     ["Negociación", 80, "abierta"], ["Ganado", 100, "ganada"], ["Perdido", 0, "perdida"], ["Pausado", 0, "pausada"]];
   const LISTAS = [["zona", "Caseros"], ["zona", "San Martín Centro"], ["zona", "Villa Ballester"], ["zona", "Villa Bosch"],
     ["rubro", "Gastronomía"], ["rubro", "Almacén, kiosco o supermercado"], ["fuente", "Visita en persona"], ["fuente", "WhatsApp"],
-    ["motivo_perdida", "Precio"], ["tipo_actividad", "Llamada"], ["tipo_evento", "Demo de Genez"], ["categoria_tarea", "Comercial"]];
+    ["motivo_perdida", "Precio"], ["motivo_perdida", "No le interesa"], ["tipo_actividad", "Llamada"], ["tipo_actividad", "WhatsApp"],
+    ["tipo_actividad", "Visita"], ["tipo_actividad", "Demo"], ["tipo_actividad", "Propuesta"], ["tipo_actividad", "Nota"],
+    ["tipo_evento", "Demo de Genez", "demo"], ["tipo_evento", "Visita comercial", "visita"], ["categoria_tarea", "Comercial"], ["categoria_tarea", "Producto"]];
+  const etapas = ETAPAS.map(([nombre, probabilidad, tipo], i) => ({ id: id(), nombre, orden: i + 1, probabilidad, tipo, activa: true }));
+  /* Tres comercios inventados en etapas distintas, con una tarea de hoy,
+     una vencida y una reunión de hoy: lo justo para que Mi día, el
+     pipeline y la agenda tengan qué mostrar. Los nombres dicen "de prueba". */
+  const ahora = Date.now();
+  const hoyA = (h) => { const d = new Date(); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+  const prospectos = [["Almacén de prueba La Esquina", "Caseros", "almacen_kiosco_o_supermercado", 2, 4],
+    ["Bar de prueba El Farol", "Villa Ballester", "gastronomia", 5, 1], ["Kiosco de prueba 24", "Villa Bosch", "almacen_kiosco_o_supermercado", 7, -2]]
+    .map(([nombre, localidad, rubro, etapa, prox]) => ({ id: id(), nombre, localidad, zona: localidad.toLowerCase().replace(/ /g, "_"), rubro, fuente: "visita_en_persona",
+      telefono: "1100000000", interes: "tibio", creado_en: hace(3), proximo_contacto: new Date(ahora + prox * 86400000).toISOString(), archivado_en: null, _etapa: etapa }));
+  const oportunidades = prospectos.map((p) => ({ id: id(), prospecto_id: p.id, nombre: `Genez para ${p.nombre}`, etapa_id: etapas[p._etapa].id,
+    valor: 34000, probabilidad: etapas[p._etapa].probabilidad, estado: "abierta", archivado_en: null, creado_en: hace(3), actualizado_en: hace(1), modulos: [] }));
+  prospectos.forEach((p) => delete p._etapa);
   return {
     interno_miembros: [{ perfil_id: usuario.id, rol: "fundador", areas: ["*"], activo: true, creado_en: hace(30), perfiles: { nombre: "Persona de prueba", email: usuario.email } }],
-    interno_etapas: ETAPAS.map(([nombre, probabilidad, tipo], i) => ({ id: id(), nombre, orden: i + 1, probabilidad, tipo, activa: true })),
-    interno_listas: LISTAS.map(([tipo, nombre], i) => ({ id: id(), tipo, clave: nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_"), nombre, orden: i, activo: true, datos: {} })),
+    interno_etapas: etapas,
+    interno_listas: LISTAS.map(([tipo, nombre, clave], i) => ({ id: id(), tipo, clave: clave || nombre.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_"), nombre, orden: i, activo: true, datos: {} })),
     interno_historial: [], solicitudes: [],
+    interno_prospectos: prospectos, interno_oportunidades: oportunidades, interno_contactos: [],
+    interno_actividades: [{ id: id(), prospecto_id: prospectos[1].id, tipo: "visita", fecha: hace(1), resultado: "Le interesa, pidió una demo", datos: {} }],
+    interno_tareas: [{ id: id(), titulo: "Llamar al almacén de prueba", prospecto_id: prospectos[0].id, estado: "pendiente", prioridad: "alta", vence: hoyA(18), archivado_en: null, checklist: [] },
+      { id: id(), titulo: "Mandar la propuesta de prueba", prospecto_id: prospectos[2].id, estado: "pendiente", prioridad: "normal", vence: hace(2), archivado_en: null, checklist: [] }],
+    interno_eventos: [{ id: id(), titulo: "Demo en el bar de prueba", tipo: "demo", prospecto_id: prospectos[1].id, inicio: hoyA(16), fin: hoyA(17), estado: "programado", archivado_en: null }],
   };
 }
 
