@@ -62,6 +62,7 @@ node scripts/probar-qr-dinamico.mjs    # api/mp/qr.js contra un Mercado Pago de 
 node scripts/probar-multi-sucursal.mjs  # 0108: lo viejo completado, la sucursal que viaja sola, pasar mercadería, informes por sucursal y quién
 node scripts/probar-conteo.mjs         # 0109: el conteo contra lo que hay ahora, lo que no entra, y sin sesión no se llama
 node scripts/probar-indicadores.mjs    # 0110: comandas y devoluciones en la venta, stock_cargado, la planilla de stock y los indicadores
+node scripts/probar-ordenes-de-compra.mjs  # 0111: la orden pendiente no mueve stock ni costo, se recibe o se cancela
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1265,6 +1266,28 @@ muestra qué cruzó y qué no antes de cargar; un código repetido suma (dos gó
 `ajustar_stock_lote` pasa cada fila por `ajustar_stock` (0109), de a mil por
 transacción: queda igual que un conteo a mano, con quién lo hizo, y sirve también para
 un recuento general. Una fila mala frena su lote entero.
+
+## Las órdenes de compra
+
+Migración 0111, `src/datos/compras.js` y Compras → Órdenes de compra. La orden vivía en
+la memoria del navegador, con la fecha fija del prototipo, y se perdía al refrescar.
+
+**Es una operación de tipo `compra` en estado `pendiente`**, con sus renglones y su
+proveedor, marcada con `campos_extra.orden` para no confundirla con una compra cargada
+directo (que nace confirmada). No mueve stock ni costo: eso lo hace la recepción, que
+registra la compra de siempre (`registrarCompra`, confirmada) y pasa la orden a
+`recibida`, con la compra que la recibió. Una que no va más queda `cancelada`. Lo
+hace la aplicación con las políticas de siempre, que dejan cambiar una operación
+mientras está pendiente; cerrada, ya no se toca. El número sigue al último del
+comercio (OC-0001…).
+
+**El costo de reposición** (0077) tomaba la última compra sin mirar el estado: un
+producto que nunca se había comprado tomaba el costo de una orden que todavía no
+llegó. 0111 lo limita a compras confirmadas. La planilla del contador y los
+indicadores ya miraban solo lo confirmado.
+
+Si la compra se registra pero marcar la orden falla, la mercadería no se pierde: la
+orden sigue pendiente y la pantalla avisa que se refresque antes de recibirla de nuevo.
 
 ## La cuenta corriente
 

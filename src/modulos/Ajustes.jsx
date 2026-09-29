@@ -9,7 +9,7 @@ import {
   Plus, X, Check, Trash2, BellOff, Bell, Volume2, VolumeX, Printer,
   ScanLine, Barcode
 } from "lucide-react";
-import { uid, HOY } from "../datos/generador.js";
+import { uid } from "../datos/generador.js";
 import {
   FISCAL_INICIAL, CONDICIONES, letraComprobante, discriminaIVA,
   condicionNombre, mediosDe, conRecargo, money, nf, nf2, pct, hora,
@@ -635,7 +635,7 @@ export function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaj
     if (!n) return;
     const c = Number(costo) || p.costo;
     setProductos((ps) => ps.map((x) => (x.id === p.id
-      ? { ...x, stock: +(x.stock + n).toFixed(3), costo: c, historial: c !== x.costo ? [...x.historial, { fecha: HOY, costo: c }] : x.historial }
+      ? { ...x, stock: +(x.stock + n).toFixed(3), costo: c, historial: c !== x.costo ? [...x.historial, { fecha: new Date(), costo: c }] : x.historial }
       : x)));
     if (pagar) movCaja({ tipo: "egreso", medio: "efectivo", monto: n * c, detalle: `Entrada de mercadería · ${p.nombre}` });
     toast(`+${n} ${p.unidad} de ${p.nombre}. Stock: ${+(p.stock + n).toFixed(2)}.`);

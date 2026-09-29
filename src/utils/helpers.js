@@ -3,7 +3,7 @@
    ============================================================ */
 
 import { letraDeComprobante, discriminaIva } from "./fiscal.js";
-import { HOY, dayMs, addDays } from "../datos/generador.js";
+import { dayMs } from "../datos/generador.js";
 
 export const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
 export const nf2 = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

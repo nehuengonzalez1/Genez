@@ -110,18 +110,13 @@ velocidad, última venta, vencimiento; ver 0110). Todo pasa por `src/datos/`, qu
 único lugar que habla con Supabase. `diasHasta`/`diasDesde` ya cuentan contra la fecha
 real.
 
-Lo que sigue en memoria y se pierde al refrescar:
+Lo único que sigue en memoria y se pierde al refrescar son **los pedidos de picking**
+(`pedidosCli`): un espacio de trabajo; la venta de cada uno se cobra y se guarda como
+cualquier otra. Las órdenes de compra se guardan desde 0111.
 
-- **Las órdenes de compra** (`pedidos` en `Sistema`, pestaña Compras → Órdenes de
-  compra). La recepción sí registra la compra en la base.
-- **Los pedidos de picking** (`pedidosCli`): un espacio de trabajo; la venta de cada uno
-  se cobra y se guarda como cualquier otra. Ya no arrancan con pedidos inventados.
-
-**`HOY`** (`new Date(2026, 7, 9)`, de `src/datos/generador.js`) todavía aparece en
-Compras (la fecha de una orden de compra nueva, el historial de costo en memoria) y en
-Ajustes (el historial de costo al cargar mercadería). Es un resto: cualquier fecha nueva
-va con la real. Inicio y el Asistente lo importan sin usarlo. El generador sigue dando
-`uid`, `fdate`/`fdatel` y el PRNG del modo demo.
+**`HOY`** (`new Date(2026, 7, 9)`) ya no lo usa nadie fuera de `src/datos/generador.js`:
+toda fecha nueva va con la real. El generador sigue dando `uid`, `fdate`/`fdatel` y el
+PRNG del modo demo.
 
 Stock: el conteo, "No reponer" y "Poner 30% menos" se guardan desde 0109; el stock que
 nunca se cargó (`stock_cargado`, 0110) no entra en "Para reponer" ni en el valor del
