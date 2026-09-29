@@ -121,6 +121,10 @@ function armarFilas() {
       ean, nombre, marca: marca ? titulo(marca) : null,
       presentacion: presentacion(mejor.cantidad, mejor.unidad) || null,
       rubro: rubroDe(nombre), cadenas: todas.size,
+      /* El texto tal cual lo publicó la cadena elegida: con esto se
+         rehacen el nombre y el rubro (con otras reglas o con el modelo)
+         sin volver a bajar los 2 GB. */
+      original: { descripcion: mejor.descripcion, marca, cantidad: mejor.cantidad, unidad: mejor.unidad },
     });
   }
   return filas;
