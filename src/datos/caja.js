@@ -34,25 +34,84 @@ function aMovimiento(f) {
   };
 }
 
-/* La sesión abierta, si hay. Solo puede haber una por comercio: si
-   quedaran dos, los movimientos de una venta no sabrían a cuál pertenecen. */
-export async function sesionAbierta(empresaId) {
-  const { data, error } = await supabase
+/* ------------------------------------------------------------
+   Las cajas (0101)
+   ------------------------------------------------------------
+   Un comercio puede tener varias cajas abiertas a la vez, una por
+   mostrador. Cada computadora dice una vez cuál es, y queda en su
+   navegador: la caja es del mostrador, no de quien entró. Con una sola
+   caja no se pregunta nada. */
+
+export async function cargarCajas(empresaId) {
+  if (!empresaId) throw new Error("cargarCajas necesita la empresa.");
+  const { data, error } = await supabase.from("cajas").select("id, nombre, orden, activa, sucursal_id")
+    .eq("empresa_id", empresaId).order("orden").order("creada_en");
+  if (error) throw error;
+  return (data || []).map((c) => ({ id: c.id, nombre: c.nombre, activa: c.activa !== false, sucursalId: c.sucursal_id }));
+}
+
+export async function crearCaja(empresaId, nombre) {
+  const { data, error } = await supabase.from("cajas").insert({ empresa_id: empresaId, nombre: nombre.trim() }).select("id").single();
+  if (error) {
+    if (error.code === "23505") throw new Error(`Ya hay una caja que se llama "${nombre.trim()}".`);
+    throw error;
+  }
+  return data.id;
+}
+
+export async function editarCaja(cajaId, cambios) {
+  const fila = {};
+  if (cambios.nombre !== undefined) fila.nombre = cambios.nombre.trim();
+  if (cambios.activa !== undefined) fila.activa = !!cambios.activa;
+  const { error } = await supabase.from("cajas").update(fila).eq("id", cajaId);
+  if (error) {
+    if (error.code === "23505") throw new Error(`Ya hay una caja que se llama "${fila.nombre}".`);
+    throw error;
+  }
+}
+
+const claveEquipo = (empresaId) => `genez.caja.${empresaId}`;
+
+/* Qué caja es esta computadora. Si la guardada ya no existe o se
+   desactivó, se olvida. Con una sola caja activa, es esa. Con varias y
+   ninguna elegida, null: la pantalla pregunta. */
+export function cajaDeEsteEquipo(empresaId, cajas) {
+  const activas = cajas.filter((c) => c.activa);
+  let guardada = null;
+  try { guardada = localStorage.getItem(claveEquipo(empresaId)); } catch { /* sin almacenamiento, se pregunta */ }
+  const esa = activas.find((c) => c.id === guardada);
+  if (esa) return esa.id;
+  return activas.length === 1 ? activas[0].id : null;
+}
+
+/* null olvida la elección: se vuelve a preguntar. */
+export function elegirCajaDeEsteEquipo(empresaId, cajaId) {
+  try {
+    if (cajaId) localStorage.setItem(claveEquipo(empresaId), cajaId);
+    else localStorage.removeItem(claveEquipo(empresaId));
+  } catch { /* se vuelve a preguntar */ }
+}
+
+/* La sesión abierta de una caja, si hay. Una por caja (0101): si
+   quedaran dos, los movimientos de una venta no sabrían a cuál van. */
+export async function sesionAbierta(empresaId, cajaId) {
+  let q = supabase
     .from("sesiones_caja")
-    .select("id, abierta_en, monto_inicial, sucursal_id")
+    .select("id, abierta_en, monto_inicial, sucursal_id, caja_id")
     .eq("empresa_id", empresaId)
-    .is("cerrada_en", null)
-    .order("abierta_en", { ascending: false })
-    .limit(1);
+    .is("cerrada_en", null);
+  if (cajaId) q = q.eq("caja_id", cajaId);
+  const { data, error } = await q.order("abierta_en", { ascending: false }).limit(1);
 
   if (error) throw error;
   return data && data.length ? data[0] : null;
 }
 
-export async function abrirCaja({ empresaId, sucursalId = null, montoInicial = 0 }) {
-  /* Abrir dos veces dejaría movimientos repartidos entre dos sesiones y
-     ningún arqueo cerraría. Si ya hay una abierta, se sigue usando esa. */
-  const abierta = await sesionAbierta(empresaId);
+export async function abrirCaja({ empresaId, cajaId, sucursalId = null, montoInicial = 0 }) {
+  /* Abrir dos veces la misma caja dejaría movimientos repartidos entre
+     dos sesiones y ningún arqueo cerraría. Si ya está abierta (la abrió
+     otra computadora que dice ser la misma caja), se sigue con esa. */
+  const abierta = await sesionAbierta(empresaId, cajaId);
   if (abierta) return abierta;
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -60,13 +119,20 @@ export async function abrirCaja({ empresaId, sucursalId = null, montoInicial = 0
     .from("sesiones_caja")
     .insert({
       empresa_id: empresaId,
+      caja_id: cajaId || null,
       sucursal_id: sucursalId,
       monto_inicial: Math.round(montoInicial),
       abierta_por: user ? user.id : null,
     })
-    .select("id, abierta_en, monto_inicial, sucursal_id")
+    .select("id, abierta_en, monto_inicial, sucursal_id, caja_id")
     .single();
 
+  /* Dos computadoras abriendo la misma caja en el mismo segundo: el
+     índice deja pasar a una (0101). La otra usa esa. */
+  if (error && error.code === "23505") {
+    const ya = await sesionAbierta(empresaId, cajaId);
+    if (ya) return ya;
+  }
   if (error) throw error;
   return data;
 }
@@ -132,13 +198,17 @@ export async function registrarMovimiento({ empresaId, sucursalId = null, sesion
   return aMovimiento(data);
 }
 
-/* Los cierres anteriores, para el historial de arqueos. */
-export async function cargarCierres(empresaId, cuantos = 30) {
-  const { data, error } = await supabase
+/* Los cierres anteriores de una caja, para el historial de arqueos. De
+   la caja y no del comercio: el fondo que se sugiere al abrir es el que
+   quedó en ESTE cajón, no en el del otro mostrador. */
+export async function cargarCierres(empresaId, cuantos = 30, cajaId = null) {
+  let q = supabase
     .from("sesiones_caja")
     .select("id, abierta_en, cerrada_en, monto_inicial, monto_declarado, declarado, fondo_siguiente, notas")
     .eq("empresa_id", empresaId)
-    .not("cerrada_en", "is", null)
+    .not("cerrada_en", "is", null);
+  if (cajaId) q = q.eq("caja_id", cajaId);
+  const { data, error } = await q
     .order("cerrada_en", { ascending: false })
     .limit(cuantos);
 
@@ -148,8 +218,8 @@ export async function cargarCierres(empresaId, cuantos = 30) {
 
 /* Arma el objeto `caja` con la forma que ya usa la aplicación, para que
    la pantalla de arqueo no tenga que aprender el esquema nuevo. */
-export async function cargarCaja(empresaId) {
-  const sesion = await sesionAbierta(empresaId);
+export async function cargarCaja(empresaId, cajaId) {
+  const sesion = await sesionAbierta(empresaId, cajaId);
   if (!sesion) {
     return { abierta: false, sesionId: null, saldoInicial: 0, hora: null, movimientos: [], cierres: [] };
   }
