@@ -8,9 +8,10 @@ import { uid, fdatel } from "../datos/generador.js";
 import { diasDesde, money, moneyk, nf } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Kpi, Tabs, Vacio, Boton, TablaSimple } from "../ui/Base.jsx";
 import { inputCls } from "../ui/Campos.jsx";
-import { cargarStockPorSucursal, transferirStock } from "../datos/sucursales.js";
+import { cargarStockPorSucursal, transferirStock, guardarConteo } from "../datos/sucursales.js";
 
-export function Stock({ productos, setProductos, k, toast, empresaId = null, lugar = { sucursales: [], varias: false } }) {
+export function Stock({ productos, setProductos, k, toast, empresaId = null, lugar = { sucursales: [], varias: false }, actualizarProducto = null, crearPromo = null }) {
+  const [guardando, setGuardando] = useState(null);
   const [tab, setTab] = useState("alertas");
   const [q, setQ] = useState("");
   const [conteo, setConteo] = useState({});
@@ -27,14 +28,26 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
   const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const buscar = q.trim().length >= 2 ? productos.filter((p) => norm(p.nombre).includes(norm(q.trim())) || p.barcode.includes(q.trim())).slice(0, 25) : [];
 
-  const aplicar = (p) => {
+  /* El ajuste se guarda en la base (0109): un movimiento por la
+     diferencia contra lo que hay en esta sucursal en ese momento, que
+     calcula la base. Antes cambiaba solo la memoria y se perdía al
+     refrescar. */
+  const aplicar = async (p) => {
     const real = Number(conteo[p.id]);
-    if (isNaN(real)) return;
-    const dif = +(real - p.stock).toFixed(2);
-    setProductos((ps) => ps.map((x) => (x.id === p.id ? { ...x, stock: real } : x)));
-    setAjustados((a) => [{ id: uid(), nombre: p.nombre, antes: p.stock, real, dif, valor: dif * p.costo }, ...a]);
-    setConteo((c) => ({ ...c, [p.id]: "" }));
-    toast(`${p.nombre}: stock ajustado a ${real}.`);
+    if (conteo[p.id] === "" || isNaN(real)) return;
+    setGuardando(p.id);
+    try {
+      const { antes, diferencia } = await guardarConteo({ itemId: p.id, real, sucursalId: lugar.actual || null });
+      const dif = +diferencia.toFixed(3);
+      setProductos((ps) => ps.map((x) => (x.id === p.id ? { ...x, stock: +(x.stock + dif).toFixed(3) } : x)));
+      setAjustados((a) => [{ id: uid(), nombre: p.nombre, antes: +antes.toFixed(3), real, dif, valor: dif * p.costo }, ...a]);
+      setConteo((c) => ({ ...c, [p.id]: "" }));
+      toast(dif ? `${p.nombre}: quedó en ${real} (${dif > 0 ? "+" : ""}${dif}).` : `${p.nombre}: ya estaba en ${real}, no hubo que ajustar.`);
+    } catch (e) {
+      toast(e.message, "mal");
+    } finally {
+      setGuardando(null);
+    }
   };
 
   const items = [
@@ -80,10 +93,23 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
               <span className={`f-m ${dias <= 0 ? "text-mal font-semibold" : dias <= 7 ? "text-ojo" : ""}`}>{dias <= 0 ? "Vencido" : `en ${dias} días`} · {fdatel(p.vence)}</span>,
               <span className="f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span>,
               <span className="f-m">{money(valor)}</span>,
-              <Boton key="b" size="sm" variant="ghost" onClick={() => {
-                setProductos((ps) => ps.map((x) => (x.id === p.id ? { ...x, precio: Math.round(x.precio * 0.7 / 10) * 10 } : x)));
-                toast(`${p.nombre} pasó a promo con 30% off.`);
-              }}>Poner en promo</Boton>,
+              /* Una promoción de verdad (0102), hasta que vence, y no el
+                 precio pisado en la memoria: antes el mostrador cobraba el
+                 30% menos en esta computadora y la base seguía con el
+                 precio de antes. Vencido, no se ofrece: no se vende. */
+              dias > 0 && p.vence && new Date(p.vence) > new Date() && crearPromo ? (
+                <Boton key="b" size="sm" variant="ghost" disabled={guardando === p.id} onClick={async () => {
+                  setGuardando(p.id);
+                  try {
+                    await crearPromo({ producto: p, pct: 30, hasta: p.vence });
+                    toast(`${p.nombre}: 30% menos hasta que vence. Está en Productos → Promociones.`);
+                  } catch (e) {
+                    toast(e.message, "mal");
+                  } finally {
+                    setGuardando(null);
+                  }
+                }}>Poner 30% menos</Boton>
+              ) : <span key="b" />,
             ])}
             vacio="Ningún producto vence en los próximos 15 días."
           />
@@ -97,10 +123,17 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
               <span className="f-m text-texto-suave">hace {diasDesde(p.ultimaVenta)} días</span>,
               <span className="f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span>,
               <span className="f-m font-semibold">{money(valor)}</span>,
-              <Boton key="b" size="sm" variant="ghost" onClick={() => {
-                setProductos((ps) => ps.map((x) => (x.id === p.id ? { ...x, activo: false } : x)));
-                toast(`${p.nombre} marcado para no reponer.`);
-              }}>No reponer</Boton>,
+              /* Guardado en el producto (campos_extra.noReponer): sale del
+                 pedido sugerido y de "para reponer", pero se sigue vendiendo
+                 lo que queda. Antes lo desactivaba en la memoria: dejaba de
+                 aparecer en el mostrador hasta refrescar. */
+              actualizarProducto ? (
+                <Boton key="b" size="sm" variant="ghost" onClick={() => {
+                  const no = !(p.camposExtra && p.camposExtra.noReponer);
+                  actualizarProducto(p.id, { camposExtra: { ...(p.camposExtra || {}), noReponer: no } },
+                    no ? `${p.nombre}: no se repone. Se sigue vendiendo lo que queda.` : `${p.nombre}: vuelve a reponerse.`);
+                }}>{p.camposExtra && p.camposExtra.noReponer ? "Volver a reponer" : "No reponer"}</Boton>
+              ) : <span key="b" />,
             ])}
             vacio="Todo tu inventario rotó en los últimos 30 días."
           />
@@ -130,7 +163,7 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
                     </div>
                     <input value={conteo[p.id] || ""} onChange={(e) => setConteo((c) => ({ ...c, [p.id]: e.target.value.replace(/[^\d.]/g, "") }))}
                       placeholder="Contado" className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
-                    <Boton size="sm" onClick={() => aplicar(p)} disabled={!conteo[p.id]}>Ajustar</Boton>
+                    <Boton size="sm" onClick={() => aplicar(p)} disabled={!conteo[p.id] || guardando === p.id}>{guardando === p.id ? "Guardando…" : "Ajustar"}</Boton>
                   </div>
                 ))}
               </div>
