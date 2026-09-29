@@ -57,6 +57,7 @@ node scripts/probar-promociones-base.mjs # la tabla de promos: lo que acepta, lo
 node scripts/probar-carta-qr.mjs   # la carta QR como la página pública: leer, pedir, y todo lo que no se tiene que poder
 node scripts/probar-happy-hour.mjs # el horario de las promos, la hora de cada renglón y la cuenta de la mesa con la promo
 node scripts/probar-promos-comanda.mjs  # qué renglones de una mesa recalcula la promo y cuáles no toca (sin base)
+node scripts/probar-catalogo-base.mjs   # las reglas del nombre y el rubro, la consulta que no traba el alta y los permisos de la tabla
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1064,6 +1065,60 @@ uno nuevo la recibe al crearse. Una sesión que llega sin caja va a la
 primera del comercio: así 0101 se pudo aplicar antes que la aplicación
 nueva. No se borran cajas: se desactivan. Sin límite por ahora: se
 decide con los precios.
+
+## El catálogo base
+
+Migración 0106, `src/utils/catalogo.js` (las reglas), `src/datos/catalogo.js`
+(la consulta) y `scripts/cargar-catalogo-base.mjs` (la carga). Cuando se
+escanea un código que el comercio no tiene, el alta aparece con el nombre,
+la marca y el rubro puestos, y solo falta el precio.
+
+**Sale de SEPA** (Precios Claros, Res. 678/2020), lo que las cadenas
+grandes publican por obligación, con licencia CC-BY 4.0: hay que citar la
+fuente, y por eso el alta dice de dónde salió lo sugerido. Medido el 29/09,
+un solo día de SEPA tenía el 79% de los códigos de Super 25.
+
+**No guarda precios ni costos, ni nada de ningún comercio.** El precio de
+una cadena grande no le sirve a un almacén de barrio. Y que el catálogo
+creciera con las altas de los comercios sería pasarle datos de uno a otro:
+se decidió dejarlo para después.
+
+**Es dato de plataforma**, como `roles_base`: lo lee quien tiene sesión, no
+lo lee anon y no lo escribe nadie desde el navegador. Los grants están
+revocados además de no haber políticas, para que escribir dé "permiso
+denegado" y no cero filas en silencio.
+
+**Sugiere, nunca pisa.** El alta se abre vacía como siempre y la sugerencia
+se completa encima, solo en los campos que nadie tocó. Si el cajero ya
+empezó a escribir el nombre, no se le cambia ni se le mueve el cursor. Al
+editar un producto no se consulta: lo cargado es del comercio. La consulta
+se rinde al segundo y medio y un fallo no se recuerda, así que un mostrador
+sin internet no se traba.
+
+**El rubro solo se pone si el comercio ya usa ese nombre** (o si todavía no
+tiene ninguno). A un comercio con sus propios rubros no le sirve que
+aparezca uno más escrito parecido.
+
+**Por ahora se carga sin rubro.** SEPA no lo trae. Las palabras clave
+de `rubroDe()` acertaban el 56% contra los rubros de Super 25 y dejaban
+sin rubro dos de cada tres productos, y un rubro equivocado sugerido es
+peor que el campo vacío. `scripts/clasificar-catalogo.mjs` lo hace con
+Haiku (nombre y rubro, de a cien) y mide contra Super 25; la carga usa
+lo del modelo solo con `--modelo`. Está escrito y sin correr: la cuenta
+de la API no tenía crédito.
+
+**El código se guarda sin ceros adelante.** La pistola lee un UPC de doce
+dígitos como trece con un cero, y SEPA publica de las dos formas. La tabla
+lo exige con un check.
+
+**La carga es a mano.** Cada archivo diario de SEPA pesa unos 320 MB y trae
+distintas cadenas; el script baja los siete días de a uno, los borra
+después de leerlos, elige la descripción que usan más cadenas (a igualdad,
+la que trae marca y está escrita con la norma) y la pasa a como la escribe
+un comercio: "FIDEOS TIRABUZÓN MATARAZZO PAQ 400 GRM" queda "Fideos
+tirabuzón Matarazzo 400 g". Sin `--escribir` solo mide contra Super 25
+(cobertura y acierto del rubro), leyendo en solo lectura. Con `--escribir`
+carga en una transacción.
 
 ## La cuenta corriente
 
