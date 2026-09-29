@@ -17,6 +17,7 @@
    ============================================================ */
 
 import { armarDatos, USUARIO } from "./datos.js";
+import { normTel } from "../utils/importarProspectos.js";
 
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 const datos = armarDatos(params.get("rubro") || "minimercado", params.get("sesion") || "comercio");
@@ -34,9 +35,13 @@ const valor = (fila, col) => {
 };
 
 function consulta(tabla) {
-  const q = { tabla, filtros: [], orden: [], desde: 0, hasta: null, uno: null, op: "select", datos: null, cuenta: false, soloCabeza: false };
+  const q = { tabla, filtros: [], orden: [], desde: 0, hasta: null, uno: null, op: "select", datos: null, cuenta: false, soloCabeza: false, embebidos: [] };
   const b = {
-    select(_cols, opciones) { if (opciones && opciones.count) { q.cuenta = true; q.soloCabeza = !!opciones.head; } return p; },
+    select(cols, opciones) {
+      if (opciones && opciones.count) { q.cuenta = true; q.soloCabeza = !!opciones.head; }
+      q.embebidos = [...String(cols || "").matchAll(/(\w+)\(/g)].map((m) => m[1]);
+      return p;
+    },
     eq(c, v) { if (!c.includes(".")) q.filtros.push((f) => String(valor(f, c)) === String(v)); return p; },
     neq(c, v) { if (!c.includes(".")) q.filtros.push((f) => String(valor(f, c)) !== String(v)); return p; },
     in(c, vs) { if (!c.includes(".")) q.filtros.push((f) => vs.map(String).includes(String(valor(f, c)))); return p; },
@@ -65,11 +70,85 @@ function consulta(tabla) {
 /* Las vistas de la base que se arman con otras tablas: acá se arman al
    leerlas, para que lo que se crea en una pantalla aparezca en la otra. */
 const VISTAS = {
+  /* La del CRM (0114): el prospecto con su oportunidad abierta. */
+  interno_prospectos_vista: () => (T.interno_prospectos || []).map((p) => {
+    const o = (T.interno_oportunidades || []).filter((x) => x.prospecto_id === p.id && !x.archivado_en)
+      .sort((a, z) => (a.estado === "abierta" ? -1 : 1) - (z.estado === "abierta" ? -1 : 1))[0];
+    const e = o && (T.interno_etapas || []).find((x) => x.id === o.etapa_id);
+    return { ...p, oportunidad_id: o ? o.id : null, etapa_id: o ? o.etapa_id : null, etapa_nombre: e ? e.nombre : null, etapa_orden: e ? e.orden : null,
+      valor: o ? o.valor : null, probabilidad: o ? o.probabilidad : null, oportunidad_estado: o ? o.estado : null };
+  }),
   clientes_vista: () => (T.clientes || []).map((c) => ({
     turnos: 0, asistio: 0, ausencias: 0, asistencia: null, gastado: 0, compras: 0, abonos_activos: 0, notas: 0,
     ultima: null, proxima: null, activo: true, ...c,
   })),
 };
+
+/* Los valores por defecto de las columnas (0114): sin ellos, una tarea
+   creada sin estado no aparece entre las pendientes. */
+const DEFECTOS = {
+  interno_prospectos: { modulos: [], etiquetas: [], campos_extra: {}, archivado_en: null },
+  interno_oportunidades: { modulos: [], estado: "abierta", valor: 0, archivado_en: null },
+  interno_actividades: { datos: {} },
+  interno_tareas: { estado: "pendiente", prioridad: "normal", etiquetas: [], checklist: [], archivado_en: null },
+  interno_eventos: { tipo: "reunion", estado: "programado", archivado_en: null },
+  interno_contactos: { principal: false, archivado_en: null },
+};
+
+/* Lo que en la base hacen los disparadores de 0114, en chico: la primera
+   oportunidad de un prospecto, y qué cambia al mover una de etapa. */
+const DISPARADORES = {
+  interno_prospectos: (op, filas) => {
+    if (op !== "insert") return;
+    const primera = (T.interno_etapas || []).filter((e) => e.tipo === "abierta" && e.activa).sort((a, z) => a.orden - z.orden)[0];
+    for (const p of filas) {
+      if (!primera) break;
+      (T.interno_oportunidades || (T.interno_oportunidades = [])).push({ id: uuid(), prospecto_id: p.id, nombre: `Genez para ${p.nombre}`, etapa_id: primera.id,
+        valor: 0, probabilidad: primera.probabilidad, estado: "abierta", modulos: [], archivado_en: null, creado_en: new Date().toISOString(), actualizado_en: new Date().toISOString() });
+    }
+  },
+  interno_oportunidades: (op, filas, datos) => {
+    if (op !== "update" || !datos || !datos.etapa_id) return;
+    const e = (T.interno_etapas || []).find((x) => x.id === datos.etapa_id);
+    for (const o of filas) {
+      if (!e) continue;
+      Object.assign(o, { estado: e.tipo, probabilidad: e.probabilidad, actualizado_en: new Date().toISOString(),
+        ganada_en: e.tipo === "ganada" ? new Date().toISOString() : o.ganada_en || null });
+      (T.interno_actividades || (T.interno_actividades = [])).push({ id: uuid(), prospecto_id: o.prospecto_id, oportunidad_id: o.id, tipo: "cambio_etapa",
+        fecha: new Date().toISOString(), resultado: `→ ${e.nombre}`, datos: { a: e.id, a_nombre: e.nombre } });
+    }
+  },
+  interno_actividades: (op, filas) => {
+    if (op !== "insert") return;
+    for (const a of filas) {
+      if (a.tipo === "cambio_etapa" || a.tipo === "nota") continue;
+      const p = (T.interno_prospectos || []).find((x) => x.id === a.prospecto_id);
+      if (!p) continue;
+      if (!p.ultimo_contacto || a.fecha > p.ultimo_contacto) p.ultimo_contacto = a.fecha;
+      if (a.proxima_fecha) p.proximo_contacto = a.proxima_fecha;
+      if (a.proxima_fecha || a.proxima_accion) p.proxima_accion = a.proxima_accion || null;
+      const o = a.oportunidad_id && (T.interno_oportunidades || []).find((x) => x.id === a.oportunidad_id);
+      if (o && (a.proxima_fecha || a.proxima_accion)) Object.assign(o, { proxima_accion: a.proxima_accion || null, fecha_seguimiento: a.proxima_fecha || null });
+    }
+  },
+  interno_tareas: (op, filas, datos) => {
+    if (op === "update" && datos && datos.estado === "completada") filas.forEach((t) => { t.completada_en = new Date().toISOString(); });
+  },
+};
+
+/* Lo embebido (select("*, interno_prospectos(nombre)")): se pega la fila
+   relacionada por su clave, prospecto_id para interno_prospectos. */
+function embeber(filas, embebidos) {
+  for (const tabla of embebidos) {
+    const clave = tabla.replace(/^interno_/, "").replace(/s$/, "") + "_id";
+    for (const f of filas) {
+      if (f[tabla] !== undefined || !(clave in f)) continue;
+      const r = (T[tabla] || []).find((x) => x.id === f[clave]);
+      f[tabla] = r ? structuredClone(r) : null;
+    }
+  }
+  return filas;
+}
 
 function ejecutar(q) {
   if (q.op === "select" && VISTAS[q.tabla]) T[q.tabla] = VISTAS[q.tabla]();
@@ -78,15 +157,17 @@ function ejecutar(q) {
   registro.push({ tabla: q.tabla, op: q.op });
   let res;
   if (q.op === "insert" || q.op === "upsert") {
-    const nuevas = (Array.isArray(q.datos) ? q.datos : [q.datos]).map((d) => ({ id: uuid(), creado_en: new Date().toISOString(), fecha: new Date().toISOString(), ...d }));
+    const nuevas = (Array.isArray(q.datos) ? q.datos : [q.datos]).map((d) => ({ id: uuid(), creado_en: new Date().toISOString(), fecha: new Date().toISOString(), ...(DEFECTOS[q.tabla] || {}), ...d }));
     for (const n of nuevas) {
       const i = q.op === "upsert" ? filas.findIndex((f) => f.id === n.id) : -1;
       if (i >= 0) filas[i] = { ...filas[i], ...n }; else filas.push(n);
     }
     res = nuevas;
+    if (DISPARADORES[q.tabla]) DISPARADORES[q.tabla](q.op, filas.filter((f) => nuevas.some((n) => n.id === f.id)), q.datos);
   } else if (q.op === "update") {
     res = filas.filter(cumple);
     res.forEach((f) => Object.assign(f, q.datos));
+    if (DISPARADORES[q.tabla]) DISPARADORES[q.tabla](q.op, res, q.datos);
   } else if (q.op === "delete") {
     res = filas.filter(cumple);
     T[q.tabla] = filas.filter((f) => !cumple(f));
@@ -99,7 +180,7 @@ function ejecutar(q) {
   /* Copias, como las devuelve Supabase: si no, la pantalla tendría en
      memoria las mismas filas que la base de mentira, y un cambio a una
      se vería en la otra sin pasar por ninguna consulta. */
-  res = res.map((f) => structuredClone(f));
+  res = embeber(res.map((f) => structuredClone(f)), q.embebidos);
   const total = res.length;
   if (q.hasta != null) res = res.slice(q.desde, q.hasta + 1);
   if (q.uno) {
@@ -123,6 +204,12 @@ function serie(desde, hasta) {
 let numero = 0;
 const FUNCIONES = {
   permiso: () => true,
+  interno_posibles_duplicados: ({ p_nombre, p_telefono, p_excluir }) => {
+    const n = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+    const tel = normTel;
+    return (T.interno_prospectos || []).filter((p) => p.id !== p_excluir && ((p_nombre && n(p.nombre) === n(p_nombre)) || (p_telefono && tel(p_telefono).length >= 8 && tel(p.telefono) === tel(p_telefono))))
+      .map((p) => ({ id: p.id, nombre: p.nombre, localidad: p.localidad, telefono: p.telefono, email: p.email, motivo: n(p.nombre) === n(p_nombre) ? "nombre y localidad" : "teléfono", archivado: !!p.archivado_en }));
+  },
   ventas_diarias: ({ p_dias = 90 }) => serie(new Date(Date.now() - (p_dias - 1) * 86400000), new Date()),
   ventas_diarias_rango: ({ p_desde, p_hasta }) => serie(new Date(`${p_desde}T12:00:00`), new Date(`${p_hasta}T12:00:00`)),
   ventas_por_item: () => [], ventas_por_item_rango: () => [],
@@ -209,7 +296,11 @@ if (typeof window !== "undefined") {
       b.click();
       await pausa(espera);
       const e = window.__genezErrores.slice(e0), a = window.__genezAvisos.slice(a0);
-      pestañas.push(e.length || a.length ? { n, errores: e, avisos: a } : `${n} ok`);
+      /* Una sección que no monta nada no tira error: pasó con Founder,
+         cuando el menú tenía la entrada y el marco no la dibujaba. */
+      const main = document.querySelector("main");
+      const vacia = main && main.innerText.trim().length < 10;
+      pestañas.push(e.length || a.length || vacia ? { n, errores: e, avisos: a, ...(vacia ? { vacia: true } : {}) } : `${n} ok`);
     }
     return { arranque, pestañas };
   };

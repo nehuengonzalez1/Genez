@@ -65,6 +65,8 @@ node scripts/probar-indicadores.mjs    # 0110: comandas y devoluciones en la ven
 node scripts/probar-ordenes-de-compra.mjs  # 0111: la orden pendiente no mueve stock ni costo, se recibe o se cancela
 node scripts/probar-puntos.mjs          # 0112: sumar, canjear, vencer por lotes, devolver (por registrar_devolucion) y las cuentas del mostrador
 node scripts/probar-founder-seguridad.mjs  # 0113+: la frontera de Founder con seis perfiles, en todas las tablas interno_*
+node scripts/probar-founder-crm.mjs      # 0114: la oportunidad que nace sola, etapas, seguimiento, series de tareas, teléfonos y duplicados, áreas
+node scripts/probar-importar-prospectos.mjs  # sin base: columnas, filas con error o aviso, repetidos en la planilla y ya cargados
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1387,6 +1389,46 @@ redefine el acento a #F4510B solo adentro; el resto del sistema sigue con el suy
 El menú muestra solo lo que funciona: cada fase suma sus secciones.
 
 La pantalla de pruebas lo muestra con `?sesion=plataforma`.
+
+### El CRM y la agenda (0114)
+
+`src/datos/internoCrm.js`, las secciones Inicio, Prospectos (con su ficha), Pipeline,
+Tareas y Agenda, y `scripts/probar-founder-crm.mjs`. Prospectos, contactos,
+oportunidades, la línea de tiempo (`interno_actividades`), tareas y eventos, cada uno con
+su área (`crm`, `tareas`, `agenda`): un miembro sin `tareas` ve el CRM sin las tareas, y
+el Inicio se arma igual con lo que tenga.
+
+**Lo automático lo hace la base, una sola vez.** Un prospecto nace con su oportunidad en
+la primera etapa abierta. Mover una oportunidad de etapa toma la probabilidad de la
+etapa, la cierra si es ganada o perdida (perdida exige motivo, y la pantalla lo pide
+antes de mover) y anota el cambio en la línea de tiempo. Un contacto registrado (no una
+nota interna) actualiza el último contacto y el próximo paso del prospecto y de la
+oportunidad. Completar una tarea que se repite crea la siguiente, con un índice único
+por serie y vencimiento: tildarla dos veces no duplica. Nada de eso se repite en la
+pantalla; si se repitiera, el día que alguien cargue por la API faltaría.
+
+**Los duplicados, antes de crear.** `interno_posibles_duplicados` compara teléfono,
+mail y nombre + localidad normalizados. El teléfono se lleva al número nacional de
+diez (`interno_norm_tel`): "011 15-4444-5555" y "+54 9 11 4444-5555" son el mismo
+celular, y quedarse con los últimos diez dígitos no alcanzaba porque el 15 corre el
+número. `utils/importarProspectos.js` tiene la misma función en JavaScript; si se
+cambia una, se cambia la otra.
+
+**La importación es de revisar y confirmar**, como todo lo que viene de afuera: se
+adivina qué columna es cada campo, se corrige a mano, y la vista previa marca fila por
+fila lo que falta, lo que ya estaba (aunque esté archivado) y lo que se repite en la
+misma planilla. Solo frena la falta de nombre; un rubro que no está en las listas o un
+mail mal escrito quedan vacíos con un aviso, no se inventan. Se inserta de a cien.
+
+**Los números del Inicio salen de los registros.** Contactos, demos y propuestas son
+actividades del período; las ventas y el recurrente, oportunidades ganadas en el
+período; el embudo, la foto de hoy. El ponderado del pipeline se presenta como
+estimación, no como plata. La meta contra el resultado llega con Objetivos (fase 4):
+no hay una meta inventada.
+
+**Las fechas son de Buenos Aires.** Los horarios se guardan `timestamptz` y los
+formularios leen y escriben con `-03:00` (`founder/util.js`): "hoy", "vencido" y la
+grilla de la agenda se calculan con el día argentino, no con el del navegador.
 
 ## La cuenta corriente
 

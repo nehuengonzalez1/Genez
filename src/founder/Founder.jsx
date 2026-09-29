@@ -16,22 +16,42 @@
    secciones; no hay entradas vacías "próximamente".
    ============================================================ */
 
-import React, { useState } from "react";
-import { Home, Settings, ArrowLeftRight, LogOut } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Home, Users, Columns3, ListChecks, CalendarDays, Settings, ArrowLeftRight, LogOut } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { puedeArea } from "../datos/interno.js";
 import { InicioFounder } from "./Inicio.jsx";
 import { ConfiguracionFounder } from "./Configuracion.jsx";
+import { Prospectos } from "./Prospectos.jsx";
+import { Ficha } from "./Ficha.jsx";
+import { Pipeline } from "./Pipeline.jsx";
+import { Tareas } from "./Tareas.jsx";
+import { Agenda } from "./Agenda.jsx";
 
 const SECCIONES = [
   { k: "inicio", n: "Inicio", i: Home, area: null },
+  { k: "prospectos", n: "Prospectos", i: Users, area: "crm" },
+  { k: "pipeline", n: "Pipeline", i: Columns3, area: "crm" },
+  { k: "tareas", n: "Tareas", i: ListChecks, area: "tareas" },
+  { k: "agenda", n: "Agenda", i: CalendarDays, area: "agenda" },
   { k: "config", n: "Configuración", i: Settings, area: "config" },
 ];
 
 export default function Founder({ sesion, onComercios, onSalir }) {
   const interno = sesion.interno;
   const visibles = SECCIONES.filter((s) => !s.area || puedeArea(interno, s.area));
-  const [seccion, setSeccion] = useState("inicio");
+  const [seccion, setSeccionCruda] = useState("inicio");
+  /* La ficha de un prospecto se abre encima de cualquier sección y
+     "volver" lleva a donde estaba. "nuevo" es una acción rápida del
+     inicio: abre la sección con el alta ya abierta, una sola vez. */
+  const [ficha, setFicha] = useState(null);
+  const [nuevo, setNuevo] = useState(null);
+  const setSeccion = (k) => { setFicha(null); setNuevo(null); setSeccionCruda(k); };
+  const abrir = (id) => { if (id) setFicha(id); };
+  const crear = (que) => {
+    const destino = { prospecto: "prospectos", tarea: "tareas", evento: "agenda" }[que];
+    setFicha(null); setSeccionCruda(destino); setNuevo(que);
+  };
   const [avisos, setAvisos] = useState([]);
   const toast = (texto, tono = "bien") => {
     const id = Math.random().toString(36).slice(2);
@@ -39,6 +59,12 @@ export default function Founder({ sesion, onComercios, onSalir }) {
     setTimeout(() => setAvisos((a) => a.filter((x) => x.id !== id)), 3200);
   };
   const actual = visibles.find((s) => s.k === seccion) || visibles[0];
+  /* En el teléfono el menú es una fila que se desliza: la sección actual
+     tiene que quedar a la vista, también cuando se llega desde un atajo. */
+  useEffect(() => {
+    const b = document.querySelector(".founder nav [data-activa]");
+    if (b) b.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [actual && actual.k]);
 
   return (
     <div className="founder min-h-screen bg-fondo text-texto md:flex">
@@ -55,7 +81,7 @@ export default function Founder({ sesion, onComercios, onSalir }) {
             const I = s.i;
             const activa = actual && actual.k === s.k;
             return (
-              <button key={s.k} onClick={() => setSeccion(s.k)}
+              <button key={s.k} onClick={() => setSeccion(s.k)} data-activa={activa || undefined}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${activa ? "bg-acento-suave text-texto font-semibold" : "text-texto-suave hover:bg-superficie-2 hover:text-texto"}`}>
                 <I size={16} className={activa ? "text-acento" : ""} /> {s.n}
               </button>
@@ -78,8 +104,14 @@ export default function Founder({ sesion, onComercios, onSalir }) {
       </aside>
 
       <main className="flex-1 min-w-0 px-4 md:px-8 py-6 md:py-8 max-w-6xl">
-        {actual && actual.k === "inicio" && <InicioFounder sesion={sesion} ir={setSeccion} toast={toast} />}
-        {actual && actual.k === "config" && <ConfiguracionFounder interno={interno} toast={toast} />}
+        {ficha ? <Ficha key={ficha} id={ficha} volver={() => setFicha(null)} toast={toast} /> : <>
+          {actual && actual.k === "inicio" && <InicioFounder sesion={sesion} ir={setSeccion} abrir={abrir} toast={toast} nuevo={crear} />}
+          {actual && actual.k === "prospectos" && <Prospectos key={nuevo || "p"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevo === "prospecto"} />}
+          {actual && actual.k === "pipeline" && <Pipeline abrir={abrir} toast={toast} />}
+          {actual && actual.k === "tareas" && <Tareas key={nuevo || "t"} abrir={abrir} toast={toast} nuevaAlAbrir={nuevo === "tarea"} />}
+          {actual && actual.k === "agenda" && <Agenda key={nuevo || "a"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevo === "evento"} />}
+          {actual && actual.k === "config" && <ConfiguracionFounder interno={interno} toast={toast} />}
+        </>}
       </main>
 
       <div className="fixed bottom-4 right-4 z-50 space-y-2">
