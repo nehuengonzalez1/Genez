@@ -51,10 +51,14 @@ const admin = () => c.query("reset role");
 try {
   await c.query("begin");
   await c.query("set local lock_timeout = '3s'");
-  if (!(await una("select to_regclass('public.interno_miembros') t")).t) {
-    await c.query(readFileSync("supabase/migrations/0113_interno_base.sql", "utf8"));
+  /* Las migraciones de Founder que falten se aplican adentro, en orden:
+     así la frontera se prueba también sobre lo que todavía no se aplicó. */
+  for (const [tabla, migracion] of [["interno_miembros", "0113_interno_base.sql"], ["interno_prospectos", "0114_interno_crm.sql"]]) {
+    if (!(await una(`select to_regclass('public.${tabla}') t`)).t) await c.query(readFileSync(`supabase/migrations/${migracion}`, "utf8"));
   }
-  const tablas = (await c.query("select tablename from pg_tables where schemaname = 'public' and tablename like 'interno\\_%' order by 1")).rows.map((r) => r.tablename);
+  /* Tablas y vistas: una vista mal hecha también es una puerta. */
+  const tablas = (await c.query(`select tablename from pg_tables where schemaname = 'public' and tablename like 'interno\\_%'
+    union select viewname from pg_views where schemaname = 'public' and viewname like 'interno\\_%' order by 1`)).rows.map((r) => r.tablename);
   const A = (await una("select id from perfiles where es_plataforma limit 1")).id;
   const C = (await una("select p.id from perfiles p join empresas e on e.id = p.empresa_id where e.nombre = 'Super 25' and p.activo limit 1")).id;
   const D = (await una("select p.id from perfiles p join empresas e on e.id = p.empresa_id where e.nombre = 'Bar Rivadavia' and p.activo limit 1")).id;
