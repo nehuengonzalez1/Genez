@@ -959,6 +959,14 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                         </div>
                       ))}
                       {l.notas && <div className="text-[11px] text-ojo italic leading-tight">{l.notas}</div>}
+                      {/* Lo pidió la mesa por QR (0104). Mientras está en
+                          borrador, el mozo lo confirma mandándolo a la
+                          cocina, o lo anula si no es de verdad. */}
+                      {l.qr && (
+                        <div className={`text-[10px] uppercase tracking-wider font-bold mt-0.5 ${l.estado === "borrador" ? "text-ojo" : "text-texto-tenue"}`}>
+                          Pidió la mesa por QR{l.qrNombre ? ` · ${l.qrNombre}` : ""}{l.estado === "borrador" ? " · confirmalo" : ""}
+                        </div>
+                      )}
                       {ESTADO_LINEA[l.estado] && (
                         <div className={`text-[10px] uppercase tracking-wider font-bold mt-0.5 ${ESTADO_LINEA[l.estado].tono}`}>
                           {ESTADO_LINEA[l.estado].n}

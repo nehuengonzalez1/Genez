@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
+import { CartaMesa } from "./CartaMesa.jsx";
 import { aplicarTema } from "./tema.js";
 import { marcaGuardada, slugDelDominio } from "../datos/cliente.js";
 import "../index.css";
@@ -64,13 +65,17 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+const mesa = new URLSearchParams(window.location.search).get("mesa");
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     {/* Sin la clase del tema: ahora vive en el <html>, así el fondo de la
         página entera acompaña y no queda una franja del otro color al
         estirar de más. */}
     <div className="min-h-screen bg-fondo text-texto">
-      <App />
+      {/* El QR de una mesa (0104) trae ?mesa=<código>: esa página no es la
+          app del comercio (no tiene sesión ni menú), es la carta. */}
+      {mesa ? <CartaMesa token={mesa} /> : <App />}
     </div>
   </React.StrictMode>
 );
