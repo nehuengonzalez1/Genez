@@ -19,7 +19,7 @@
 import { armarDatos, USUARIO } from "./datos.js";
 
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
-const datos = armarDatos(params.get("rubro") || "minimercado");
+const datos = armarDatos(params.get("rubro") || "minimercado", params.get("sesion") || "comercio");
 const T = datos.tablas;
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
@@ -96,6 +96,10 @@ function ejecutar(q) {
       res = [...res].sort((a, z) => (a[c] == null ? 1 : z[c] == null ? -1 : (a[c] > z[c] ? 1 : a[c] < z[c] ? -1 : 0) * (asc ? 1 : -1)));
     }
   }
+  /* Copias, como las devuelve Supabase: si no, la pantalla tendría en
+     memoria las mismas filas que la base de mentira, y un cambio a una
+     se vería en la otra sin pasar por ninguna consulta. */
+  res = res.map((f) => structuredClone(f));
   const total = res.length;
   if (q.hasta != null) res = res.slice(q.desde, q.hasta + 1);
   if (q.uno) {

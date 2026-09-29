@@ -64,6 +64,7 @@ node scripts/probar-conteo.mjs         # 0109: el conteo contra lo que hay ahora
 node scripts/probar-indicadores.mjs    # 0110: comandas y devoluciones en la venta, stock_cargado, la planilla de stock y los indicadores
 node scripts/probar-ordenes-de-compra.mjs  # 0111: la orden pendiente no mueve stock ni costo, se recibe o se cancela
 node scripts/probar-puntos.mjs          # 0112: sumar, canjear, vencer por lotes, devolver (por registrar_devolucion) y las cuentas del mostrador
+node scripts/probar-founder-seguridad.mjs  # 0113+: la frontera de Founder con seis perfiles, en todas las tablas interno_*
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1348,6 +1349,44 @@ permiso de ajustar cuentas, desde la pestaña Puntos de la ficha del cliente (so
 puntos prendidos). Ahí se ven el saldo, lo que vence pronto y cada movimiento; una corrección
 queda como uno más, con su motivo, y no se edita ni se borra nada. Los puntos en la app del cliente, para
 después.
+
+## GENEZ FOUNDER
+
+Migración 0113 (la base), `src/founder/`, `src/datos/interno.js` y
+`scripts/probar-founder-seguridad.mjs`. El sistema interno de la empresa Genez
+—CRM, agenda, tareas y lo que se sume por fases—, no un módulo de los comercios.
+Se abre desde el panel de plataforma con el botón "Founder", solo si la sesión es
+miembro del equipo interno.
+
+**La llave no es "plataforma".** `puede_ver(empresa)` devuelve verdadero para la
+plataforma en cualquier comercio: es la del soporte para "entrar como". Si Founder
+usara esa llave, el primer vendedor que se sume vería ventas, caja y clientes de todos
+los comercios. Founder tiene su propia frontera: `interno_miembros` (perfil, rol,
+áreas, activo) y `es_interno(área)`, que mira solo esa tabla. Un miembro que no es
+plataforma no ve nada de los comercios; un usuario de comercio no ve nada interno.
+Nadie se cambia su propia membresía (ni el fundador: no se deja afuera sin querer).
+
+**Denegado por defecto.** Toda tabla `interno_*` tiene RLS, políticas por área
+(`es_interno('config')` para configurar, `es_interno()` para leer lo común) y nada para
+anon; los permisos que Supabase da solo a anon y public se revocan en la migración.
+No se borra nada: se desactiva. Quién y cuándo lo pone la base (`interno_sellar`), y
+cada alta y cambio queda en `interno_historial` (`interno_anotar`), que nadie escribe a
+mano. `probar-founder-seguridad.mjs` ataca la API directo con seis perfiles —el
+fundador, la plataforma sin membresía, dos dueños de comercio, anon y un miembro con
+una sola área que además es de un comercio— y recorre todas las tablas `interno_*`
+que existan, así las de fases siguientes quedan cubiertas solas.
+
+**Configurable sin una tabla por lista:** `interno_listas` (zonas, rubros, fuentes,
+motivos de pérdida, tipos de actividad y de evento, categorías, etiquetas; la clave no
+cambia al renombrar) e `interno_etapas` (el pipeline, con la probabilidad del valor
+ponderado y si es abierta, ganada, perdida o pausada).
+
+**Carga aparte y con su naranja.** `Genezapp` lo importa con `React.lazy`: la pantalla
+va en su propio archivo y la computadora de un comercio no la descarga. `.founder`
+redefine el acento a #F4510B solo adentro; el resto del sistema sigue con el suyo.
+El menú muestra solo lo que funciona: cada fase suma sus secciones.
+
+La pantalla de pruebas lo muestra con `?sesion=plataforma`.
 
 ## La cuenta corriente
 

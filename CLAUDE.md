@@ -140,6 +140,15 @@ Stock: el conteo, "No reponer" y "Poner 30% menos" se guardan desde 0109; el sto
 nunca se cargó (`stock_cargado`, 0110) no entra en "Para reponer" ni en el valor del
 inventario.
 
+## GENEZ FOUNDER
+
+El sistema interno de la empresa Genez (`src/founder/`, tablas `interno_*`, 0113 en
+adelante), no un módulo de los comercios. **Su llave es `es_interno(área)`, nunca
+`es_plataforma` ni `puede_ver`**: la plataforma ve todos los comercios, y un futuro
+miembro del equipo no tiene que verlos. Toda tabla nueva de Founder: RLS por área, nada
+para anon, revocar lo que Supabase da solo, y `probar-founder-seguridad.mjs` tiene que
+pasar. Ver la sección en `ARQUITECTURA.md`.
+
 ## Estado
 
 `Genezapp.jsx` es la raíz y decide qué se ve según quién entró: sin sesión → `Login`
