@@ -47,9 +47,29 @@ returns text language sql immutable as $$
     'ÁÉÍÓÚÜÑáéíóúüñ', 'AEIOUUNaeiouun')), '[^a-z0-9]+', '', 'g'), '')
 $$;
 /* Los últimos 10 dígitos: +54 9 11 5555-1234 y 11 5555 1234 son el mismo. */
+/* El mismo celular se escribe "011 15-4444-5555" o "+54 9 11 4444-5555":
+   con quedarse con los últimos diez dígitos no alcanza (el 15 corre el
+   número). Se lleva al número nacional de diez: sin el 54, sin el 9 de
+   celular, sin el 0 de larga distancia y sin el 15 después de la
+   característica, que puede ser de dos, tres o cuatro cifras. Un número
+   sin característica (4750-1234) queda con sus ocho dígitos: no se puede
+   saber de dónde es. Con menos de ocho no es un teléfono. */
 create or replace function interno_norm_tel(t text)
-returns text language sql immutable as $$
-  select nullif(right(regexp_replace(coalesce(t, ''), '\D', '', 'g'), 10), '')
+returns text language plpgsql immutable as $$
+declare
+  d text := regexp_replace(coalesce(t, ''), '\D', '', 'g');
+begin
+  if length(d) >= 12 and left(d, 2) = '54' then d := substr(d, 3); end if;
+  if length(d) = 11 and left(d, 1) = '9' then d := substr(d, 2); end if;
+  if left(d, 1) = '0' then d := substr(d, 2); end if;
+  if length(d) = 12 then
+    for i in 3..5 loop
+      if substr(d, i, 2) = '15' then d := left(d, i - 1) || substr(d, i + 2); exit; end if;
+    end loop;
+  end if;
+  if length(d) < 8 then return null; end if;
+  return right(d, 10);
+end;
 $$;
 
 

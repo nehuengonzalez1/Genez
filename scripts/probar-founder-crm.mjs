@@ -43,6 +43,13 @@ try {
   const A = (await una("select id from perfiles where es_plataforma limit 1")).id;
   await como(A);
 
+  console.log("\nTeléfonos: el número nacional de diez");
+  const tels = (await una(`select interno_norm_tel('011 15-4444-5555') a, interno_norm_tel('+54 9 11 4444-5555') b, interno_norm_tel('11 4444 5555') c,
+    interno_norm_tel('0221 15 444-5555') d, interno_norm_tel('+54 221 444 5555') e, interno_norm_tel('4750-1234') f, interno_norm_tel('12') g`));
+  decir(tels.a === "1144445555" && tels.b === "1144445555" && tels.c === "1144445555", "011 15, +54 9 y sin prefijos: el mismo celular");
+  decir(tels.d === "2214445555" && tels.e === "2214445555", "con característica de tres cifras, también");
+  decir(tels.f === "47501234" && tels.g === null, "sin característica quedan los ocho; con dos dígitos no es un teléfono");
+
   console.log("\nUn prospecto nuevo");
   const p = await una(`insert into interno_prospectos (nombre, localidad, zona, rubro, telefono, email, fuente)
     values ('Almacén Don Pepe', 'Caseros', 'caseros', 'almacen', '+54 9 11 5555-1234', 'Pepe@Mail.com ', 'visita') returning *`);
