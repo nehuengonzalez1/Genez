@@ -39,6 +39,7 @@ import { SolicitudesPanel } from "./SolicitudesPanel.jsx";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
+import { ParaElContador } from "../modulos/ParaElContador.jsx";
 import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
@@ -2264,6 +2265,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               {(conexionArca || sinCAE > 0) && (
                 <Facturas empresaId={empresaId} ajustes={ajustes} toast={toast}
                   facturacion={facturacion} pedirCAEs={pedirCAEs} sinCAE={sinCAE} />
+              )}
+              {/* Las ventas del mes y lo pagado a proveedores: para quien ve
+                  costos, no para cualquier caja. */}
+              {permisos.verCostos && (
+                <ParaElContador empresaId={empresaId} ajustes={ajustes} toast={toast}
+                  modo={facturacion.modo === "homologacion" ? "homologacion" : "produccion"} />
               )}
             </div>
           )}

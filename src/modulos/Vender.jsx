@@ -11,6 +11,7 @@ import {
 import { HOY, uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
 import { pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../utils/fiscal.js";
+import { cargarPlanilla, descargar } from "../utils/planilla.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
@@ -136,16 +137,9 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
 }
 
 /* --- Planilla de productos --------------------------------------------
-   Exporta e importa el catálogo en Excel. La librería (SheetJS) se descarga
-   solo cuando se usa, así no engorda la aplicación para quien nunca la abre.
-   Si no se puede descargar, se cae a CSV, que Excel abre igual.            */
-async function cargarPlanilla() {
-  try {
-    return await import(/* @vite-ignore */ "https://esm.sh/xlsx@0.18.5");
-  } catch (e) {
-    return null;
-  }
-}
+   Exporta e importa el catálogo en Excel. Cargar la librería y bajar el
+   archivo viven en src/utils/planilla.js, que comparte con las planillas
+   para el contador.                                                     */
 
 function columnasCatalogo(listas) {
   return [
@@ -169,14 +163,6 @@ function filasCatalogo(productos, listas) {
     }
     return fila;
   });
-}
-
-function descargar(nombre, contenido, tipo) {
-  const url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
-  const a = document.createElement("a");
-  a.href = url; a.download = nombre;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
 export async function exportarCatalogo(productos, listas, toast) {
