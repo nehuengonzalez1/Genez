@@ -396,7 +396,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                       <div className="text-[11px] text-texto-suave">Alta {x.alta} · {x.usuarios.length} usuario{x.usuarios.length !== 1 ? "s" : ""}</div>
                     </div>
                     <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border shrink-0 ${
-                      x.activo ? "border-emerald-500/40 text-emerald-400" : "border-borde-fuerte text-texto-suave"}`}>
+                      x.activo ? "border-bien/40 text-bien" : "border-borde-fuerte text-texto-suave"}`}>
                       {x.activo ? "Activo" : "Suspendido"}
                     </span>
                   </div>
@@ -475,7 +475,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                   if (c.activo && !window.confirm(`¿Suspender ${c.nombre}? Nadie del comercio va a poder entrar, y los que están adentro salen solos en menos de un minuto.`)) return;
                   guardarEnBase(c.id, { activo: !c.activo });
                 }}
-                  className={`text-sm font-semibold rounded-xl px-3 py-2 border ${c.activo ? "border-borde-fuerte text-texto-tenue hover:bg-superficie-3" : "border-emerald-500/40 text-emerald-400"}`}>
+                  className={`text-sm font-semibold rounded-xl px-3 py-2 border ${c.activo ? "border-borde-fuerte text-texto-tenue hover:bg-superficie-3" : "border-bien/40 text-bien"}`}>
                   {c.activo ? "Suspender" : "Reactivar"}
                 </button>
                 <button onClick={() => onEntrarComo(c)}
@@ -518,7 +518,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
                   <Plus size={14} /> Nuevo acceso
                 </button>
               </div>
-              <ul className="bg-superficie-3 border border-borde-fuerte rounded-2xl divide-y divide-stone-800 overflow-hidden">
+              <ul className="bg-superficie-3 border border-borde-fuerte rounded-2xl divide-y divide-borde overflow-hidden">
                 {/* Solo lectura a propósito. Editar el rol o dar de baja se
                     hace desde el Permisos del comercio, que es donde se ve
                     contra qué se está cambiando: los roles que el comercio
@@ -619,7 +619,7 @@ function Sesion({ sesion, onSalir, oscuro = false }) {
       </div>
       <button onClick={onSalir} title="Cerrar sesión"
         className={`flex items-center gap-1.5 text-xs font-semibold rounded-xl px-2.5 py-2 border ${
-          oscuro ? "border-borde-fuerte text-texto/80 hover:text-texto hover:border-white/40"
+          oscuro ? "border-borde-fuerte text-texto/80 hover:text-texto hover:border-texto/40"
                  : "border-borde text-texto-suave hover:text-texto hover:bg-superficie-2"}`}>
         <LogOut size={15} /> <span className="hidden sm:inline">Salir</span>
       </button>
@@ -802,7 +802,7 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
             </label>
 
             {error && (
-              <div className="flex items-center gap-2 text-sm text-red-400 bg-red-950/40 border border-red-900/60 rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-2 text-sm text-mal bg-mal-suave border border-mal/40 rounded-xl px-3 py-2.5">
                 <AlertTriangle size={15} className="shrink-0" /> {error}
               </div>
             )}
@@ -906,13 +906,13 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
               </label>
 
               {error && (
-                <div className="flex items-center gap-2 text-sm text-red-400 bg-red-950/40 border border-red-900/60 rounded-xl px-3 py-2.5">
+                <div className="flex items-center gap-2 text-sm text-mal bg-mal-suave border border-mal/40 rounded-xl px-3 py-2.5">
                   <AlertTriangle size={15} className="shrink-0" /> {error}
                 </div>
               )}
 
               {aviso && (
-                <div className="flex items-start gap-2 text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-900/60 rounded-xl px-3 py-2.5">
+                <div className="flex items-start gap-2 text-sm text-bien bg-bien-suave border border-bien/40 rounded-xl px-3 py-2.5">
                   <Mail size={15} className="shrink-0 mt-0.5" /> {aviso}
                 </div>
               )}
@@ -2014,11 +2014,11 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                     está siempre deja de mirarse, y este tiene que llamar la
                     atención el día que la conexión se corta. */}
                 {pendientes > 0 && (
-                  <div className="shrink-0 flex items-center gap-1.5 bg-ojo/15 border border-amber-500/40 rounded-lg px-2.5 py-1">
-                    <ZapOff size={13} className="text-amber-400 shrink-0" />
+                  <div className="shrink-0 flex items-center gap-1.5 bg-ojo/15 border border-ojo/40 rounded-lg px-2.5 py-1">
+                    <ZapOff size={13} className="text-ojo shrink-0" />
                     <div>
-                      <div className="text-[9px] uppercase tracking-widest text-amber-500/80 font-bold">Sin guardar</div>
-                      <div className="f-m text-sm text-amber-300">{pendientes}</div>
+                      <div className="text-[9px] uppercase tracking-widest text-ojo/80 font-bold">Sin guardar</div>
+                      <div className="f-m text-sm text-ojo">{pendientes}</div>
                     </div>
                   </div>
                 )}

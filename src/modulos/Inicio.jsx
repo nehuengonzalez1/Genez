@@ -35,7 +35,7 @@ function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar })
             Hoy llevás <span className="text-acento-vivo tabular-nums">{money(ventasHoy)}</span> en{" "}
             <span className="tabular-nums">{ticketsHoy}</span> tickets.
             <br className="hidden md:block" /> Te queda aproximadamente{" "}
-            <span className="text-emerald-400 tabular-nums">{money(ganHoy)}</span> de ganancia bruta.
+            <span className="text-bien tabular-nums">{money(ganHoy)}</span> de ganancia bruta.
           </h1>
           <p className="text-texto-tenue text-sm mt-3 max-w-2xl">
             Tenés {ins.filter((i) => i.sev === "alta").length} cosas urgentes y {ins.filter((i) => i.sev === "media").length} para

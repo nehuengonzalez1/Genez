@@ -908,7 +908,7 @@ function ImportarPlanilla({ resumen, listas, onAplicar, onCerrar }) {
         </div>
 
         {errores.length > 0 && (
-          <div className="text-sm text-red-800 bg-mal-suave border border-mal rounded-xl p-3">
+          <div className="text-sm text-mal bg-mal-suave border border-mal rounded-xl p-3">
             <p className="font-semibold">Estas filas no se van a aplicar:</p>
             <ul className="list-disc ml-5 mt-1 space-y-0.5">{errores.slice(0, 6).map((e, i) => <li key={i}>{e}</li>)}</ul>
             {errores.length > 6 && <p className="mt-1">y {errores.length - 6} más.</p>}
@@ -1089,7 +1089,7 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, emp
 
       <div className="p-5 space-y-5">
         {faltantesProducto(p).length > 0 && (
-          <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3">
+          <div className="text-sm text-ojo bg-ojo-suave border border-ojo rounded-xl p-3">
             Ficha incompleta. Falta: <strong>{faltantesProducto(p).join(", ")}</strong>.
           </div>
         )}
@@ -1124,8 +1124,8 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, emp
             <div className="flex items-start gap-2">
               <TrendingDown size={16} className="text-ojo mt-0.5 shrink-0" />
               <div className="text-sm">
-                <p className="font-semibold text-amber-900">El costo subió {pct(p.costo / p.costoPrev - 1, 0)} y el precio quedó igual.</p>
-                <p className="text-amber-800 mt-1">
+                <p className="font-semibold text-ojo">El costo subió {pct(p.costo / p.costoPrev - 1, 0)} y el precio quedó igual.</p>
+                <p className="text-ojo mt-1">
                   Ganabas {pct(mAntes)} y ahora ganás {pct(m)}. Con {nf.format(p.u30)} unidades al mes, son{" "}
                   {money((p.costo - p.costoPrev) * p.u30)} menos de ganancia.
                 </p>

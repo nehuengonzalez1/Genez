@@ -157,7 +157,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
                     %
                   </label>
                   <button onClick={() => cambiar("recargo", !m.recargo)}
-                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.recargo ? "border-amber-300 bg-ojo-suave text-amber-800" : "border-borde text-texto-suave"}`}>
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.recargo ? "border-ojo bg-ojo-suave text-ojo" : "border-borde text-texto-suave"}`}>
                     {m.recargo ? "Lo paga el cliente" : "Lo absorbe el negocio"}
                   </button>
                   <button onClick={() => cambiar("activo", m.activo === false)}
@@ -452,7 +452,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
         <div className="flex items-center gap-4 mt-4 pt-4 border-t border-borde">
           <span className="text-sm text-texto-suave shrink-0">Descuento sugerido al cargar</span>
           <input type="range" min="3" max="30" value={ajustes.desc2}
-            onChange={(e) => setAjustes({ ...ajustes, desc2: Number(e.target.value) })} className="flex-1 accent-orange-500" />
+            onChange={(e) => setAjustes({ ...ajustes, desc2: Number(e.target.value) })} className="flex-1 accent-acento" />
           <span className="f-m text-lg w-16 text-right">{ajustes.desc2}%</span>
         </div>
         <p className="text-xs text-texto-tenue mt-2">
@@ -465,7 +465,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
         <p className="text-sm text-texto-suave mt-1">Cuántos días de venta querés tener cubiertos cuando el sistema arma el pedido sugerido.</p>
         <div className="flex items-center gap-4 mt-3">
           <input type="range" min="7" max="30" value={ajustes.cobertura} onChange={(e) => setAjustes({ ...ajustes, cobertura: Number(e.target.value) })}
-            className="flex-1 accent-orange-500" />
+            className="flex-1 accent-acento" />
           <span className="f-m text-lg w-16 text-right">{ajustes.cobertura} d</span>
         </div>
       </Card>
@@ -475,7 +475,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
         <p className="text-sm text-texto-suave mt-1">Por debajo de este margen, Productos lo marca como "Margen bajo" y avisa si el precio no alcanza para reponer.</p>
         <div className="flex items-center gap-4 mt-3">
           <input type="range" min="5" max="50" value={ajustes.margenMinimo} onChange={(e) => setAjustes({ ...ajustes, margenMinimo: Number(e.target.value) })}
-            className="flex-1 accent-orange-500" />
+            className="flex-1 accent-acento" />
           <span className="f-m text-lg w-16 text-right">{ajustes.margenMinimo}%</span>
         </div>
       </Card>
@@ -677,7 +677,7 @@ export function FichaRapida({ p, onClose, setProductos, vender, verFicha, movCaj
               className="f-m flex-1 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
           </div>
           <label className="flex items-center gap-2 text-xs text-texto-suave mt-2">
-            <input type="checkbox" checked={pagar} onChange={(e) => setPagar(e.target.checked)} className="w-4 h-4 accent-orange-500" />
+            <input type="checkbox" checked={pagar} onChange={(e) => setPagar(e.target.checked)} className="w-4 h-4 accent-acento" />
             Pagué {money((Number(cant) || 0) * (Number(costo) || p.costo))} en efectivo (sale de caja)
           </label>
           <Boton variant="ghost" className="w-full mt-2" onClick={sumarStock} disabled={!Number(cant)}>
@@ -718,11 +718,11 @@ export function TarjetaCobro({ c, onCerrar }) {
   }, []);
 
   return (
-    <div className={`w-[calc(100vw-2.5rem)] max-w-xs md:w-72 bg-superficie border border-emerald-300 rounded-2xl shadow-xl overflow-hidden transition-all duration-500 ${saliendo ? "opacity-0 translate-x-6" : "opacity-100"}`}>
-      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-texto">
+    <div className={`w-[calc(100vw-2.5rem)] max-w-xs md:w-72 bg-superficie border border-bien rounded-2xl shadow-xl overflow-hidden transition-all duration-500 ${saliendo ? "opacity-0 translate-x-6" : "opacity-100"}`}>
+      <div className="flex items-center gap-2 px-3 py-2 bg-bien text-sobre-acento">
         <Bell size={14} className="shrink-0" />
         <span className="text-[10px] uppercase tracking-widest font-bold flex-1">Cobro recibido</span>
-        <button onClick={() => onCerrar(c.id)} className="text-texto/70 hover:text-texto"><X size={14} /></button>
+        <button onClick={() => onCerrar(c.id)} className="opacity-70 hover:opacity-100"><X size={14} /></button>
       </div>
       <div className="px-3 py-2.5">
         <div className="f-d text-3xl tabular-nums text-bien leading-none">{money(c.monto)}</div>

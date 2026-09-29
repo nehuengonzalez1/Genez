@@ -92,7 +92,7 @@ export function QrMesas({ empresaId, comercio, toast, onCerrar }) {
           <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {mesas.map((m) => (
               <li key={m.id} className="border border-borde rounded-lg p-3 text-center">
-                <img src={m.imagen} alt={`QR de la ${m.nombre}`} className="w-full aspect-square bg-white rounded" />
+                <img src={m.imagen} alt={`QR de la ${m.nombre}`} className="w-full aspect-square bg-papel rounded" />
                 <div className="font-semibold mt-2">{m.nombre}</div>
                 <button onClick={() => renovar(m)} disabled={renovando === m.id}
                   className="mt-1 text-xs text-texto-tenue hover:text-texto inline-flex items-center gap-1">

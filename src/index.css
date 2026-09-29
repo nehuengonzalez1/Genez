@@ -61,6 +61,15 @@
      muestra no diría si el logo se lee. */
   --muestra-oscura: 23 23 23;
   --muestra-clara:  245 245 244;
+  /* EL PAPEL
+
+     Lo que imita lo impreso —la vista previa del ticket, las etiquetas de
+     góndola, el QR de las mesas— es blanco con tinta negra en todos los
+     temas: así sale de la impresora, y un QR claro sobre oscuro no lo lee
+     cualquier teléfono. Antes eran bg-white y text-black sueltos, y la
+     vista previa del ticket tenía tinta negra sobre el fondo del tema. */
+  --papel: 255 255 255;
+  --tinta: 17 17 17;
   /* El naranja de Genez. `sobre-acento` es lo que se lee encima. */
   --acento:        249 115 22;
   --acento-vivo:   251 146 60;
