@@ -25,7 +25,9 @@ const diasEntre = (a, b) => Math.round((alMediodia(b) - alMediodia(a)) / 8640000
 const paraInput = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const deInput = (v) => (v ? new Date(`${v}T12:00:00`) : null);
 
-export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
+export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = { sucursales: [], varias: false } }) {
+  /* La sucursal que se mira (0108). "" es todas, como siempre. */
+  const [sucursal, setSucursal] = useState("");
   /* El período es de una fecha a otra, las dos incluidas. Los atajos son
      "los últimos N días hasta hoy"; lo demás se elige con las dos fechas.
      Antes "otros" pedía una cantidad de días hacia atrás desde hoy, y no
@@ -43,7 +45,9 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
   const [serieRango, setSerieRango] = useState(null);
   const [cargando, setCargando] = useState(false);
 
-  const alcanzaLaCargada = paraInput(rango.hasta) === hoy && dias <= k.diario.length;
+  /* La serie cargada al entrar es de todas las sucursales: mirando una
+     sola, se va a buscar siempre. */
+  const alcanzaLaCargada = !sucursal && paraInput(rango.hasta) === hoy && dias <= k.diario.length;
   const serieBase = alcanzaLaCargada ? k.diario.slice(-dias) : (serieRango || []);
 
   useEffect(() => {
@@ -51,7 +55,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
     let vigente = true;
     setCargando(true);
     setSerieRango(null);
-    cargarSerieDiaria(empresaId, { desde: rango.desde, hasta: rango.hasta })
+    cargarSerieDiaria(empresaId, { desde: rango.desde, hasta: rango.hasta, sucursal: sucursal || null })
       .then((s) => { if (vigente) setSerieRango(s); })
       .catch((e) => {
         if (!vigente) return;
@@ -63,7 +67,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
       })
       .finally(() => { if (vigente) setCargando(false); });
     return () => { vigente = false; };
-  }, [rango, empresaId, alcanzaLaCargada]);
+  }, [rango, empresaId, alcanzaLaCargada, sucursal]);
 
   const usarAtajo = (n) => {
     setRango({ desde: haceDias(n), hasta: alMediodia(new Date()), atajo: n });
@@ -94,7 +98,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
   useEffect(() => {
     if (!empresaId) return;
     let vigente = true;
-    cargarVentasPorItem(empresaId, { desde: rango.desde, hasta: rango.hasta })
+    cargarVentasPorItem(empresaId, { desde: rango.desde, hasta: rango.hasta, sucursal: sucursal || null })
       .then((v) => { if (vigente) setPorItem(v); })
       .catch((e) => {
         if (!vigente) return;
@@ -102,7 +106,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
         console.error("No se pudieron cargar las ventas por producto:", e);
       });
     return () => { vigente = false; };
-  }, [empresaId, rango]);
+  }, [empresaId, rango, sucursal]);
 
   /* Ya viene ordenado por venta desde la base. */
   const topVenta = porItem.slice(0, 10);
@@ -147,6 +151,14 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false }) {
             className="f-m bg-transparent text-xs outline-none [color-scheme:inherit]" />
           <Boton size="sm" variant={cambioElegido ? "primary" : "ghost"} disabled={!!problema}>Ver</Boton>
         </form>
+
+        {lugar.varias && (
+          <select value={sucursal} onChange={(e) => setSucursal(e.target.value)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-full border bg-superficie border-borde text-texto-suave outline-none">
+            <option value="">Todas las sucursales</option>
+            {lugar.sucursales.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        )}
 
         {cargando && <Loader2 size={14} className="animate-spin text-texto-tenue" />}
         {problema && <span className="text-xs text-mal">{problema}</span>}

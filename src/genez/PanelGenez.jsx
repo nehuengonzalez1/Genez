@@ -42,6 +42,7 @@ import { useLogos } from "../ui/logos.js";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { ParaElContador } from "../modulos/ParaElContador.jsx";
 import { cargarPromociones } from "../datos/promociones.js";
+import { cargarSucursales } from "../datos/sucursales.js";
 import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
@@ -1123,6 +1124,17 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const elegirCaja = (id) => { elegirCajaDeEsteEquipo(empresaId, id); setCajaId(id); };
   const puesto = { cajas: cajas || [], cajaId, elegir: elegirCaja };
 
+  /* Las sucursales (0108). La de esta computadora es la de su caja: la
+     venta la lleva desde el mostrador (y la base la corrige igual con la
+     caja donde se cobró). Con una sola no se muestra nada en ningún lado. */
+  const [sucursales, setSucursales] = useState([]);
+  const leerSucursales = useCallback(async () => {
+    try { setSucursales(await cargarSucursales(empresaId)); } catch { /* sin la lista, todo sigue como con una sola */ }
+  }, [empresaId]);
+  useEffect(() => { leerSucursales(); }, [leerSucursales]);
+  const sucursalActual = ((cajas || []).find((c) => c.id === cajaId) || {}).sucursalId || null;
+  const lugar = { sucursales, actual: sucursalActual, varias: sucursales.filter((s) => s.activa).length > 1 };
+
   /* Las promociones (0102): las aplica el mostrador, así que se cargan
      con el resto y quedan en memoria (y en el navegador, para cobrar sin
      internet: src/datos/promociones.js). */
@@ -1635,7 +1647,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
        y por eso reintentar el envío no duplica nada. */
     const venta = armarVenta({
       empresaId,
-      sucursalId: null,
+      sucursalId: sucursalActual,
       /* Sin la sesión, los movimientos de caja que escribe la venta quedan
          sueltos y no entran en ningún arqueo. */
       sesionId: caja.sesionId,
@@ -1670,6 +1682,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
          papel: el cliente tiene que ver por qué pagó menos. */
       descPromo,
       cliente: cliente || null, sincronizada: null,
+      /* En el papel, solo si hay más de una: con una sola ya lo dice el
+         domicilio de arriba. */
+      sucursal: lugar.varias ? sucursales.find((s) => s.id === sucursalActual) || null : null,
     };
     setTickets((x) => [t, ...x]);
     /* Se suma acá y no se relee del servidor: el encabezado tiene que
@@ -2280,8 +2295,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 borrarProducto={borrarProducto}
                 toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes}
                 promos={promos} recargarPromos={leerPromos} puedePromos={!!permisos.cambiarPrecios} />)}
-          {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
-          {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
+          {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} empresaId={empresaId} lugar={lugar} />}
+          {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} lugar={lugar} />}
           {tab === "caja" && (
             <div className="space-y-4">
               {/* Arriba de todo y con la caja cerrada también: es plata que
@@ -2314,10 +2329,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             </div>
           )}
           {tab === "reportes" && (
-            <Reportes k={k} ir={ir}
+            <Reportes k={k} ir={ir} lugar={lugar}
               empresaId={empresaId} conPedidos={modulos.includes("comandas")} />
           )}
-          {tab === "informes" && <Informes empresaId={empresaId} ir={ir} />}
+          {tab === "informes" && <Informes empresaId={empresaId} ir={ir} lugar={lugar} />}
           {tab === "crm" && <Crm empresaId={empresaId} rubro={rubro} toast={toast} />}
           {tab === "comunicaciones" && (
             <Comunicaciones empresaId={empresaId} rubro={rubro}
@@ -2337,7 +2352,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
           {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion}
-            empresaId={empresaId} recargarConexion={recargarConexion} alCambiarCajas={leerCajas} />}
+            empresaId={empresaId} recargarConexion={recargarConexion} alCambiarCajas={leerCajas}
+            sucursales={sucursales} alCambiarSucursales={async () => { await leerSucursales(); await leerCajas(); }} />}
           </Barrera>
         </main>
       </div>

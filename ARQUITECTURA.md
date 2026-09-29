@@ -59,6 +59,7 @@ node scripts/probar-happy-hour.mjs # el horario de las promos, la hora de cada r
 node scripts/probar-promos-comanda.mjs  # qué renglones de una mesa recalcula la promo y cuáles no toca (sin base)
 node scripts/probar-catalogo-base.mjs   # las reglas del nombre y el rubro, la consulta que no traba el alta y los permisos de la tabla
 node scripts/probar-qr-dinamico.mjs    # api/mp/qr.js contra un Mercado Pago de mentira (orden, estados, cancelar pagada) y 0107
+node scripts/probar-multi-sucursal.mjs  # 0108: lo viejo completado, la sucursal que viaja sola, pasar mercadería, informes por sucursal y quién
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1161,6 +1162,53 @@ aquella pide `configurar` y cobrar lo hace el cajero. Con esta son 11
 funciones; el plan Hobby de Vercel admite 12.
 
 Se prueba en "Super 25 Pruebas", la réplica de Nehuen, nunca en Super 25.
+
+## Varias sucursales
+
+Migración 0108, `src/datos/sucursales.js`, Ajustes → Sucursales y
+Cajas, Stock → Sucursales, y el filtro en Reportes e Informes. Un
+comercio con dos locales tiene el stock, las cajas y las ventas de cada
+uno. Con una sola sucursal no aparece nada nuevo en ninguna pantalla.
+
+**La sucursal sale de la caja.** Cada caja es de una sucursal
+(`cajas.sucursal_id`, obligatoria). La sesión la toma de su caja y el
+movimiento de caja de su sesión. La venta no guarda su sesión: la conoce
+por su movimiento de caja, así que cuando ese movimiento entra, un
+disparador pasa la venta y su stock a la sucursal de la caja donde se
+cobró (`registrar_venta` escribe primero la venta y el stock, y recién
+después la caja). El mostrador igual la manda, pero decide la base: una
+venta que esperó sin internet llega bien aunque el navegador no la sepa.
+Lo que no tiene de dónde sacarla —un ajuste de stock, un pedido sin
+caja— va a la primera sucursal del comercio.
+
+**Lo viejo quedó en la sucursal de cada comercio.** 0108 completó las
+ventas, el stock, las sesiones y la caja que estaban sin sucursal (690
+movimientos y 314 ventas de Super 25). Sin cambiarles la fecha de
+modificación: `tocar_operacion` saltea las filas mientras dura la
+bandera `genez.completando`.
+
+**Quién.** La política vieja dejaba a cualquier usuario del comercio
+crear, cambiar y borrar sucursales. Ahora es configurar (o la
+plataforma, que crea la "Principal" en el alta). No se borran; la base
+no deja apagar la última activa ni una con cajas activas.
+
+**Pasar mercadería** es `transferir_stock`: sale de una y entra en la
+otra en la misma transacción, con tipo `transferencia`. No controla que
+haya stock en el origen: el stock de un almacén casi nunca está al día,
+y frenar el pase porque el sistema dice 3 cuando hay 10 no ayuda. Stock
+→ Sucursales lee `stock_actual` (el real de la base, de a mil filas) y
+no el estado en memoria.
+
+**Los informes.** `ventas_diarias_rango` y `ventas_por_item_rango`
+aceptan `p_sucursal`; null es todas, como antes. En Informes (servicios)
+el filtro alcanza a la plata, lo vendido y la agenda; los cuadros de
+ocupación y equipo son de todas, porque sus funciones no conocen la
+sucursal. El ticket dice la sucursal solo cuando hay más de una. Una
+compra entra a la sucursal de la caja de esa computadora, y la pantalla
+lo avisa.
+
+Quedó afuera, a propósito: precios distintos por sucursal, y limitar a
+un empleado a su local. Productos sigue mostrando el stock total.
 
 ## La cuenta corriente
 

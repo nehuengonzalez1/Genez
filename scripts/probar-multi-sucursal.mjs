@@ -18,7 +18,11 @@
      node scripts/probar-multi-sucursal.mjs
    ============================================================ */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
+import { build } from "esbuild";
 import pg from "pg";
 
 const env = Object.fromEntries(
@@ -165,6 +169,35 @@ try {
   await c.query("rollback").catch(() => {});
   await c.end();
 }
+
+/* ---------- src/datos/sucursales.js, con una conexión de mentira ---------- */
+console.log("\nLo que pide el navegador");
+const dir = mkdtempSync(join(tmpdir(), "genez-suc-"));
+const falso = join(dir, "supabase-falso.js");
+/* En globalThis: esbuild copia este archivo adentro del compilado. */
+writeFileSync(falso, `
+const g = globalThis.__suc ||= { pedidos: [], rpc: null };
+const filas = Array.from({ length: 1500 }, (_, i) => ({ item_id: "i" + (i % 800), sucursal_id: i < 800 ? "A" : "B", stock: 2 }));
+export const supabase = {
+  from: () => ({ select() { return this; }, eq() { return this; }, order() { return this; },
+    range(a, b) { g.pedidos.push([a, b]); return Promise.resolve({ data: filas.slice(a, b + 1), error: null }); } }),
+  rpc: (n, p) => { g.rpc = { n, p }; return Promise.resolve({ error: null }); },
+};
+`);
+const salida = join(dir, "sucursales.mjs");
+await build({
+  entryPoints: [resolve("src/datos/sucursales.js")], bundle: true, platform: "node", format: "esm", outfile: salida, logLevel: "error",
+  plugins: [{ name: "falso", setup(b) { b.onResolve({ filter: /\/supabase\.js$/ }, () => ({ path: falso })); } }],
+});
+const { cargarStockPorSucursal, transferirStock } = await import(pathToFileURL(salida).href);
+const g = globalThis.__suc;
+const mapa = await cargarStockPorSucursal("e1");
+decir(g.pedidos.length === 2 && g.pedidos[1][0] === 1000, "1.500 filas: pide de a mil, dos veces (PostgREST corta en mil)");
+decir(mapa.size === 800 && mapa.get("i0").A === 2 && mapa.get("i0").B === 2, "arma producto → sucursal → stock");
+await transferirStock({ itemId: "i1", cantidad: "3", desde: "A", hacia: "B" });
+decir(g.rpc.n === "transferir_stock" && g.rpc.p.p_cantidad === 3 && g.rpc.p.p_desde === "A" && g.rpc.p.p_hacia === "B" && g.rpc.p.p_nota === null,
+  "el pase llama a transferir_stock con la cantidad como número");
+rmSync(dir, { recursive: true, force: true });
 
 console.log(fallas ? `\n${fallas} MAL` : "\nTodo bien. No quedó nada escrito.");
 process.exitCode = fallas ? 1 : 0;

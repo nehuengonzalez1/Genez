@@ -693,6 +693,10 @@ export function ticketVenta(t, ajustes, W) {
     { t: "c", v: (f.nombreFactura || f.razonSocial || ajustes.negocio).toUpperCase() },
     { t: "c", v: f.domicilio || "" },
   ];
+  /* Con más de una sucursal (0108), en cuál se compró: el domicilio de
+     arriba es el fiscal, y el cliente que vuelve a cambiar algo tiene que
+     saber a qué local ir. */
+  if (t.sucursal) b.push({ t: "c", v: [t.sucursal.nombre, t.sucursal.domicilio].filter(Boolean).join(" - ").toUpperCase() });
   // En un comprobante fiscal la razón social y el CUIT son obligatorios,
   // aunque arriba figure el nombre del local.
   if (t.fiscal && f.razonSocial && f.razonSocial !== f.nombreFactura) b.push({ t: "c", v: f.razonSocial.toUpperCase() });

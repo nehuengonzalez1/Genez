@@ -134,7 +134,7 @@ function Tarjeta({ tono, texto, accion, onAccion }) {
   );
 }
 
-export function Informes({ empresaId, ir }) {
+export function Informes({ empresaId, ir, lugar = { sucursales: [], varias: false } }) {
   const [pestana, setPestana] = useState("resumen");
 
   const [preset, setPreset] = useState("30d");
@@ -284,11 +284,18 @@ export function Informes({ empresaId, ir }) {
       {/* ============ FILTROS ============ */}
       <Card className="p-5">
         <div className="flex flex-wrap items-end gap-4">
-          {/* Un filtro que no discrimina nada confunde más que ayuda. */}
-          <div className="min-w-0 flex-1">
-            <label className={ROTULO}>Sucursal</label>
-            <Apagado motivo="Una sola sucursal" className={`${inputCls} mt-1.5 !justify-start`}>Todas</Apagado>
-          </div>
+          {/* Un filtro que no discrimina nada confunde más que ayuda: con
+              una sola sucursal queda apagado. Con varias (0108) filtra la
+              plata, lo vendido y la agenda; ocupación y equipo son de todas. */}
+          {lugar.varias ? (
+            <Selector label="Sucursal" valor={filtros.sucursal} onChange={(v) => setFiltro("sucursal", v)}
+              opciones={lugar.sucursales.map((s) => ({ k: s.id, n: s.nombre }))} />
+          ) : (
+            <div className="min-w-0 flex-1">
+              <label className={ROTULO}>Sucursal</label>
+              <Apagado motivo="Una sola sucursal" className={`${inputCls} mt-1.5 !justify-start`}>Todas</Apagado>
+            </div>
+          )}
           <Selector label="Área" valor={filtros.area} opciones={d.opciones.areas}
             onChange={(v) => setFiltro("area", v)} />
           <Selector label="Profesional" valor={filtros.personal} opciones={d.opciones.profesionales}
