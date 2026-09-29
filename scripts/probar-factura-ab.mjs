@@ -67,15 +67,16 @@ function arcaDeMentira() {
   };
 }
 
-const EMP = "emp", CLI_RI = "cli-ri", CLI_DNI = "cli-dni";
+const EMP = "emp", CLI_RI = "cli-ri", CLI_DNI = "cli-dni", CLI_MONO = "cli-mono";
 
-function escenario({ condicion = "RI", lineas, total, cliente = null, extra = {} }) {
+function escenario({ condicion = "RI", clase, lineas, total, cliente = null, extra = {} }) {
   const tablas = {
-    empresas: [{ id: EMP, config: { fiscal: { condicion, cuit: "20409378472", razonSocial: "Prueba SA" } } }],
+    empresas: [{ id: EMP, config: { fiscal: { condicion, claseInscripto: clase, cuit: "20409378472", razonSocial: "Prueba SA" } } }],
     arca_conexiones: [{ empresa_id: EMP, modo: "homologacion", punto_venta: 1 }],
     clientes: [
       { id: CLI_RI, empresa_id: EMP, condicion: "RI", tipo_doc: "CUIT", doc: "30-71234567-1" },
       { id: CLI_DNI, empresa_id: EMP, condicion: "RI", tipo_doc: "DNI", doc: "30123456" },
+      { id: CLI_MONO, empresa_id: EMP, condicion: "MONOTRIBUTO", tipo_doc: "CUIT", doc: "20-30123456-7" },
     ],
     operaciones: [{ id: "v1", empresa_id: EMP, tipo: "venta", estado: "confirmada", total, cliente_id: cliente, comprobante: { fiscal: true }, origen_id: null, ...extra }],
     operacion_lineas: lineas.map((l) => ({ operacion_id: "v1", empresa_id: EMP, ...l })),
@@ -137,6 +138,43 @@ r = await pedir(s, "d1");
 p = s.afip.pedidos[1];
 decir(!r.e && r.c.letra === "A" && p && p.CbteTipo === 3 && p.CbtesAsoc && p.CbtesAsoc[0].Tipo === 1, `nota de crédito A, tipo 3, asociada a la factura (${r.e ? r.e.message : r.c.letra})`);
 decir(p && p.ImpNeto === 900 && p.ImpIVA === 189 && p.ImpTotal === 1089 && p.DocTipo === 80, "devolución con 10% de descuento: 900 + 189, al mismo CUIT");
+
+console.log("\nA un monotributista: A, no B (RG 5003)");
+s = escenario({ lineas: [renglon(1210)], total: 1210, cliente: CLI_MONO });
+r = await pedir(s);
+p = s.afip.pedidos[0];
+decir(!r.e && r.c.letra === "A" && p && p.CbteTipo === 1 && p.CondicionIVAReceptorId === 6 && p.DocTipo === 80,
+  `factura A, condición 6 (monotributo), al CUIT (${r.e ? r.e.message : r.c.letra})`);
+
+console.log("\nInscripto en clase M (RG 1575)");
+s = escenario({ clase: "M", lineas: [renglon(1210), renglon(1105, 10.5)], total: 2315, cliente: CLI_RI });
+r = await pedir(s);
+p = s.afip.pedidos[0];
+decir(!r.e && r.c.letra === "M" && p && p.CbteTipo === 51 && p.Iva && p.Iva.length === 2, `factura M, tipo 51, con el IVA por alícuota (${r.e ? r.e.message : r.c.letra})`);
+decir(!r.e && r.c.emisor && r.c.emisor.claseInscripto === "M", "el comprobante guarda la clase del emisor");
+s.tablas.operaciones.push({ id: "d1", empresa_id: EMP, tipo: "devolucion", estado: "confirmada", total: 1210, cliente_id: CLI_RI, comprobante: { fiscal: true, nota: "credito" }, origen_id: "v1" });
+s.tablas.operacion_lineas.push({ operacion_id: "d1", empresa_id: EMP, total: 1210, iva: 21, iva_condicion: "gravado" });
+s.tablas.comprobantes[0].fecha = "2026-09-28";
+r = await pedir(s, "d1");
+p = s.afip.pedidos[1];
+decir(!r.e && r.c.letra === "M" && p && p.CbteTipo === 53 && p.CbtesAsoc[0].Tipo === 51, `nota de crédito M, tipo 53, asociada a la 51 (${r.e ? r.e.message : r.c.letra})`);
+s = escenario({ clase: "M", lineas: [renglon(1210)], total: 1210 });
+r = await pedir(s);
+decir(!r.e && r.c.letra === "B" && s.afip.pedidos[0].CbteTipo === 6, "en clase M, al consumidor final sigue siendo B");
+
+console.log("\n$10 millones sin documento (RG 5700)");
+s = escenario({ lineas: [renglon(10000000)], total: 10000000 });
+r = await pedir(s);
+decir(r.e instanceof ErrorArca && /RG 5700/.test(r.e.message) && !s.afip.pedidos.length && !s.tablas.comprobantes.length, "la B de $10.000.000 sin documento se frena antes de ARCA");
+s = escenario({ condicion: "MONOTRIBUTO", lineas: [renglon(12000000)], total: 12000000 });
+r = await pedir(s);
+decir(r.e instanceof ErrorArca && /RG 5700/.test(r.e.message) && !s.afip.pedidos.length, "la C también");
+s = escenario({ lineas: [renglon(9999999)], total: 9999999 });
+r = await pedir(s);
+decir(!r.e && r.c.letra === "B", "$9.999.999 sin documento sale");
+s = escenario({ condicion: "MONOTRIBUTO", lineas: [renglon(12000000)], total: 12000000, cliente: CLI_DNI });
+r = await pedir(s);
+decir(!r.e && r.c.letra === "C" && s.afip.pedidos[0].DocTipo === 96, "con DNI sale, y lo informa");
 
 console.log(fallas ? `\n${fallas} MAL` : "\nTodo bien.");
 process.exitCode = fallas ? 1 : 0;

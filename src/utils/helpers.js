@@ -2,6 +2,7 @@
    2. HELPERS
    ============================================================ */
 
+import { letraDeComprobante, discriminaIva } from "./fiscal.js";
 import { HOY, dayMs, addDays } from "../datos/generador.js";
 
 export const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
@@ -256,9 +257,9 @@ export function leerCodigoBalanza(cod, cfg) {
 
 /* --- Régimen fiscal ----------------------------------------------------
    Qué comprobante se puede emitir no lo decide el cajero: lo determina la
-   condición del que vende cruzada con la del que compra.
-   Un monotributista siempre emite C. Un responsable inscripto emite A si le
-   vende a otro responsable inscripto, y B en los demás casos.              */
+   condición del que vende cruzada con la del que compra, y la clase que
+   ARCA le asignó al inscripto. La regla vive en src/utils/fiscal.js, que
+   comparte con el servidor.                                              */
 export const CONDICIONES = [
   { k: "RI", n: "Responsable Inscripto", corto: "Resp. Inscripto", legal: "IVA RESPONSABLE INSCRIPTO" },
   { k: "MONOTRIBUTO", n: "Monotributista", corto: "Monotributo", legal: "RESPONSABLE MONOTRIBUTO" },
@@ -270,10 +271,9 @@ export const condicionLegal = (k) => (CONDICIONES.find((c) => c.k === k) || {}).
 
 export const condicionNombre = (k) => (CONDICIONES.find((c) => c.k === k) || { n: k || "—" }).n;
 
-export function letraComprobante(emisor, cliente) {
-  if (emisor === "MONOTRIBUTO" || emisor === "EXENTO") return "C";
-  return cliente === "RI" ? "A" : "B";
-}
+/* `clase` es la que ARCA le asignó al inscripto (Ajustes → datos
+   fiscales, `claseInscripto`): con M, lo que sería A es M. */
+export const letraComprobante = (emisor, cliente, clase) => letraDeComprobante(emisor, cliente, clase || "A");
 
 /* --- La alícuota de IVA de un producto (0097) --------------------------
    Dos datos en la base —`iva` y `ivaCondicion`— y uno solo en pantalla:
@@ -315,10 +315,8 @@ export function alicuotaDesdeTexto(v) {
   return a ? alicuotaDe(a.k) : null;
 }
 
-/* La factura A discrimina el IVA; en B y C va incluido en el precio. */
-export function discriminaIVA(letra) {
-  return letra === "A";
-}
+/* A y M discriminan el IVA; en B y C va incluido en el precio. */
+export const discriminaIVA = discriminaIva;
 
 /* El nombre de fantasía es el que ve el cliente arriba del comprobante;
    la razón social y el CUIT van debajo, que es lo que exige ARCA.

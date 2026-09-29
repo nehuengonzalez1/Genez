@@ -734,6 +734,20 @@ contenido" (Ley 27.743); "otros impuestos nacionales indirectos" no se
 imprime porque Genez no los conoce, y está pendiente de contador. La C
 no cambió.
 
+**La letra sale de una sola regla** (`src/utils/fiscal.js`), que usan la
+pantalla y el servidor; antes estaba copiada y las dos copias le hacían B a
+un monotributista. Un inscripto emite A (o M) a otro inscripto **y a un
+monotributista** (RG 5003, con la leyenda de la Ley 27.618 en el papel), y
+B a consumidor final y exento. La clase la asigna ARCA y se carga en
+Ajustes → datos fiscales (`claseInscripto`: A, A con leyenda "Operación
+sujeta a retención" o M; RG 1575 y 5716/2025): con M se piden los tipos
+51 a 53 (0099). Desde $10.000.000 hay que identificar a quien compra, en
+cualquier letra (RG 5700/2025): el cobro lo frena antes de cobrar y el
+servidor antes de reservar número. La B imprime "IVA Contenido" y "Otros
+Impuestos Nacionales Indirectos" (RG 5614), la segunda en cero hasta que
+Genez conozca los impuestos internos. El análisis normativo está en el doc
+"Genez: consulta fiscal sobre facturas A y B" (27/09/2026).
+
 Las notas de crédito y de débito C están desde 0089 (ver abajo).
 
 ### El cambio de titular
