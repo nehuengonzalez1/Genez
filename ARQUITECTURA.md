@@ -1344,7 +1344,9 @@ teléfono y Enter: si el cliente no existe, se crea con ese dato. Sin internet e
 consulta y se cobra igual, sin ofrecer el canje. El ticket dice el canje y lo que suma.
 
 Nadie escribe movimientos desde el navegador; corregir a mano es `ajustar_puntos`, con el
-permiso de ajustar cuentas (todavía sin pantalla). Los puntos en la app del cliente, para
+permiso de ajustar cuentas, desde la pestaña Puntos de la ficha del cliente (solo con los
+puntos prendidos). Ahí se ven el saldo, lo que vence pronto y cada movimiento; una corrección
+queda como uno más, con su motivo, y no se edita ni se borra nada. Los puntos en la app del cliente, para
 después.
 
 ## La cuenta corriente
