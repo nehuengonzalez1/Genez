@@ -10,7 +10,7 @@ import { armarEscPos } from "./escpos.js";
 import { impresoraElegida, imprimirDirecto } from "./agenteImpresion.js";
 import { HOY, fdatel } from "../datos/generador.js";
 import { pct, money, nf, nf2, moneyk, FISCAL_INICIAL, letraComprobante, discriminaIVA, condicionLegal, medioPorK } from "../utils/helpers.js";
-import { LEYENDA_MONOTRIBUTO, LEYENDA_RETENCION } from "../utils/fiscal.js";
+import { LEYENDA_MONOTRIBUTO, LEYENDA_RETENCION, LEYENDA_CBU } from "../utils/fiscal.js";
 
 export const SEV = {
   alta: { pill: "bg-mal-suave text-mal border-mal", dot: "bg-mal", label: "Urgente" },
@@ -616,7 +616,8 @@ export function qrDeFactura(fac) {
     ctz: 1,
     tipoDocRec: fac.docTipo,
     nroDocRec: fac.docNro,
-    tipoCodAut: "E",
+    /* "E" es CAE; "A", CAEA (0100). */
+    tipoCodAut: fac.autorizacion === "CAEA" ? "A" : "E",
     codAut: Number(fac.cae),
   };
   return `https://www.afip.gob.ar/fe/qr/?p=${btoa(JSON.stringify(datos))}`;
@@ -717,6 +718,10 @@ export function ticketVenta(t, ajustes, W) {
      la lleva impresa. Sale del emisor guardado con el comprobante, porque
      la clase puede cambiar cada cuatro meses. */
   if (letra === "A" && f.claseInscripto === "A_RETENCION") b.push({ t: "c", v: LEYENDA_RETENCION });
+  if (letra === "A" && f.claseInscripto === "A_CBU") {
+    b.push({ t: "c", v: LEYENDA_CBU });
+    if (f.cbu) b.push({ t: "c", v: `CBU ${f.cbu}` });
+  }
   /* La fecha viene del ticket, no de `HOY`: la venta ocurrió hoy de verdad.
      El respaldo es la fecha real y no la congelada, para que un ticket
      viejo que se reimprima tampoco mienta. */
@@ -820,8 +825,11 @@ export function ticketVenta(t, ajustes, W) {
   if (t.fiscal) {
     b.push({ t: "b" });
     if (fac) {
-      b.push({ t: "c", v: `CAE ${fac.cae}` });
-      b.push({ t: "c", v: `Vto CAE ${fac.vencimiento.split("-").reverse().join("/")}` });
+      /* Con CAEA (0100) el código es el de la quincena, y su vencimiento
+         el fin de la quincena. */
+      const cod = fac.autorizacion === "CAEA" ? "CAEA" : "CAE";
+      b.push({ t: "c", v: `${cod} ${fac.cae}` });
+      b.push({ t: "c", v: `Vto ${cod} ${fac.vencimiento.split("-").reverse().join("/")}` });
     } else {
       /* Solo se ve en pantalla: `imprimirTicket` no la deja salir. */
       b.push({ t: "c", v: "ESPERANDO CAE DE ARCA" });

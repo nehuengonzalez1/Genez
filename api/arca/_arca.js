@@ -29,6 +29,7 @@
 import Afip from "@afipsdk/afip.js";
 import { desglosarIva, importesParaArca, ErrorIva } from "../../src/utils/iva.js";
 import { letraDeComprobante, pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../../src/utils/fiscal.js";
+import { esCaida, emitirConCAEA } from "./_caea.js";
 import { clienteDirecto } from "./_directo.js";
 import { cifrar, descifrar } from "./_cifrado.js";
 
@@ -92,9 +93,35 @@ export async function clienteArca(admin, conexion) {
   if (conexion.modo === "homologacion") {
     const accessToken = process.env.AFIP_ACCESS_TOKEN;
     if (!accessToken) throw new ErrorArca("Falta AFIP_ACCESS_TOKEN en el servidor.", 501);
-    return new Afip({ CUIT: Number(CUIT_PRUEBAS), access_token: accessToken });
+    return conCAEA(new Afip({ CUIT: Number(CUIT_PRUEBAS), access_token: accessToken }));
   }
   return clienteDeProduccion(admin, conexion.empresa_id, conexion.cuit);
+}
+
+/* Afip SDK (homologación) con los mismos métodos de CAEA que _directo.js,
+   para que _caea.js no tenga que saber con cuál habla. */
+export function conCAEA(afip) {
+  const eb = afip.ElectronicBilling;
+  const comoCAEA = (g) => ({ ...g, CAEA: String(g.CAEA), FchVigDesde: String(g.FchVigDesde), FchVigHasta: String(g.FchVigHasta), FchTopeInf: String(g.FchTopeInf) });
+  eb.solicitarCAEA = async (periodo, orden) => comoCAEA(await eb.createCAEA(periodo, orden));
+  eb.consultarCAEA = async (periodo, orden) => comoCAEA(await eb.getCAEA(periodo, orden));
+  eb.informarCAEA = async (d) => {
+    const det = { ...d };
+    delete det.CantReg; delete det.PtoVta; delete det.CbteTipo;
+    if (det.Iva) det.Iva = { AlicIva: det.Iva };
+    if (det.CbtesAsoc) det.CbtesAsoc = { CbteAsoc: det.CbtesAsoc };
+    const r = await eb.executeRequest("FECAEARegInformativo", {
+      FeCAEARegInfReq: { FeCabReq: { CantReg: 1, PtoVta: d.PtoVta, CbteTipo: d.CbteTipo }, FeDetReq: { FECAEADetRequest: det } },
+    });
+    const res = [].concat(r.FeDetResp && r.FeDetResp.FECAEADetResponse)[0] || {};
+    if (res.Resultado !== "A") {
+      const obs = [].concat(res.Observaciones && res.Observaciones.Obs)[0];
+      throw Object.assign(new Error(obs ? `(${obs.Code}) ${obs.Msg}` : "ARCA no aceptó el comprobante informado."), { code: obs ? Number(obs.Code) : 0 });
+    }
+    return res;
+  };
+  eb.sinMovimientoCAEA = (ptoVta, caea) => eb.executeRequest("FECAEASinMovimientoInformar", { PtoVta: ptoVta, CAEA: caea });
+  return afip;
 }
 
 /**
@@ -329,19 +356,15 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     }
   }
 
-  /* 4 · Reservar el número. */
-  const ultimo = await afip.ElectronicBilling.getLastVoucher(conexion.punto_venta, tipo);
-  const numero = Number(ultimo) + 1;
-
-  const pedido = {
+  /* 4 · Lo que se pide y lo que se guarda, todavía sin número. Se arma
+     antes de preguntarle nada a ARCA porque, si no contesta, es lo mismo
+     que se emite con CAEA. */
+  const base = {
     CantReg: 1,
-    PtoVta: conexion.punto_venta,
     CbteTipo: tipo,
     Concepto: 1,
     DocTipo: docTipo,
     DocNro: docNro,
-    CbteDesde: numero,
-    CbteHasta: numero,
     CbteFch: Number(fecha),
     ...importes,
     MonId: "PES",
@@ -358,16 +381,14 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     } : {}),
   };
 
-  const { data: fila, error: e5 } = await admin.from("comprobantes").insert({
+  const filaBase = {
     empresa_id: empresaId,
     operacion_id: operacionId,
     asociado_id: asociada ? asociada.id : null,
     modo: conexion.modo,
     cuit,
-    punto_venta: conexion.punto_venta,
     tipo,
     letra,
-    numero,
     fecha: comoFecha(fecha),
     total,
     neto: importes.ImpNeto,
@@ -377,8 +398,7 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     detalle_iva: desglose,
     doc_tipo: docTipo,
     doc_nro: docNro,
-    condicion_receptor: pedido.CondicionIVAReceptorId,
-    pedido,
+    condicion_receptor: condicionId,
     /* Lo que va impreso (0093): si mañana cambia el titular, esta factura
        se sigue reimprimiendo con el suyo. */
     emisor: {
@@ -392,8 +412,35 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
       /* La clase de ese momento: la A con leyenda la imprime, y ARCA la
          puede cambiar cada cuatro meses. */
       claseInscripto: fiscal.claseInscripto || null,
+      /* La de la A con leyenda "Pago en CBU informada": va impresa. */
+      cbu: fiscal.cbu || null,
     },
     usuario_id: usuarioId,
+  };
+
+  /* 5 · Reservar el número. Es lo primero que se le pregunta a ARCA, y no
+     emite nada: si no contesta (caída, no un "no"), esta venta seguro no
+     tiene CAE, y si el comercio tiene punto de venta CAEA se emite con el
+     CAEA de la quincena (0100, _caea.js). Sin CAEA, o para la M, que el
+     CAEA no admite, queda esperando como siempre. */
+  let ultimo;
+  try {
+    ultimo = await afip.ElectronicBilling.getLastVoucher(conexion.punto_venta, tipo, 8000);
+  } catch (e) {
+    if (esCaida(e) && conexion.punto_venta_caea && letra !== "M") {
+      const c = await emitirConCAEA({ admin, conexion, cuit, tipo, pedido: base, fila: filaBase });
+      if (c) return c;
+    }
+    throw e;
+  }
+  const numero = Number(ultimo) + 1;
+  const pedido = { ...base, PtoVta: conexion.punto_venta, CbteDesde: numero, CbteHasta: numero };
+
+  const { data: fila, error: e5 } = await admin.from("comprobantes").insert({
+    ...filaBase,
+    punto_venta: conexion.punto_venta,
+    numero,
+    pedido,
   }).select().single();
 
   if (e5) {
@@ -402,7 +449,7 @@ export async function facturarVenta({ admin, empresaId, operacionId, usuarioId =
     throw e5;
   }
 
-  /* 5 · Pedir el CAE. */
+  /* 6 · Pedir el CAE. */
   try {
     const r = await afip.ElectronicBilling.createVoucher(pedido);
     const { data, error } = await admin.from("comprobantes")
@@ -452,6 +499,8 @@ export function comoFactura(c) {
     docNro: Number(c.doc_nro) || 0,
     homologacion: c.modo === "homologacion",
     emisor: c.emisor || null,
+    /* CAE o CAEA (0100): el papel lo dice, y el QR lleva otro código. */
+    autorizacion: c.autorizacion || "CAE",
   };
 }
 

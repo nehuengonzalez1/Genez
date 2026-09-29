@@ -263,6 +263,76 @@ export function ConexionArca({ empresaId, toast, alCambiar }) {
           </Paso>
         )}
       </div>
+
+      {est.conexion && <Contingencia est={est} ocupado={ocupado} hacer={hacer} />}
     </Card>
+  );
+}
+
+/* EL CAEA (0100)
+   Para cuando ARCA no contesta: la factura sale igual, con el CAEA de la
+   quincena, en vez de quedar esperando. Se activa cargando un punto de
+   venta propio de tipo CAEA, que el titular crea en ARCA. Activarlo
+   obliga a informar cada quincena; lo hace la tarea diaria, y lo que falla
+   se muestra acá en rojo, porque no informar es un incumplimiento. */
+function Contingencia({ est, ocupado, hacer }) {
+  const c = est.caea;
+  const [pvCaea, setPvCaea] = useState(c ? String(c.puntoVenta) : "");
+  const tarea = c && c.tarea;
+  const errores = (tarea && tarea.errores) || [];
+  const atrasada = tarea && Date.now() - new Date(tarea.corrio).getTime() > 2 * 86400000;
+
+  return (
+    <div className="border-t border-borde pt-4 mt-5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-semibold text-sm">Si ARCA no contesta: CAEA</span>
+        <span className={`shrink-0 text-[10px] uppercase tracking-[0.1em] font-bold px-2 py-1 rounded border ${
+          c ? "border-bien bg-bien-suave text-bien" : "border-borde text-texto-tenue"}`}>
+          {c ? "Activo" : "Apagado"}
+        </span>
+      </div>
+      <p className="text-sm text-texto-suave mt-2 leading-relaxed">
+        Con ARCA caído la factura sale igual, con un código anticipado de la quincena (RG 5782), en vez de quedar esperando.
+        Necesita un punto de venta propio: en ARCA, <b>Administración de puntos de venta y domicilios</b>, agregá uno con el sistema <b>CAEA</b>.
+        Activarlo obliga a informar a ARCA cada quincena; Genez lo hace solo todos los días. No sirve para la factura M.
+      </p>
+
+      <div className="flex flex-wrap items-end gap-2 mt-3">
+        <Campo label="Punto de venta CAEA" ancho="w-40">
+          <input value={pvCaea} onChange={(e) => setPvCaea(e.target.value.replace(/\D/g, ""))} placeholder="Ej. 4" className={`${inputCls} f-m`} />
+        </Campo>
+        <Boton variant={c ? "ghost" : "primary"} disabled={!pvCaea || !!ocupado}
+          onClick={() => hacer("caea", { puntoVentaCaea: Number(pvCaea) }, "CAEA activo: ya tiene el código de esta quincena.")}>
+          {ocupado === "caea" ? "Verificando…" : c ? "Cambiar" : "Activar CAEA"}
+        </Boton>
+        {c && (
+          <Boton variant="ghost" disabled={!!ocupado}
+            onClick={() => window.confirm("Sin CAEA, con ARCA caído las facturas vuelven a quedar esperando. Lo ya emitido con CAEA se sigue informando. ¿Apagar?")
+              && hacer("caea", { puntoVentaCaea: null }, "CAEA apagado.")}>
+            Apagar
+          </Boton>
+        )}
+      </div>
+
+      {c && (
+        <div className="mt-3 rounded-md border border-borde p-3 text-sm space-y-1">
+          <div>
+            {c.hoy
+              ? <>Código de esta quincena: <span className="f-m">{c.hoy.caea}</span>, del {fecha(c.hoy.desde)} al {fecha(c.hoy.hasta)}.</>
+              : <span className="text-mal">No hay código para esta quincena: si ARCA se cae, las facturas van a quedar esperando.</span>}
+          </div>
+          <div className="text-texto-suave">
+            Emitidas con CAEA en los últimos 60 días: <span className="f-m">{c.emitidos}</span>
+            {c.sinInformar > 0 && <span className="text-ojo"> · <span className="f-m">{c.sinInformar}</span> sin informar todavía</span>}
+          </div>
+          {c.errorInforme && <div className="text-mal">ARCA no aceptó un informe: {c.errorInforme}</div>}
+          <div className="text-xs text-texto-tenue">
+            Última revisión automática: {tarea ? fechaHora(tarea.corrio) : "todavía no corrió"}
+            {atrasada && <span className="text-mal"> · hace más de dos días que no corre</span>}
+          </div>
+          {errores.map((e, i) => <div key={i} className="text-xs text-mal">{e}</div>)}
+        </div>
+      )}
+    </div>
   );
 }

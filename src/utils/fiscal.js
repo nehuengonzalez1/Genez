@@ -31,6 +31,11 @@
 export const CLASES_INSCRIPTO = [
   { k: "A", n: "A" },
   { k: "A_RETENCION", n: "A con leyenda \"Operación sujeta a retención\"" },
+  /* El comprador tiene que pagar a la CBU que el vendedor informó en
+     ARCA. En el web service es una A común (no hay dato opcional para
+     esto: el 2101 es de la factura de crédito MiPyME); la diferencia va
+     en el papel, con la leyenda y la CBU. */
+  { k: "A_CBU", n: "A con leyenda \"Pago en CBU informada\"" },
   { k: "M", n: "M" },
 ];
 
@@ -59,3 +64,4 @@ export const MONTO_IDENTIFICAR_CONSUMIDOR = 10000000;
 export const LEYENDA_MONOTRIBUTO =
   "El crédito fiscal discriminado en el presente comprobante, sólo podrá ser computado a efectos del Régimen de Sostenimiento e Inclusión Fiscal para Pequeños Contribuyentes de la Ley Nº 27.618";
 export const LEYENDA_RETENCION = "OPERACIÓN SUJETA A RETENCIÓN";
+export const LEYENDA_CBU = "PAGO EN CBU INFORMADA";

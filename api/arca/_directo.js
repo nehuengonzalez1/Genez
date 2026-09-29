@@ -192,14 +192,14 @@ export function clienteDirecto({ produccion, cuit, certPem, clavePem, cargarTA, 
     return pase;
   }
 
-  async function wsfe(metodo, interior, conAuth = true) {
+  async function wsfe(metodo, interior, conAuth = true, ms) {
     let auth = "";
     if (conAuth) {
       const p = await autenticar();
       auth = el("Auth", [el("Token", p.token), el("Sign", p.sign), el("Cuit", cuit)]);
     }
     const cuerpo = `<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ar="http://ar.gov.afip.dif.FEV1/"><soap:Body><ar:${metodo}>${auth}${interior}</ar:${metodo}></soap:Body></soap:Envelope>`;
-    const r = await soap(urls.wsfe, `http://ar.gov.afip.dif.FEV1/${metodo}`, cuerpo);
+    const r = await soap(urls.wsfe, `http://ar.gov.afip.dif.FEV1/${metodo}`, cuerpo, ms);
     return r[`${metodo}Response`][`${metodo}Result`];
   }
 
@@ -210,30 +210,48 @@ export function clienteDirecto({ produccion, cuit, certPem, clavePem, cargarTA, 
     return res;
   }
 
+  /* El detalle de un comprobante, igual para pedir el CAE y para informar
+     uno emitido con CAEA. El CAEA agrega dos campos al final, después de
+     todo lo del FEDetRequest (así lo pide el WSDL de FECAEADetRequest). */
+  function detalle(nombre, d, extra = []) {
+    const iva = d.Iva ? el("Iva", d.Iva.map((a) => el("AlicIva", [el("Id", a.Id), el("BaseImp", a.BaseImp), el("Importe", a.Importe)]))) : "";
+    /* La factura a la que corresponde una nota de crédito o de débito. En
+       el WSDL va después de CondicionIVAReceptorId y antes de Iva. */
+    const asociados = d.CbtesAsoc ? el("CbtesAsoc", d.CbtesAsoc.map((a) => el("CbteAsoc", [
+      el("Tipo", a.Tipo), el("PtoVta", a.PtoVta), el("Nro", a.Nro), el("Cuit", a.Cuit), el("CbteFch", a.CbteFch),
+    ]))) : "";
+    return el(nombre, [
+      el("Concepto", d.Concepto), el("DocTipo", d.DocTipo), el("DocNro", d.DocNro),
+      el("CbteDesde", d.CbteDesde), el("CbteHasta", d.CbteHasta), el("CbteFch", d.CbteFch),
+      el("ImpTotal", d.ImpTotal), el("ImpTotConc", d.ImpTotConc), el("ImpNeto", d.ImpNeto),
+      el("ImpOpEx", d.ImpOpEx), el("ImpTrib", d.ImpTrib), el("ImpIVA", d.ImpIVA),
+      el("FchServDesde", d.FchServDesde), el("FchServHasta", d.FchServHasta), el("FchVtoPago", d.FchVtoPago),
+      el("MonId", d.MonId), el("MonCotiz", d.MonCotiz),
+      el("CondicionIVAReceptorId", d.CondicionIVAReceptorId),
+      asociados,
+      iva,
+      ...extra,
+    ]);
+  }
+
+  /* El CAEA de una quincena, como lo devuelven FECAEASolicitar y
+     FECAEAConsultar. */
+  const comoCAEA = (g) => ({
+    CAEA: String(g.CAEA), Periodo: Number(g.Periodo), Orden: Number(g.Orden),
+    FchVigDesde: String(g.FchVigDesde), FchVigHasta: String(g.FchVigHasta), FchTopeInf: String(g.FchTopeInf),
+  });
+
   const ElectronicBilling = {
-    async getLastVoucher(ptoVta, tipo) {
-      const r = revisar(await wsfe("FECompUltimoAutorizado", el("PtoVta", ptoVta) + el("CbteTipo", tipo)));
+    /* `ms`: cuánto esperar. Es lo primero que se le pregunta a ARCA al
+       facturar; si no contesta a tiempo, no se mandó nada todavía y se
+       puede pasar al CAEA sin riesgo de facturar dos veces. */
+    async getLastVoucher(ptoVta, tipo, ms) {
+      const r = revisar(await wsfe("FECompUltimoAutorizado", el("PtoVta", ptoVta) + el("CbteTipo", tipo), true, ms));
       return Number(r.CbteNro);
     },
 
     async createVoucher(d) {
-      const iva = d.Iva ? el("Iva", d.Iva.map((a) => el("AlicIva", [el("Id", a.Id), el("BaseImp", a.BaseImp), el("Importe", a.Importe)]))) : "";
-      /* La factura a la que corresponde una nota de crédito o de débito. En
-         el WSDL va después de CondicionIVAReceptorId y antes de Iva. */
-      const asociados = d.CbtesAsoc ? el("CbtesAsoc", d.CbtesAsoc.map((a) => el("CbteAsoc", [
-        el("Tipo", a.Tipo), el("PtoVta", a.PtoVta), el("Nro", a.Nro), el("Cuit", a.Cuit), el("CbteFch", a.CbteFch),
-      ]))) : "";
-      const det = el("FECAEDetRequest", [
-        el("Concepto", d.Concepto), el("DocTipo", d.DocTipo), el("DocNro", d.DocNro),
-        el("CbteDesde", d.CbteDesde), el("CbteHasta", d.CbteHasta), el("CbteFch", d.CbteFch),
-        el("ImpTotal", d.ImpTotal), el("ImpTotConc", d.ImpTotConc), el("ImpNeto", d.ImpNeto),
-        el("ImpOpEx", d.ImpOpEx), el("ImpTrib", d.ImpTrib), el("ImpIVA", d.ImpIVA),
-        el("FchServDesde", d.FchServDesde), el("FchServHasta", d.FchServHasta), el("FchVtoPago", d.FchVtoPago),
-        el("MonId", d.MonId), el("MonCotiz", d.MonCotiz),
-        el("CondicionIVAReceptorId", d.CondicionIVAReceptorId),
-        asociados,
-        iva,
-      ]);
+      const det = detalle("FECAEDetRequest", d);
       const pedido = el("FeCAEReq", [
         el("FeCabReq", [el("CantReg", 1), el("PtoVta", d.PtoVta), el("CbteTipo", d.CbteTipo)]),
         el("FeDetReq", [det]),
@@ -256,6 +274,42 @@ export function clienteDirecto({ produccion, cuit, certPem, clavePem, cargarTA, 
       revisar(r);
       const g = r.ResultGet;
       return { ...g, ImpTotal: Number(g.ImpTotal), CodAutorizacion: String(g.CodAutorizacion), FchVto: String(g.FchVto) };
+    },
+
+    /* CAEA (RG 5782/2025): pedirlo para una quincena, o consultar el que
+       ya se pidió. ARCA da uno solo por CUIT y quincena. */
+    async solicitarCAEA(periodo, orden) {
+      const r = revisar(await wsfe("FECAEASolicitar", el("Periodo", periodo) + el("Orden", orden)));
+      return comoCAEA(r.ResultGet);
+    },
+
+    async consultarCAEA(periodo, orden) {
+      const r = revisar(await wsfe("FECAEAConsultar", el("Periodo", periodo) + el("Orden", orden)));
+      return comoCAEA(r.ResultGet);
+    },
+
+    /* Informar un comprobante que se emitió con CAEA. `d` es el mismo
+       pedido que se habría mandado para el CAE, más CAEA y CbteFchHsGen
+       (fecha y hora en que se generó, aaaammddhhmmss). */
+    async informarCAEA(d) {
+      const det = detalle("FECAEADetRequest", d, [el("CAEA", d.CAEA), el("CbteFchHsGen", d.CbteFchHsGen)]);
+      const pedido = el("FeCAEARegInfReq", [
+        el("FeCabReq", [el("CantReg", 1), el("PtoVta", d.PtoVta), el("CbteTipo", d.CbteTipo)]),
+        el("FeDetReq", [det]),
+      ]);
+      const r = revisar(await wsfe("FECAEARegInformativo", pedido));
+      const res = lista(r.FeDetResp && r.FeDetResp.FECAEADetResponse)[0] || {};
+      if (res.Resultado !== "A") {
+        const obs = lista(res.Observaciones && res.Observaciones.Obs)[0];
+        throw errorArca(obs ? `(${obs.Code}) ${obs.Msg}` : "ARCA no aceptó el comprobante informado.", obs ? Number(obs.Code) : 0);
+      }
+      return res;
+    },
+
+    /* Un punto de venta CAEA que en la quincena no emitió nada. */
+    async sinMovimientoCAEA(ptoVta, caea) {
+      const r = revisar(await wsfe("FECAEASinMovimientoInformar", el("PtoVta", ptoVta) + el("CAEA", caea)));
+      return r;
     },
 
     async getSalesPoints() {

@@ -360,7 +360,7 @@ export async function cargarVenta(empresaId, operacionId) {
   if (!empresaId) throw new Error("cargarVenta necesita la empresa.");
   const { data, error } = await supabase
     .from("operaciones")
-    .select("id, numero, fecha, total, tipo, comprobante, campos_extra, origen_id, clientes ( razon_social ), cajero:perfiles!usuario_id ( nombre ), comprobantes ( estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha, total, doc_tipo, doc_nro, emisor, neto, iva, detalle_iva )")
+    .select("id, numero, fecha, total, tipo, comprobante, campos_extra, origen_id, clientes ( razon_social ), cajero:perfiles!usuario_id ( nombre ), comprobantes ( estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha, total, doc_tipo, doc_nro, emisor, neto, iva, detalle_iva, autorizacion )")
     .eq("empresa_id", empresaId)
     .eq("id", operacionId)
     .in("tipo", ["venta", "comanda", "devolucion"])
