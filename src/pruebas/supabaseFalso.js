@@ -120,6 +120,9 @@ const FUNCIONES = {
   transferir_stock: () => null, ajustar_stock: ({ p_real }) => [{ antes: 0, diferencia: p_real }],
   ajustar_stock_lote: ({ p_filas }) => p_filas.map((f) => ({ item_id: f.item_id, antes: 0, diferencia: f.real })),
   abrir_comanda: () => uuid(),
+  /* Cualquier cliente tiene 530 puntos, 30 por vencer: alcanza para ver
+     el canje en el cobro. Sumar y restar lo hace la base de verdad. */
+  saldo_puntos: () => [{ saldo: 530, por_vencer: 30, proximo_vencimiento: dia(new Date(Date.now() + 20 * 86400000)) }],
 };
 
 function rpc(nombre, params = {}) {

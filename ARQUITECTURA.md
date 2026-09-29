@@ -63,6 +63,7 @@ node scripts/probar-multi-sucursal.mjs  # 0108: lo viejo completado, la sucursal
 node scripts/probar-conteo.mjs         # 0109: el conteo contra lo que hay ahora, lo que no entra, y sin sesión no se llama
 node scripts/probar-indicadores.mjs    # 0110: comandas y devoluciones en la venta, stock_cargado, la planilla de stock y los indicadores
 node scripts/probar-ordenes-de-compra.mjs  # 0111: la orden pendiente no mueve stock ni costo, se recibe o se cancela
+node scripts/probar-puntos.mjs          # 0112: sumar, canjear, vencer por lotes, devolver (por registrar_devolucion) y las cuentas del mostrador
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1315,6 +1316,36 @@ en `window.__genezPruebas.registro`, y las tablas en `window.__genezPruebas.tabl
 
 Los datos son un comercio inventado por rubro (`src/pruebas/datos.js`). Lo único que
 viene de la base es lo de plataforma: los rubros y los roles de fábrica.
+
+## Puntos para los clientes
+
+Migración 0112, `src/utils/puntos.js` (las cuentas del mostrador), `src/datos/puntos.js`,
+Ajustes → Puntos y el cobro. Cada venta con cliente suma puntos y en el cobro se canjean
+como descuento. Apagado de fábrica; la regla está en `empresas.config.puntos` porque la
+lee la base: 1 punto cada $1.000, vale $10 (vuelve el 1%), se canjea desde 100, vence a
+los 12 meses.
+
+**Lo hace la base.** Un disparador sobre la operación confirmada suma (la venta de
+`registrar_venta`, que puede llegar tarde si no había internet, y la comanda al cerrarse),
+registra el canje (`campos_extra.puntos.usados`) y, en una devolución, resta en proporción
+lo que había dado la venta. `registrar_devolucion` crea la devolución con total 0 y después
+se lo pone: el disparador corre también en ese cambio de total y espera a tenerlo. Una sola
+vez por operación, aunque se reintente. Un canje que llega sin saldo (una venta sin
+internet) se registra igual —la mercadería ya se fue— y queda con `sin_saldo`.
+
+**El saldo vence por lotes** (`saldo_puntos`): lo ganado vence a los doce meses de
+ganarlo, un canje consume lo más viejo primero, y lo que vence sin usarse se pierde. Es la
+única cuenta que no le quita a nadie puntos que ya gastó ni le deja usar puntos vencidos.
+Devuelve también lo que vence en los próximos 30 días.
+
+**En el mostrador**, el canje se suma al descuento del pedido: el total baja en todos lados
+(combinado, vuelto, factura) sin tocar cada cuenta. Para identificar alcanza con el DNI o el
+teléfono y Enter: si el cliente no existe, se crea con ese dato. Sin internet el saldo no se
+consulta y se cobra igual, sin ofrecer el canje. El ticket dice el canje y lo que suma.
+
+Nadie escribe movimientos desde el navegador; corregir a mano es `ajustar_puntos`, con el
+permiso de ajustar cuentas (todavía sin pantalla). Los puntos en la app del cliente, para
+después.
 
 ## La cuenta corriente
 

@@ -1631,7 +1631,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null, mp = null }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null, mp = null, puntos = null, puntosSumados = 0 }) => {
     /* El POS ya no se monta con la caja cerrada, pero no es el único que
        cobra: los pedidos preparados entran por acá también. La condición
        se verifica en el único lugar por el que pasan todos, así que un
@@ -1670,6 +1670,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       comprobante: { fiscal: esFiscal, cliente: cliente ? { nombre: cliente.razonSocial, doc: cliente.doc } : null },
       promos,
       mp,
+      puntos,
     });
 
     /* Primero al disco, después el ticket. Guardar es sincrónico, así que
@@ -1693,6 +1694,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
          papel: el cliente tiene que ver por qué pagó menos. */
       descPromo,
       cliente: cliente || null, sincronizada: null,
+      /* Para el papel (0112): el canje, y lo que suma. Lo que suma lo
+         calcula la base igual; acá es para que el cliente lo lea. */
+      descPuntos: puntos, puntosSumados,
       /* En el papel, solo si hay más de una: con una sola ya lo dice el
          domicilio de arriba. */
       sucursal: lugar.varias ? sucursales.find((s) => s.id === sucursalActual) || null : null,

@@ -802,13 +802,16 @@ export function ticketVenta(t, ajustes, W) {
     b.push({ t: "lr", a: "SUBTOTAL", b: money(t.sub) });
     /* El de medio de pago (0103) va con su nombre; el resto es el manual. */
     const porMedio = t.descPromo ? Number(t.descPromo.monto) || 0 : 0;
-    if (t.desc - porMedio > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc - porMedio) });
+    const porPuntos = t.descPuntos ? Number(t.descPuntos.monto) || 0 : 0;
+    if (t.desc - porMedio - porPuntos > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc - porMedio - porPuntos) });
+    if (porPuntos > 0) b.push({ t: "lr", a: `CANJE ${t.descPuntos.usados} PUNTOS`, b: "-" + money(porPuntos) });
     if (porMedio > 0) b.push({ t: "lr", a: `PROMO ${String(t.descPromo.nombre || "").toUpperCase()}`.slice(0, W - 12), b: "-" + money(porMedio) });
     if (t.recargo > 0) b.push({ t: "lr", a: `RECARGO ${t.recargoNombre || ""}`.trim(), b: "+" + money(t.recargo) });
   }
   b.push({ t: "sep", c: "=" });
   b.push({ t: "lr", a: "TOTAL", b: discrimina ? "$" + nf2.format(t.total) : money(t.total) });
   b.push({ t: "sep", c: "=" });
+  if (t.puntosSumados > 0) b.push({ t: "c", v: `SUMASTE ${t.puntosSumados} PUNTOS` });
 
   /* La B no discrimina el IVA, pero desde la Ley 27.743 (Régimen de
      Transparencia Fiscal al Consumidor) tiene que decir cuánto IVA hay
