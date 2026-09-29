@@ -6,7 +6,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Search, Plus, X, Check, Loader2, Upload, Percent, ChevronLeft, ChevronRight, TrendingDown, Barcode, Trash2, ChefHat, Ban } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { fdate, fdatel } from "../datos/generador.js";
-import { money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad, ALICUOTAS, claveAlicuota, alicuotaDe, alicuotaDesdeTexto } from "../utils/helpers.js";
+import { mediosDe, money, moneyk, pct, nf, faltantesProducto, diasDesde, diasHasta, formatoCantidad, unidadDesdeTexto, nombreUnidad, ALICUOTAS, claveAlicuota, alicuotaDe, alicuotaDesdeTexto } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Vacio, Boton, Modal, Tabs, TablaSimple } from "../ui/Base.jsx";
 import { NumeroDiferido, TextoDiferido, Campo, inputCls } from "../ui/Campos.jsx";
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
@@ -302,7 +302,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
       <div className="space-y-4">
         {pestanas}
         <Promociones promos={promos} productos={productos} empresaId={empresaId} toast={toast}
-          recargar={recargarPromos || (async () => {})} puede={puedePromos} />
+          recargar={recargarPromos || (async () => {})} puede={puedePromos} medios={mediosDe(ajustes)} />
       </div>
     );
   }

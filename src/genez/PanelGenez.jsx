@@ -1605,7 +1605,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [] }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null }) => {
     /* El POS ya no se monta con la caja cerrada, pero no es el único que
        cobra: los pedidos preparados entran por acá también. La condición
        se verifica en el único lugar por el que pasan todos, así que un
@@ -1662,6 +1662,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       hora: hora(new Date()),
       items, sub, desc, total, medio: ps[0].medio, pagos: ps, ganancia, recibe: recibe || null,
       recargo: recargo || 0, recargoNombre: recargoNombre || "", fiscal: esFiscal,
+      /* El descuento por medio de pago (0103), aparte del manual en el
+         papel: el cliente tiene que ver por qué pagó menos. */
+      descPromo,
       cliente: cliente || null, sincronizada: null,
     };
     setTickets((x) => [t, ...x]);
