@@ -1,0 +1,826 @@
+{
+  "copiado": "2026-09-29",
+  "rubros": [
+    {
+      "clave": "minimercado",
+      "nombre": "Comercio",
+      "menu": [
+        {
+          "clave": "todo",
+          "nombre": null,
+          "modulos": [
+            {
+              "d": "Cómo viene el negocio hoy",
+              "i": "panel",
+              "k": "inicio",
+              "n": "Inicio"
+            },
+            {
+              "d": "Preparación con pistola y control de faltantes",
+              "i": "planilla",
+              "k": "pedidos",
+              "n": "Pedidos"
+            },
+            {
+              "d": "Para emitir facturas A, B o C según corresponda",
+              "i": "gente",
+              "k": "clientes",
+              "n": "Clientes"
+            },
+            {
+              "d": "Quién debe, cuánto y desde cuándo; cobrar y corregir",
+              "i": "cuaderno",
+              "k": "cuentas",
+              "n": "Cuenta corriente"
+            },
+            {
+              "d": "Quién trabaja, qué hace cada uno y cuándo está",
+              "i": "equipo",
+              "k": "equipo",
+              "n": "Equipo"
+            },
+            {
+              "d": "Costos, precios y margen de todo tu catálogo",
+              "i": "caja",
+              "k": "productos",
+              "n": "Productos"
+            },
+            {
+              "d": "Qué reponer, qué vence y qué no se mueve",
+              "i": "cajas",
+              "k": "stock",
+              "n": "Stock"
+            },
+            {
+              "d": "Cargar remitos, pedidos sugeridos y proveedores",
+              "i": "camion",
+              "k": "compras",
+              "n": "Compras"
+            },
+            {
+              "d": "Ingresos, egresos y arqueo del día",
+              "i": "billetera",
+              "k": "caja",
+              "n": "Caja"
+            },
+            {
+              "d": "Qué se vende, qué deja plata y qué cambió",
+              "i": "barras",
+              "k": "reportes",
+              "n": "Informes"
+            },
+            {
+              "d": "Tus datos explicados y qué conviene hacer",
+              "i": "chispas",
+              "k": "asistente",
+              "n": "Asistente"
+            },
+            {
+              "d": "Configuración del negocio y del sistema",
+              "i": "tuerca",
+              "k": "ajustes",
+              "n": "Ajustes"
+            },
+            {
+              "d": "Cotizar sin vender, convertir cuando el cliente confirma",
+              "i": "presupuesto",
+              "k": "presupuestos",
+              "n": "Presupuestos"
+            }
+          ]
+        }
+      ],
+      "voces": {
+        "cliente": "Cliente",
+        "resumen": "1 caja · {n} art.",
+        "clientes": "Clientes"
+      },
+      "modulos": [
+        "cobro",
+        "caja",
+        "ajustes",
+        "productos",
+        "stock",
+        "compras",
+        "pedidos",
+        "clientes",
+        "reportes",
+        "asistente",
+        "cuentas"
+      ],
+      "orden": 10,
+      "activo": true,
+      "entrada": "cobro",
+      "accion": {
+        "i": "barcode",
+        "k": "cobro",
+        "n": "Cobrar",
+        "destacada": true
+      },
+      "inicio": "comercio",
+      "reglas": {},
+      "marca": {},
+      "presentacion": {
+        "para": "Almacenes, minimercados, kioscos, dietéticas",
+        "icono": "carrito",
+        "bajada": "Cobrá con lector, controlá el stock y sabé qué deja plata.",
+        "nucleo": [
+          "productos",
+          "reportes"
+        ],
+        "titulo": "Comercio y minimercado",
+        "negocios": [
+          "Almacén",
+          "Minimercado",
+          "Kiosco",
+          "Dietética",
+          "Verdulería",
+          "Panadería",
+          "Ferretería",
+          "Casa de sanitarios"
+        ],
+        "preguntas": [
+          {
+            "k": "stock",
+            "n": "Controlo el stock y los vencimientos",
+            "modulos": [
+              "stock"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "compras",
+            "n": "Compro a proveedores con remito o factura",
+            "modulos": [
+              "compras"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "peso",
+            "n": "Vendo por peso (fiambre, verdura, pan)",
+            "modulos": [],
+            "necesita": [
+              "Balanza que imprima etiquetas con código de barras"
+            ]
+          },
+          {
+            "k": "factura",
+            "n": "Facturo A y B",
+            "modulos": [
+              "clientes"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "pedidos",
+            "n": "Tomo pedidos para preparar o enviar",
+            "modulos": [
+              "pedidos"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "equipo",
+            "n": "Trabajan otras personas conmigo",
+            "modulos": [
+              "permisos"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "asistente",
+            "n": "Quiero que el sistema me diga qué mirar cada día",
+            "modulos": [
+              "asistente"
+            ],
+            "necesita": []
+          }
+        ],
+        "destacados": [
+          "Cobro con lector de códigos",
+          "Stock y vencimientos",
+          "Compras y remitos por foto",
+          "Caja e informes"
+        ]
+      }
+    },
+    {
+      "clave": "gastronomia",
+      "nombre": "Gastronomía",
+      "menu": [
+        {
+          "clave": "todo",
+          "nombre": null,
+          "modulos": [
+            {
+              "d": "Cómo viene el negocio hoy",
+              "i": "panel",
+              "k": "inicio",
+              "n": "Inicio"
+            },
+            {
+              "d": "Qué mesa está ocupada, qué lleva y cuánto hace que espera",
+              "i": "cubiertos",
+              "k": "comandas",
+              "n": "Salón"
+            },
+            {
+              "d": "Lo que hay que preparar, en el orden en que se pidió",
+              "i": "cocina",
+              "k": "cocina",
+              "n": "Cocina"
+            },
+            {
+              "d": "Para emitir facturas A, B o C según corresponda",
+              "i": "gente",
+              "k": "clientes",
+              "n": "Clientes"
+            },
+            {
+              "d": "Quién debe, cuánto y desde cuándo; cobrar y corregir",
+              "i": "cuaderno",
+              "k": "cuentas",
+              "n": "Cuenta corriente"
+            },
+            {
+              "d": "Quién trabaja, qué hace cada uno y cuándo está",
+              "i": "equipo",
+              "k": "equipo",
+              "n": "Equipo"
+            },
+            {
+              "d": "Costos, precios y margen de todo tu catálogo",
+              "i": "caja",
+              "k": "productos",
+              "n": "Productos"
+            },
+            {
+              "d": "Qué reponer, qué vence y qué no se mueve",
+              "i": "cajas",
+              "k": "stock",
+              "n": "Stock"
+            },
+            {
+              "d": "Cargar remitos, pedidos sugeridos y proveedores",
+              "i": "camion",
+              "k": "compras",
+              "n": "Compras"
+            },
+            {
+              "d": "Ingresos, egresos y arqueo del día",
+              "i": "billetera",
+              "k": "caja",
+              "n": "Caja"
+            },
+            {
+              "d": "Qué se vende, qué deja plata y qué cambió",
+              "i": "barras",
+              "k": "reportes",
+              "n": "Informes"
+            },
+            {
+              "d": "Tus datos explicados y qué conviene hacer",
+              "i": "chispas",
+              "k": "asistente",
+              "n": "Asistente"
+            },
+            {
+              "d": "Configuración del negocio y del sistema",
+              "i": "tuerca",
+              "k": "ajustes",
+              "n": "Ajustes"
+            }
+          ]
+        }
+      ],
+      "voces": {
+        "cliente": "Cliente",
+        "resumen": "1 caja · {n} art.",
+        "clientes": "Clientes"
+      },
+      "modulos": [
+        "cobro",
+        "caja",
+        "ajustes",
+        "comandas",
+        "cocina",
+        "productos",
+        "stock",
+        "compras",
+        "clientes",
+        "reportes",
+        "cuentas"
+      ],
+      "orden": 20,
+      "activo": true,
+      "entrada": "comanda",
+      "accion": {
+        "i": "planilla",
+        "k": "comanda",
+        "n": "Comanda",
+        "destacada": true
+      },
+      "inicio": "comercio",
+      "reglas": {},
+      "marca": {
+        "lema": "Lo de siempre, más rápido.",
+        "tema": "auto",
+        "bajada": "Mirá la carta, pedí y seguí tus pedidos."
+      },
+      "presentacion": {
+        "para": "Bares, cafés, restaurantes, take away",
+        "icono": "cubiertos",
+        "bajada": "Mesas, comandas y cocina en la misma pantalla.",
+        "nucleo": [
+          "productos",
+          "reportes"
+        ],
+        "titulo": "Bar, café y restaurante",
+        "negocios": [
+          "Bar",
+          "Café",
+          "Restaurante",
+          "Cervecería",
+          "Rotisería",
+          "Take away"
+        ],
+        "preguntas": [
+          {
+            "k": "mesas",
+            "n": "Tengo salón con mesas",
+            "modulos": [
+              "comandas"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "cocina",
+            "n": "Tengo cocina aparte de la barra",
+            "modulos": [
+              "comandas"
+            ],
+            "necesita": [
+              "Una impresora de comandas en la cocina"
+            ]
+          },
+          {
+            "k": "delivery",
+            "n": "Hago delivery o take away",
+            "modulos": [
+              "comandas"
+            ],
+            "necesita": [
+              "Un teléfono con WhatsApp para los pedidos"
+            ]
+          },
+          {
+            "k": "stock",
+            "n": "Controlo el stock de insumos",
+            "modulos": [
+              "stock"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "compras",
+            "n": "Compro a proveedores con remito o factura",
+            "modulos": [
+              "compras"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "factura",
+            "n": "Facturo A y B",
+            "modulos": [
+              "clientes"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "equipo",
+            "n": "Trabajan otras personas conmigo",
+            "modulos": [
+              "permisos"
+            ],
+            "necesita": []
+          }
+        ],
+        "destacados": [
+          "Salón con plano de mesas",
+          "Comandas y cocina",
+          "Centro de pedidos y delivery",
+          "Caja e informes"
+        ]
+      }
+    },
+    {
+      "clave": "servicios",
+      "nombre": "Servicios y turnos",
+      "menu": [
+        {
+          "i": "panel",
+          "clave": "inicio",
+          "nombre": null,
+          "modulos": [
+            {
+              "d": "Cómo viene el negocio hoy",
+              "i": "panel",
+              "k": "inicio",
+              "n": "Inicio"
+            }
+          ]
+        },
+        {
+          "i": "agenda",
+          "clave": "agenda",
+          "nombre": "Agenda",
+          "modulos": [
+            {
+              "d": "Turnos del día, quién los da y en qué sala",
+              "i": "agenda",
+              "k": "agenda",
+              "n": "Agenda"
+            }
+          ]
+        },
+        {
+          "i": "gente",
+          "clave": "gente",
+          "nombre": "Clientes y equipo",
+          "modulos": [
+            {
+              "d": "Ficha, historial y turnos de cada cliente",
+              "i": "gente",
+              "k": "clientes",
+              "n": "Clientes"
+            },
+            {
+              "d": "Quién trabaja, qué hace cada uno y cuándo está",
+              "i": "equipo",
+              "k": "equipo",
+              "n": "Equipo"
+            }
+          ]
+        },
+        {
+          "i": "tuerca",
+          "clave": "catalogo",
+          "nombre": "Servicios y recursos",
+          "modulos": [
+            {
+              "d": "Qué se ofrece, cuánto dura, cuánto sale y dónde se hace",
+              "i": "tuerca",
+              "k": "servicios",
+              "n": "Servicios y recursos"
+            }
+          ]
+        },
+        {
+          "i": "bolsa",
+          "clave": "ventas",
+          "nombre": "Ventas",
+          "modulos": [
+            {
+              "d": "Abonos, packs y planes",
+              "i": "bolsa",
+              "k": "ventas",
+              "n": "Ventas"
+            }
+          ]
+        },
+        {
+          "i": "billetera",
+          "clave": "finanzas",
+          "nombre": "Finanzas",
+          "modulos": [
+            {
+              "d": "Caja, ingresos, egresos y lo que se le paga al equipo",
+              "i": "billetera",
+              "k": "finanzas",
+              "n": "Finanzas"
+            }
+          ]
+        },
+        {
+          "i": "corazon",
+          "clave": "crm",
+          "nombre": "CRM y marketing",
+          "modulos": [
+            {
+              "d": "A quién conviene escribirle esta semana, y por qué",
+              "i": "corazon",
+              "k": "crm",
+              "n": "Seguimiento"
+            }
+          ]
+        },
+        {
+          "i": "mensaje",
+          "clave": "comunicaciones",
+          "nombre": "Comunicaciones",
+          "modulos": [
+            {
+              "d": "Recordatorios de turno, plantillas y todo lo que se mandó",
+              "i": "mensaje",
+              "k": "comunicaciones",
+              "n": "Avisos"
+            }
+          ]
+        },
+        {
+          "i": "barras",
+          "clave": "reportes",
+          "nombre": "Reportes",
+          "modulos": [
+            {
+              "d": "Ingresos, ocupación, asistencia y clientes",
+              "i": "barras",
+              "k": "informes",
+              "n": "Informes"
+            }
+          ]
+        },
+        {
+          "i": "tuerca",
+          "clave": "config",
+          "nombre": "Configuración",
+          "modulos": [
+            {
+              "d": "Configuración del negocio y del sistema",
+              "i": "tuerca",
+              "k": "ajustes",
+              "n": "Ajustes"
+            },
+            {
+              "d": "Qué puede hacer cada rol, y quién cambió qué",
+              "i": "escudo",
+              "k": "permisos",
+              "n": "Permisos"
+            }
+          ]
+        }
+      ],
+      "voces": {
+        "turno": "Turno",
+        "turnos": "Turnos",
+        "cliente": "Cliente",
+        "clientes": "Clientes",
+        "profesional": "Profesional",
+        "profesionales": "Profesionales"
+      },
+      "modulos": [
+        "cobro",
+        "caja",
+        "ajustes",
+        "clientes",
+        "reportes"
+      ],
+      "orden": 30,
+      "activo": true,
+      "entrada": "panel",
+      "accion": null,
+      "inicio": "servicios",
+      "reglas": {
+        "tardeConsume": true,
+        "avisarMismoDia": true,
+        "esperaDesdeApp": true,
+        "anticipacionMin": 60,
+        "ausenciaConsume": true,
+        "permiteCancelar": true,
+        "cancelacionHoras": 3,
+        "requiereHistorial": true,
+        "permiteReprogramar": true,
+        "anticipacionMaxDias": null
+      },
+      "marca": {
+        "lema": "Tu espacio. Tu tiempo.",
+        "tema": "auto",
+        "bajada": "Reservá tus turnos y seguí tu plan desde la app."
+      },
+      "presentacion": {
+        "para": "Estéticas, pilates, gimnasios, peluquerías, consultorios",
+        "icono": "agenda",
+        "bajada": "Agenda, abonos y una app para que tus clientes reserven solos.",
+        "nucleo": [
+          "servicios",
+          "agenda",
+          "informes"
+        ],
+        "titulo": "Turnos, clases y planes",
+        "negocios": [
+          "Estética",
+          "Peluquería",
+          "Barbería",
+          "Pilates",
+          "Gimnasio",
+          "Consultorio",
+          "Spa"
+        ],
+        "preguntas": [
+          {
+            "k": "clases",
+            "n": "Doy clases grupales con cupo",
+            "modulos": [],
+            "necesita": [
+              "Los horarios y el cupo de cada clase"
+            ]
+          },
+          {
+            "k": "abonos",
+            "n": "Vendo packs o abonos",
+            "modulos": [
+              "ventas"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "equipo",
+            "n": "Trabajan otras personas conmigo",
+            "modulos": [
+              "equipo",
+              "permisos"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "sueldos",
+            "n": "Liquido sueldos o comisiones al equipo",
+            "modulos": [
+              "finanzas"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "app",
+            "n": "Quiero que reserven solos desde el celular",
+            "modulos": [
+              "comunicaciones"
+            ],
+            "necesita": [
+              "Un nombre para tu dirección: <nombre>.genez.com.ar"
+            ]
+          },
+          {
+            "k": "avisos",
+            "n": "Quiero recordatorios de turno por WhatsApp",
+            "modulos": [
+              "comunicaciones"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "volver",
+            "n": "Quiero saber a quién escribirle para que vuelva",
+            "modulos": [
+              "crm"
+            ],
+            "necesita": []
+          },
+          {
+            "k": "factura",
+            "n": "Facturo A y B",
+            "modulos": [
+              "clientes"
+            ],
+            "necesita": []
+          }
+        ],
+        "destacados": [
+          "Agenda con turnos y clases",
+          "Abonos y packs",
+          "Equipo y liquidaciones",
+          "App del cliente con reservas",
+          "Avisos por WhatsApp"
+        ]
+      }
+    }
+  ],
+  "roles_base": [
+    {
+      "clave": "dueno",
+      "nombre": "Dueño",
+      "descripcion": "Acceso completo al comercio",
+      "modulos": null,
+      "permisos": {
+        "fiar": true,
+        "anular": true,
+        "ajustes": true,
+        "verCostos": true,
+        "cajaGrande": true,
+        "cerrarCaja": true,
+        "configurar": true,
+        "darAccesos": true,
+        "descuentos": true,
+        "verBitacora": true,
+        "ajustarCuentas": true,
+        "cambiarPrecios": true,
+        "darAppClientes": true
+      },
+      "orden": 1
+    },
+    {
+      "clave": "encargado",
+      "nombre": "Encargado",
+      "descripcion": "Todo menos la configuración",
+      "modulos": [
+        "cobro",
+        "caja",
+        "comandas",
+        "productos",
+        "stock",
+        "compras",
+        "pedidos",
+        "clientes",
+        "equipo",
+        "agenda",
+        "ventas",
+        "finanzas",
+        "servicios",
+        "reportes",
+        "informes",
+        "crm",
+        "comunicaciones",
+        "asistente",
+        "cuentas"
+      ],
+      "permisos": {
+        "fiar": true,
+        "anular": true,
+        "ajustes": false,
+        "verCostos": true,
+        "cajaGrande": true,
+        "cerrarCaja": true,
+        "configurar": true,
+        "darAccesos": false,
+        "descuentos": true,
+        "verBitacora": true,
+        "ajustarCuentas": true,
+        "cambiarPrecios": true,
+        "darAppClientes": true
+      },
+      "orden": 2
+    },
+    {
+      "clave": "cajero",
+      "nombre": "Cajero",
+      "descripcion": "Cobra, sin ver costos ni ganancias",
+      "modulos": [
+        "cobro",
+        "caja",
+        "comandas",
+        "pedidos",
+        "clientes",
+        "equipo",
+        "agenda",
+        "ventas",
+        "finanzas",
+        "servicios",
+        "cuentas"
+      ],
+      "permisos": {
+        "fiar": true,
+        "anular": false,
+        "ajustes": false,
+        "verCostos": false,
+        "cajaGrande": false,
+        "cerrarCaja": false,
+        "configurar": false,
+        "darAccesos": false,
+        "descuentos": false,
+        "verBitacora": false,
+        "ajustarCuentas": false,
+        "cambiarPrecios": false,
+        "darAppClientes": false
+      },
+      "orden": 3
+    },
+    {
+      "clave": "repositor",
+      "nombre": "Repositor",
+      "descripcion": "Stock y preparación de pedidos",
+      "modulos": [
+        "stock",
+        "pedidos",
+        "productos"
+      ],
+      "permisos": {
+        "fiar": false,
+        "anular": false,
+        "ajustes": false,
+        "verCostos": false,
+        "cajaGrande": false,
+        "cerrarCaja": false,
+        "configurar": false,
+        "darAccesos": false,
+        "descuentos": false,
+        "verBitacora": false,
+        "ajustarCuentas": false,
+        "cambiarPrecios": false,
+        "darAppClientes": false
+      },
+      "orden": 4
+    }
+  ]
+}

@@ -130,7 +130,41 @@ function publicarVersion(version) {
   };
 }
 
+/* ============================================================
+   La pantalla de pruebas: vite --mode pruebas
+   ============================================================
+
+   El sistema entero con una conexión a Supabase de mentira
+   (src/pruebas/): sirve para ver las pantallas montadas sin una cuenta
+   real y sin tocar la base. Una pantalla que se cae acá se caería en
+   producción (así se escapó la pantalla en negro del 29/09: nadie la vio
+   montada antes de publicar).
+
+   Solo en ese modo: el build de producción no lo ve. Las funciones de
+   api/ no se sirven, para que nada de lo que se haga acá llegue a
+   Mercado Pago, ARCA o la base real. Y la página lo dice arriba, en
+   grande, para que nadie la confunda con la de verdad.
+   ============================================================ */
+function conexionDePrueba() {
+  const falso = resolve(process.cwd(), "src/pruebas/supabaseFalso.js");
+  return {
+    name: "genez-conexion-de-prueba",
+    enforce: "pre",
+    async resolveId(fuente, importador) {
+      if (!importador || !/(^|\/)supabase\.js$/.test(fuente) || importador.replace(/\\/g, "/").includes("/src/pruebas/")) return null;
+      const r = await this.resolve(fuente, importador, { skipSelf: true });
+      return r && r.id.replace(/\\/g, "/").endsWith("/src/datos/supabase.js") ? falso : null;
+    },
+    transformIndexHtml(html) {
+      /* Lo que sale mal queda anotado para leerlo desde la consola: los errores (window.__genezErrores) y los avisos rojos, que se van solos a los tres segundos (window.__genezAvisos). */
+      html = html.replace("</head>", `<script>window.__genezErrores=[];window.__genezAvisos=[];addEventListener("error",e=>__genezErrores.push(String(e.message)));addEventListener("unhandledrejection",e=>__genezErrores.push(String(e.reason&&e.reason.message||e.reason)));const __ce=console.error;console.error=(...a)=>{__genezErrores.push(a.map(String).join(" ").slice(0,300));__ce(...a)};new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1&&/bg-red-600/.test(n.className||""))__genezAvisos.push(n.textContent)}))).observe(document.documentElement,{childList:true,subtree:true});</script></head>`);
+      return html.replace("<body>", `<body><div style="position:fixed;z-index:99999;bottom:8px;left:50%;transform:translateX(-50%);background:#b45309;color:#fff;font:600 12px system-ui;padding:4px 10px;border-radius:6px;pointer-events:none">Pantalla de pruebas · datos de mentira · nada llega a la base</div>`);
+    },
+  };
+}
+
 export default defineConfig(({ mode, command }) => {
+  const pruebas = mode === "pruebas";
   const version = command === "build"
     ? `${(process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 7)}-${Date.now().toString(36)}`
     : "dev";
@@ -155,7 +189,7 @@ export default defineConfig(({ mode, command }) => {
   }
 
   return {
-    plugins: [react(), servirApi(), publicarVersion(version)],
+    plugins: pruebas ? [react(), conexionDePrueba()] : [react(), servirApi(), publicarVersion(version)],
     define: { __GENEZ_VERSION__: JSON.stringify(version) },
 
     /* Dos entradas, dos bundles. La app del cliente no tiene por qué
@@ -178,8 +212,8 @@ export default defineConfig(({ mode, command }) => {
     },
 
     server: {
-      port: 5173,
-      open: true,
+      port: pruebas ? 5191 : 5173,
+      open: !pruebas,
     },
   };
 });
