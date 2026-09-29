@@ -14,6 +14,7 @@ import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../dat
 import { usoDelProducto } from "../datos/items.js";
 import { Etiquetas } from "./Etiquetas.jsx";
 import { EtiquetasGondola } from "./EtiquetasGondola.jsx";
+import { ListaProveedor } from "./ListaProveedor.jsx";
 
 export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
   const [alta, setAlta] = useState(null);
@@ -27,6 +28,12 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
   const archivo = useRef(null);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
+  const [prov, setProv] = useState("Todos");
+  const [listaProv, setListaProv] = useState(false);
+  /* Después de guardar precios nuevos, cuántos cambiaron: la góndola
+     tiene que decir lo mismo que la caja, y es el paso que se olvida. */
+  const [etiquetasPendientes, setEtiquetasPendientes] = useState(0);
+  const [desdeEtiquetas, setDesdeEtiquetas] = useState(null);
   const [orden, setOrden] = useState("nombre");
   const [pag, setPag] = useState(0);
   const [abierto, setAbierto] = useState(null);
@@ -86,6 +93,58 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
      no lo va a hacer nadie, y se corrige por rubro: se filtra "Lácteos" y
      se aplica. Como el markup, va al borrador y se guarda después de
      mirarlo. */
+  /* REMARCAR UN PORCENTAJE
+
+     Lo que un almacén hace todas las semanas: "subió todo lo de
+     Lácteos un 8%". Sobre el precio de hoy y no sobre el costo, porque
+     casi ningún comercio tiene los costos cargados (Super 25, 29/09: 12
+     de 1.415). Se filtra el rubro, la búsqueda o el proveedor, y se
+     aplica a lo que se ve. Como el markup, va al borrador.
+
+     El redondeo acompaña la dirección: subiendo, hacia arriba (un
+     aumento no puede terminar bajando el precio por redondear); bajando,
+     hacia abajo. */
+  const [pctRemarcar, setPctRemarcar] = useState("");
+  const [destinoRemarcar, setDestinoRemarcar] = useState("precio");
+  const [redondeo, setRedondeo] = useState("10");
+  const redondear = (v, subiendo) => {
+    const r = Number(redondeo) || 1;
+    return (subiendo ? Math.ceil : Math.floor)(Math.round(v * 100) / 100 / r) * r;
+  };
+  const aplicarRemarcar = () => {
+    const pct = Number(String(pctRemarcar).replace(",", "."));
+    if (!pct || !isFinite(pct)) return toast("Poné un porcentaje distinto de cero: 8 sube un 8%, -5 baja un 5%.", "mal");
+    if (pct <= -100) return toast("Bajar el 100% o más dejaría el precio en cero.", "mal");
+    const subiendo = pct > 0;
+    const nuevos = {};
+    let sinBase = 0;
+    for (const p of lista) {
+      const ya = borrador[p.id] || {};
+      if (destinoRemarcar === "precio" || destinoRemarcar === "costo") {
+        const base = Number(enBorrador(p, destinoRemarcar)) || 0;
+        if (!base) { sinBase++; continue; }
+        /* El costo no se redondea a $10: es lo que factura el proveedor. */
+        const v = destinoRemarcar === "costo" ? Math.round(base * (1 + pct / 100)) : redondear(base * (1 + pct / 100), subiendo);
+        if (v === base) continue;
+        nuevos[p.id] = { ...ya, [destinoRemarcar]: v };
+      } else {
+        const precios = { ...(enBorrador(p, "precios") || {}) };
+        const base = Number(precios[destinoRemarcar]) || 0;
+        if (!base) { sinBase++; continue; }
+        const v = redondear(base * (1 + pct / 100), subiendo);
+        if (v === base) continue;
+        precios[destinoRemarcar] = v;
+        nuevos[p.id] = { ...ya, precios };
+      }
+    }
+    const n = Object.keys(nuevos).length;
+    const falta = destinoRemarcar === "costo" ? "costo" : "precio";
+    if (!n) return toast(sinBase ? `Ninguno cambió: ${sinBase} no tienen ${falta} cargado.` : "Con ese redondeo ninguno cambia.", "mal");
+    setBorrador((b) => ({ ...b, ...nuevos }));
+    const cola = sinBase ? ` · ${sinBase} sin ${falta} quedaron afuera` : "";
+    toast(`${n} ${n === 1 ? "producto remarcado" : "productos remarcados"} ${subiendo ? "+" : ""}${pct}%. Revisalos y guardá.${cola}`);
+  };
+
   const [ivaMasivo, setIvaMasivo] = useState("10.5");
   const aplicarIvaMasivo = () => {
     const nuevos = {};
@@ -142,7 +201,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
     const pendientes = Object.entries(borrador);
     if (!pendientes.length) return;
     setGuardando(true);
-    let hechos = 0;
+    let hechos = 0, conPrecio = 0;
     try {
       for (const [pid, cambios] of pendientes) {
         /* `propagar` para que un fallo corte el lote y llegue al catch:
@@ -154,8 +213,10 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
            siguen cargados y se reintenta con el mismo botón. */
         setBorrador((b) => { const { [pid]: _, ...resto } = b; return resto; });
         hechos++;
+        if (cambios.precio !== undefined || cambios.precios !== undefined) conPrecio++;
       }
       toast(`${hechos} ${hechos === 1 ? "producto actualizado" : "productos actualizados"}.`, "bien");
+      if (conPrecio) setEtiquetasPendientes((n) => n + conPrecio);
     } catch (e) {
       toast(`Se guardaron ${hechos} de ${pendientes.length}. ${e.message || "Falló la conexión."}`, "mal");
     } finally {
@@ -184,6 +245,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
   const lista = useMemo(() => {
     let l = productos;
     if (cat !== "Todas") l = l.filter((p) => p.categoria === cat);
+    if (prov !== "Todos") l = l.filter((p) => (p.proveedor || "") === (prov === "Sin proveedor" ? "" : prov));
     if (filtro === "margen") l = l.filter((p) => p.costo > p.costoPrev * 1.005);
     if (filtro === "flaco") l = l.filter((p) => (p.precio - p.costo) / p.precio < margenMinimo && p.u30 >= 4);
     if (filtro === "incompletos") l = l.filter((p) => faltantesProducto(p).length);
@@ -195,6 +257,10 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
        catálogo importado de una planilla sin costos ya cae entero ahí, y los
        treinta recién escaneados quedarían perdidos entre doscientos. */
     if (filtro === "sinNombre") l = l.filter((p) => p.barcode && p.nombre === p.barcode);
+    /* Lo que tiene cambios en el borrador: después de traer una lista de
+       proveedor son doscientos repartidos en cinco páginas, y esto los
+       junta para revisarlos antes de guardar. */
+    if (filtro === "borrador") l = l.filter((p) => borrador[p.id]);
     if (q.trim().length >= 2) {
       const t = norm(q.trim());
       l = l.filter((p) => norm(p.nombre).includes(t) || p.sku.toLowerCase().includes(t) || p.barcode.includes(t));
@@ -206,7 +272,14 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
       stock: (a, b) => a.stock / (a.vel || 0.01) - b.stock / (b.vel || 0.01),
     }[orden];
     return [...l].sort(cmp);
-  }, [productos, cat, q, orden, filtro, margenMinimo]);
+  }, [productos, cat, prov, q, orden, filtro, margenMinimo, borrador]);
+  /* El filtro por proveedor aparece solo si hay alguno: en un catálogo sin
+     proveedores (Super 25, 29/09) sería un menú con una sola opción. */
+  const proveedoresDelCatalogo = useMemo(() => {
+    const nombres = new Set(productos.map((p) => p.proveedor).filter(Boolean));
+    for (const n of Object.keys(provs || {})) nombres.add(n);
+    return [...nombres].sort();
+  }, [productos, provs]);
 
   const porPagina = 40;
   const paginas = Math.max(1, Math.ceil(lista.length / porPagina));
@@ -227,7 +300,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
     return (
       <div className="space-y-4">
         {pestanas}
-        <EtiquetasGondola productos={productos} empresaId={empresaId} ajustes={ajustes} toast={toast} />
+        <EtiquetasGondola productos={productos} empresaId={empresaId} ajustes={ajustes} toast={toast} desdeInicial={desdeEtiquetas} />
       </div>
     );
   }
@@ -244,6 +317,17 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
   return (
     <div className="space-y-4">
       {pestanas}
+      {etiquetasPendientes > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-acento bg-acento-suave/40 px-4 py-2.5 text-sm">
+          <span className="flex-1 min-w-0">
+            <b className="f-m">{nf.format(etiquetasPendientes)}</b> {etiquetasPendientes === 1 ? "precio cambió" : "precios cambiaron"}: la góndola todavía dice el de antes.
+          </span>
+          <Boton size="sm" onClick={() => { setDesdeEtiquetas(new Date()); setEtiquetasPendientes(0); setPestana("gondola"); }}>
+            Imprimir sus etiquetas
+          </Boton>
+          <button onClick={() => setEtiquetasPendientes(0)} className="text-xs text-texto-tenue hover:text-texto">Después</button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-tenue" />
@@ -253,6 +337,13 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
         <select value={cat} onChange={(e) => setCat(e.target.value)} className="text-sm border border-borde rounded-xl px-3 py-2 bg-superficie outline-none focus:border-acento">
           {cats.map((c) => <option key={c}>{c}</option>)}
         </select>
+        {proveedoresDelCatalogo.length > 0 && (
+          <select value={prov} onChange={(e) => setProv(e.target.value)} className="text-sm border border-borde rounded-xl px-3 py-2 bg-superficie outline-none focus:border-acento">
+            <option value="Todos">Todos los proveedores</option>
+            {proveedoresDelCatalogo.map((n) => <option key={n} value={n}>{n}</option>)}
+            <option value="Sin proveedor">Sin proveedor</option>
+          </select>
+        )}
         <select value={orden} onChange={(e) => setOrden(e.target.value)} className="text-sm border border-borde rounded-xl px-3 py-2 bg-superficie outline-none focus:border-acento">
           <option value="nombre">Orden alfabético</option>
           <option value="venta">Más vendidos</option>
@@ -262,7 +353,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {[["todos", "Todos"], ["sinNombre", "Sin nombre"], ["margen", "Subieron de costo"], ["flaco", "Margen bajo"], ["incompletos", "Incompletos"]].map(([k, n]) => (
+        {[["todos", "Todos"], ...(cuantosCambios > 0 || filtro === "borrador" ? [["borrador", "Sin guardar"]] : []), ["sinNombre", "Sin nombre"], ["margen", "Subieron de costo"], ["flaco", "Margen bajo"], ["incompletos", "Incompletos"]].map(([k, n]) => (
           <button key={k} onClick={() => setFiltro(k)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${filtro === k ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>{n}</button>
         ))}
@@ -293,6 +384,9 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
           </Boton>
           <Boton size="sm" variant="ghost" disabled={leyendo} onClick={() => archivo.current && archivo.current.click()}>
             {leyendo ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} <span className="hidden sm:inline">Importar</span>
+          </Boton>
+          <Boton size="sm" variant="ghost" onClick={() => setListaProv(true)}>
+            <Upload size={14} /> <span className="hidden sm:inline">Lista de proveedor</span><span className="sm:hidden">Lista</span>
           </Boton>
           <Boton size="sm" variant="ghost" onClick={() => setCaptura(true)}>
             <Barcode size={14} /> <span className="hidden sm:inline">Captura con pistola</span><span className="sm:hidden">Pistola</span>
@@ -350,6 +444,33 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
           {/* Arriba de la tabla y no en la barra de filtros: es una acción
               sobre lo que se está viendo, y tiene que leerse junto a ello. */}
           <div className="flex flex-wrap items-center gap-2 border-b border-borde bg-superficie-2 px-4 py-2.5">
+            <span className="text-xs uppercase tracking-widest text-texto-tenue font-bold">Remarcar</span>
+            <div className="flex items-center gap-1">
+              <input value={pctRemarcar} onChange={(e) => setPctRemarcar(e.target.value.replace(/[^\d,.-]/g, ""))}
+                placeholder="8" inputMode="decimal"
+                onKeyDown={(e) => { if (e.key === "Enter") aplicarRemarcar(); }}
+                className="f-m w-16 text-right border border-borde rounded-lg px-2 py-1 text-sm outline-none focus:border-acento bg-superficie" />
+              <span className="text-sm text-texto-suave">%</span>
+            </div>
+            <select value={destinoRemarcar} onChange={(e) => setDestinoRemarcar(e.target.value)}
+              className="text-sm border border-borde rounded-lg px-2 py-1 bg-superficie outline-none focus:border-acento">
+              <option value="precio">al precio general</option>
+              {listasActivas.map((l) => <option key={l.id} value={l.id}>a {l.nombre}</option>)}
+              <option value="costo">al costo</option>
+            </select>
+            {destinoRemarcar !== "costo" && (
+              <select value={redondeo} onChange={(e) => setRedondeo(e.target.value)}
+                className="text-sm border border-borde rounded-lg px-2 py-1 bg-superficie outline-none focus:border-acento">
+                <option value="1">sin redondear</option>
+                <option value="10">redondeando a $10</option>
+                <option value="50">redondeando a $50</option>
+                <option value="100">redondeando a $100</option>
+              </select>
+            )}
+            <Boton size="sm" variant="ghost" onClick={aplicarRemarcar}>
+              Aplicar a {nf.format(lista.length)}
+            </Boton>
+            <span className="basis-full h-0" aria-hidden="true" />
             <span className="text-xs uppercase tracking-widest text-texto-tenue font-bold">Sugerir por markup</span>
             <div className="flex items-center gap-1">
               <input value={markup} onChange={(e) => setMarkup(e.target.value.replace(/[^\d]/g, ""))}
@@ -685,6 +806,28 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
           }
           toast(`Planilla aplicada: ${cambios.length} actualizados, ${nuevos.length} nuevos.`);
         }} />
+
+      {/* Los cambios de la lista van al borrador, no a la base: se ven
+          resaltados en la tabla y se guardan con el mismo botón que el
+          markup o el remarcado. */}
+      {listaProv && (
+        <ListaProveedor productos={productos} onCerrar={() => setListaProv(false)}
+          onAplicar={(cambios) => {
+            setBorrador((b) => {
+              const n = { ...b };
+              for (const c of cambios) {
+                n[c.producto.id] = { ...(n[c.producto.id] || {}),
+                  ...(c.costo !== undefined ? { costo: c.costo } : {}),
+                  ...(c.precio !== undefined ? { precio: c.precio } : {}) };
+              }
+              return n;
+            });
+            setListaProv(false);
+            setQ(""); setCat("Todas"); setProv("Todos"); setFiltro("borrador");
+            setModoPrecios(true);
+            toast(`${cambios.length} ${cambios.length === 1 ? "producto cambia" : "productos cambian"} con la lista. Están resaltados: revisalos y guardá.`);
+          }} />
+      )}
 
       <CapturaConPistola abierto={captura} productos={productos} onCrear={agregarProducto}
         onClose={() => {

@@ -111,8 +111,10 @@ export function documento(etiquetas, comercio, logo = null) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>@page { size: A4; margin: 0; } ${CSS}</style></head><body>${hojas.join("")}</body></html>`;
 }
 
-export function EtiquetasGondola({ productos, empresaId, ajustes, toast }) {
-  const [desde, setDesde] = useState(() => paraInput(haceDias(7)));
+/* `desdeInicial`: la fecha con que arranca. Después de remarcar se llega
+   con hoy, para imprimir justo lo que se acaba de cambiar. */
+export function EtiquetasGondola({ productos, empresaId, ajustes, toast, desdeInicial = null }) {
+  const [desde, setDesde] = useState(() => paraInput(desdeInicial || haceDias(7)));
   const [cambios, setCambios] = useState(null);      // id → fecha del último cambio de precio
   const [error, setError] = useState(null);
   const [fuera, setFuera] = useState(() => new Set());   // los que no se imprimen

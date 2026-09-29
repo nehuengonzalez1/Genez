@@ -51,6 +51,7 @@ node scripts/probar-caea.mjs       # cuándo una factura sale con CAEA y con qu�
 node scripts/probar-arca-caea.mjs  # el CAEA contra el ARCA de pruebas: pedirlo, emitir con ARCA "caído", informarlo
 node scripts/probar-planillas.mjs  # las planillas para el contador: columnas, notas restando, totales (sin base)
 node scripts/probar-cajas.mjs      # varias cajas: una sesión abierta por caja, la app de antes, la caja de otro comercio
+node scripts/probar-lista-proveedor.mjs  # leer la lista de un proveedor: títulos, columnas, importes, cruce por EAN (sin base)
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -925,6 +926,31 @@ ajuste, que se carga como el saldo real de la cuenta. Verla y moverla pide
 `cajaGrande` (de fábrica dueño y encargado), verificado por la base en la
 política y en cada función. Lo que entra desde el cierre o desde el cajón
 no lo pide: lo hace quien tiene la caja del día.
+
+## Remarcar precios
+
+Productos → Editar en tabla. Todo cambio masivo va al **borrador** y se
+guarda después de mirarlo, con el mismo botón: el markup sobre el costo,
+el IVA, el **remarcado por porcentaje** y la **lista de un proveedor**.
+
+**Remarcar** sube o baja un porcentaje lo que está filtrado (rubro,
+búsqueda, proveedor), sobre el precio general, una lista o el costo. Es
+sobre el precio de hoy y no sobre el costo porque casi ningún comercio
+tiene los costos cargados (Super 25, 29/09: 12 de 1.415). El redondeo
+acompaña la dirección: subiendo, hacia arriba; bajando, hacia abajo.
+
+**La lista de un proveedor** (`ListaProveedor.jsx`, la lectura en
+`src/utils/listaProveedor.js`) acepta la planilla como la manda el
+proveedor: busca la fila de títulos, adivina las columnas (se pueden
+corregir), lee importes con coma o con punto y cruza por código de
+barras. El importe puede ser costo (con IVA o sin, y opcionalmente el
+precio con markup) o precio de venta. Lo que el catálogo no tiene se
+lista y no se da de alta solo. Los cambios caen en el borrador con el
+filtro "Sin guardar".
+
+Al guardar precios aparece "Imprimir sus etiquetas", que abre las de
+góndola con "cambiaron desde hoy": la góndola tiene que decir lo mismo
+que la caja, y es el paso que se olvida.
 
 ## Varias cajas
 
