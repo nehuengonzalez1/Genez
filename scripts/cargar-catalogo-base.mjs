@@ -14,7 +14,8 @@
      node scripts/cargar-catalogo-base.mjs                   mide, no escribe
      node scripts/cargar-catalogo-base.mjs --dias lunes,jueves
      node scripts/cargar-catalogo-base.mjs --cache           reusa lo ya bajado
-     node scripts/cargar-catalogo-base.mjs --cache --escribir
+     node scripts/cargar-catalogo-base.mjs --cache --escribir            sin rubro
+     node scripts/cargar-catalogo-base.mjs --cache --escribir --modelo   con lo de clasificar-catalogo.mjs
 
    Sin --escribir no toca la base más que para leer, en solo lectura, los
    códigos de Super 25 con los que se mide. Con --escribir carga la tabla
@@ -133,7 +134,13 @@ function armarFilas() {
 /* ---------- Leer ---------- */
 let filas;
 if (usarCache && existsSync(cache)) {
-  filas = JSON.parse(readFileSync(cache, "utf8"));
+  /* Desde el texto original se rearman nombre, presentación y rubro con
+     las reglas de hoy: cambiar una regla no obliga a bajar todo de nuevo. */
+  filas = JSON.parse(readFileSync(cache, "utf8")).map((f) => {
+    if (!f.original) return f;
+    const nombre = nombreProlijo(f.original);
+    return { ...f, nombre, presentacion: presentacion(f.original.cantidad, f.original.unidad) || null, rubro: rubroDe(nombre) };
+  });
   console.log(`\nDesde lo ya bajado: ${filas.length.toLocaleString("es-AR")} códigos`);
 } else {
   console.log("\nBajando SEPA");
@@ -187,6 +194,18 @@ try {
 
 /* ---------- Escribir ---------- */
 if (escribir) {
+  /* El rubro de las palabras clave NO se escribe: acertaba el 56% contra
+     Super 25, y un rubro equivocado sugerido en el alta es peor que el
+     campo vacío de siempre. Se escribe solo el que dio el modelo
+     (clasificar-catalogo.mjs), y solo si se pide con --modelo; de ahí
+     sale también el nombre, que el modelo escribe mejor. */
+  const rutaModelo = join(dir, "modelo.json");
+  const modelo = args.includes("--modelo") && existsSync(rutaModelo) ? JSON.parse(readFileSync(rutaModelo, "utf8")) : {};
+  if (args.includes("--modelo")) console.log(`\nDel modelo: ${Object.keys(modelo).length.toLocaleString("es-AR")} códigos`);
+  filas = filas.map((f) => {
+    const m = modelo[f.ean];
+    return { ...f, nombre: (m && m.nombre) || f.nombre, rubro: (m && m.rubro) || null };
+  });
   console.log("\nEscribiendo catalogo_base");
   try {
     await c.query("begin");

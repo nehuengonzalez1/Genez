@@ -35,11 +35,15 @@ export function presentacion(cantidad, unidad) {
   let n = Number(String(cantidad || "").replace(",", "."));
   if (!u || !isFinite(n) || n <= 0) return "";
   let uf = u;
-  if (u === "ml" && n >= 1000 && n % 250 === 0) { n = n / 1000; uf = "L"; }
-  if (u === "g" && n >= 1000 && n % 250 === 0) { n = n / 1000; uf = "kg"; }
+  /* Hay cadenas que publican "2250 LT": ninguna gaseosa trae dos mil
+     litros, son mililitros. Igual con los kilos. */
+  if (u === "L" && n >= 100) uf = "ml";
+  if (u === "kg" && n >= 100) uf = "g";
   // "0,15 L" lo escribe una planilla; en la góndola dice 150 ml.
-  if (u === "L" && n < 1) { n = n * 1000; uf = "ml"; }
-  if (u === "kg" && n < 1) { n = n * 1000; uf = "g"; }
+  if (uf === "L" && n < 1) { n = n * 1000; uf = "ml"; }
+  if (uf === "kg" && n < 1) { n = n * 1000; uf = "g"; }
+  if (uf === "ml" && n >= 1000 && n % 250 === 0) { n = n / 1000; uf = "L"; }
+  if (uf === "g" && n >= 1000 && n % 250 === 0) { n = n / 1000; uf = "kg"; }
   // "1 un" es lo que la norma pone cuando no hay presentación: no dice nada.
   if (uf === "un" && n === 1) return "";
   return `${String(Math.round(n * 1000) / 1000).replace(".", ",")} ${uf}`;
@@ -61,6 +65,8 @@ export function nombreProlijo({ descripcion, marca, cantidad, unidad }) {
     if (UNIDADES[ult.toLowerCase().replace(/\.$/, "")] !== undefined && /^[\d.,]+$/.test(ant)) { palabras = palabras.slice(0, -2); continue; }
     if (/^X?[\d.,]+(GRS?|GRM|G|KGS?|KGM|ML|MLT|CC|CMQ|LTS?|LTR|L|UN|U)([./]\S*)?$/.test(ult)) { palabras = palabras.slice(0, -1); continue; }
     if (ENVASES.has(ult)) { palabras = palabras.slice(0, -1); continue; }
+    // La "x" de "x 312 g" cuando el número ya se fue con la presentación.
+    if (ult === "X") { palabras = palabras.slice(0, -1); continue; }
     break;
   }
   const marcaMin = String(marca || "").trim().toLocaleLowerCase("es");
@@ -69,7 +75,14 @@ export function nombreProlijo({ descripcion, marca, cantidad, unidad }) {
     .map((w) => w.toLocaleLowerCase("es"))
     .map((w) => (marcaPal.has(w) ? conMayuscula(w) : w))
     .join(" ");
-  const base = conMayuscula(texto);
+  /* Algunas cadenas no ponen la marca en la descripción ("BEB ISOTONICA
+     NARANJA") y viene solo en su campo: sin ella, en la góndola nadie
+     sabe qué es. Va antes de la presentación, como la escribe un
+     almacén. */
+  const enTexto = new Set(texto.toLocaleLowerCase("es").split(" "));
+  const faltan = marcaMin.split(/\s+/).filter((w) => w && !enTexto.has(w));
+  const conMarca = faltan.length ? `${texto} ${faltan.map(conMayuscula).join(" ")}` : texto;
+  const base = conMayuscula(conMarca);
   return pres ? `${base} ${pres}` : base;
 }
 

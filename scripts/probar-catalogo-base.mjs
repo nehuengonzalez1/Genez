@@ -33,6 +33,9 @@ decir(presentacion("400", "grm") === "400 g", "400 grm → 400 g");
 decir(presentacion("2250", "cmq") === "2,25 L", "2250 cm³ → 2,25 L");
 decir(presentacion("1000", "grm") === "1 kg", "1000 g → 1 kg");
 decir(presentacion("00500", "gr") === "500 g", "con ceros adelante");
+decir(presentacion("2250", "lt") === "2,25 L", "2250 \"litros\" son mililitros: 2,25 L");
+decir(presentacion("0.15", "ltr") === "150 ml" && presentacion("0.5", "kgm") === "500 g", "0,15 L → 150 ml, 0,5 kg → 500 g");
+decir(presentacion("1", "uni") === "" && presentacion("6", "uni") === "6 un", "\"1 un\" no dice nada; \"6 un\" sí");
 decir(presentacion("3", "xyz") === "", "una unidad que no se conoce: nada, antes que inventar");
 
 console.log("\nEl nombre");
@@ -42,6 +45,10 @@ decir(nombreProlijo({ descripcion: "GASEOSA COCA COLA BOT 2250 CMQ", marca: "COC
   === "Gaseosa Coca Cola 2,25 L", "una marca de dos palabras");
 decir(nombreProlijo({ descripcion: "ARROZ MOLTO X500G.L/F", marca: "", cantidad: "00500", unidad: "gr" })
   === "Arroz molto 500 g", "el de un sistema viejo: sin el X500G.L/F");
+decir(nombreProlijo({ descripcion: "BEB ISOTONICA NARANJA BOT 1250 CMQ", marca: "GATORADE", cantidad: "1250", unidad: "cmq" })
+  === "Beb isotonica naranja Gatorade 1,25 L", "la marca que no estaba en el texto se agrega antes de la presentación");
+decir(nombreProlijo({ descripcion: "ESPUMA DE AFEITAR SENSITIVE GILLETTE X", marca: "GILLETTE", cantidad: "312", unidad: "grm" })
+  === "Espuma de afeitar sensitive Gillette 312 g", "sin la x suelta del final");
 
 console.log("\nLa mejor descripción");
 const m = mejorDescripcion([

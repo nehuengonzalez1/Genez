@@ -1096,9 +1096,16 @@ se rinde al segundo y medio y un fallo no se recuerda, así que un mostrador
 sin internet no se traba.
 
 **El rubro solo se pone si el comercio ya usa ese nombre** (o si todavía no
-tiene ninguno). SEPA no trae rubro: lo asigna `rubroDe()` por palabras
-clave al cargar, y a un comercio con sus propios rubros no le sirve que
+tiene ninguno). A un comercio con sus propios rubros no le sirve que
 aparezca uno más escrito parecido.
+
+**Por ahora se carga sin rubro.** SEPA no lo trae. Las palabras clave
+de `rubroDe()` acertaban el 56% contra los rubros de Super 25 y dejaban
+sin rubro dos de cada tres productos, y un rubro equivocado sugerido es
+peor que el campo vacío. `scripts/clasificar-catalogo.mjs` lo hace con
+Haiku (nombre y rubro, de a cien) y mide contra Super 25; la carga usa
+lo del modelo solo con `--modelo`. Está escrito y sin correr: la cuenta
+de la API no tenía crédito.
 
 **El código se guarda sin ceros adelante.** La pistola lee un UPC de doce
 dígitos como trece con un cero, y SEPA publica de las dos formas. La tabla
