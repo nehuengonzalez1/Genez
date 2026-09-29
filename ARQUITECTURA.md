@@ -956,8 +956,21 @@ imprime "PROMO …" restando debajo de cada renglón (en la A no: ahí va en
 el descuento del pie).
 
 Cargarlas pide `cambiarPrecios`, en la base. No se borran: se apagan.
-Todavía no: la comanda (gastronomía) no aplica promos, ni hay descuento
-por medio de pago.
+
+**Por medio de pago (0103)**: "10% con débito los miércoles" es una
+clase más (`tipo = 'medio'`), sobre toda la compra. Se aplica al cobrar
+(`descuentoPorMedio`): después de las promos de producto y del
+descuento a mano, antes del recargo del medio, que se calcula sobre lo
+que queda. Con varias para el mismo medio, la mayor. No aplica a un pago
+combinado. Queda en el descuento de la venta (el IVA de la factura lo
+reparte entre alícuotas), topeado a 99,99% (0088), y el ticket la
+imprime aparte del descuento manual. La pantalla de pago la muestra al
+lado de cada medio, antes de elegir.
+
+Todavía no: la comanda (gastronomía) no aplica promos. No es un cambio
+chico: la cuenta de una mesa se arma durante horas, se paga en partes y
+tiene su propio descuento, y la promo tendría que recalcularse en cada
+pedido y pasar por el cierre, que tiene varias versiones en la base.
 
 ## Remarcar precios
 

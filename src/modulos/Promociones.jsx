@@ -27,9 +27,10 @@ const TIPOS = [
   { k: "segunda", n: "Segunda unidad con descuento", d: "La segunda al 50%, al 70%…" },
   { k: "porcentaje", n: "Porcentaje de descuento", d: "20% en Limpieza, 10% en una marca." },
   { k: "pack", n: "N unidades por $P", d: "3 alfajores por $1.000." },
+  { k: "medio", n: "Por medio de pago", d: "10% con débito, sobre toda la compra (0103)." },
 ];
 const DIAS = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
-const PARAMETROS_INICIALES = { nxm: { lleva: 2, paga: 1 }, segunda: { pct: 50 }, porcentaje: { pct: 10 }, pack: { cantidad: 3, precio: 1000 } };
+const PARAMETROS_INICIALES = { nxm: { lleva: 2, paga: 1 }, segunda: { pct: 50 }, porcentaje: { pct: 10 }, pack: { cantidad: 3, precio: 1000 }, medio: { medio: "", pct: 10 } };
 
 const vacia = () => ({ nombre: "", tipo: "nxm", parametros: { ...PARAMETROS_INICIALES.nxm }, alcance: { productos: [], rubros: [] }, desde: "", hasta: "", dias: [], activa: true });
 
@@ -42,7 +43,10 @@ function cuando(p) {
   return partes.join(" · ") || "Siempre";
 }
 
-export function Promociones({ promos, productos, empresaId, toast, recargar, puede }) {
+export function Promociones({ promos, productos, empresaId, toast, recargar, puede, medios = [] }) {
+  const nombreMedio = (k) => (medios.find((m) => m.k === k) || { n: k }).n;
+  /* La de medio de pago se dice con el nombre del medio, no con su clave. */
+  const rotulo = (p) => (p.tipo === "medio" ? `-${p.parametros.pct}% ${nombreMedio(p.parametros.medio)}` : describir(p));
   const [editando, setEditando] = useState(null);
   const nombreDe = useMemo(() => new Map(productos.map((p) => [p.id, p.nombre])), [productos]);
 
@@ -69,10 +73,10 @@ export function Promociones({ promos, productos, empresaId, toast, recargar, pue
             const abarca = [...(p.alcance.rubros || []).map((r) => `Rubro ${r}`), ...(p.alcance.productos || []).map((id) => nombreDe.get(id) || "producto dado de baja")];
             return (
               <li key={p.id} className={`px-5 py-3 flex items-center gap-3 ${p.activa ? "" : "opacity-60"}`}>
-                <span className="f-m text-sm font-bold w-24 shrink-0 text-bien">{describir(p)}</span>
+                <span className="f-m text-sm font-bold w-24 shrink-0 text-bien">{rotulo(p)}</span>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold truncate">{p.nombre}</div>
-                  <div className="text-xs text-texto-tenue truncate">{abarca.join(", ") || "No abarca nada todavía"} · {cuando(p)}</div>
+                  <div className="text-xs text-texto-tenue truncate">{p.tipo === "medio" ? `Toda la compra, pagando con ${nombreMedio(p.parametros.medio)}` : abarca.join(", ") || "No abarca nada todavía"} · {cuando(p)}</div>
                 </div>
                 <span className={`text-[10px] uppercase tracking-[0.1em] font-bold px-2 py-0.5 rounded border ${hoy ? "border-bien bg-bien-suave text-bien" : "border-borde text-texto-tenue"}`}>
                   {hoy ? "Hoy vale" : p.activa ? "Hoy no" : "Apagada"}
@@ -89,14 +93,14 @@ export function Promociones({ promos, productos, empresaId, toast, recargar, pue
         </ul>
       )}
       {editando && (
-        <FormPromo inicial={editando} productos={productos} empresaId={empresaId} toast={toast}
+        <FormPromo inicial={editando} productos={productos} empresaId={empresaId} toast={toast} medios={medios}
           onCerrar={() => setEditando(null)} onGuardada={async () => { await recargar(); setEditando(null); }} />
       )}
     </Card>
   );
 }
 
-function FormPromo({ inicial, productos, empresaId, toast, onCerrar, onGuardada }) {
+function FormPromo({ inicial, productos, empresaId, toast, onCerrar, onGuardada, medios = [] }) {
   const [p, setP] = useState(inicial);
   const [q, setQ] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -118,7 +122,8 @@ function FormPromo({ inicial, productos, empresaId, toast, onCerrar, onGuardada 
 
   const guardar = async () => {
     if (!p.nombre.trim()) return toast("Ponele un nombre a la promo: es lo que sale en el ticket.", "mal");
-    if (!p.alcance.productos.length && !p.alcance.rubros.length) return toast("Elegí a qué productos o rubros se aplica.", "mal");
+    if (p.tipo === "medio" && !p.parametros.medio) return toast("Elegí con qué medio de pago vale el descuento.", "mal");
+    if (p.tipo !== "medio" && !p.alcance.productos.length && !p.alcance.rubros.length) return toast("Elegí a qué productos o rubros se aplica.", "mal");
     setGuardando(true);
     try {
       await guardarPromocion(empresaId, { ...p, desde: p.desde || null, hasta: p.hasta || null });
@@ -161,9 +166,19 @@ function FormPromo({ inicial, productos, empresaId, toast, onCerrar, onGuardada 
           {p.tipo === "nxm" && <>Llevá {num("lleva", "w-14")} y pagá {num("paga", "w-14")}</>}
           {p.tipo === "segunda" && <>La segunda unidad con {num("pct", "w-16")}% de descuento</>}
           {p.tipo === "porcentaje" && <>{num("pct", "w-16")}% de descuento</>}
+          {p.tipo === "medio" && (
+            <>{num("pct", "w-16")}% de descuento en toda la compra pagando con
+              <select value={p.parametros.medio || ""} onChange={(e) => setP((x) => ({ ...x, parametros: { ...x.parametros, medio: e.target.value } }))}
+                className="border border-borde rounded-lg px-2 py-1 bg-superficie">
+                <option value="">elegí un medio</option>
+                {medios.filter((m) => m.k !== "cuenta_corriente").map((m) => <option key={m.k} value={m.k}>{m.n}</option>)}
+              </select>
+            </>
+          )}
           {p.tipo === "pack" && <>{num("cantidad", "w-14")} unidades por ${num("precio", "w-24")} {p.parametros.precio ? <span className="text-texto-tenue">({money(p.parametros.precio)})</span> : null}</>}
         </div>
 
+        {p.tipo !== "medio" && <>
         <div>
           <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold mb-1.5">Rubros enteros</div>
           <div className="flex flex-wrap gap-1.5">
@@ -200,6 +215,8 @@ function FormPromo({ inicial, productos, empresaId, toast, onCerrar, onGuardada 
             </div>
           )}
         </div>
+
+        </>}
 
         <div className="grid grid-cols-2 gap-3">
           <Campo label="Desde (opcional)"><input type="date" value={p.desde || ""} onChange={(e) => set({ desde: e.target.value })} className={inputCls} /></Campo>

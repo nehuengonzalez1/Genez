@@ -41,11 +41,15 @@ try {
   if (!(await una("select to_regclass('promociones') is not null as si")).si) {
     await c.query(readFileSync("supabase/migrations/0102_promociones.sql", "utf8"));
   }
+  /* 0103 suma la clase "medio": si no está aplicada, adentro de esta
+     misma transacción. */
+  const conMedio = await una("select pg_get_constraintdef(oid) ~ 'medio' as si from pg_constraint where conname = 'promociones_tipo_check'");
+  if (!conMedio.si) await c.query(readFileSync("supabase/migrations/0103_descuento_por_medio.sql", "utf8"));
   const super25 = (await una("select id from empresas where nombre = 'Super 25'")).id;
   const bar = (await una("select id from empresas where nombre = 'Bar Rivadavia'")).id;
 
   console.log("\nLas cuatro clases bien cargadas");
-  for (const [tipo, par] of [["nxm", { lleva: 2, paga: 1 }], ["segunda", { pct: 50 }], ["porcentaje", { pct: 20 }], ["pack", { cantidad: 3, precio: 1000 }]]) {
+  for (const [tipo, par] of [["nxm", { lleva: 2, paga: 1 }], ["segunda", { pct: 50 }], ["porcentaje", { pct: 20 }], ["pack", { cantidad: 3, precio: 1000 }], ["medio", { medio: "debito", pct: 10 }]]) {
     decir(!(await falla(promo(super25, tipo, par))), `${tipo} ${JSON.stringify(par)}`);
   }
 
@@ -57,6 +61,8 @@ try {
     ["porcentaje", { pct: 100 }, "100% (gratis)"],
     ["pack", { cantidad: 1, precio: 500 }, "pack de 1"],
     ["regalo", {}, "una clase que no existe"],
+    ["medio", { pct: 10 }, "por medio de pago sin decir cuál"],
+    ["medio", { medio: "debito", pct: 100 }, "100% pagando con débito"],
   ]) {
     const e = await falla(promo(super25, tipo, par));
     decir(!!e, `${que}: rechazada`);

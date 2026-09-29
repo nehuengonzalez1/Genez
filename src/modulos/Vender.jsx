@@ -12,7 +12,7 @@ import { HOY, uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
 import { pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../utils/fiscal.js";
 import { cargarPlanilla, descargar } from "../utils/planilla.js";
-import { aplicarPromociones } from "../utils/promociones.js";
+import { aplicarPromociones, descuentoPorMedio } from "../utils/promociones.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
@@ -782,7 +782,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const arrancaFactura = !!ajustes.arca && facturacion.puede;
   const [fiscal, setFiscal] = useState(arrancaFactura);
   const letra = letraComprobante((ajustes.fiscal || FISCAL_INICIAL).condicion, cliente ? cliente.condicion : "CF", (ajustes.fiscal || FISCAL_INICIAL).claseInscripto);
-  const rec = conRecargo(total, medio);
+  /* El descuento por medio de pago (0103) va antes del recargo: el
+     recargo se calcula sobre lo que se cobra de verdad. */
+  const promoMedio = descuentoPorMedio(promos, medio && medio.k, total);
+  const rec = conRecargo(total - (promoMedio ? promoMedio.monto : 0), medio);
   const totalFinal = rec.total;
   // El vuelto se calcula sobre el total con recargo, así que va después.
   const vuelto = recibe ? Number(recibe) - totalFinal : 0;
@@ -852,7 +855,14 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       precioLista: l.manual != null ? l.precio : null, iva: l.iva, ivaCondicion: l.ivaCondicion,
       promo: l.promo || 0, promoNombre: l.promoNombre || null }));
     const m = medioPorK(ajustes, k);
-    const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
+    /* Un pago combinado no lleva descuento por medio: con dos medios no
+       hay uno solo al que hacérselo (src/utils/promociones.js). El que
+       entra se topea para que el descuento total no pase del 99,99% (0088). */
+    let pm = listaPagos ? null : descuentoPorMedio(promos, k, total);
+    if (pm) pm = { ...pm, monto: Math.min(pm.monto, Math.max(0, topeDescuento(sub) - descMonto)) };
+    if (pm && !pm.monto) pm = null;
+    const base = total - (pm ? pm.monto : 0);
+    const r = listaPagos ? { total, recargo: 0 } : conRecargo(base, m);
 
     /* El límite de crédito se controla acá y no en la base (ver 0085): la
        venta puede llegar a la base una hora después, sin internet, y
@@ -867,9 +877,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       }
       if (!window.confirm(`${texto}\n\n¿Fiar igual?`)) return;
     }
-    const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
+    const descPromo = pm ? { nombre: pm.promo.nombre, monto: pm.monto } : null;
+    const t = cobrar({ items, sub, desc: descMonto + (pm ? pm.monto : 0), total: r.total, medio: k, ganancia: ganancia - (pm ? pm.monto : 0) + r.recargo,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
-      fiscal: fiscal && facturacion.puede, cliente, promos: promoCalc.aplicadas });
+      fiscal: fiscal && facturacion.puede, cliente, descPromo,
+      promos: pm ? [...promoCalc.aplicadas, { id: pm.promo.id, nombre: pm.promo.nombre, descuento: pm.monto }] : promoCalc.aplicadas });
     /* Sin caja abierta no hay venta: no se descuenta stock ni se limpia el
        carrito, así el cobro se puede retomar apenas se abra. */
     if (!t) return;
@@ -1361,6 +1373,16 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors ${i === medioSel ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
                     <Tecla>{i + 1}</Tecla>
                     <span className="font-semibold flex-1">{m.n}</span>
+                    {(() => {
+                      /* Que se vea antes de elegir: "−10% hoy" es lo que
+                         hace que el cliente saque la tarjeta que conviene. */
+                      const pmm = descuentoPorMedio(promos, m.k, total);
+                      return pmm ? (
+                        <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-bien-suave text-bien border-bien shrink-0">
+                          −{pmm.pct}% hoy · {money(total - pmm.monto)}
+                        </span>
+                      ) : null;
+                    })()}
                     {m.tasa > 0 && (
                       <span className="text-xs text-texto-tenue shrink-0">
                         {m.recargo ? `recargo ${m.tasa}%` : `comisión ${money(total * m.tasa / 100)}`}

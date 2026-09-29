@@ -796,7 +796,10 @@ export function ticketVenta(t, ajustes, W) {
     if (det.noGravado) b.push({ t: "lr", a: "NO GRAVADO", b: p2(det.noGravado) });
   } else {
     b.push({ t: "lr", a: "SUBTOTAL", b: money(t.sub) });
-    if (t.desc > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc) });
+    /* El de medio de pago (0103) va con su nombre; el resto es el manual. */
+    const porMedio = t.descPromo ? Number(t.descPromo.monto) || 0 : 0;
+    if (t.desc - porMedio > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc - porMedio) });
+    if (porMedio > 0) b.push({ t: "lr", a: `PROMO ${String(t.descPromo.nombre || "").toUpperCase()}`.slice(0, W - 12), b: "-" + money(porMedio) });
     if (t.recargo > 0) b.push({ t: "lr", a: `RECARGO ${t.recargoNombre || ""}`.trim(), b: "+" + money(t.recargo) });
   }
   b.push({ t: "sep", c: "=" });

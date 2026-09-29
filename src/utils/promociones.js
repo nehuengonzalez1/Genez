@@ -51,7 +51,8 @@ export function describir(p) {
   if (p.tipo === "nxm") return `${x.lleva}x${x.paga}`;
   if (p.tipo === "segunda") return `2da al ${x.pct}%`;
   if (p.tipo === "porcentaje") return `${x.pct}% off`;
-  if (p.tipo === "pack") return `${x.cantidad} x $${Number(x.precio).toLocaleString("es-AR")}`;
+  if (p.tipo === "pack") return `${x.cantidad} x ${Number(x.precio).toLocaleString("es-AR")}`;
+  if (p.tipo === "medio") return `${x.pct}% pagando con ${x.medio}`;
   return p.nombre;
 }
 
@@ -61,7 +62,9 @@ export function describir(p) {
    Devuelve { porLinea: { [lid]: { descuento, promos: [nombre] } },
               aplicadas: [{ id, nombre, descuento }], total } */
 export function aplicarPromociones(lineas, promos, fecha = new Date()) {
-  const activas = (promos || []).filter((p) => vigente(p, fecha))
+  /* La de medio de pago no va por renglón: se aplica al cobrar
+     (descuentoPorMedio), sobre el total. */
+  const activas = (promos || []).filter((p) => p.tipo !== "medio" && vigente(p, fecha))
     .map((p, i) => ({ p, i }))
     .sort((a, b) => (ORDEN[a.p.tipo] - ORDEN[b.p.tipo]) || (a.i - b.i))
     .map((x) => x.p);
@@ -128,4 +131,20 @@ export function aplicarPromociones(lineas, promos, fecha = new Date()) {
     if (descuento > 0) { salida[lid] = { descuento, promos: v.promos }; suma += descuento; }
   }
   return { porLinea: salida, aplicadas, total: suma };
+}
+
+/* DESCUENTO POR MEDIO DE PAGO (0103)
+   "10% pagando con débito los miércoles". Va sobre el total de la venta,
+   después de las promos de producto y del descuento a mano, y antes del
+   recargo del medio (que se calcula sobre lo que queda). Con varias que
+   valgan para el mismo medio, la de mayor porcentaje: no se suman. No
+   aplica a un pago combinado: con dos medios no hay uno solo al que
+   hacerle el descuento. Devuelve { promo, pct, monto } o null. */
+export function descuentoPorMedio(promos, medioK, base, fecha = new Date()) {
+  if (!medioK || !(base > 0)) return null;
+  const candidatas = (promos || []).filter((p) => p.tipo === "medio" && vigente(p, fecha) && (p.parametros || {}).medio === medioK);
+  if (!candidatas.length) return null;
+  const p = candidatas.sort((a, b) => Number(b.parametros.pct) - Number(a.parametros.pct))[0];
+  const monto = Math.round(base * Number(p.parametros.pct) / 100);
+  return monto > 0 ? { promo: p, pct: Number(p.parametros.pct), monto } : null;
 }

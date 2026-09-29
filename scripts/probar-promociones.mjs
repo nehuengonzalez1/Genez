@@ -9,7 +9,7 @@
      node scripts/probar-promociones.mjs
    ============================================================ */
 
-import { aplicarPromociones, vigente, describir } from "../src/utils/promociones.js";
+import { aplicarPromociones, vigente, describir, descuentoPorMedio } from "../src/utils/promociones.js";
 
 let fallas = 0;
 const decir = (ok, texto) => { if (!ok) fallas++; console.log(`  ${ok ? "ok" : "MAL"}  ${texto}`); };
@@ -63,6 +63,17 @@ decir(!vigente(P("x", "porcentaje", { pct: 10 }, {}, { activa: false }), miercol
 
 console.log("\nCómo se dice");
 decir(describir(P("x", "nxm", { lleva: 3, paga: 2 }, {})) === "3x2" && describir(P("x", "segunda", { pct: 50 }, {})) === "2da al 50%", "3x2 y 2da al 50%");
+
+console.log("\nPor medio de pago (0103)");
+const debito = P("deb", "medio", { medio: "debito", pct: 10 }, {}, { dias: [3], nombre: "10% débito" });
+let pm = descuentoPorMedio([debito], "debito", 5000, miercoles);
+decir(pm && pm.monto === 500 && pm.pct === 10, "10% con débito un miércoles: $500 sobre $5.000");
+decir(descuentoPorMedio([debito], "efectivo", 5000, miercoles) === null, "pagando en efectivo, no");
+decir(descuentoPorMedio([debito], "debito", 5000, new Date(2026, 9, 1, 12)) === null, "un jueves, no");
+pm = descuentoPorMedio([debito, P("deb15", "medio", { medio: "debito", pct: 15 }, {})], "debito", 1000, miercoles);
+decir(pm && pm.pct === 15 && pm.monto === 150, "con dos para el mismo medio, la mayor; no se suman");
+r = aplicarPromociones([L("a", "coca", 2, 2000)], [debito], miercoles);
+decir(r.total === 0, "no se mete en la cuenta de los renglones");
 
 console.log(fallas ? `\n${fallas} MAL` : "\nTodo bien.");
 process.exitCode = fallas ? 1 : 0;
