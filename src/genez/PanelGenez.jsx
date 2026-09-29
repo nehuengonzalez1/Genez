@@ -41,6 +41,7 @@ import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { ParaElContador } from "../modulos/ParaElContador.jsx";
+import { cargarPromociones } from "../datos/promociones.js";
 import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
@@ -1117,6 +1118,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const elegirCaja = (id) => { elegirCajaDeEsteEquipo(empresaId, id); setCajaId(id); };
   const puesto = { cajas: cajas || [], cajaId, elegir: elegirCaja };
 
+  /* Las promociones (0102): las aplica el mostrador, así que se cargan
+     con el resto y quedan en memoria (y en el navegador, para cobrar sin
+     internet: src/datos/promociones.js). */
+  const [promos, setPromos] = useState([]);
+  const leerPromos = useCallback(async () => {
+    try { setPromos(await cargarPromociones(empresaId)); } catch { /* sin promos se cobra igual, a precio de lista */ }
+  }, [empresaId]);
+  useEffect(() => { leerPromos(); }, [leerPromos]);
+
   const [ficha, setFicha] = useState(null);
   const [pendientePOS, setPendientePOS] = useState(null);
   const pila = useRef([]);
@@ -1595,7 +1605,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [] }) => {
     /* El POS ya no se monta con la caja cerrada, pero no es el único que
        cobra: los pedidos preparados entran por acá también. La condición
        se verifica en el único lugar por el que pasan todos, así que un
@@ -1632,6 +1642,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       fiscal: esFiscal,
       cliente,
       comprobante: { fiscal: esFiscal, cliente: cliente ? { nombre: cliente.razonSocial, doc: cliente.doc } : null },
+      promos,
     });
 
     /* Primero al disco, después el ticket. Guardar es sincrónico, así que
@@ -2002,7 +2013,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
                 facturacion={facturacion} facturas={facturas} pedirCAEs={pedirCAEs}
-                empresaId={empresaId} caja={caja} agregarProducto={agregarProducto}
+                empresaId={empresaId} caja={caja} agregarProducto={agregarProducto} promos={promos}
                 recargarCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }} />
             ) : (
               <div className="py-8">
@@ -2259,7 +2270,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             : <Productos key={foco || "todos"} productos={productos} empresaId={empresaId}
                 actualizarProducto={actualizarProducto} agregarProducto={agregarProducto}
                 borrarProducto={borrarProducto}
-                toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes} />)}
+                toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes}
+                promos={promos} recargarPromos={leerPromos} puedePromos={!!permisos.cambiarPrecios} />)}
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} />}
           {tab === "compras" && <Compras empresaId={empresaId} productos={productos} setProductos={setProductos} k={k} pedidos={pedidos} setPedidos={setPedidos} movCaja={movCaja} toast={toast} cobertura={ajustes.cobertura} provs={provs} setProvs={setProvs} />}
           {tab === "caja" && (

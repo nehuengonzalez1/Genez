@@ -15,8 +15,9 @@ import { usoDelProducto } from "../datos/items.js";
 import { Etiquetas } from "./Etiquetas.jsx";
 import { EtiquetasGondola } from "./EtiquetasGondola.jsx";
 import { ListaProveedor } from "./ListaProveedor.jsx";
+import { Promociones } from "./Promociones.jsx";
 
-export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId }) {
+export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId, promos = [], recargarPromos = null, puedePromos = false }) {
   const [alta, setAlta] = useState(null);
   /* Catálogo o códigos de barras: una pestaña y no una ventana, para que
      los códigos generados queden a la vista cuando se los quiera buscar. */
@@ -293,8 +294,18 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
 
   const pestanas = (
     <Tabs value={pestana} onChange={setPestana}
-      items={[{ k: "catalogo", n: "Catálogo" }, { k: "codigos", n: "Códigos de barras" }, { k: "gondola", n: "Etiquetas de góndola" }]} />
+      items={[{ k: "catalogo", n: "Catálogo" }, { k: "promos", n: "Promociones" }, { k: "codigos", n: "Códigos de barras" }, { k: "gondola", n: "Etiquetas de góndola" }]} />
   );
+
+  if (pestana === "promos") {
+    return (
+      <div className="space-y-4">
+        {pestanas}
+        <Promociones promos={promos} productos={productos} empresaId={empresaId} toast={toast}
+          recargar={recargarPromos || (async () => {})} puede={puedePromos} />
+      </div>
+    );
+  }
 
   if (pestana === "gondola") {
     return (

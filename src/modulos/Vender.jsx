@@ -12,6 +12,7 @@ import { HOY, uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
 import { pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../utils/fiscal.js";
 import { cargarPlanilla, descargar } from "../utils/planilla.js";
+import { aplicarPromociones } from "../utils/promociones.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
@@ -545,8 +546,11 @@ const ATAJOS = [
 ];
 
 export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos,
-  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null }) {
+  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [] }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → monto → fin
+  /* El rubro de cada producto, para las promos que abarcan un rubro: el
+     renglón del carrito no lo guarda. */
+  const catDe = useMemo(() => new Map(productos.map((p) => [p.id, p.categoria])), [productos]);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const [cart, setCart] = useState([]);
@@ -718,7 +722,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const setQty = (lid, qty) => setCart((c) => c.map((l) => (l.lid === lid ? { ...l, qty: Math.max(0, +qty.toFixed(3)) } : l)).filter((l) => l.qty > 0));
   const quitar = (lid) => setCart((c) => c.filter((l) => l.lid !== lid));
 
-  const lineas = cart.map((l) => {
+  const conPrecio = cart.map((l) => {
     /* Un precio puesto a mano gana a todo, también al precio por
        cantidad: es lo que decidió quien cobra, para esta venta. */
     if (l.manual != null) {
@@ -727,6 +731,19 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     const { precio, lista, nombre } = precioAplicado(l, l.qty, ajustes);
     return { ...l, unit: precio, lista, listaNombre: nombre, proxima: proximaLista(l, l.qty, ajustes),
       importe: precio * l.qty, ahorro: (l.precio - precio) * l.qty };
+  });
+  /* Las promos (0102) sobre lo que quedó: sin precio a mano, sin precio
+     por cantidad, sin precio abierto (src/utils/promociones.js explica
+     por qué). El descuento baja el importe del renglón, que es lo que
+     leen el total, el IVA de la factura y los informes. */
+  const promoCalc = aplicarPromociones(conPrecio.map((l) => ({
+    lid: l.lid, pid: l.pid, qty: l.qty, unit: l.unit, unidad: l.unidad,
+    categoria: (catDe.get(l.pid) || ""),
+    elegible: l.manual == null && !l.lista && !l.precioAbierto,
+  })), promos);
+  const lineas = conPrecio.map((l) => {
+    const pr = promoCalc.porLinea[l.lid];
+    return pr ? { ...l, promo: pr.descuento, promoNombre: pr.promos.join(" + "), importe: l.importe - pr.descuento } : l;
   });
   const ahorroTotal = lineas.reduce((s, l) => s + l.ahorro, 0);
   const sub = lineas.reduce((s, l) => s + l.importe, 0);
@@ -832,7 +849,8 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       }
     }
     const items = lineas.map((l) => ({ pid: l.pid, qty: l.qty, precio: l.unit, costo: l.costo, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre,
-      precioLista: l.manual != null ? l.precio : null, iva: l.iva, ivaCondicion: l.ivaCondicion }));
+      precioLista: l.manual != null ? l.precio : null, iva: l.iva, ivaCondicion: l.ivaCondicion,
+      promo: l.promo || 0, promoNombre: l.promoNombre || null }));
     const m = medioPorK(ajustes, k);
     const r = listaPagos ? { total, recargo: 0 } : conRecargo(total, m);
 
@@ -851,7 +869,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     }
     const t = cobrar({ items, sub, desc: descMonto, total: r.total, medio: k, ganancia: ganancia + r.recargo,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
-      fiscal: fiscal && facturacion.puede, cliente });
+      fiscal: fiscal && facturacion.puede, cliente, promos: promoCalc.aplicadas });
     /* Sin caja abierta no hay venta: no se descuenta stock ni se limpia el
        carrito, así el cobro se puede retomar apenas se abra. */
     if (!t) return;
@@ -1102,6 +1120,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                         <PrecioEditable linea={l} puede={permisos.descuentos} onCambiar={(n) => setPrecioManual(l.lid, n)}
                           className={l.lista || l.manual != null ? "text-bien font-semibold" : ""} /> c/u
                         {l.lista && <span className="ml-1 text-bien font-bold uppercase">{l.listaNombre}</span>}
+                        {l.promo > 0 && <span className="ml-1 text-bien font-bold uppercase">{l.promoNombre} −{money(l.promo)}</span>}
                       </div>
                     </div>
                     <div className="f-m text-base font-semibold shrink-0">{money(l.importe)}</div>
@@ -1143,6 +1162,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                       {!l.lista && l.proxima && (
                         <span className="ml-2 text-[10px] text-texto-tenue">
                           desde {l.proxima.umbral} u paga {money(l.proxima.precio)}
+                        </span>
+                      )}
+                      {l.promo > 0 && (
+                        <span className="ml-2 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-bien-suave text-bien border-bien">
+                          {l.promoNombre} −{money(l.promo)}
                         </span>
                       )}
                     </td>
