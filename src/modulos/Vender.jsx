@@ -13,6 +13,7 @@ import { saldoDe } from "../datos/cuentas.js";
 import { pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../utils/fiscal.js";
 import { cargarPlanilla, descargar } from "../utils/planilla.js";
 import { aplicarPromociones, descuentoPorMedio } from "../utils/promociones.js";
+import { buscarEnCatalogo, rubroSugerido, FUENTE_CATALOGO } from "../datos/catalogo.js";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
@@ -30,6 +31,18 @@ import { UltimasVentas } from "./UltimasVentas.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { useOcupado } from "../ui/actualizacion.js";
 
+/* De dónde salió lo que apareció escrito. La licencia de SEPA (CC-BY)
+   pide citar la fuente, y al que carga le sirve saber que no lo inventó
+   el sistema: si el nombre está mal, lo corrige. */
+function DelCatalogo({ sug }) {
+  const datos = [sug.marca, sug.rubro].filter(Boolean).join(" · ");
+  return (
+    <p className="text-[11px] text-texto-tenue mt-1.5">
+      Sugerido por el catálogo{datos ? `: ${datos}` : ""}. Fuente: {FUENTE_CATALOGO}.
+    </p>
+  );
+}
+
 function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) {
   const [camara, setCamara] = useState(false);
   const [codigo, setCodigo] = useState("");
@@ -37,22 +50,46 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
   const [otros, setOtros] = useState({});
+  const [sug, setSug] = useState(null);
   const ref = useRef(null);
+  const refPrecio = useRef(null);
 
   useEffect(() => {
     if (!abierto) return;
     setNombre((inicial && inicial.nombre) || "");
-    setPrecio(""); setCosto(""); setOtros({});
+    setPrecio(""); setCosto(""); setOtros({}); setSug(null);
     setCodigo((inicial && inicial.barcode) || "");
     setTimeout(() => ref.current && ref.current.focus(), 30);
   }, [abierto, inicial]);
+
+  /* El catálogo base (0106): si SEPA conoce el código, el nombre llega
+     solo y el cursor salta al precio. Pero el alta ya está abierta y
+     vacía: si el cajero empezó a escribir, no se le pisa nada ni se le
+     mueve el cursor. */
+  useEffect(() => {
+    if (!abierto || !codigo) return;
+    let vivo = true;
+    buscarEnCatalogo(codigo).then((s) => {
+      if (!vivo || !s) return;
+      setSug(s);
+      if (ref.current && !ref.current.value) {
+        setNombre(s.nombre);
+        if (document.activeElement === ref.current) setTimeout(() => refPrecio.current && refPrecio.current.focus(), 0);
+      }
+    });
+    return () => { vivo = false; };
+  }, [abierto, codigo]);
 
   if (!abierto) return null;
   const margen = Number(precio) && Number(costo) ? (Number(precio) - Number(costo)) / Number(precio) : null;
 
   const crear = (agregar) => {
     if (!nombre.trim()) return;
-    onCrear({ nombre: nombre.trim(), precio: Number(precio) || 0, costo: Number(costo) || 0, precios: otros, barcode: codigo }, agregar);
+    const delCatalogo = sug ? {
+      marca: sug.marca || undefined,
+      categoria: rubroSugerido(sug, productos.map((p) => p.categoria)) || undefined,
+    } : {};
+    onCrear({ ...delCatalogo, nombre: nombre.trim(), precio: Number(precio) || 0, costo: Number(costo) || 0, precios: otros, barcode: codigo }, agregar);
   };
 
   const teclas = (e) => {
@@ -90,10 +127,11 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
           <input ref={ref} value={nombre} onChange={(e) => setNombre(e.target.value)}
             placeholder="Ej: Alfajor Jorgito triple" className="w-full border-2 border-borde rounded-xl px-3 py-2.5 text-base mt-1 outline-none focus:border-acento" />
         </label>
+        {sug && <DelCatalogo sug={sug} />}
         <div className="grid grid-cols-2 gap-3 mt-3">
           <label className="block">
             <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">Precio de venta</span>
-            <input value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
+            <input ref={refPrecio} value={precio} onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
               className="f-m w-full text-right border-2 border-borde rounded-xl px-3 py-2.5 text-lg mt-1 outline-none focus:border-acento" />
           </label>
           <label className="block">
@@ -1779,7 +1817,36 @@ function FotoYDescripcion({ d, set }) {
 
 export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onGuardar, onClose }) {
   const [d, setD] = useState({});
-  useEffect(() => { if (abierto) setD({ iva: 21, unidad: "un", bulto: 1, stock: 0, ...(inicial || {}) }); }, [abierto, inicial]);
+  const [sug, setSug] = useState(null);
+  useEffect(() => { if (abierto) { setD({ iva: 21, unidad: "un", bulto: 1, stock: 0, ...(inicial || {}) }); setSug(null); } }, [abierto, inicial]);
+
+  /* El catálogo base (0106), solo en un alta: al editar, lo que está
+     cargado es del comercio y no se le sugiere nada. Completa los campos
+     vacíos y nada más, así que da igual si llega antes o después de que
+     empiecen a escribir. Se pregunta con el código que vino y con el que
+     se escriba en el campo, cuando se sale de él. */
+  const [codigoBuscado, setCodigoBuscado] = useState("");
+  useEffect(() => { if (abierto && inicial && !inicial.id) setCodigoBuscado(inicial.barcode || ""); }, [abierto, inicial]);
+  useEffect(() => {
+    if (!abierto || !codigoBuscado || (inicial && inicial.id)) return;
+    let vivo = true;
+    buscarEnCatalogo(codigoBuscado).then((s) => {
+      if (!vivo || !s) return;
+      setSug(s);
+      setD((x) => {
+        if (String(x.barcode || "") !== codigoBuscado) return x;
+        const rubro = rubroSugerido(s, productos.map((p) => p.categoria));
+        return {
+          ...x,
+          nombre: x.nombre || s.nombre,
+          marca: x.marca || s.marca,
+          categoria: x.categoria || rubro,
+        };
+      });
+    });
+    return () => { vivo = false; };
+  }, [abierto, codigoBuscado]);
+
   if (!abierto) return null;
 
   const set = (c, v) => setD((x) => ({ ...x, [c]: v }));
@@ -1800,11 +1867,13 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
         <Campo label="Nombre">
           <input value={d.nombre || ""} onChange={(e) => set("nombre", e.target.value)} autoFocus
             placeholder="Ej: Gaseosa Coca-Cola 2,25 L" className={inputCls} />
+          {sug && !editando && <DelCatalogo sug={sug} />}
         </Campo>
 
         <div className="grid md:grid-cols-3 gap-3">
           <Campo label="Código de barras">
             <input value={d.barcode || ""} onChange={(e) => set("barcode", e.target.value.replace(/\D/g, ""))}
+              onBlur={() => !editando && setCodigoBuscado(String(d.barcode || ""))}
               placeholder="Disparalo con la pistola" className={`${inputCls} f-m`} />
             {duplicado && <span className="text-[11px] text-mal">Ya lo usa {duplicado.nombre}</span>}
           </Campo>
