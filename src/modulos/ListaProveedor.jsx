@@ -25,7 +25,7 @@ import { encontrarTitulos, adivinarColumnas, cruzarLista } from "../utils/listaP
 const selectCls = "text-sm border border-borde rounded-lg px-2 py-1.5 bg-superficie outline-none focus:border-acento w-full";
 
 /* La primera hoja, como filas de celdas. SheetJS lee también el CSV. */
-async function leerFilas(archivo) {
+export async function leerFilas(archivo) {
   const XLSX = await cargarPlanilla();
   if (!XLSX) throw new Error("No se pudo cargar el lector de planillas. Revisá la conexión y probá de nuevo.");
   const libro = /\.csv$/i.test(archivo.name)
