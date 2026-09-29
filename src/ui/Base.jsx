@@ -8,7 +8,7 @@ import QRCode from "qrcode";
 import { armarPdfTicket, imprimirPdf } from "./ticketPdf.js";
 import { armarEscPos } from "./escpos.js";
 import { impresoraElegida, imprimirDirecto } from "./agenteImpresion.js";
-import { HOY, fdatel } from "../datos/generador.js";
+import { fdatel } from "../datos/generador.js";
 import { pct, money, nf, nf2, moneyk, FISCAL_INICIAL, letraComprobante, discriminaIVA, condicionLegal, medioPorK } from "../utils/helpers.js";
 import { LEYENDA_MONOTRIBUTO, LEYENDA_RETENCION, LEYENDA_CBU } from "../utils/fiscal.js";
 
@@ -954,7 +954,7 @@ export function comandaPicking(ped, W) {
   const b = [
     { t: "c", v: "PREPARACION DE PEDIDO" },
     { t: "sep", c: "=" },
-    { t: "lr", a: ped.nro, b: `${fdatel(HOY)} ${ped.hora}` },
+    { t: "lr", a: ped.nro, b: `${fdatel(new Date())} ${ped.hora}` },
     { t: "w", v: `CLIENTE: ${ped.cliente.toUpperCase()}` },
     { t: "w", v: `${ped.entrega.toUpperCase()}: ${ped.dir.toUpperCase()}` },
     { t: "v", v: `TEL ${ped.tel}` },
@@ -976,7 +976,7 @@ export function comandaPicking(ped, W) {
   }
   if (ped.nota) { b.push({ t: "sep" }); b.push({ t: "w", v: `NOTA: ${ped.nota.toUpperCase()}` }); }
   b.push({ t: "b" });
-  b.push({ t: "c", v: `Preparo: ${fdatel(HOY)}  Control: ______` });
+  b.push({ t: "c", v: `Preparo: ${fdatel(new Date())}  Control: ______` });
   return armarLineas(W, b);
 }
 

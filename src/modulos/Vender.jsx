@@ -8,7 +8,7 @@ import {
   Minus, Plus, Trash2, Printer, FileText, MessageCircle, Mail, QrCode,
   ArrowRight, Check, X, Percent, Users, Search, History
 } from "lucide-react";
-import { HOY, uid } from "../datos/generador.js";
+import { uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
 import { pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../utils/fiscal.js";
 import { cargarPlanilla, descargar } from "../utils/planilla.js";

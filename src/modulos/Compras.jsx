@@ -8,7 +8,7 @@ import {
   Loader2, ChevronLeft, ChevronRight, Barcode, Bike, PackageCheck,
   Phone, MessageCircle, Boxes, Search, ArrowRight, Store, Minus, Printer
 } from "lucide-react";
-import { uid, HOY, addDays, fdatel } from "../datos/generador.js";
+import { uid, fdatel } from "../datos/generador.js";
 import {
   money, moneyk, nf, pct, hora, esCantidad, aNumero,
   precioAplicado, mediosDe, productoNuevo, faltantesProveedor
@@ -20,7 +20,7 @@ import {
 import { preguntarAlModelo, fotoParaElModelo } from "../datos/modelo.js";
 import { EscanerCamara, TicketModal, FormProveedor } from "./Vender.jsx";
 import { palabras, emparejar } from "./Stock.jsx";
-import { registrarCompra } from "../datos/compras.js";
+import { registrarCompra, crearOrden, cerrarOrden } from "../datos/compras.js";
 import { crearProducto } from "../datos/items.js";
 
 // Camera importada como Cam para los usos que la usan con ese nombre
@@ -199,7 +199,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
           costo, precio,
           costoReposicion: Number(l.costo),
           costoReposicionFecha: new Date(),
-          historial: costo !== p.costo ? [...p.historial, { fecha: HOY, costo }] : p.historial,
+          historial: costo !== p.costo ? [...p.historial, { fecha: new Date(), costo }] : p.historial,
         };
       });
     });
@@ -473,22 +473,45 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
   const totalPedido = sugeridos.reduce((s, x) => s + (sel[x.p.id] ? sel[x.p.id] * x.p.costo : 0), 0);
   const lineas = sugeridos.filter((s) => sel[s.p.id] > 0);
 
-  const generar = () => {
-    if (!lineas.length) return;
-    const ped = {
-      id: uid(), nro: `OC-${String(1200 + pedidos.length + 1)}`, prov, fecha: HOY, estado: "pendiente",
-      items: lineas.map((l) => ({ pid: l.p.id, nombre: l.p.nombre, barcode: l.p.barcode, cant: sel[l.p.id], costo: l.p.costo })),
-      total: totalPedido,
-    };
-    setPedidos((ps) => [ped, ...ps]);
-    setSel({}); setTab("pedidos");
-    toast(`Pedido ${ped.nro} generado para ${prov}.`);
+  /* La orden se guarda en la base (0111), con la fecha de hoy de verdad.
+     Antes vivía en memoria, con la fecha fija del prototipo, y se perdía
+     al refrescar. */
+  const [generando, setGenerando] = useState(false);
+  const generar = async () => {
+    if (!lineas.length || generando) return;
+    setGenerando(true);
+    try {
+      const items = lineas.map((l) => ({ pid: l.p.id, nombre: l.p.nombre, barcode: l.p.barcode, cant: sel[l.p.id], costo: l.p.costo }));
+      const { id, numero, total } = await crearOrden({
+        empresaId, sucursalId: lugar.actual, proveedorId: (provs[prov] || {}).id || null, proveedor: prov,
+        items: items.map((i) => ({ itemId: i.pid, descripcion: i.nombre, cantidad: i.cant, costo: i.costo })),
+      });
+      setPedidos((ps) => [{ id, nro: numero, prov, fecha: new Date(), estado: "pendiente", items, total }, ...ps]);
+      setSel({}); setTab("pedidos");
+      toast(`Orden ${numero} guardada para ${prov}.`);
+    } catch (e) {
+      toast(e.message || "No se pudo guardar la orden.", "mal");
+    } finally {
+      setGenerando(false);
+    }
+  };
+
+  const cancelarOrden = async (ped) => {
+    if (!window.confirm(`¿Cancelar la orden ${ped.nro} de ${ped.prov}? No se puede recibir después.`)) return;
+    try {
+      await cerrarOrden(ped.id, "cancelada");
+      setPedidos((ps) => ps.map((x) => (x.id === ped.id ? { ...x, estado: "cancelado" } : x)));
+      toast(`Orden ${ped.nro} cancelada.`);
+    } catch (e) {
+      toast(e.message || "No se pudo cancelar la orden.", "mal");
+    }
   };
 
   const recibir = async (ped, lineasRec) => {
     setRecibiendoGuarda(true);
+    let compraId = null;
     try {
-      await registrarCompra({
+      compraId = await registrarCompra({
         empresaId,
         sucursalId: lugar.actual,
         proveedorId: (provs[ped.prov] || {}).id || null,
@@ -510,7 +533,7 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
       const l = lineasRec.find((x) => x.pid === p.id);
       if (!l) return p;
       const nuevoCosto = ppp(p.stock, p.costo, Number(l.cant), Number(l.costo));
-      const hist = nuevoCosto !== p.costo ? [...p.historial, { fecha: HOY, costo: nuevoCosto }] : p.historial;
+      const hist = nuevoCosto !== p.costo ? [...p.historial, { fecha: new Date(), costo: nuevoCosto }] : p.historial;
       return {
         ...p, stock: +(p.stock + Number(l.cant)).toFixed(2), costo: nuevoCosto, historial: hist,
         costoReposicion: Number(l.costo), costoReposicionFecha: new Date(),
@@ -519,6 +542,10 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
     const total = lineasRec.reduce((s, l) => s + Number(l.cant) * Number(l.costo), 0);
     const contado = (provs[ped.prov] || {}).pago === "Contado";
     if (contado) movCaja({ tipo: "egreso", medio: "efectivo", monto: total, detalle: `Compra ${ped.nro} · ${ped.prov}` });
+    /* La compra ya quedó; si marcar la orden falla, la mercadería no se
+       pierde: la orden sigue pendiente y se ve en la lista. */
+    try { await cerrarOrden(ped.id, "recibida", { compraId, total }); }
+    catch { toast(`La mercadería quedó cargada, pero la orden ${ped.nro} no se pudo marcar como recibida. Refrescá antes de volver a recibirla.`, "mal"); }
     setPedidos((ps) => ps.map((x) => (x.id === ped.id ? { ...x, estado: "recibido", total } : x)));
     setRecibiendoGuarda(false);
     setRecibiendo(null);
@@ -597,7 +624,7 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
                     <span className="text-texto-suave">{lineas.length} productos · </span>
                     <span className="f-d text-xl">{money(totalPedido)}</span>
                   </div>
-                  <Boton onClick={generar} disabled={!lineas.length}>Generar orden de compra <ArrowRight size={15} /></Boton>
+                  <Boton onClick={generar} disabled={!lineas.length || generando}>{generando ? "Guardando…" : "Generar orden de compra"} <ArrowRight size={15} /></Boton>
                 </div>
               </>
             )}
@@ -614,8 +641,13 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
                     <div className="text-xs text-texto-suave">{p.items.length} productos · {fdatel(p.fecha)} · {(provs[p.prov] || {}).pago}</div>
                   </div>
                   <span className="f-m text-sm">{money(p.total)}</span>
-                  {p.estado === "pendiente"
-                    ? <Boton size="sm" onClick={() => setRecibiendo(p)}>Recibir mercadería</Boton>
+                  {p.estado === "pendiente" ? (
+                    <>
+                      <Boton size="sm" variant="quiet" onClick={() => cancelarOrden(p)}>Cancelar</Boton>
+                      <Boton size="sm" onClick={() => setRecibiendo(p)}>Recibir mercadería</Boton>
+                    </>
+                  ) : p.estado === "cancelado"
+                    ? <span className="text-xs font-semibold text-texto-tenue border border-borde rounded-full px-2.5 py-1">Cancelada</span>
                     : <span className="text-xs font-semibold text-bien bg-bien-suave border border-bien rounded-full px-2.5 py-1">Recibido</span>}
                 </li>
               ))}
@@ -985,7 +1017,7 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
     if (!t) { setCerrando(false); return; }
     setProductos((ps) => ps.map((p) => {
       const l = lineas.find((x) => x.pid === p.id);
-      return l ? { ...p, stock: +(p.stock - l.qty).toFixed(3), ultimaVenta: HOY, u30: p.u30 + l.qty } : p;
+      return l ? { ...p, stock: +(p.stock - l.qty).toFixed(3), ultimaVenta: new Date(), u30: p.u30 + l.qty } : p;
     }));
     setPedidos((ps) => ps.map((p) => (p.id === ped.id ? { ...p, items, estado: "entregado" } : p)));
     setCerrando(false);

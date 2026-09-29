@@ -5,7 +5,7 @@
 import React from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { ArrowRight, Truck, Wallet, Barcode } from "lucide-react";
-import { HOY, fdatel } from "../datos/generador.js";
+import { fdatel } from "../datos/generador.js";
 import { money, moneyk, pct, nf } from "../utils/helpers.js";
 import { Card, Kpi, Boton, SEV } from "../ui/Base.jsx";
 import { InicioServicios } from "./InicioServicios.jsx";

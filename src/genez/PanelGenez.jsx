@@ -10,7 +10,7 @@ import {
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
   Heart, MessageSquare, FileText, NotebookPen
 } from "lucide-react";
-import { mulberry32, uid, HOY, fdatel } from "../datos/generador.js";
+import { mulberry32, uid, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios, guardarComercio, crearComercio } from "../datos/sesion.js";
 import { cargarRubros } from "../datos/rubros.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
@@ -43,6 +43,7 @@ import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { ParaElContador } from "../modulos/ParaElContador.jsx";
 import { cargarPromociones, guardarPromocion } from "../datos/promociones.js";
 import { cargarSucursales } from "../datos/sucursales.js";
+import { cargarOrdenes } from "../datos/compras.js";
 import { Productos } from "../modulos/Productos.jsx";
 import { Stock } from "../modulos/Stock.jsx";
 import { Compras, Picking } from "../modulos/Compras.jsx";
@@ -1087,7 +1088,14 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      si se cuenta lo de la sesión, refrescar borra la mitad del día y
      cambiar de equipo muestra otra cifra. */
   const [resumenDia, setResumenDia] = useState({ total: 0, tickets: 0 });
+  /* Las órdenes de compra (0111): se leen de la base al entrar. Antes
+     vivían solo acá y se perdían al refrescar. */
   const [pedidos, setPedidos] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    cargarOrdenes(empresaId).then((o) => vivo && setPedidos(o)).catch(() => { /* sin la lista, Compras arranca vacío */ });
+    return () => { vivo = false; };
+  }, [empresaId]);
   /* Los pedidos de picking arrancan vacíos: antes arrancaban con los que
      inventa el generador, y el menú contaba como pendientes pedidos que
      nadie hizo. Los que se arman acá se cobran con la venta de siempre. */

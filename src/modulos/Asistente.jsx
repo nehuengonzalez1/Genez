@@ -4,7 +4,7 @@
 
 import React, { useState, useMemo } from "react";
 import { Send, Loader2, Sparkles, ArrowRight } from "lucide-react";
-import { fdatel, HOY } from "../datos/generador.js";
+import { fdatel } from "../datos/generador.js";
 import { pct, money, nf } from "../utils/helpers.js";
 import { preguntarAlModelo } from "../datos/modelo.js";
 import { SEV, Card, Boton } from "../ui/Base.jsx";

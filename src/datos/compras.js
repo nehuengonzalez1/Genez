@@ -94,3 +94,90 @@ export async function registrarCompra({ empresaId, proveedorId, sucursalId, comp
 
   return op.id;
 }
+
+/* ============================================================
+   LAS ÓRDENES DE COMPRA (0111)
+   ============================================================
+   Una operación de tipo 'compra' en estado 'pendiente': lo que se le
+   pidió a un proveedor y todavía no llegó. No mueve stock ni costo; eso
+   lo hace la recepción con registrarCompra, y la orden pasa a
+   'recibida'. Se marcan en campos_extra.orden para no confundirlas con
+   una compra cargada directo (que nace confirmada).
+
+   La forma que devuelve es la que ya usaba la pantalla cuando vivían en
+   memoria: { id, nro, prov, fecha, estado, items, total }. */
+
+const ESTADO_EN_PANTALLA = { pendiente: "pendiente", recibida: "recibido", cancelada: "cancelado" };
+
+const aOrden = (o) => ({
+  id: o.id,
+  nro: o.numero || "OC",
+  prov: (o.proveedores && o.proveedores.nombre) || (o.campos_extra && o.campos_extra.proveedor) || "Sin proveedor",
+  fecha: new Date(o.fecha),
+  estado: ESTADO_EN_PANTALLA[o.estado] || o.estado,
+  items: (o.operacion_lineas || []).map((l) => ({
+    pid: l.item_id, nombre: l.descripcion, barcode: (l.items && l.items.barcode) || "",
+    cant: Number(l.cantidad) || 0, costo: Number(l.costo_unitario) || 0,
+  })),
+  total: Number(o.total) || 0,
+});
+
+export async function cargarOrdenes(empresaId) {
+  if (!empresaId) throw new Error("cargarOrdenes necesita la empresa.");
+  const { data, error } = await supabase
+    .from("operaciones")
+    .select("id, numero, fecha, estado, total, campos_extra, proveedores(nombre), operacion_lineas(item_id, descripcion, cantidad, costo_unitario, items(barcode))")
+    .eq("empresa_id", empresaId).eq("tipo", "compra").eq("campos_extra->>orden", "true")
+    .order("fecha", { ascending: false }).limit(200);
+  if (error) throw error;
+  return (data || []).map(aOrden);
+}
+
+/* El número sigue al último de este comercio: OC-0001, OC-0002… */
+async function siguienteNumeroDeOrden(empresaId) {
+  const { data } = await supabase.from("operaciones").select("numero")
+    .eq("empresa_id", empresaId).eq("tipo", "compra").eq("campos_extra->>orden", "true")
+    .order("fecha", { ascending: false }).limit(50);
+  const ultimo = Math.max(0, ...(data || []).map((o) => Number(String(o.numero || "").replace(/\D/g, "")) || 0));
+  return `OC-${String(ultimo + 1).padStart(4, "0")}`;
+}
+
+/* items: [{ itemId, descripcion, cantidad, costo }] */
+export async function crearOrden({ empresaId, sucursalId = null, proveedorId = null, proveedor = "", items }) {
+  if (!items || !items.length) throw new Error("La orden no tiene productos.");
+  const numero = await siguienteNumeroDeOrden(empresaId);
+  const total = Math.round(items.reduce((s, l) => s + Number(l.cantidad) * Number(l.costo), 0));
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from("operaciones").insert({
+    id, empresa_id: empresaId, sucursal_id: sucursalId || null, tipo: "compra", estado: "pendiente",
+    proveedor_id: proveedorId || null, numero, subtotal: total, total,
+    campos_extra: { orden: true, proveedor },
+  });
+  if (error) throw error;
+  const { error: e2 } = await supabase.from("operacion_lineas").insert(items.map((l) => ({
+    operacion_id: id, empresa_id: empresaId, item_id: l.itemId, descripcion: l.descripcion,
+    cantidad: l.cantidad, precio_unitario: 0, costo_unitario: l.costo,
+    total: Math.round(Number(l.cantidad) * Number(l.costo)),
+  })));
+  if (e2) {
+    /* Sin renglones la orden no sirve: se cancela para que no quede una
+       vacía en la lista. */
+    await supabase.from("operaciones").update({ estado: "cancelada" }).eq("id", id);
+    throw e2;
+  }
+  return { id, numero, total };
+}
+
+/* 'recibida' (con la compra que la recibió) o 'cancelada'. */
+export async function cerrarOrden(id, estado, { compraId = null, total = null } = {}) {
+  const { data: actual, error: e0 } = await supabase.from("operaciones").select("campos_extra").eq("id", id).single();
+  if (e0) throw e0;
+  const cambios = {
+    estado,
+    cerrada_en: new Date().toISOString(),
+    campos_extra: { ...(actual.campos_extra || {}), ...(compraId ? { compra: compraId } : {}) },
+    ...(total != null ? { total: Math.round(total) } : {}),
+  };
+  const { error } = await supabase.from("operaciones").update(cambios).eq("id", id);
+  if (error) throw error;
+}
