@@ -75,5 +75,23 @@ decir(pm && pm.pct === 15 && pm.monto === 150, "con dos para el mismo medio, la 
 r = aplicarPromociones([L("a", "coca", 2, 2000)], [debito], miercoles);
 decir(r.total === 0, "no se mete en la cuenta de los renglones");
 
+console.log("\nHappy hour (0105)");
+const hh = P("hh", "nxm", { lleva: 2, paga: 1 }, { productos: ["pinta"] }, { horaDesde: "18:00", horaHasta: "20:00", nombre: "Happy hour" });
+const a = (h, m = 0) => new Date(2026, 8, 30, h, m);
+decir(vigente(hh, a(18)) && vigente(hh, a(19, 59)), "de 18 a 20: vale a las 18:00 y a las 19:59");
+decir(!vigente(hh, a(20)) && !vigente(hh, a(17, 59)), "no vale a las 20:00 ni a las 17:59");
+const noche = P("n", "porcentaje", { pct: 10 }, {}, { horaDesde: "22:00", horaHasta: "02:00" });
+decir(vigente(noche, a(23)) && vigente(noche, a(1, 30)) && !vigente(noche, a(3)), "cruzando la medianoche: de 22 a 2");
+r = aplicarPromociones([
+  { ...L("a", "pinta", 2, 3000), fecha: a(19, 50) },
+  { ...L("b", "pinta", 2, 3000), fecha: a(20, 30) },
+], [hh], a(21, 15));
+decir(r.porLinea.a && r.porLinea.a.descuento === 3000 && !r.porLinea.b, "en la comanda vale la hora del pedido: las de las 19:50 tienen 2x1, las de las 20:30 no, aunque se cobre a las 21:15");
+r = aplicarPromociones([
+  { ...L("a", "pinta", 1, 3000), fecha: a(19, 50) },
+  { ...L("b", "pinta", 1, 3000), fecha: a(20, 30) },
+], [hh], a(21, 15));
+decir(r.total === 0, "una en hora y otra fuera no arman un 2x1");
+
 console.log(fallas ? `\n${fallas} MAL` : "\nTodo bien.");
 process.exitCode = fallas ? 1 : 0;

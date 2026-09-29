@@ -2084,7 +2084,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           <main className="flex-1 min-h-0 p-3 md:p-4">
             <Barrera key="comanda" nombre="Comanda">
               <PantallaComandas empresaId={empresaId} config={config} ajustes={ajustes}
-                caja={caja} permisos={permisos} sesion={sesion} toast={toast} />
+                caja={caja} permisos={permisos} sesion={sesion} toast={toast} promos={promos} />
             </Barrera>
           </main>
         </div>
@@ -2247,7 +2247,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           )}
           {tab === "comandas" && (
             <Comandas empresaId={empresaId} config={config} ajustes={ajustes}
-              caja={caja} permisos={permisos} sesion={sesion} toast={toast} />
+              caja={caja} permisos={permisos} sesion={sesion} toast={toast} promos={promos} />
           )}
           {tab === "cocina" && <Cocina empresaId={empresaId} config={config} toast={toast} />}
           {tab === "pedidos" && <Picking pedidos={pedidosCli} setPedidos={setPedidosCli} productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes} toast={toast} />}

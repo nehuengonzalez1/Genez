@@ -33,7 +33,7 @@ import {
 import { money, hora, mediosDe, medioPorK, conRecargo, FISCAL_INICIAL, TOPE_DESCUENTO, topeDescuento, limpiarPorcentaje } from "../utils/helpers.js";
 import { siguienteNumero, serieDe } from "../datos/ventas.js";
 import {
-  cargarSalon, cargarRecursos, abrirComanda, cargarComanda, cargarCarta, agregarLinea,
+  cargarSalon, cargarRecursos, abrirComanda, cargarComanda, cargarCarta, agregarLinea, aplicarPromosEnComanda,
   anularLinea, cambiarCantidad, enviarACocina, cargarCocina, moverComanda, cerrarComanda,
   abrirPedido, cargarElementosPlano, cambiarCanal,
   aplicarDescuento, quitarDescuento, guardarComensales,
@@ -154,7 +154,7 @@ function Rotulo({ children, className = "" }) {
    ve de un vistazo para poder retomarlo de un toque.
    ============================================================ */
 
-export function PantallaComandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, sesion = null, toast }) {
+export function PantallaComandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, sesion = null, toast, promos = [] }) {
   const [donde, setDonde] = useState("inicio");     // inicio | salon
   const [abierta, setAbierta] = useState(null);     // la comanda que se está atendiendo
   const [pedidos, setPedidos] = useState([]);
@@ -271,7 +271,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
       <>
         <Pedido
           pleno comandaId={abierta.id} empresaId={empresaId} config={config}
-          ajustes={ajustes} caja={caja} toast={toast}
+          ajustes={ajustes} caja={caja} toast={toast} promos={promos}
           empleado={sesion ? sesion.nombre : ""}
           voz={esMesa ? VOZ_MESA : { ...abierta.voz, volver }}
           encabezado={abierta.encabezado}
@@ -467,7 +467,7 @@ function TarjetaEnCurso({ canal, nombreCanal, titulo, sub, minutos, total, estad
    2. SALÓN · la misma pantalla, adentro del panel
    ============================================================ */
 
-export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, sesion = null, toast }) {
+export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, caja, permisos = {}, sesion = null, toast, promos = [] }) {
   const [mesas, setMesas] = useState([]);
   const [elementos, setElementos] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -529,7 +529,7 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
   if (comandaId) {
     return (
       <Pedido comandaId={comandaId} empresaId={empresaId} config={config}
-        ajustes={ajustes} caja={caja} toast={toast}
+        ajustes={ajustes} caja={caja} toast={toast} promos={promos}
         empleado={sesion ? sesion.nombre : ""} onVolver={volver} />
     );
   }
@@ -577,7 +577,7 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
 
    `onCambiarCanal` recibe un canal para pasar el pedido derecho a
    mostrador o para llevar, o nada para preguntar por el canal completo. */
-function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, empleado = "", pleno = false }) {
+function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, empleado = "", pleno = false, promos = [] }) {
   const [comanda, setComanda] = useState(null);
   const [carta, setCarta] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -612,21 +612,40 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
      agregado. */
   const turno = useRef(0);
 
+  /* Las promos (0105) se recalculan cada vez que se lee la comanda: todo
+     cambio —agregar, anular, cambiar cantidad, lo que pidió la mesa por
+     QR— termina en una lectura, así que este es el único lugar. Si algún
+     renglón cambió, se vuelve a leer para mostrar lo guardado. */
+  const promosRef = useRef(promos);
+  promosRef.current = promos;
+  const cartaRef = useRef([]);
+  const conPromos = useCallback(async (c, ca = cartaRef.current) => {
+    const categoriaDe = new Map(ca.flatMap((g) => g.items.map((i) => [i.id, g.categoria])));
+    try {
+      const n = await aplicarPromosEnComanda(c, promosRef.current, categoriaDe);
+      return n ? await cargarComanda(comandaId) : c;
+    } catch {
+      /* Sin poder guardar la promo, la mesa se sigue atendiendo: se
+         reintenta en la próxima lectura. */
+      return c;
+    }
+  }, [comandaId]);
+
   const leerComanda = useCallback(async () => {
     const mio = ++turno.current;
     try {
-      const c = await cargarComanda(comandaId);
+      const c = await conPromos(await cargarComanda(comandaId));
       if (mio === turno.current) setComanda(c);
     } catch (e) {
       avisar.current(e.message || "No pudimos leer la comanda.", "mal");
     }
-  }, [comandaId]);
+  }, [comandaId, conPromos]);
 
   useEffect(() => {
     let vigente = true;
     setCargando(true);
     Promise.all([cargarComanda(comandaId), cargarCarta(empresaId)])
-      .then(([c, ca]) => { if (vigente) { setComanda(c); setCarta(ca); } })
+      .then(async ([c, ca]) => { cartaRef.current = ca; const cp = await conPromos(c, ca); if (vigente) { setComanda(cp); setCarta(ca); } })
       .catch((e) => { if (vigente) avisar.current(e.message || "No pudimos abrir la mesa.", "mal"); })
       .finally(() => { if (vigente) setCargando(false); });
     return () => { vigente = false; };
@@ -959,6 +978,9 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
                         </div>
                       ))}
                       {l.notas && <div className="text-[11px] text-ojo italic leading-tight">{l.notas}</div>}
+                      {l.promo && l.descuento > 0 && (
+                        <div className="text-[10px] uppercase tracking-wider font-bold mt-0.5 text-bien">{l.promo} −{money(l.descuento)}</div>
+                      )}
                       {/* Lo pidió la mesa por QR (0104). Mientras está en
                           borrador, el mozo lo confirma mandándolo a la
                           cocina, o lo anula si no es de verdad. */}

@@ -55,6 +55,8 @@ node scripts/probar-lista-proveedor.mjs  # leer la lista de un proveedor: títul
 node scripts/probar-promociones.mjs      # la cuenta de las promos: 2x1, segunda, pack, porcentaje, orden, cuándo valen (sin base)
 node scripts/probar-promociones-base.mjs # la tabla de promos: lo que acepta, lo que no, y quién puede cargarlas
 node scripts/probar-carta-qr.mjs   # la carta QR como la página pública: leer, pedir, y todo lo que no se tiene que poder
+node scripts/probar-happy-hour.mjs # el horario de las promos, la hora de cada renglón y la cuenta de la mesa con la promo
+node scripts/probar-promos-comanda.mjs  # qué renglones de una mesa recalcula la promo y cuáles no toca (sin base)
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -996,10 +998,20 @@ reparte entre alícuotas), topeado a 99,99% (0088), y el ticket la
 imprime aparte del descuento manual. La pantalla de pago la muestra al
 lado de cada medio, antes de elegir.
 
-Todavía no: la comanda (gastronomía) no aplica promos. No es un cambio
-chico: la cuenta de una mesa se arma durante horas, se paga en partes y
-tiene su propio descuento, y la promo tendría que recalcularse en cada
-pedido y pasar por el cierre, que tiene varias versiones en la base.
+**En la comanda y con horario (0105)**: una promo puede tener horario
+("2x1 de 18 a 20", o cruzando la medianoche), y en una mesa se decide
+con la hora en que se pidió cada renglón (`operacion_lineas.pedida_en`),
+no con la del cobro: la pinta de las 19:50 conserva el 2x1 aunque la
+mesa pague a las 21. Los renglones de antes no tienen hora y usan la de
+apertura de la mesa. `aplicarPromosEnComanda` la recalcula cada vez
+que la pantalla de la comanda la lee —todo cambio termina en una
+lectura— y la guarda en el `descuento` y el `total` del renglón (con
+el nombre en `campos_extra.promo`). La cuenta, el descuento de la mesa,
+los pagos parciales y el cierre suman `total`, así que no se tocaron.
+Solo toca renglones con promo o que la tenían: un descuento que no vino
+de una promo queda como está. Lo que pidió una mesa por QR se recalcula
+la próxima vez que alguien abre esa comanda. La precuenta muestra el
+importe entero y la promo restando.
 
 ## Remarcar precios
 
