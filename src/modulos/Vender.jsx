@@ -1138,7 +1138,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       }
 
       if (paso === "pago") {
-        if (e.target && e.target.tagName === "INPUT") return;
+        /* Solo el campo del DNI para puntos: el buscador de productos
+           sigue con el foco al apretar F2, y ahí las teclas son del cobro. */
+        if (e.target && e.target.dataset && e.target.dataset.campoDelCobro) return;
         e.preventDefault();
         if (e.key === "Escape") return setPaso("carga");
         if (e.key === "ArrowDown") return setMedioSel((i) => (i + 1) % medios.length);
@@ -1567,7 +1569,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             )}
             {regla.activo && !cliente && (
               <div className="flex items-center gap-2 mb-3">
-                <input value={dato} onChange={(e) => setDato(e.target.value.replace(/[^\d]/g, ""))}
+                <input data-campo-del-cobro="puntos" value={dato} onChange={(e) => setDato(e.target.value.replace(/[^\d]/g, ""))}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); identificar(); } if (e.key === "Escape") e.target.blur(); }}
                   placeholder="DNI o teléfono para sumar puntos"
                   className="f-m flex-1 border border-borde rounded-lg px-3 py-2 text-sm bg-superficie outline-none focus:border-acento" />
