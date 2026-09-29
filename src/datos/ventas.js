@@ -151,7 +151,7 @@ export async function prepararNumeracion(empresaId, serie = "0001") {
    El costo se copia a la línea a propósito: si mañana cambia el costo
    del producto, el margen de esta venta tiene que seguir siendo el que
    fue, no el que sería hoy. */
-export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub, desc, recargo, total, pagos, medio, cliente, fiscal, comprobante, promos = [] }) {
+export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub, desc, recargo, total, pagos, medio, cliente, fiscal, comprobante, promos = [], mp = null }) {
   const lista = pagos && pagos.length ? pagos : [{ medio, monto: total }];
 
   return {
@@ -170,7 +170,9 @@ export function armarVenta({ empresaId, sucursalId, sesionId, numero, items, sub
     /* Qué promos se aplicaron y cuánto (0102). En la operación y no en el
        renglón: registrar_venta ya guarda este campo (0010), y así no hubo
        que tocar el cobro. El descuento de cada una ya está en sus renglones. */
-    campos_extra: promos && promos.length ? { promos } : {},
+    /* Y la orden de Mercado Pago de un cobro con QR dinámico: con ella se
+       busca el pago en la cuenta si alguien pregunta por esta venta. */
+    campos_extra: { ...(promos && promos.length ? { promos } : {}), ...(mp ? { mp } : {}) },
     lineas: (items || []).map((l) => {
       /* Un precio bajado a mano en el mostrador queda escrito: el
          renglón guarda el de lista y lo que se rebajó, y el total es lo

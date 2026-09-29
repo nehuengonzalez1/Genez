@@ -44,10 +44,10 @@ function aMovimiento(f) {
 
 export async function cargarCajas(empresaId) {
   if (!empresaId) throw new Error("cargarCajas necesita la empresa.");
-  const { data, error } = await supabase.from("cajas").select("id, nombre, orden, activa, sucursal_id")
+  const { data, error } = await supabase.from("cajas").select("id, nombre, orden, activa, sucursal_id, mp_caja")
     .eq("empresa_id", empresaId).order("orden").order("creada_en");
   if (error) throw error;
-  return (data || []).map((c) => ({ id: c.id, nombre: c.nombre, activa: c.activa !== false, sucursalId: c.sucursal_id }));
+  return (data || []).map((c) => ({ id: c.id, nombre: c.nombre, activa: c.activa !== false, sucursalId: c.sucursal_id, mpCaja: c.mp_caja || null }));
 }
 
 export async function crearCaja(empresaId, nombre) {
@@ -63,6 +63,7 @@ export async function editarCaja(cajaId, cambios) {
   const fila = {};
   if (cambios.nombre !== undefined) fila.nombre = cambios.nombre.trim();
   if (cambios.activa !== undefined) fila.activa = !!cambios.activa;
+  if (cambios.mpCaja !== undefined) fila.mp_caja = cambios.mpCaja || null;
   const { error } = await supabase.from("cajas").update(fila).eq("id", cajaId);
   if (error) {
     if (error.code === "23505") throw new Error(`Ya hay una caja que se llama "${fila.nombre}".`);

@@ -14,6 +14,8 @@ import { pideCuit, MONTO_IDENTIFICAR_CONSUMIDOR } from "../utils/fiscal.js";
 import { cargarPlanilla, descargar } from "../utils/planilla.js";
 import { aplicarPromociones, descuentoPorMedio } from "../utils/promociones.js";
 import { buscarEnCatalogo, rubroSugerido, FUENTE_CATALOGO } from "../datos/catalogo.js";
+import { qrMercadoPago } from "../datos/mercadopago.js";
+import QRCode from "qrcode";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
@@ -578,14 +580,116 @@ function PrecioEditable({ linea, puede, onCambiar, className = "" }) {
   );
 }
 
+/* ------------------------------------------------------------------
+   COBRO CON QR DINÁMICO (0107)
+   ------------------------------------------------------------------
+   Arma la orden en Mercado Pago con el monto de la venta, muestra el QR
+   y pregunta cada dos segundos si ya se pagó. Pagada, la venta se
+   registra sola. Si Mercado Pago no contesta, el cajero puede cobrar
+   como antes, con el QR fijo: el mostrador no se traba nunca.
+
+   Volver cancela la orden, así nadie la paga después. Y si justo se
+   pagó, la cancelación devuelve "pagada" y la venta se registra igual:
+   la plata no se pierde entre un botón y otro. */
+function CobroQr({ monto, referencia, cajaMp, empresaId, sonido, onPagado, onVolver, onQrFijo }) {
+  const [orden, setOrden] = useState(null);
+  const [imagen, setImagen] = useState(null);
+  const [estado, setEstado] = useState("armando");   // armando → esperando → pagada | vencida | cancelada | rechazada | error
+  const [mensaje, setMensaje] = useState("");
+  const listo = useRef(false);
+
+  const pagado = (o, pago) => {
+    if (listo.current) return;
+    listo.current = true;
+    beep(true, sonido);
+    onPagado({ orden: o, pago });
+  };
+
+  useEffect(() => {
+    let vivo = true;
+    qrMercadoPago("crear", { monto, referencia, cajaMp, detalle: "Compra" }, empresaId)
+      .then(async (r) => {
+        if (!vivo) return;
+        setOrden(r.orden);
+        setImagen(await QRCode.toDataURL(r.qr, { margin: 1, width: 320, errorCorrectionLevel: "M" }));
+        setEstado("esperando");
+      })
+      .catch((e) => { if (vivo) { setEstado("error"); setMensaje(e.message); } });
+    return () => { vivo = false; };
+  }, [monto, referencia, cajaMp, empresaId]);
+
+  useEffect(() => {
+    if (!orden || estado !== "esperando") return;
+    let vivo = true;
+    const id = setInterval(async () => {
+      try {
+        const r = await qrMercadoPago("estado", { orden }, empresaId);
+        if (!vivo) return;
+        if (r.estado === "pagada") return pagado(orden, r.pago);
+        if (r.estado !== "esperando") setEstado(r.estado);
+      } catch { /* un sondeo que falla no corta: el próximo pregunta de nuevo */ }
+    }, 2000);
+    return () => { vivo = false; clearInterval(id); };
+  }, [orden, estado, empresaId]);
+
+  const volver = async () => {
+    if (orden && estado === "esperando") {
+      try {
+        const r = await qrMercadoPago("cancelar", { orden }, empresaId);
+        if (r.estado === "pagada") return pagado(orden, r.pago);
+      } catch { /* si no se pudo cancelar, vence sola a los diez minutos */ }
+    }
+    onVolver();
+  };
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); volver(); } };
+    window.addEventListener("keydown", h, true);
+    return () => window.removeEventListener("keydown", h, true);
+  });
+
+  const textos = {
+    armando: "Armando el cobro en Mercado Pago…",
+    esperando: "Que lo escanee con la app de Mercado Pago o de su banco. El monto ya está adentro.",
+    vencida: "El QR venció sin que se pagara.",
+    cancelada: "El cobro se canceló.",
+    rechazada: "Mercado Pago rechazó el pago.",
+    error: mensaje || "Mercado Pago no contestó.",
+  };
+
+  return (
+    <Overlay ancho="max-w-sm">
+      <div className="p-6 text-center">
+        <div className="text-[11px] uppercase tracking-widest font-bold text-texto-tenue">Cobrar con QR</div>
+        <div className="f-d f-m text-4xl mt-1">{money(monto)}</div>
+        <div className="mt-4 mx-auto w-[260px] h-[260px] rounded-xl border border-borde bg-superficie flex items-center justify-center">
+          {imagen && estado === "esperando"
+            ? <img src={imagen} alt="QR para pagar con Mercado Pago" className="w-[240px] h-[240px]" />
+            : <span className="text-sm text-texto-tenue px-4">{estado === "armando" ? "…" : "Sin QR"}</span>}
+        </div>
+        <p className={`text-sm mt-4 ${["error", "rechazada", "vencida"].includes(estado) ? "text-mal" : "text-texto-suave"}`}>{textos[estado]}</p>
+        {estado === "esperando" && <p className="text-[11px] text-texto-tenue mt-1">Se registra solo cuando entra el pago.</p>}
+        <div className="flex flex-col gap-1.5 mt-5">
+          {estado !== "esperando" && estado !== "armando" && (
+            <Boton onClick={onQrFijo}>Cobrar con el QR fijo, como antes</Boton>
+          )}
+          <Boton variant="quiet" onClick={volver}>Volver a los medios de pago <Tecla>Esc</Tecla></Boton>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 const ATAJOS = [
   ["F2", "Cobrar"], ["F3", "Últimas ventas"], ["F4", "Descuento"], ["F7", "Quitar último"], ["F8", "Anular venta"],
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
 export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos,
-  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [] }) {
-  const [paso, setPaso] = useState("carga");     // carga → pago → monto → fin
+  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [], cajaMp = null }) {
+  const [paso, setPaso] = useState("carga");     // carga → pago → (monto | qr) → fin
+  /* El cobro con QR dinámico en curso (0107): el monto ya validado. */
+  const [qr, setQr] = useState(null);
   /* El rubro de cada producto, para las promos que abarcan un rubro: el
      renglón del carrito no lo guarda. */
   const catDe = useMemo(() => new Map(productos.map((p) => [p.id, p.categoria])), [productos]);
@@ -858,7 +962,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     finalizar(pagos[0].medio, efectivoEntregado || null, pagos.map((p) => ({ medio: p.medio, monto: p.monto })), vueltoMix);
   };
 
-  const finalizar = (k, recibido, listaPagos, vueltoDado) => {
+  /* Con "extra.antesDeCobrar" hace todas las verificaciones y la cuenta
+     del total, y en vez de cobrar le pasa el total: es lo que usa el QR
+     dinámico, que tiene que frenar un CUIT faltante ANTES de que el
+     cliente pague, no después. Con "extra.mp" cobra y guarda la orden. */
+  const finalizar = (k, recibido, listaPagos, vueltoDado, extra = {}) => {
     /* A cuenta corriente es una deuda de alguien puntual: sin saber de
        quién, no hay a quién cobrarle después. Se frena acá, el único
        lugar por el que pasan las tres formas de cobrar (un solo medio,
@@ -916,13 +1024,19 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       if (!window.confirm(`${texto}\n\n¿Fiar igual?`)) return;
     }
     const descPromo = pm ? { nombre: pm.promo.nombre, monto: pm.monto } : null;
+    if (extra.antesDeCobrar) return extra.antesDeCobrar(r.total);
     const t = cobrar({ items, sub, desc: descMonto + (pm ? pm.monto : 0), total: r.total, medio: k, ganancia: ganancia - (pm ? pm.monto : 0) + r.recargo,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
-      fiscal: fiscal && facturacion.puede, cliente, descPromo,
+      fiscal: fiscal && facturacion.puede, cliente, descPromo, mp: extra.mp || null,
       promos: pm ? [...promoCalc.aplicadas, { id: pm.promo.id, nombre: pm.promo.nombre, descuento: pm.monto }] : promoCalc.aplicadas });
     /* Sin caja abierta no hay venta: no se descuenta stock ni se limpia el
        carrito, así el cobro se puede retomar apenas se abra. */
-    if (!t) return;
+    if (!t) {
+      /* Con el QR la plata ya entró: que no pase como una venta que no se
+         hizo. Queda la orden para buscarla en la cuenta. */
+      if (extra.mp) toast(`El pago entró en Mercado Pago (orden ${extra.mp.orden}) pero la venta no se registró. Abrí la caja y cargala a mano.`, "mal");
+      return;
+    }
     if (vueltoDado != null) t.vuelto = vueltoDado;
     setProductos((ps) => ps.map((p) => {
       /* Se suman TODOS los renglones del producto y no se toma el primero:
@@ -935,6 +1049,16 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     }));
     setTicket(t);
     setPaso("fin");
+  };
+
+  /* Un medio que no es efectivo. Mercado Pago, en una caja que tiene
+     elegida su caja de Mercado Pago, muestra el QR con el monto; si no,
+     cobra como siempre (el cliente paga al QR fijo y el cajero confirma). */
+  const cobrarCon = (k) => {
+    if (k === "mp" && cajaMp && empresaId) {
+      return finalizar(k, null, null, null, { antesDeCobrar: (monto) => { setQr({ monto, ref: crypto.randomUUID() }); setPaso("qr"); } });
+    }
+    return finalizar(k, null);
   };
 
   const nuevaVenta = () => {
@@ -987,11 +1111,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           const i = Number(e.key) - 1;
           setMedioSel(i);
           if (medios[i].k === "efectivo") return setPaso("monto");
-          return finalizar(medios[i].k, null);
+          return cobrarCon(medios[i].k);
         }
         if (e.key === "Enter") {
           if (medios[medioSel].k === "efectivo") return setPaso("monto");
-          return finalizar(medios[medioSel].k, null);
+          return cobrarCon(medios[medioSel].k);
         }
         return;
       }
@@ -1407,7 +1531,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <ul className="space-y-1.5">
               {medios.map((m, i) => (
                 <li key={m.k}>
-                  <button onClick={() => { setMedioSel(i); m.k === "efectivo" ? setPaso("monto") : finalizar(m.k, null); }}
+                  <button onClick={() => { setMedioSel(i); m.k === "efectivo" ? setPaso("monto") : cobrarCon(m.k); }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors ${i === medioSel ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
                     <Tecla>{i + 1}</Tecla>
                     <span className="font-semibold flex-1">{m.n}</span>
@@ -1459,6 +1583,13 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       )}
 
       {/* ---------- Ventana 2b: efectivo ---------- */}
+      {paso === "qr" && qr && (
+        <CobroQr monto={qr.monto} referencia={qr.ref} cajaMp={cajaMp} empresaId={empresaId} sonido={ajustes.sonido}
+          onPagado={(mp) => { setQr(null); finalizar("mp", null, null, null, { mp }); }}
+          onVolver={() => { setQr(null); setPaso("pago"); }}
+          onQrFijo={() => { setQr(null); finalizar("mp", null); }} />
+      )}
+
       {paso === "monto" && (
         <Overlay ancho="max-w-lg">
           <div className="bg-superficie-3 text-texto px-6 py-4">

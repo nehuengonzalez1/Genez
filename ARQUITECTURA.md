@@ -58,6 +58,7 @@ node scripts/probar-carta-qr.mjs   # la carta QR como la página pública: leer,
 node scripts/probar-happy-hour.mjs # el horario de las promos, la hora de cada renglón y la cuenta de la mesa con la promo
 node scripts/probar-promos-comanda.mjs  # qué renglones de una mesa recalcula la promo y cuáles no toca (sin base)
 node scripts/probar-catalogo-base.mjs   # las reglas del nombre y el rubro, la consulta que no traba el alta y los permisos de la tabla
+node scripts/probar-qr-dinamico.mjs    # api/mp/qr.js contra un Mercado Pago de mentira (orden, estados, cancelar pagada) y 0107
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1119,6 +1120,47 @@ un comercio: "FIDEOS TIRABUZÓN MATARAZZO PAQ 400 GRM" queda "Fideos
 tirabuzón Matarazzo 400 g". Sin `--escribir` solo mide contra Super 25
 (cobertura y acierto del rubro), leyendo en solo lectura. Con `--escribir`
 carga en una transacción.
+
+## El QR dinámico de Mercado Pago
+
+Migración 0107, `api/mp/qr.js`, `CobroQr` en `Vender.jsx` y Ajustes →
+Cajas. Con el QR fijo el cliente escanea y tipea el monto: puede
+equivocarse, pagar dos veces o pagar lo de otro, y el cajero confirma a
+ojo cuando suena el aviso. Con el dinámico cada venta arma una orden con
+el monto adentro, y la venta se registra sola cuando Mercado Pago dice
+que está pagada.
+
+**Usa una caja que ya existe en la cuenta del comercio**, la del QR fijo
+que tienen pegado: no se crean sucursales ni cajas en la cuenta de
+nadie. Cada caja de Genez guarda el `external_id` de la suya
+(`cajas.mp_caja`), que es como la nombra la Orders API; con dos
+mostradores, el QR de uno no puede salir en el otro. Sin elegir, esa
+caja cobra con Mercado Pago como antes.
+
+**Se valida antes de mostrar el QR.** `finalizar` hace las mismas
+verificaciones de siempre (CUIT para la A, los $10 millones, el límite
+de crédito) y con `antesDeCobrar` devuelve el total en vez de cobrar.
+Al revés, el cliente pagaría y la venta podría rechazarse después.
+
+**Cancelar no pierde plata.** Volver cancela la orden para que nadie la
+pague después; si justo se pagó, Mercado Pago no la deja cancelar, la
+función contesta "pagada" y la venta se registra igual. La referencia
+de la venta es la clave de idempotencia: un reintento no arma dos
+órdenes.
+
+**Nunca traba el mostrador.** Si Mercado Pago no contesta, el cajero
+cobra con el QR fijo, como antes. Si el pago entra pero la venta no se
+puede registrar (caja cerrada), lo dice con el número de orden. La
+orden queda en `campos_extra.mp` de la venta.
+
+El aviso de cobro de siempre (el sondeo de `api/mp/pagos.js`) suena
+también con estos pagos; no carga plata en la caja, así que no duplica.
+
+Una función aparte y no una acción de `api/mp/conexion.js`, porque
+aquella pide `configurar` y cobrar lo hace el cajero. Con esta son 11
+funciones; el plan Hobby de Vercel admite 12.
+
+Se prueba en "Super 25 Pruebas", la réplica de Nehuen, nunca en Super 25.
 
 ## La cuenta corriente
 

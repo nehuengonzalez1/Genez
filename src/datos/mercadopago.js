@@ -47,3 +47,19 @@ export async function conexionMercadoPago(accion, datos = {}, empresaId = null) 
   if (!r.ok) throw new Error((respuesta && respuesta.error && respuesta.error.message) || "No se pudo hablar con el servidor.");
   return respuesta;
 }
+
+/* El QR dinámico (0107): `cajas` (las de la cuenta de Mercado Pago),
+   `crear` ({ monto, referencia, cajaMp, detalle }), `estado` y `cancelar`
+   ({ orden }). Lo que devuelve un error de Mercado Pago llega como
+   excepción con su mensaje, para que el mostrador lo muestre tal cual. */
+export async function qrMercadoPago(accion, datos = {}, empresaId = null) {
+  const token = await tokenDeSesion();
+  const r = await fetch("/api/mp/qr", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ accion, empresaId, ...datos }),
+  });
+  const respuesta = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((respuesta && respuesta.error && respuesta.error.message) || "No se pudo hablar con el servidor.");
+  return respuesta;
+}
