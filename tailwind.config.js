@@ -27,6 +27,8 @@ export default {
         "sobre-telon": color("sobre-telon"),
         "muestra-oscura": color("muestra-oscura"),
         "muestra-clara": color("muestra-clara"),
+        papel:        color("papel"),
+        tinta:        color("tinta"),
 
         acento:       color("acento"),
         "acento-vivo": color("acento-vivo"),

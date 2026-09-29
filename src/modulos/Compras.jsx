@@ -255,13 +255,13 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
       ) : (
         <>
           {avisoProv && (
-            <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3">
+            <div className="text-sm text-ojo bg-ojo-suave border border-ojo rounded-xl p-3">
               <strong>{avisoProv}</strong> no estaba cargado y lo di de alta con lo que traía el remito.
               Le faltan <strong>{faltantesProveedor(provs[avisoProv]).join(", ")}</strong>: completalo en la pestaña Proveedores.
             </div>
           )}
           {sinResolver > 0 && (
-            <div className="flex flex-wrap items-center gap-3 text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-ojo bg-ojo-suave border border-ojo rounded-xl p-3">
               <span className="flex-1">
                 {sinResolver} renglones no están en el catálogo. Podés darlos de alta con los datos del remito, buscarlos a mano o quitarlos.
                 No se aplica nada hasta que confirmes.
@@ -390,7 +390,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-borde">
             <label className="flex items-center gap-2 text-sm text-texto-suave">
-              <input type="checkbox" checked={pagado} onChange={(e) => setPagado(e.target.checked)} className="w-4 h-4 accent-orange-500" />
+              <input type="checkbox" checked={pagado} onChange={(e) => setPagado(e.target.checked)} className="w-4 h-4 accent-acento" />
               Lo pagué en efectivo · {money(total)} sale de caja
             </label>
             <div className="flex items-center gap-3">
@@ -603,7 +603,7 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
                         <tr key={p.id} className={sel[p.id] ? "bg-acento-suave/40" : "hover:bg-superficie-2"}>
                           <td className="pl-4 py-2">
                             <input type="checkbox" checked={!!sel[p.id]} onChange={(e) => setSel((s) => ({ ...s, [p.id]: e.target.checked ? cant : 0 }))}
-                              className="w-4 h-4 accent-orange-500" />
+                              className="w-4 h-4 accent-acento" />
                           </td>
                           <td className="px-2 py-2"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-texto-tenue">bulto de {p.bulto}</div></td>
                           <td className="px-2 py-2 text-right f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</td>
@@ -671,12 +671,12 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
               const subaProm = subas.length ? subas.reduce((s, p) => s + (p.costo / p.costoPrev - 1), 0) / subas.length : 0;
               const faltan = faltantesProveedor(i);
                 return (
-                <div key={n} className={`border rounded-xl p-4 ${faltan.length ? "border-amber-300 bg-ojo-suave/40" : "border-borde"}`}>
+                <div key={n} className={`border rounded-xl p-4 ${faltan.length ? "border-ojo bg-ojo-suave/40" : "border-borde"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-semibold flex items-center gap-2">
                         {n}
-                        {faltan.length > 0 && <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-amber-100 text-amber-800 border-amber-300">incompleta</span>}
+                        {faltan.length > 0 && <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border bg-ojo-suave text-ojo border-ojo">incompleta</span>}
                       </div>
                       <div className="text-xs text-texto-suave mt-0.5">{[i.pago, i.entrega && `entrega ${i.entrega}`, i.tel, i.cuit].filter(Boolean).join(" · ") || "Sin datos cargados"}</div>
                     </div>
@@ -693,7 +693,7 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
                     </p>
                   )}
                   {faltan.length > 0 && (
-                    <p className="text-xs text-amber-800 mt-3 border-t border-ojo pt-2.5">Falta cargar: <strong>{faltan.join(", ")}</strong>.</p>
+                    <p className="text-xs text-ojo mt-3 border-t border-ojo pt-2.5">Falta cargar: <strong>{faltan.join(", ")}</strong>.</p>
                   )}
                 </div>
               );
@@ -826,7 +826,7 @@ export function Picking({ pedidos, setPedidos, productos, setProductos, cobrar, 
     setAbierto(p.id);
   };
 
-  const chip = { pendiente: "bg-ojo-suave text-ojo border-ojo", preparando: "bg-blue-50 text-blue-700 border-blue-200", listo: "bg-bien-suave text-bien border-bien", entregado: "bg-superficie-2 text-texto-suave border-borde" };
+  const chip = { pendiente: "bg-ojo-suave text-ojo border-ojo", preparando: "bg-info-suave text-info border-info", listo: "bg-bien-suave text-bien border-bien", entregado: "bg-superficie-2 text-texto-suave border-borde" };
   const pend = pedidos.filter((p) => p.estado !== "entregado");
 
   return (
@@ -1053,40 +1053,40 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
       </div>
 
       {/* Zona de escaneo */}
-      <div className={`rounded-2xl p-5 text-center transition-colors ${error ? "bg-red-600" : ultimo ? "bg-emerald-600" : "bg-superficie-3"}`}>
-        <div className="flex items-center justify-center gap-2 text-texto/70 text-[11px] uppercase tracking-widest font-semibold">
+      <div className={`rounded-2xl p-5 text-center transition-colors ${error ? "bg-mal text-sobre-acento" : ultimo ? "bg-bien text-sobre-acento" : "bg-superficie-3"}`}>
+        <div className="flex items-center justify-center gap-2 opacity-70 text-[11px] uppercase tracking-widest font-semibold">
           <ScanLine size={14} /> {libre ? "Pistola activa · cargá el changuito" : "Pistola activa · dispará sobre el producto"}
         </div>
         <button onClick={() => setCamara(true)}
-          className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/15 active:bg-superficie/25 border border-white/25 rounded-xl px-3 py-1.5">
+          className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold bg-superficie/15 active:bg-superficie/25 border border-texto/25 rounded-xl px-3 py-1.5">
           <Cam size={14} /> Usar la cámara
         </button>
         {error ? (
           <>
-            <div className="f-d text-texto text-xl mt-2">{error.msg}</div>
+            <div className="f-d text-xl mt-2">{error.msg}</div>
             {error.extra && <Boton size="sm" variant="ghost" className="mt-3" onClick={() => agregarExtra(error.extra)}>Agregarlo igual al pedido</Boton>}
           </>
         ) : ultimo ? (
           <>
-            <div className="f-d text-texto text-xl mt-2">{ultimo.nombre}</div>
-            <div className="f-m text-texto/80 text-sm mt-1">
+            <div className="f-d text-xl mt-2">{ultimo.nombre}</div>
+            <div className="f-m opacity-80 text-sm mt-1">
               {libre
                 ? `${ultimo.unidad === "kg" ? ultimo.preparado.toFixed(2) + " kg" : ultimo.preparado + " u"} · ${money(ultimo.precio * ultimo.preparado)}`
                 : ultimo.unidad === "kg" ? `${ultimo.preparado.toFixed(2)} de ${ultimo.pedido.toFixed(2)} kg` : `${ultimo.preparado} de ${ultimo.pedido} unidades`}
             </div>
-            {ultimo.aviso && <div className="text-texto/70 text-xs mt-1">{ultimo.aviso}</div>}
+            {ultimo.aviso && <div className="opacity-70 text-xs mt-1">{ultimo.aviso}</div>}
           </>
         ) : (
-          <div className="f-d text-texto text-xl mt-2">{libre ? "Escaneá el primer producto" : "Esperando el primer disparo"}</div>
+          <div className="f-d text-xl mt-2">{libre ? "Escaneá el primer producto" : "Esperando el primer disparo"}</div>
         )}
         {libre ? (
-          <div className="f-m text-texto/70 text-sm mt-4">{nf.format(Math.round(totalPrep))} unidades · {money(monto)}</div>
+          <div className="f-m opacity-70 text-sm mt-4">{nf.format(Math.round(totalPrep))} unidades · {money(monto)}</div>
         ) : (
           <>
             <div className="mt-4 h-2 bg-superficie/20 rounded-full overflow-hidden max-w-md mx-auto">
               <div className="h-full bg-superficie rounded-full transition-all" style={{ width: `${totalPedido ? (totalPrep / totalPedido) * 100 : 0}%` }} />
             </div>
-            <div className="f-m text-texto/70 text-xs mt-1.5">{Math.round(totalPrep)} de {Math.round(totalPedido)} unidades</div>
+            <div className="f-m opacity-70 text-xs mt-1.5">{Math.round(totalPrep)} de {Math.round(totalPedido)} unidades</div>
           </>
         )}
       </div>
@@ -1133,7 +1133,7 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
             placeholder="Nombre, código, o una cantidad para el último"
             className="w-full border border-borde rounded-xl px-3 py-2 text-sm outline-none focus:border-acento bg-superficie" />
           {cantidadPendiente && (
-            <p className="text-sm text-emerald-800 bg-bien-suave border border-bien rounded-xl px-3 py-2 mt-2">
+            <p className="text-sm text-bien bg-bien-suave border border-bien rounded-xl px-3 py-2 mt-2">
               <strong className="f-d text-lg">{aNumero(q)}</strong> {ultimo.unidad === "kg" ? "kg" : "unidades"} de <strong>{ultimo.nombre}</strong> · Enter para aplicar
             </p>
           )}
@@ -1188,7 +1188,7 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
             </div>
           )}
           {faltantes.length > 0 && (
-            <div className="text-xs text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3 mt-3">
+            <div className="text-xs text-ojo bg-ojo-suave border border-ojo rounded-xl p-3 mt-3">
               Faltaron {faltantes.length} productos. Conviene avisarle a {ped.cliente.split(" ")[0]} antes de cobrar.
             </div>
           )}

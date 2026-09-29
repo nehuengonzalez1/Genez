@@ -657,7 +657,7 @@ export function svgQR(semilla, mm) {
 export function Comandera({ lineas, ancho, qr, className = "" }) {
   const mm = ancho === 58 ? 58 : 80;
   return (
-    <div className={`bg-superficie text-black mx-auto ${className}`} style={{ width: `${mm}mm`, maxWidth: "100%" }}>
+    <div className={`bg-papel text-tinta mx-auto ${className}`} style={{ width: `${mm}mm`, maxWidth: "100%" }}>
       <pre className="f-m whitespace-pre leading-[1.35] m-0" style={{ fontSize: ancho === 58 ? "9.5px" : "10.5px" }}>
         {lineas.join("\n")}
       </pre>

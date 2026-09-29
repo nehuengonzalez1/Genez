@@ -258,7 +258,7 @@ export function Etiquetas({ productos, empresaId, ajustes, toast }) {
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
               {etiquetas.map((e) => (
                 <div key={e.id}>
-                  <div className="rounded-md border border-dashed border-stone-300 overflow-hidden text-black"
+                  <div className="rounded-md border border-dashed border-tinta/25 overflow-hidden bg-papel text-tinta"
                     dangerouslySetInnerHTML={{ __html: htmlEtiqueta(e, { anchoMM: 38, conNombre, conPrecio }) }} />
                   <p className="text-[11px] text-texto-tenue truncate mt-1.5" title={e.generadoPor ? `por ${e.generadoPor}` : ""}>
                     {e.generadoEn ? `Generado el ${fdatel(e.generadoEn)}` : "Cargado a mano"}

@@ -426,7 +426,7 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
         {estado !== "leyendo" && (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
             <div className="text-texto">
-              {estado === "error" ? <CameraOff size={30} className="mx-auto text-red-400" /> : <Loader2 size={30} className="mx-auto animate-spin text-acento-vivo" />}
+              {estado === "error" ? <CameraOff size={30} className="mx-auto text-mal" /> : <Loader2 size={30} className="mx-auto animate-spin text-acento-vivo" />}
               <p className="text-sm mt-3 max-w-xs">{detalle || "Encendiendo la cámara…"}</p>
             </div>
           </div>
@@ -435,7 +435,7 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
 
       <div className="px-4 py-3 bg-fondo/85 text-center seguro-abajo">
         {ultimo
-          ? <p className="f-m text-sm text-emerald-400">Leído: {ultimo}</p>
+          ? <p className="f-m text-sm text-bien">Leído: {ultimo}</p>
           : <p className="text-xs text-texto/60">Acercá el código de barras al recuadro</p>}
         <p className="text-[11px] text-texto/40 mt-1">Podés seguir escaneando: la ventana no se cierra sola</p>
       </div>
@@ -1215,7 +1215,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             <Barcode size={20} className="text-acento-vivo shrink-0" />
             <input ref={inp} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} onKeyDown={onKeyInput}
               placeholder="Escaneá o escribí el nombre · Enter con el campo vacío cobra"
-              className="f-m flex-1 bg-transparent text-texto placeholder-stone-500 text-base outline-none py-1" autoFocus />
+              className="f-m flex-1 bg-transparent text-texto placeholder-texto-tenue text-base outline-none py-1" autoFocus />
             <button onClick={() => { setVerTodo((v) => !v); setQ(""); inp.current && inp.current.focus(); }}
               className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold border rounded-xl px-2.5 py-2 ${
                 verTodo ? "text-acento border-acento bg-acento-suave" : "text-texto bg-superficie/10 active:bg-superficie/20 border-borde-fuerte"}`}
@@ -1238,8 +1238,8 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           </div>
           {cantidadPendiente && (
             <div className="px-4 py-2.5 bg-bien-suave border-b border-bien flex items-center gap-2 text-sm">
-              <span className="f-d text-emerald-800 text-lg">{aNumero(q)}</span>
-              <span className="text-emerald-900 truncate flex-1">
+              <span className="f-d text-bien text-lg">{aNumero(q)}</span>
+              <span className="text-bien truncate flex-1">
                 {activo.unidad === "un" ? "unidades de" : `${nombreUnidad(activo.unidad).toLowerCase()}s de`} <strong>{activo.nombre}</strong>
               </span>
               <Tecla>Enter</Tecla>
@@ -1633,7 +1633,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">
                 {falta > 0 ? "Falta cobrar" : "Cubierto"}
               </div>
-              <div className={`f-d text-4xl mt-0.5 ${falta > 0 ? "text-acento-vivo" : "text-emerald-400"}`}>{money(falta > 0 ? falta : total)}</div>
+              <div className={`f-d text-4xl mt-0.5 ${falta > 0 ? "text-acento-vivo" : "text-bien"}`}>{money(falta > 0 ? falta : total)}</div>
             </div>
             <div className="text-right text-xs text-texto-tenue">de {money(total)}<br /><Tecla>Esc</Tecla> volver</div>
           </div>
@@ -1694,10 +1694,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       {/* ---------- Ventana 3: cobrado, ticket opcional ---------- */}
       {paso === "fin" && ticket && (
         <Overlay ancho="max-w-lg">
-          <div className="bg-emerald-600 text-texto px-6 py-5 text-center">
+          <div className="bg-bien text-sobre-acento px-6 py-5 text-center">
             <Check size={26} className="mx-auto" />
             <div className="f-d text-2xl mt-1">Cobrado {money(ticket.total)}</div>
-            <div className="text-emerald-100 text-sm">
+            <div className="opacity-80 text-sm">
               {(ticket.pagos || [{ medio: ticket.medio, monto: ticket.total }]).map((p) => `${medioPorK(ajustes, p.medio).n} ${money(p.monto)}`).join(" + ")} · {ticket.nro}
             </div>
           </div>
@@ -1820,7 +1820,7 @@ export function TicketModal({ t, onClose, ajustes, toast }) {
       <div className="p-5">
         <div className="flex items-center justify-between no-print">
           <div className="flex items-center gap-2 text-bien font-semibold text-sm">
-            <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center"><Check size={14} /></div>
+            <div className="w-6 h-6 rounded-full bg-bien-suave flex items-center justify-center"><Check size={14} /></div>
             Venta registrada
           </div>
           <span className="text-[11px] text-texto-tenue">Comandera {ajustes.ancho} mm</span>
@@ -2114,7 +2114,7 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
         </Campo>
 
         {faltan.length > 0 && (
-          <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3">
+          <div className="text-sm text-ojo bg-ojo-suave border border-ojo rounded-xl p-3">
             Podés guardarlo igual, pero le falta: <strong>{faltan.join(", ")}</strong>. Va a quedar marcado como ficha incompleta hasta que lo completes.
           </div>
         )}
@@ -2155,7 +2155,7 @@ export function FormProveedor({ abierto, inicial, onGuardar, onClose }) {
           </div>
         </div>
         {faltan.length > 0 && (
-          <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3 mt-4">
+          <div className="text-sm text-ojo bg-ojo-suave border border-ojo rounded-xl p-3 mt-4">
             Falta: <strong>{faltan.join(", ")}</strong>. Se guarda igual y queda marcado para completar.
           </div>
         )}

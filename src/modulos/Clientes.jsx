@@ -50,7 +50,7 @@ export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
         </div>
 
         {faltaCuit && (
-          <div className="text-sm text-amber-800 bg-ojo-suave border border-ojo rounded-xl p-3 mt-4">
+          <div className="text-sm text-ojo bg-ojo-suave border border-ojo rounded-xl p-3 mt-4">
             Un {condicionNombre(d.condicion).toLowerCase()} necesita CUIT para que la factura sea válida.
             Sin eso, la venta va a salir como Factura B.
           </div>
