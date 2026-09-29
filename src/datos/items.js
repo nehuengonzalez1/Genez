@@ -15,7 +15,7 @@ import { supabase } from "./supabase.js";
    varios miles llegaría igual. Se pagina siempre. */
 const PAGINA = 1000;
 
-async function traerTodo(tabla, columnas, filtros = (q) => q) {
+export async function traerTodo(tabla, columnas, filtros = (q) => q) {
   const filas = [];
   for (let desde = 0; ; desde += PAGINA) {
     const { data, error } = await filtros(

@@ -49,6 +49,7 @@ node scripts/probar-factura-ab.mjs # el pedido de la A y la B a ARCA, con una ba
 node scripts/probar-arca-ab.mjs    # la A, la B y una nota A contra el ARCA de pruebas (punto de venta 6; ver el archivo)
 node scripts/probar-caea.mjs       # cuándo una factura sale con CAEA y con qué número, informar y cerrar la quincena (sin base, sin red)
 node scripts/probar-arca-caea.mjs  # el CAEA contra el ARCA de pruebas: pedirlo, emitir con ARCA "caído", informarlo
+node scripts/probar-planillas.mjs  # las planillas para el contador: columnas, notas restando, totales (sin base)
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -784,6 +785,27 @@ porque lo autorizado no se toca. Lo que falla queda en
 necesita `CRON_SECRET` en Vercel.
 
 El papel dice CAEA en vez de CAE y el QR lleva `tipoCodAut` "A".
+
+### Las planillas para el contador
+
+Caja → Para el contador (`ParaElContador.jsx`), solo para quien ve costos.
+Tres Excel de un mes: comprobantes emitidos (con CAE o CAEA y el IVA por
+alícuota de `detalle_iva`; las notas de crédito restan; "CUIT emisor"
+aparece si en el mes hubo dos titulares), ventas totales (por día, con
+los tickets y lo cobrado por medio, más los últimos 12 meses) y compras
+cargadas (avisando que no es un libro fiscal).
+
+**No se arma el archivo del Libro IVA Digital, a propósito.** Desde
+noviembre de 2025 lo reemplazó IVA Simple (RG 5705/2025), que ARCA
+precarga con los comprobantes electrónicos: las facturas de Genez ya le
+llegan solas. Lo que el contador necesita es controlarlas, y lo que ARCA
+no ve: los tickets, que para un monotributista también son ingresos. Las
+compras de Genez no sirven para lo fiscal (son remitos cargados: sin
+letra, IVA ni percepciones); registrarlas bien es otro trabajo.
+
+Las filas las arma `src/utils/planillasContador.js` (puro, se prueba sin
+base); lo que se lee, `src/datos/contador.js`; bajar el Excel,
+`src/utils/planilla.js`, que comparte con el catálogo de productos.
 
 ### El cambio de titular
 
