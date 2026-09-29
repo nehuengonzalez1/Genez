@@ -75,8 +75,12 @@ try {
   console.log("\nStock cargado");
   await c.query("insert into movimientos_stock (empresa_id, item_id, cantidad, tipo, operacion_id) values ($1, $2, -5, 'venta', $3)", [emp, a, venta]);
   decir((await una("select stock_cargado from items_vista where id = $1", [a])).stock_cargado === false, "con solo ventas: sin stock cargado");
-  const nuncaNada = await una("select count(*) filter (where stock_cargado)::int si, count(*)::int n from items_vista v where v.empresa_id = (select id from empresas where nombre = 'Super 25')");
-  decir(nuncaNada.si === 0, `Super 25: ninguno de sus ${nuncaNada.n} productos tiene el stock cargado (arrancó en cero)`);
+  /* Super 25 arrancó sin stock: los únicos cargados son los que tienen un
+     movimiento que no es venta (los que dio de alta con stock). */
+  const s25 = await una(`select count(*) filter (where v.stock_cargado)::int si,
+      count(*) filter (where exists (select 1 from movimientos_stock m where m.item_id = v.id and m.tipo not in ('venta', 'devolucion')))::int deberian,
+      count(*)::int n from items_vista v where v.empresa_id = (select id from empresas where nombre = 'Super 25')`);
+  decir(s25.si === s25.deberian, `Super 25: ${s25.si} de ${s25.n} con el stock cargado, justo los que tienen un movimiento que no es venta`);
 
   console.log("\nCargar de una vez");
   const plataforma = (await una("select id from perfiles where es_plataforma limit 1")).id;
