@@ -34,7 +34,7 @@ const ppp = (stockPrevio, costoPrevio, cantidad, costoNuevo) => {
   return total > 0 ? Math.round(((stockPrevio * costoPrevio + cantidad * costoNuevo) / total) * 100) / 100 : costoNuevo;
 };
 
-export function CargarCompra({ empresaId, productos, setProductos, movCaja, toast, provs, setProvs }) {
+export function CargarCompra({ empresaId, productos, setProductos, movCaja, toast, provs, setProvs, sucursalId = null }) {
   const [lineas, setLineas] = useState([]);
   const [prov, setProv] = useState(Object.keys(provs)[0]);
   const [comprobante, setComprobante] = useState("");
@@ -172,7 +172,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
 
       const proveedorId = (provs[prov] || {}).id || null;
       await registrarCompra({
-        empresaId, proveedorId, comprobante,
+        empresaId, proveedorId, comprobante, sucursalId,
         lineas: validas.map((l) => ({
           itemId: l.pid || creados[l.uid].id,
           descripcion: l.pid ? l.nombre : l.crear.nombre,
@@ -436,7 +436,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
   );
 }
 
-export function Compras({ empresaId, productos, setProductos, k, pedidos, setPedidos, movCaja, toast, cobertura, provs, setProvs }) {
+export function Compras({ empresaId, productos, setProductos, k, pedidos, setPedidos, movCaja, toast, cobertura, provs, setProvs, lugar = { sucursales: [], actual: null, varias: false } }) {
   const [altaProv, setAltaProv] = useState(null);
   const [prov, setProv] = useState(Object.keys(provs)[0]);
   const [sel, setSel] = useState({});
@@ -490,6 +490,7 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
     try {
       await registrarCompra({
         empresaId,
+        sucursalId: lugar.actual,
         proveedorId: (provs[ped.prov] || {}).id || null,
         comprobante: ped.nro,
         lineas: lineasRec.map((l) => ({
@@ -524,14 +525,23 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
     toast(contado ? `Mercadería recibida y ${money(total)} pagados de caja.` : `Mercadería recibida. ${money(total)} quedan en cuenta corriente.`);
   };
 
+  const aDonde = lugar.varias ? (lugar.sucursales.find((s) => s.id === lugar.actual) || {}).nombre : null;
   return (
     <div className="space-y-4">
+      {/* Con varias sucursales (0108), la mercadería entra a la de esta
+          computadora: la de su caja. Se dice, para que nadie cargue desde
+          el depósito del otro local sin darse cuenta. */}
+      {lugar.varias && (
+        <p className="text-sm text-texto-suave">
+          Lo que cargues entra al stock de <strong className="text-texto">{aDonde || "la primera sucursal"}</strong>, la sucursal de la caja de esta computadora. Para moverlo a otro local, usá Stock → Sucursales.
+        </p>
+      )}
       <Card className="overflow-hidden">
         <div className="px-4 pt-2">
           <Tabs items={[{ k: "cargar", n: "Cargar compra" }, { k: "sugerido", n: "Pedido sugerido" }, { k: "pedidos", n: "Órdenes de compra", badge: pedidos.length }, { k: "prov", n: "Proveedores" }]} value={tab} onChange={setTab} />
         </div>
 
-        {tab === "cargar" && <CargarCompra empresaId={empresaId} productos={productos} setProductos={setProductos} movCaja={movCaja} toast={toast} provs={provs} setProvs={setProvs} />}
+        {tab === "cargar" && <CargarCompra empresaId={empresaId} productos={productos} setProductos={setProductos} movCaja={movCaja} toast={toast} provs={provs} setProvs={setProvs} sucursalId={lugar.actual} />}
 
         {tab === "sugerido" && (
           <div>

@@ -64,6 +64,7 @@ export async function editarCaja(cajaId, cambios) {
   if (cambios.nombre !== undefined) fila.nombre = cambios.nombre.trim();
   if (cambios.activa !== undefined) fila.activa = !!cambios.activa;
   if (cambios.mpCaja !== undefined) fila.mp_caja = cambios.mpCaja || null;
+  if (cambios.sucursalId !== undefined) fila.sucursal_id = cambios.sucursalId;
   const { error } = await supabase.from("cajas").update(fila).eq("id", cajaId);
   if (error) {
     if (error.code === "23505") throw new Error(`Ya hay una caja que se llama "${fila.nombre}".`);

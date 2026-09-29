@@ -138,16 +138,19 @@ export const ESTADOS_TURNO = [
    Las lecturas
    ------------------------------------------------------------ */
 
-/* Los egresos no tienen área ni profesional, así que este bloque nunca se
-   filtra. Es a propósito y la pantalla lo dice. */
-async function caja(empresaId, desde, hasta) {
-  const { data, error } = await supabase
+/* Los egresos no tienen área ni profesional, así que este bloque no se
+   filtra por eso. Es a propósito y la pantalla lo dice. Por sucursal sí
+   (0108): la plata de un local es de ese local. */
+async function caja(empresaId, desde, hasta, filtros = {}) {
+  let q = supabase
     .from("movimientos_caja")
     .select("tipo, monto, categoria, fecha, operacion_id")
     .eq("empresa_id", empresaId)
     .gte("fecha", desde.toISOString())
     .lte("fecha", hasta.toISOString())
     .limit(20000);
+  if (filtros.sucursal) q = q.eq("sucursal_id", filtros.sucursal);
+  const { data, error } = await q;
   if (error) throw error;
   return data || [];
 }
@@ -164,6 +167,7 @@ async function lineas(empresaId, desde, hasta, filtros) {
     .limit(20000);
 
   if (filtros.item) q = q.eq("item_id", filtros.item);
+  if (filtros.sucursal) q = q.eq("operaciones.sucursal_id", filtros.sucursal);
   const { data: filas, error } = await q;
   if (error) throw error;
 
@@ -196,6 +200,7 @@ async function agenda(empresaId, desde, hasta, filtros) {
   if (filtros.item) q = q.eq("item_id", filtros.item);
   if (filtros.recurso) q = q.eq("recurso_id", filtros.recurso);
   if (filtros.area) q = q.eq("area", filtros.area);
+  if (filtros.sucursal) q = q.eq("sucursal_id", filtros.sucursal);
 
   const { data, error } = await q;
   if (error) throw error;
@@ -204,6 +209,9 @@ async function agenda(empresaId, desde, hasta, filtros) {
 
 const limpio = (f) => Object.fromEntries(
   Object.entries(f || {}).filter(([, v]) => v !== null && v !== undefined && v !== ""));
+/* Para las funciones de la base (ocupación, equipo): la sucursal no se
+   les pasa, porque no la conocen. Esos dos cuadros son de todas. */
+const sinSucursal = (f) => { const { sucursal, ...resto } = f || {}; return limpio(resto); };
 
 async function ocupacion(empresaId, desde, hasta, filtros) {
   const { data, error } = await supabase.rpc("informe_ocupacion", {
@@ -280,11 +288,11 @@ export async function cargarInforme(empresaId, { desde, hasta, comparar = null, 
   const hastaTodo = c ? new Date(Math.max(h.getTime(), c.hasta.getTime())) : h;
 
   const [mov, lin, age, ocu, eq, nuevos, opc, segmentos] = await Promise.all([
-    caja(empresaId, desdeTodo, hastaTodo),
+    caja(empresaId, desdeTodo, hastaTodo, f),
     lineas(empresaId, desdeTodo, hastaTodo, f),
     agenda(empresaId, desdeTodo, hastaTodo, f),
-    ocupacion(empresaId, d, h, f),
-    equipo(empresaId, d, h, f),
+    ocupacion(empresaId, d, h, sinSucursal(f)),
+    equipo(empresaId, d, h, sinSucursal(f)),
     altas(empresaId, desdeTodo, hastaTodo),
     opciones(empresaId),
     /* Las oportunidades no dependen del período: son el estado del

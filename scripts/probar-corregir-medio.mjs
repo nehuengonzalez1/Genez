@@ -65,7 +65,8 @@ await c.query(`update empresas set config = jsonb_set(coalesce(config, '{}'::jso
   { k: "cuenta_corriente", n: "Cuenta corriente", tasa: 0, recargo: false, activo: true },
 ])]);
 
-const ses = await una("insert into sesiones_caja (empresa_id, sucursal_id, monto_inicial) values ($1, $2, 0) returning id", [emp.id, suc.id]);
+const ses = await una(`with caja as (insert into cajas (empresa_id, nombre) values ($1, 'Prueba ' || substr(gen_random_uuid()::text, 1, 8)) returning id)
+   insert into sesiones_caja (empresa_id, caja_id, sucursal_id, monto_inicial) select $1, caja.id, $2, 0 from caja returning id`, [emp.id, suc.id]);
 const cli = await una("insert into clientes (empresa_id, razon_social, condicion) values ($1, 'Cliente de prueba', 'CF') returning id", [emp.id]);
 
 const vender = async (pagos, { sesion = ses.id, cliente = null } = {}) => {
@@ -135,7 +136,8 @@ await comoDe(dueno.id);
 await falla(corregir, [p5.id, "efectivo", null], "P0024", "un cobro que tuvo recargo");
 await comoAdmin();
 
-const ses2 = await una("insert into sesiones_caja (empresa_id, sucursal_id, monto_inicial) values ($1, $2, 0) returning id", [emp.id, suc.id]);
+const ses2 = await una(`with caja as (insert into cajas (empresa_id, nombre) values ($1, 'Prueba ' || substr(gen_random_uuid()::text, 1, 8)) returning id)
+   insert into sesiones_caja (empresa_id, caja_id, sucursal_id, monto_inicial) select $1, caja.id, $2, 0 from caja returning id`, [emp.id, suc.id]);
 const v6 = await vender([{ medio: "debito", monto: 900 }], { sesion: ses2.id });
 const [p6] = await pagosDe(v6);
 await c.query("update sesiones_caja set cerrada_en = now() where id = $1", [ses2.id]);

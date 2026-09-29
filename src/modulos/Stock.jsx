@@ -2,13 +2,15 @@
    8. STOCK
    ============================================================ */
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Barcode } from "lucide-react";
 import { uid, fdatel } from "../datos/generador.js";
 import { diasDesde, money, moneyk, nf } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Kpi, Tabs, Vacio, Boton, TablaSimple } from "../ui/Base.jsx";
+import { inputCls } from "../ui/Campos.jsx";
+import { cargarStockPorSucursal, transferirStock } from "../datos/sucursales.js";
 
-export function Stock({ productos, setProductos, k, toast }) {
+export function Stock({ productos, setProductos, k, toast, empresaId = null, lugar = { sucursales: [], varias: false } }) {
   const [tab, setTab] = useState("alertas");
   const [q, setQ] = useState("");
   const [conteo, setConteo] = useState({});
@@ -40,6 +42,8 @@ export function Stock({ productos, setProductos, k, toast }) {
     { k: "vencer", n: "Vencimientos", badge: k.porVencer.length },
     { k: "dormidos", n: "Sin movimiento", badge: k.dormidos.length },
     { k: "inventario", n: "Conteo de inventario" },
+    /* Con una sola sucursal no hay nada que mostrar (0108). */
+    ...(lugar.varias && empresaId ? [{ k: "sucursales", n: "Sucursales" }] : []),
   ];
 
   return (
@@ -102,6 +106,10 @@ export function Stock({ productos, setProductos, k, toast }) {
           />
         )}
 
+        {tab === "sucursales" && (
+          <StockPorSucursal productos={productos} empresaId={empresaId} lugar={lugar} toast={toast} />
+        )}
+
         {tab === "inventario" && (
           <div className="p-4">
             <p className="text-sm text-texto-suave mb-3">
@@ -149,6 +157,127 @@ export function Stock({ productos, setProductos, k, toast }) {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+/* --- El stock de cada sucursal (0108) -----------------------------------
+   Lo real de la base (stock_actual), no el estado en memoria: el pase de
+   mercadería lo escribe la base en una transacción, y lo que se muestra
+   después es lo que quedó. Se relee después de cada pase. */
+function StockPorSucursal({ productos, empresaId, lugar, toast }) {
+  const activas = lugar.sucursales.filter((s) => s.activa);
+  const [mapa, setMapa] = useState(null);
+  const [q, setQ] = useState("");
+  const [pase, setPase] = useState(null);   // { p, cantidad, desde, hacia }
+  const [ocupado, setOcupado] = useState(false);
+
+  const leer = useCallback(async () => {
+    try { setMapa(await cargarStockPorSucursal(empresaId)); }
+    catch (e) { toast(e.message || "No se pudo leer el stock por sucursal.", "mal"); setMapa(new Map()); }
+  }, [empresaId, toast]);
+  useEffect(() => { leer(); }, [leer]);
+
+  useScanHandler((cod) => {
+    const p = productos.find((x) => x.barcode === cod);
+    if (!p) { beep(false, true); return toast(`El código ${cod} no está en el catálogo.`, "mal"); }
+    beep(true, true);
+    setQ(cod);
+  }, true);
+
+  const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const lista = q.trim().length >= 2
+    ? productos.filter((p) => norm(p.nombre).includes(norm(q.trim())) || (p.barcode || "").includes(q.trim())).slice(0, 40)
+    : [];
+  const de = (p, s) => ((mapa && mapa.get(p.id)) || {})[s] || 0;
+  const fmt = (p, n) => (p.unidad === "kg" ? n.toFixed(1) : nf.format(n));
+  const nombreDe = (id) => (lugar.sucursales.find((s) => s.id === id) || {}).nombre;
+
+  const abrirPase = (p) => {
+    const desde = activas.some((s) => s.id === lugar.actual) ? lugar.actual : activas[0].id;
+    const hacia = (activas.find((s) => s.id !== desde) || activas[0]).id;
+    setPase({ p, cantidad: "", desde, hacia });
+  };
+
+  const pasar = async () => {
+    const cant = Number(pase.cantidad);
+    if (!(cant > 0)) return toast("Poné cuánto pasás.", "mal");
+    setOcupado(true);
+    try {
+      await transferirStock({ itemId: pase.p.id, cantidad: cant, desde: pase.desde, hacia: pase.hacia });
+      toast(`${fmt(pase.p, cant)} de ${pase.p.nombre}: de ${nombreDe(pase.desde)} a ${nombreDe(pase.hacia)}.`);
+      setPase(null);
+      await leer();
+    } catch (e) {
+      toast(e.message, "mal");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  return (
+    <div className="p-4">
+      <p className="text-sm text-texto-suave mb-3">
+        Cuánto hay en cada local. Pasar mercadería la saca de uno y la pone en el otro, las dos cosas juntas; el total no cambia.
+      </p>
+      <div className="relative max-w-lg">
+        <Barcode size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-tenue" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Disparale con la pistola o buscalo por nombre"
+          className="w-full pl-9 pr-3 py-2 text-sm border border-borde rounded-xl outline-none focus:border-acento" />
+      </div>
+      {!mapa ? (
+        <p className="text-sm text-texto-tenue mt-3">Leyendo el stock…</p>
+      ) : lista.length > 0 && (
+        <div className="mt-3 border border-borde rounded-xl overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-widest text-texto-tenue">
+                <th className="text-left font-semibold px-3 py-2">Producto</th>
+                {activas.map((s) => <th key={s.id} className="text-right font-semibold px-3 py-2">{s.nombre}</th>)}
+                <th className="text-right font-semibold px-3 py-2">Total</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-borde">
+              {lista.map((p) => (
+                <React.Fragment key={p.id}>
+                  <tr>
+                    <td className="px-3 py-2"><div className="font-medium">{p.nombre}</div><div className="f-m text-[11px] text-texto-tenue">{p.barcode || "sin código"}</div></td>
+                    {activas.map((s) => <td key={s.id} className="f-m text-right px-3 py-2">{fmt(p, de(p, s.id))}</td>)}
+                    <td className="f-m text-right px-3 py-2 text-texto-suave">{fmt(p, activas.reduce((n, s) => n + de(p, s.id), 0))}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Boton size="sm" variant="ghost" onClick={() => abrirPase(p)}>Pasar</Boton>
+                    </td>
+                  </tr>
+                  {pase && pase.p.id === p.id && (
+                    <tr className="bg-superficie-2">
+                      <td colSpan={activas.length + 3} className="px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <input value={pase.cantidad} autoFocus onChange={(e) => setPase({ ...pase, cantidad: e.target.value.replace(/[^\d.]/g, "") })}
+                            placeholder="Cantidad" className={`${inputCls} f-m w-24 text-right`} />
+                          <span className="text-texto-suave">de</span>
+                          <select value={pase.desde} onChange={(e) => {
+                            const desde = e.target.value;
+                            setPase({ ...pase, desde, hacia: pase.hacia === desde ? (activas.find((s) => s.id !== desde) || {}).id : pase.hacia });
+                          }} className={`${inputCls} w-auto`}>
+                            {activas.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                          </select>
+                          <span className="text-texto-suave">a</span>
+                          <select value={pase.hacia} onChange={(e) => setPase({ ...pase, hacia: e.target.value })} className={`${inputCls} w-auto`}>
+                            {activas.filter((s) => s.id !== pase.desde).map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                          </select>
+                          <Boton size="sm" disabled={ocupado || pase.desde === pase.hacia} onClick={pasar}>Pasar</Boton>
+                          <Boton size="sm" variant="quiet" onClick={() => setPase(null)}>Cancelar</Boton>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

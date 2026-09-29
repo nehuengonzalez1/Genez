@@ -311,7 +311,7 @@ export async function cargarSerieDiaria(empresaId, periodo = 90) {
 
   const { data, error } = typeof periodo === "number"
     ? await supabase.rpc("ventas_diarias", { p_empresa: empresaId, p_dias: periodo })
-    : await supabase.rpc("ventas_diarias_rango", { p_empresa: empresaId, p_desde: diaISO(periodo.desde), p_hasta: diaISO(periodo.hasta) });
+    : await supabase.rpc("ventas_diarias_rango", { p_empresa: empresaId, p_desde: diaISO(periodo.desde), p_hasta: diaISO(periodo.hasta), ...(periodo.sucursal ? { p_sucursal: periodo.sucursal } : {}) });
   if (error) throw error;
 
   return (data || []).map((d) => {
@@ -484,7 +484,7 @@ export async function cargarVentasPorItem(empresaId, periodo = 30) {
 
   const { data, error } = typeof periodo === "number"
     ? await supabase.rpc("ventas_por_item", { p_empresa: empresaId, p_dias: periodo })
-    : await supabase.rpc("ventas_por_item_rango", { p_empresa: empresaId, p_desde: diaISO(periodo.desde), p_hasta: diaISO(periodo.hasta) });
+    : await supabase.rpc("ventas_por_item_rango", { p_empresa: empresaId, p_desde: diaISO(periodo.desde), p_hasta: diaISO(periodo.hasta), ...(periodo.sucursal ? { p_sucursal: periodo.sucursal } : {}) });
   if (error) throw error;
 
   return (data || []).map((d) => {

@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { CLASES_INSCRIPTO } from "../utils/fiscal.js";
-import { CajasDelComercio } from "./Cajas.jsx";
+import { CajasDelComercio, SucursalesDelComercio } from "./Cajas.jsx";
 import {
   Plus, X, Check, Trash2, BellOff, Bell, Volume2, VolumeX, Printer,
   ScanLine, Barcode
@@ -27,7 +27,7 @@ const Vol2 = Volume2;
    13. AJUSTES
    ============================================================ */
 
-export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro, facturacion = { puede: false }, empresaId, recargarConexion, alCambiarCajas }) {
+export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro, facturacion = { puede: false }, empresaId, recargarConexion, alCambiarCajas, sucursales = [], alCambiarSucursales }) {
   const f = ajustes.fiscal || FISCAL_INICIAL;
   const setFiscal = (cambios) => setAjustes({ ...ajustes, fiscal: { ...f, ...cambios } });
   const bal = ajustes.balanza || BALANZA_INICIAL;
@@ -125,7 +125,8 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
 
       <LogoDelComercio ajustes={ajustes} setAjustes={setAjustes} toast={toast} />
 
-      {empresaId && <CajasDelComercio empresaId={empresaId} toast={toast} alCambiar={alCambiarCajas} />}
+      {empresaId && <SucursalesDelComercio empresaId={empresaId} sucursales={sucursales} toast={toast} alCambiar={alCambiarSucursales} />}
+      {empresaId && <CajasDelComercio empresaId={empresaId} toast={toast} alCambiar={alCambiarCajas} sucursales={sucursales} />}
 
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
