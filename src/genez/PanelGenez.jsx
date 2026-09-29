@@ -1608,7 +1608,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null, mp = null }) => {
     /* El POS ya no se monta con la caja cerrada, pero no es el único que
        cobra: los pedidos preparados entran por acá también. La condición
        se verifica en el único lugar por el que pasan todos, así que un
@@ -1646,6 +1646,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       cliente,
       comprobante: { fiscal: esFiscal, cliente: cliente ? { nombre: cliente.razonSocial, doc: cliente.doc } : null },
       promos,
+      mp,
     });
 
     /* Primero al disco, después el ticket. Guardar es sincrónico, así que
@@ -2020,6 +2021,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
                 facturacion={facturacion} facturas={facturas} pedirCAEs={pedirCAEs}
                 empresaId={empresaId} caja={caja} agregarProducto={agregarProducto} promos={promos}
+                cajaMp={((cajas || []).find((c) => c.id === cajaId) || {}).mpCaja || null}
                 recargarCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }} />
             ) : (
               <div className="py-8">
