@@ -21,6 +21,41 @@ import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
 import { useLogos } from "../ui/logos.js";
+import { reglaDePuntos, valorDePuntos } from "../utils/puntos.js";
+
+/* Puntos para los clientes (0112). La regla vive en la config del
+   comercio porque la lee la base: el disparador suma y canjea con ella,
+   no la pantalla. Apagado de fábrica. */
+function PuntosDelComercio({ ajustes, setAjustes }) {
+  const r = reglaDePuntos(ajustes);
+  const set = (k, v) => setAjustes({ ...ajustes, puntos: { ...r, [k]: v } });
+  const num = (k, min = 0) => (e) => set(k, Math.max(min, Math.round(Number(e.target.value.replace(/\D/g, "")) || 0)));
+  const vuelve = r.pesosPorPunto ? (r.valorPunto / r.pesosPorPunto) * 100 : 0;
+  const campo = "w-24 f-m text-right border border-borde rounded-lg px-2 py-1.5 text-sm bg-superficie outline-none focus:border-acento";
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="f-d text-lg">Puntos para los clientes</h3>
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input type="checkbox" checked={!!r.activo} onChange={(e) => set("activo", e.target.checked)} className="w-4 h-4 accent-acento" />
+          {r.activo ? "Prendido" : "Apagado"}
+        </label>
+      </div>
+      <p className="text-sm text-texto-suave mt-1">
+        Cada venta con cliente suma puntos, y en el cobro se canjean como descuento. Para sumar hay que elegir al cliente: en el cobro alcanza con el DNI o el teléfono.
+      </p>
+      <div className={`grid sm:grid-cols-2 gap-3 mt-4 ${r.activo ? "" : "opacity-50"}`}>
+        <label className="flex items-center justify-between gap-3 text-sm">Un punto cada<span className="flex items-center gap-1">$<input value={r.pesosPorPunto} onChange={num("pesosPorPunto", 1)} className={campo} /></span></label>
+        <label className="flex items-center justify-between gap-3 text-sm">Cada punto vale<span className="flex items-center gap-1">$<input value={r.valorPunto} onChange={num("valorPunto")} className={campo} /></span></label>
+        <label className="flex items-center justify-between gap-3 text-sm">Se canjea desde<span className="flex items-center gap-1"><input value={r.minimo} onChange={num("minimo")} className={campo} /> puntos</span></label>
+        <label className="flex items-center justify-between gap-3 text-sm">Vencen a los<span className="flex items-center gap-1"><input value={r.vencenMeses} onChange={num("vencenMeses", 1)} className={campo} /> meses</span></label>
+      </div>
+      <p className="text-xs text-texto-tenue mt-3">
+        Así, al cliente le vuelve el <span className="f-m">{vuelve.toLocaleString("es-AR", { maximumFractionDigits: 2 })}%</span> de lo que gasta, y puede canjear desde <span className="f-m">{money(valorDePuntos(r.minimo, r))}</span>. Lo ganado vence a los {r.vencenMeses} meses de ganarlo; lo que se canjea sale de lo más viejo.
+      </p>
+    </Card>
+  );
+}
 const Vol2 = Volume2;
 
 /* ============================================================
@@ -459,6 +494,8 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           Los precios de cada lista se cargan producto por producto, o de una vez con la planilla desde el catálogo.
         </p>
       </Card>
+
+      <PuntosDelComercio ajustes={ajustes} setAjustes={setAjustes} />
 
       <Card className="p-5">
         <h3 className="f-d text-lg">Reposición</h3>

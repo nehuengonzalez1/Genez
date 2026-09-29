@@ -15,6 +15,8 @@ import { cargarPlanilla, descargar } from "../utils/planilla.js";
 import { aplicarPromociones, descuentoPorMedio } from "../utils/promociones.js";
 import { buscarEnCatalogo, rubroSugerido, FUENTE_CATALOGO } from "../datos/catalogo.js";
 import { qrMercadoPago } from "../datos/mercadopago.js";
+import { saldoDePuntos } from "../datos/puntos.js";
+import { reglaDePuntos, puntosGanados, canjeMaximo, valorDePuntos } from "../utils/puntos.js";
 import QRCode from "qrcode";
 import {
   nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
@@ -688,6 +690,9 @@ const ATAJOS = [
 export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos,
   facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [], cajaMp = null }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → (monto | qr) → fin
+  /* Los puntos del cliente elegido y cuántos se usan en esta venta (0112). */
+  const [puntosCliente, setPuntosCliente] = useState(null);
+  const [canje, setCanje] = useState(0);
   /* El cobro con QR dinámico en curso (0107): el monto ya validado. */
   const [qr, setQr] = useState(null);
   /* El rubro de cada producto, para las promos que abarcan un rubro: el
@@ -897,7 +902,14 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const descPedido = desc.modo === "pct"
     ? Math.round(sub * Math.min(desc.valor, TOPE_DESCUENTO) / 100)
     : Math.round(desc.valor);
-  const descMonto = Math.min(descPedido, topeDescuento(sub));
+  /* Los puntos (0112) se canjean como descuento, sumado al del pedido: así
+     el total baja en todos lados (pago combinado, vuelto, factura) sin
+     tocar cada cuenta. Se guardan aparte en la venta, y la base los resta. */
+  const regla = reglaDePuntos(ajustes);
+  const maxCanje = canjeMaximo(puntosCliente ? puntosCliente.saldo : 0, topeDescuento(sub) - Math.min(descPedido, topeDescuento(sub)), regla);
+  const puntosUsados = Math.min(canje, maxCanje);
+  const montoCanje = valorDePuntos(puntosUsados, regla);
+  const descMonto = Math.min(descPedido + montoCanje, topeDescuento(sub));
   const total = sub - descMonto;
   const costoTot = lineas.reduce((s, l) => s + l.costo * l.qty, 0);
   const ganancia = total - costoTot;
@@ -918,6 +930,28 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     saldoDe(cliente.id).then((v) => { if (vigente) setSaldoCliente(v); }).catch(() => {});
     return () => { vigente = false; };
   }, [cliente && cliente.id]);
+  useEffect(() => {
+    setPuntosCliente(null); setCanje(0);
+    if (!cliente || !cliente.id || !reglaDePuntos(ajustes).activo) return undefined;
+    let vigente = true;
+    saldoDePuntos(cliente.id).then((s) => { if (vigente) setPuntosCliente(s); }).catch(() => {});
+    return () => { vigente = false; };
+  }, [cliente && cliente.id]);
+
+  /* Identificar para sumar puntos: el DNI o el teléfono y Enter. Si no
+     está, se crea con ese dato; el nombre se completa después. Tiene que
+     llevar un segundo, o en la caja no lo hace nadie. */
+  const [dato, setDato] = useState("");
+  const identificar = async () => {
+    const d = dato.replace(/\D/g, "");
+    if (d.length < 6) return toast("Poné el DNI o el teléfono completo.", "mal");
+    const digitos = (v) => String(v || "").replace(/\D/g, "");
+    const esta = clientes.find((c) => digitos(c.doc) === d || (digitos(c.tel) && digitos(c.tel).endsWith(d)));
+    if (esta) { setCliente(esta); setDato(""); return; }
+    const dni = d.length <= 8;
+    const nuevo = await guardarCliente({ razonSocial: `Cliente ${d}`, tipoDoc: dni ? "DNI" : "", doc: dni ? d : "", tel: dni ? "" : d, condicion: "CF" });
+    if (nuevo) { setCliente(nuevo); setDato(""); }
+  };
   const [buscarCliente, setBuscarCliente] = useState(false);
   /* "Factura" existe solo si el comercio está conectado con ARCA. La
      preferencia de Ajustes decide con cuál arranca cada venta. */
@@ -1026,6 +1060,8 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     const descPromo = pm ? { nombre: pm.promo.nombre, monto: pm.monto } : null;
     if (extra.antesDeCobrar) return extra.antesDeCobrar(r.total);
     const t = cobrar({ items, sub, desc: descMonto + (pm ? pm.monto : 0), total: r.total, medio: k, ganancia: ganancia - (pm ? pm.monto : 0) + r.recargo,
+      puntos: puntosUsados && cliente ? { usados: puntosUsados, monto: montoCanje } : null,
+      puntosSumados: cliente ? puntosGanados(r.total, regla) : 0,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
       fiscal: fiscal && facturacion.puede, cliente, descPromo, mp: extra.mp || null,
       promos: pm ? [...promoCalc.aplicadas, { id: pm.promo.id, nombre: pm.promo.nombre, descuento: pm.monto }] : promoCalc.aplicadas });
@@ -1102,6 +1138,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       }
 
       if (paso === "pago") {
+        if (e.target && e.target.tagName === "INPUT") return;
         e.preventDefault();
         if (e.key === "Escape") return setPaso("carga");
         if (e.key === "ArrowDown") return setMedioSel((i) => (i + 1) % medios.length);
@@ -1527,6 +1564,30 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                   </span>
                 </span>
               </button>
+            )}
+            {regla.activo && !cliente && (
+              <div className="flex items-center gap-2 mb-3">
+                <input value={dato} onChange={(e) => setDato(e.target.value.replace(/[^\d]/g, ""))}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); identificar(); } if (e.key === "Escape") e.target.blur(); }}
+                  placeholder="DNI o teléfono para sumar puntos"
+                  className="f-m flex-1 border border-borde rounded-lg px-3 py-2 text-sm bg-superficie outline-none focus:border-acento" />
+                <Boton size="sm" variant="ghost" disabled={dato.length < 6} onClick={identificar}>Sumar</Boton>
+              </div>
+            )}
+            {regla.activo && cliente && puntosCliente && (
+              <div className="flex items-center justify-between gap-3 mb-3 px-3 py-2 rounded-lg border border-borde text-sm">
+                <span className="text-texto-suave">
+                  Tiene <span className="f-m text-texto">{puntosCliente.saldo}</span> puntos
+                  {puntosCliente.porVencer > 0 && <span className="text-ojo"> · <span className="f-m">{puntosCliente.porVencer}</span> vencen pronto</span>}
+                </span>
+                {maxCanje > 0 ? (
+                  <Boton size="sm" variant={puntosUsados ? "primary" : "ghost"} onClick={() => setCanje(puntosUsados ? 0 : maxCanje)}>
+                    {puntosUsados ? `Usando ${puntosUsados} (−${money(montoCanje)})` : `Usar ${maxCanje} (−${money(valorDePuntos(maxCanje, regla))})`}
+                  </Boton>
+                ) : (
+                  <span className="text-[11px] text-texto-tenue">se canjea desde {regla.minimo}</span>
+                )}
+              </div>
             )}
             <ul className="space-y-1.5">
               {medios.map((m, i) => (
