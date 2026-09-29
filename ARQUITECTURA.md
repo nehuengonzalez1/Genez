@@ -50,6 +50,7 @@ node scripts/probar-arca-ab.mjs    # la A, la B y una nota A contra el ARCA de p
 node scripts/probar-caea.mjs       # cuándo una factura sale con CAEA y con qué número, informar y cerrar la quincena (sin base, sin red)
 node scripts/probar-arca-caea.mjs  # el CAEA contra el ARCA de pruebas: pedirlo, emitir con ARCA "caído", informarlo
 node scripts/probar-planillas.mjs  # las planillas para el contador: columnas, notas restando, totales (sin base)
+node scripts/probar-cajas.mjs      # varias cajas: una sesión abierta por caja, la app de antes, la caja de otro comercio
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -924,6 +925,33 @@ ajuste, que se carga como el saldo real de la cuenta. Verla y moverla pide
 `cajaGrande` (de fábrica dueño y encargado), verificado por la base en la
 política y en cada función. Lo que entra desde el cierre o desde el cajón
 no lo pide: lo hace quien tiene la caja del día.
+
+## Varias cajas
+
+Migración 0101, `src/datos/caja.js`, Ajustes → Cajas (`Cajas.jsx`) y
+la pantalla de caja. Un comercio puede tener varias cajas abiertas a la
+vez, una por mostrador, cada una con su sesión y su arqueo.
+
+**La caja es de la computadora, no de quien entra.** Cada una elige una
+vez cuál es y queda en su navegador (`cajaDeEsteEquipo`). Con una sola
+caja activa no se pregunta nada. Con varias y ninguna elegida no se abre
+ni se cobra sobre ninguna: con cualquier sesión que se mostrara, podría
+ser la del otro mostrador.
+
+**Una sesión abierta por caja**, con un índice
+(`sesiones_caja_una_abierta_por_caja`). Antes la regla de "una por
+comercio" la aplicaba solo `sesionAbierta`, y dos equipos abriendo a
+la vez podían crear dos. Las funciones de la base ya recibían la sesión
+como dato, así que no cambiaron.
+
+**Los cierres son de cada caja**: el fondo que se sugiere al abrir es el
+que quedó en ese cajón. La caja grande recibe de todas.
+
+Cada comercio arrancó con su "Caja 1" y todas sus sesiones son de ella;
+uno nuevo la recibe al crearse. Una sesión que llega sin caja va a la
+primera del comercio: así 0101 se pudo aplicar antes que la aplicación
+nueva. No se borran cajas: se desactivan. Sin límite por ahora: se
+decide con los precios.
 
 ## La cuenta corriente
 

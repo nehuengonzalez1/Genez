@@ -40,7 +40,7 @@ export function Caja(props) {
   );
 }
 
-function CajaDelDia({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empresaId, permisos = {}, pedirCAEs = null, recargarCaja = null }) {
+function CajaDelDia({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empresaId, permisos = {}, pedirCAEs = null, recargarCaja = null, puesto = null }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ monto: "", detalle: "", medio: "efectivo" });
   const [guardando, setGuardando] = useState(false);
@@ -99,7 +99,7 @@ function CajaDelDia({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empr
     return () => { vigente = false; };
   }, [empresaId, caja.abierta, caja.movimientos.length]);
 
-  if (!caja.abierta) return <CajaCerrada caja={caja} abrirCaja={abrirCaja} ajustes={ajustes} toast={toast} />;
+  if (!caja.abierta) return <CajaCerrada caja={caja} abrirCaja={abrirCaja} ajustes={ajustes} toast={toast} puesto={puesto} />;
 
   const titulos = {
     gasto: ["Registrar un gasto", "Alquiler, servicios, flete, sueldos, mantenimiento."],
@@ -109,6 +109,7 @@ function CajaDelDia({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empr
 
   return (
     <div className="space-y-4">
+      <CualCaja puesto={puesto} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Efectivo en caja" valor={money(efectivoEsperado)} sub={`Apertura ${money(caja.saldoInicial)}`} />
         <Kpi label="Ingresos del día" valor={money(ingresos)} tono="bien" />
@@ -367,7 +368,53 @@ function papelCierre(c, ajustes, W) {
 /* La misma pantalla la usan Caja y el POS: sin sesión de caja abierta el
    servidor rechaza toda venta, así que cobrar tiene que estar bloqueado
    desde antes de cargar el primer producto. */
-export function CajaCerrada({ caja, abrirCaja, bajada, ajustes = null, toast = null }) {
+/* VARIAS CAJAS (0101)
+   `puesto` = { cajas, cajaId, elegir }: las cajas del comercio, cuál es
+   esta computadora y cómo cambiarla. Con una sola caja activa no se ve
+   nada de esto: todo sigue como antes. */
+const activasDe = (puesto) => ((puesto && puesto.cajas) || []).filter((c) => c.activa);
+const nombreDeCaja = (puesto) => {
+  const activas = activasDe(puesto);
+  return activas.length > 1 ? (activas.find((c) => c.id === puesto.cajaId) || {}).nombre || null : null;
+};
+
+/* Arriba de la caja abierta: cuál es, y el cambio por si esta
+   computadora se configuró como la del otro mostrador. */
+function CualCaja({ puesto }) {
+  const nombre = nombreDeCaja(puesto);
+  if (!nombre) return null;
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-texto-suave">Esta computadora es la <b className="text-texto">{nombre}</b>.</span>
+      <button onClick={() => puesto.elegir(null)} className="text-xs font-semibold text-acento hover:underline">Cambiar</button>
+    </div>
+  );
+}
+
+/* La primera vez que una computadora entra a un comercio con varias
+   cajas. Se elige una vez y queda en este navegador. */
+function ElegirCaja({ puesto }) {
+  return (
+    <Card className="p-8 text-center max-w-md mx-auto">
+      <Wallet size={28} className="mx-auto text-texto-tenue" />
+      <h3 className="f-d text-xl mt-3">¿Qué caja es esta computadora?</h3>
+      <p className="text-sm text-texto-suave mt-1">Cada caja tiene su propio arqueo. Se elige una vez y queda guardado en esta computadora.</p>
+      <div className="mt-4 grid gap-2">
+        {activasDe(puesto).map((c) => (
+          <Boton key={c.id} variant="ghost" className="w-full" onClick={() => puesto.elegir(c.id)}>{c.nombre}</Boton>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+export function CajaCerrada({ caja, abrirCaja, bajada, ajustes = null, toast = null, puesto = null }) {
+  if (activasDe(puesto).length > 1 && !puesto.cajaId) return <ElegirCaja puesto={puesto} />;
+  return <CajaCerradaDe caja={caja} abrirCaja={abrirCaja} bajada={bajada} ajustes={ajustes} toast={toast} puesto={puesto} />;
+}
+
+function CajaCerradaDe({ caja, abrirCaja, bajada, ajustes, toast, puesto }) {
+  const nombre = nombreDeCaja(puesto);
   const ultimo = caja.cierres.length > 0 ? caja.cierres[0] : null;
   /* La apertura propone el fondo que dejó el último cierre (0095): es la
      plata que quedó en el cajón. */
@@ -381,7 +428,7 @@ export function CajaCerrada({ caja, abrirCaja, bajada, ajustes = null, toast = n
   return (
     <Card className="p-8 text-center max-w-md mx-auto">
       <Wallet size={28} className="mx-auto text-texto-tenue" />
-      <h3 className="f-d text-xl mt-3">La caja está cerrada</h3>
+      <h3 className="f-d text-xl mt-3">{nombre ? `La ${nombre} está cerrada` : "La caja está cerrada"}</h3>
       <p className="text-sm text-texto-suave mt-1">{bajada || "Abrila con el efectivo con el que arrancás el turno para poder cobrar."}</p>
       {ultimo && (
         <div className="text-left text-sm bg-superficie-2 rounded-lg p-3 mt-4">
@@ -416,6 +463,11 @@ export function CajaCerrada({ caja, abrirCaja, bajada, ajustes = null, toast = n
         onClick={async () => { setAbriendo(true); try { await abrirCaja(Number(apertura || 0)); } finally { setAbriendo(false); } }}>
         {abriendo ? "Abriendo…" : `Abrir caja con ${money(Number(apertura || 0))}`}
       </Boton>
+      {nombre && (
+        <button onClick={() => puesto.elegir(null)} className="mt-3 text-xs font-semibold text-acento hover:underline">
+          Esta computadora no es la {nombre}: cambiar
+        </button>
+      )}
     </Card>
   );
 }

@@ -28,6 +28,7 @@ import { ajustesDe, guardarAjustes } from "../datos/ajustes.js";
 import {
   cargarCaja, cargarCierres, cargarMovimientos, registrarMovimiento,
   abrirCaja as abrirCajaEnBase, cerrarCaja as cerrarCajaEnBase,
+  cargarCajas, cajaDeEsteEquipo, elegirCajaDeEsteEquipo,
 } from "../datos/caja.js";
 import { calcular, insights } from "../utils/diagnostico.js";
 import { ScanCtx, useScanner, beep, campanita, hablar, Boton, Modal, Vacio, Apagado, Tabs, configurarImpresion } from "../ui/Base.jsx";
@@ -1101,6 +1102,20 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   /* La caja arranca vacía y se lee de la base al montar: un arqueo sobre
      movimientos inventados no compara nada contra nada. */
   const [caja, setCaja] = useState({ abierta: false, sesionId: null, saldoInicial: 0, hora: null, movimientos: [], cierres: [] });
+  /* Las cajas del comercio y cuál es esta computadora (0101). `cajaId`
+     null con varias cajas = todavía no se eligió: la pantalla de caja
+     pregunta, y hasta entonces no se abre ni se cobra sobre ninguna. */
+  const [cajas, setCajas] = useState(null);
+  const [cajaId, setCajaId] = useState(null);
+  const leerCajas = useCallback(async () => {
+    const lista = await cargarCajas(empresaId);
+    setCajas(lista);
+    setCajaId(cajaDeEsteEquipo(empresaId, lista));
+    return lista;
+  }, [empresaId]);
+  useEffect(() => { leerCajas().catch(() => setCajas([])); }, [leerCajas]);
+  const elegirCaja = (id) => { elegirCajaDeEsteEquipo(empresaId, id); setCajaId(id); };
+  const puesto = { cajas: cajas || [], cajaId, elegir: elegirCaja };
 
   const [ficha, setFicha] = useState(null);
   const [pendientePOS, setPendientePOS] = useState(null);
@@ -1362,7 +1377,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      recalcula al leerlo. Guardarlo aparte sería un número copiado a mano que
      puede quedar en desacuerdo con los movimientos. */
   const leerCierres = useCallback(async () => {
-    const filas = await cargarCierres(empresaId, 5);
+    const filas = await cargarCierres(empresaId, 5, cajaId);
     return Promise.all(filas.map(async (f) => {
       const movs = await cargarMovimientos(f.id);
       /* Lo esperado de cada medio (0095): el efectivo con la apertura, y
@@ -1384,12 +1399,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         medios, notas: f.notas || "",
       };
     }));
-  }, [empresaId]);
+  }, [empresaId, cajaId]);
 
   const leerCaja = useCallback(async () => {
-    const [c, cierres] = await Promise.all([cargarCaja(empresaId), leerCierres()]);
+    /* Sin caja elegida no hay qué leer: con varias, cualquier sesión que se
+       mostrara podría ser la del otro mostrador. */
+    if (!cajaId) return { abierta: false, sesionId: null, saldoInicial: 0, hora: null, movimientos: [], cierres: [] };
+    const [c, cierres] = await Promise.all([cargarCaja(empresaId, cajaId), leerCierres()]);
     return { ...c, cierres };
-  }, [empresaId, leerCierres]);
+  }, [empresaId, cajaId, leerCierres]);
 
   useEffect(() => {
     let vigente = true;
@@ -1550,7 +1568,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
   const abrirCajaDelDia = async (montoInicial) => {
     try {
-      await abrirCajaEnBase({ empresaId, sucursalId: null, montoInicial });
+      if (!cajaId) { toast("Elegí primero qué caja es esta computadora.", "mal"); return; }
+      await abrirCajaEnBase({ empresaId, cajaId, sucursalId: null, montoInicial });
       /* Se relee en vez de armar el estado a mano: si ya había una sesión
          abierta desde otro equipo, `abrirCaja` devuelve esa y sus movimientos
          tienen que aparecer igual. */
@@ -1987,7 +2006,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 recargarCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }} />
             ) : (
               <div className="py-8">
-                <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia}
+                <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia} puesto={puesto}
                   bajada="No se puede cobrar sin caja abierta. Cargá el efectivo que hay en el cajón y arrancá el turno." />
               </div>
             )}
@@ -2254,7 +2273,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                   try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ }
                   if (fiscal && conexionArca) pedirCAEs({ avisar: false });
                 }} />
-              <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes} empresaId={empresaId}
+              <Caja caja={caja} movCaja={movCaja} toast={toast} ajustes={ajustes} empresaId={empresaId} puesto={puesto}
                 abrirCaja={abrirCajaDelDia} cerrarCaja={cerrarCajaDelDia}
                 permisos={permisos} pedirCAEs={conexionArca ? pedirCAEs : null}
                 recargarCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }} />
@@ -2298,7 +2317,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
           {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion}
-            empresaId={empresaId} recargarConexion={recargarConexion} />}
+            empresaId={empresaId} recargarConexion={recargarConexion} alCambiarCajas={leerCajas} />}
           </Barrera>
         </main>
       </div>
