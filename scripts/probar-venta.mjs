@@ -59,7 +59,9 @@ const partes = async (id) => una(`
          (select count(*) from movimientos_stock  where operacion_id = $1) stock,
          (select count(*) from movimientos_caja   where operacion_id = $1) caja`, [id]);
 
-const emp = await una("select id from empresas where nombre = 'Super 25'");
+/* En la réplica y no en Super 25: es un cliente vendiendo, y aunque todo
+   se deshace, la prueba no tiene por qué tocarlo. */
+const emp = await una("select id from empresas where nombre = 'Super 25 Pruebas'");
 const suc = await una("select id from sucursales where empresa_id = $1 limit 1", [emp.id]);
 /* Cualquier producto que lleve stock: lo que se mira es que baje tres,
    no cuánto hay. Pedía "más de 10" y el día que Super 25 no tuvo ninguno
@@ -70,10 +72,11 @@ const prod = await una(
 );
 
 if (!prod) {
-  console.log("  --   Super 25 no tiene productos con stock y precio, se saltea");
+  console.log("  --   Super 25 Pruebas no tiene productos con stock y precio, se saltea");
 } else {
 const sesion = await una(
-  "insert into sesiones_caja (empresa_id, sucursal_id, monto_inicial) values ($1, $2, 20000) returning id",
+  `with caja as (insert into cajas (empresa_id, nombre) values ($1, 'Prueba ' || substr(gen_random_uuid()::text, 1, 8)) returning id)
+   insert into sesiones_caja (empresa_id, caja_id, sucursal_id, monto_inicial) select $1, caja.id, $2, 20000 from caja returning id`,
   [emp.id, suc.id]
 );
 
@@ -137,7 +140,8 @@ if (!bar) {
   const bebida = await una("select i.id, i.nombre, i.precio, i.costo, v.stock from items i join items_vista v on v.id = i.id where i.empresa_id = $1 and i.controla_stock limit 1", [bar.id]);
 
   const sesionBar = await una(
-    "insert into sesiones_caja (empresa_id, sucursal_id, monto_inicial) values ($1, $2, 10000) returning id",
+    `with caja as (insert into cajas (empresa_id, nombre) values ($1, 'Prueba ' || substr(gen_random_uuid()::text, 1, 8)) returning id)
+   insert into sesiones_caja (empresa_id, caja_id, sucursal_id, monto_inicial) select $1, caja.id, $2, 10000 from caja returning id`,
     [bar.id, sucBar.id]
   );
 
