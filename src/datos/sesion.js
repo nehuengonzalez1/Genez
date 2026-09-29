@@ -11,6 +11,7 @@
    ============================================================ */
 
 import { supabase } from "./supabase.js";
+import { miMembresia } from "./interno.js";
 
 /* La base guarda `activa` y `creada_en`; la aplicación viene hablando de
    `activo` y `alta` desde antes. Se traduce acá y no se toca el resto. */
@@ -65,7 +66,10 @@ export async function cargarSesion() {
   }
 
   if (perfil.es_plataforma) {
-    return { tipo: "plataforma", nombre: perfil.nombre, usuario: user.email };
+    /* Si además es del equipo interno (0113), Founder se ofrece en el
+       panel. Ser plataforma no alcanza: la llave de Founder es otra. */
+    const interno = await miMembresia().catch(() => null);
+    return { tipo: "plataforma", nombre: perfil.nombre, usuario: user.email, interno };
   }
 
   /* Alta con clave provisional: el dueño se la dictó, así que la sabe otra

@@ -2,12 +2,16 @@
    15. RAÍZ · quién entró decide qué se ve
    ============================================================ */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
 import { cargarSesion, cargarComercios, salir, alRecuperarClave, vinoDeRecuperacion, leerLoComercial } from "./datos/sesion.js";
 import { cargarRubro } from "./datos/rubros.js";
 import { cargarRoles } from "./datos/permisos.js";
 import { useVersionNueva, estaOcupado } from "./ui/actualizacion.js";
+
+/* GENEZ FOUNDER (0113) se carga aparte: la computadora de un comercio
+   nunca descarga su código. Lo que protege sus datos es la base. */
+const Founder = lazy(() => import("./founder/Founder.jsx"));
 
 /* La sesión sobrevive al refresco: Supabase la guarda en el navegador.
    Mientras se resuelve no se puede mostrar ni el login ni el sistema,
@@ -54,6 +58,10 @@ export default function App() {
   const [roles, setRoles] = useState(null);
   const [errorInicio, setErrorInicio] = useState("");
   const [recuperando, setRecuperando] = useState(vinoDeRecuperacion);
+  /* Founder o el panel de comercios, para la plataforma que es del equipo
+     interno. Se recuerda en esta computadora. */
+  const [enFounder, setEnFounder] = useState(() => { try { return localStorage.getItem("genez.founder") === "1"; } catch { return false; } });
+  const irAFounder = (si) => { setEnFounder(si); try { localStorage.setItem("genez.founder", si ? "1" : "0"); } catch { /* sin almacenamiento, no se recuerda */ } };
 
   /* Lo mismo que `recuperando`, para poder leerlo desde adentro de una
      promesa. El estado que ve un `catch` es el del momento en que se armó
@@ -257,6 +265,14 @@ export default function App() {
     );
   }
 
+  if (sesion.tipo === "plataforma" && !sesion.viendo && enFounder && sesion.interno && sesion.interno.activo) {
+    return envolver(
+      <Suspense fallback={<Cargando />}>
+        <Founder sesion={sesion} onComercios={() => irAFounder(false)} onSalir={cerrarSesion} />
+      </Suspense>
+    );
+  }
+
   if (sesion.tipo === "plataforma" && !sesion.viendo) {
     return envolver(
       <PanelGenez
@@ -267,6 +283,7 @@ export default function App() {
         setComercios={setComercios}
         onSalir={cerrarSesion}
         onEntrarComo={(c) => setSesion({ ...sesion, viendo: c })}
+        onFounder={sesion.interno && sesion.interno.activo ? () => irAFounder(true) : null}
       />
     );
   }

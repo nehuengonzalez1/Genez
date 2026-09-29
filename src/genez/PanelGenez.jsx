@@ -314,7 +314,7 @@ function FormAcceso({ abierto, comercio, onCerrar, onHecho }) {
   );
 }
 
-function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema, imagenFondo, setImagenFondo }) {
+function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema, imagenFondo, setImagenFondo, onFounder = null }) {
   const [abierto, setAbierto] = useState(null);       // comercio en detalle
   const [altaUsuario, setAltaUsuario] = useState(null);
   const [altaComercio, setAltaComercio] = useState(false);
@@ -367,6 +367,12 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
         <span className="text-[10px] uppercase tracking-widest text-acento-vivo font-bold border border-acento/40 rounded px-1.5 py-0.5">Administración</span>
         <div className="ml-auto flex items-center gap-3">
           <span className="text-sm text-texto-tenue hidden sm:block">{sesion.nombre}</span>
+          {/* Solo para quien es del equipo interno (0113), no para toda la plataforma. */}
+          {onFounder && (
+            <button onClick={onFounder} className="text-sm font-semibold text-texto-suave hover:text-texto border border-borde-fuerte rounded-lg px-3 py-1.5">
+              Founder
+            </button>
+          )}
           <BotonTema tema={tema} setTema={setTema} oscuroFijo />
           <button onClick={onSalir} className="text-sm text-texto-tenue hover:text-texto">Salir</button>
         </div>

@@ -43,7 +43,24 @@ const PRODUCTOS = {
   ],
 };
 
-export function armarDatos(rubro) {
+/* Founder (0113) de mentira: el fundador como único miembro, las doce
+   etapas y algunas listas. Lo mismo que siembra la migración, en chico. */
+function founder(usuario) {
+  const ETAPAS = [["Nuevo", 5, "abierta"], ["Para investigar", 5, "abierta"], ["Contacto pendiente", 10, "abierta"], ["Contactado", 15, "abierta"],
+    ["Interesado", 30, "abierta"], ["Demo agendada", 45, "abierta"], ["Demo realizada", 60, "abierta"], ["Propuesta enviada", 70, "abierta"],
+    ["Negociación", 80, "abierta"], ["Ganado", 100, "ganada"], ["Perdido", 0, "perdida"], ["Pausado", 0, "pausada"]];
+  const LISTAS = [["zona", "Caseros"], ["zona", "San Martín Centro"], ["zona", "Villa Ballester"], ["zona", "Villa Bosch"],
+    ["rubro", "Gastronomía"], ["rubro", "Almacén, kiosco o supermercado"], ["fuente", "Visita en persona"], ["fuente", "WhatsApp"],
+    ["motivo_perdida", "Precio"], ["tipo_actividad", "Llamada"], ["tipo_evento", "Demo de Genez"], ["categoria_tarea", "Comercial"]];
+  return {
+    interno_miembros: [{ perfil_id: usuario.id, rol: "fundador", areas: ["*"], activo: true, creado_en: hace(30), perfiles: { nombre: "Persona de prueba", email: usuario.email } }],
+    interno_etapas: ETAPAS.map(([nombre, probabilidad, tipo], i) => ({ id: id(), nombre, orden: i + 1, probabilidad, tipo, activa: true })),
+    interno_listas: LISTAS.map(([tipo, nombre], i) => ({ id: id(), tipo, clave: nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_"), nombre, orden: i, activo: true, datos: {} })),
+    interno_historial: [], solicitudes: [],
+  };
+}
+
+export function armarDatos(rubro, sesion = "comercio") {
   n = 0;
   const r = plataforma.rubros.find((x) => x.clave === rubro) || plataforma.rubros.find((x) => x.clave === "minimercado");
   const lista = PRODUCTOS[r.clave] || PRODUCTOS.minimercado;
@@ -72,6 +89,9 @@ export function armarDatos(rubro) {
     debe_cambiar_clave: false, invitado_en: null, email: USUARIO.email, permisos: {},
   };
   empresa.perfiles = [perfil];
+  /* ?sesion=plataforma: la cuenta de plataforma que además es del equipo
+     interno, para ver el panel de comercios y Founder. */
+  if (sesion === "plataforma") Object.assign(perfil, { es_plataforma: true, empresa_id: null, rol: "dueno" });
 
   const recursos = r.clave === "gastronomia"
     ? Array.from({ length: 8 }, (_, i) => ({ id: id(), empresa_id: EMPRESA, sucursal_id: SUCURSAL, tipo: "mesa", nombre: `Mesa ${i + 1}`, capacidad: 4, activo: true, unida_a: null, orden: i, qr_token: null }))
@@ -94,6 +114,7 @@ export function armarDatos(rubro) {
       promociones: [], clientes: [], proveedores: [], operaciones: [], operacion_lineas: [], sesiones_caja: [],
       movimientos_caja: [], movimientos_stock: [], stock_actual: [], caja_grande: [], caja_grande_saldos: [],
       catalogo_base: [],
+      ...(sesion === "plataforma" ? founder(USUARIO) : {}),
     },
   };
 }
