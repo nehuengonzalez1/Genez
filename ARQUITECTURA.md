@@ -47,6 +47,8 @@ node scripts/probar-devoluciones.mjs  # devoluciones y notas de crédito/débito
 node scripts/probar-iva.mjs        # el IVA por alícuota de un comprobante: cuentas a mano y diez mil al azar (sin base)
 node scripts/probar-factura-ab.mjs # el pedido de la A y la B a ARCA, con una base y un ARCA de mentira (sin base, sin red)
 node scripts/probar-arca-ab.mjs    # la A, la B y una nota A contra el ARCA de pruebas (punto de venta 6; ver el archivo)
+node scripts/probar-caea.mjs       # cuándo una factura sale con CAEA y con qué número, informar y cerrar la quincena (sin base, sin red)
+node scripts/probar-arca-caea.mjs  # el CAEA contra el ARCA de pruebas: pedirlo, emitir con ARCA "caído", informarlo
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -749,6 +751,39 @@ Genez conozca los impuestos internos. El análisis normativo está en el doc
 "Genez: consulta fiscal sobre facturas A y B" (27/09/2026).
 
 Las notas de crédito y de débito C están desde 0089 (ver abajo).
+
+### El CAEA: cuando ARCA no contesta
+
+Migración 0100, `api/arca/_caea.js`, la tarea diaria `api/arca/caea.js`
+y Ajustes → Factura electrónica. Desde el 01/08/2026 (RG 5782/2025,
+corrida por la 5852/2026) es la primera opción de contingencia. Antes, con
+ARCA caído la factura esperaba y no salía ningún papel.
+
+**Se activa por comercio, cargando un punto de venta propio de tipo
+CAEA** (`arca_conexiones.punto_venta_caea`), que el titular crea en ARCA.
+Sin él, todo sigue como antes. En producción se verifica contra ARCA que
+el punto sea de este CUIT, de tipo CAEA y **sin estrenar**: la numeración
+del punto CAEA la lleva la base, sin preguntarle a ARCA, que cuando se usa
+está caído. No sirve para la M (art. 3).
+
+**Solo se pasa al CAEA si ARCA no contestó antes de pedirle nada.** La
+primera pregunta al facturar es el último número, que no emite: si no
+vuelve, esa venta seguro no tiene CAE y se emite con el CAEA de la
+quincena, y el papel sale en el momento. Si ARCA contestó que no (un error
+con código) o se cayó después de mandar el pedido del CAE, no: la venta
+queda como siempre. Con CAEA se facturaría dos veces.
+
+**Las obligaciones las cumple la tarea diaria** (cron de Vercel, 8 de la
+mañana): tener el CAEA de la quincena y, desde 5 días antes, el de la
+siguiente (con ARCA caído no se puede pedir); informar cada comprobante
+emitido con CAEA (`FECAEARegInformativo`, en orden de número); y cerrar
+las quincenas sin uso con "sin movimiento". Plazo: 8 días después de la
+quincena. Lo informado vive en `caea_informes` y no en `comprobantes`,
+porque lo autorizado no se toca. Lo que falla queda en
+`arca_conexiones.caea_estado` y Ajustes lo muestra en rojo. La tarea
+necesita `CRON_SECRET` en Vercel.
+
+El papel dice CAEA en vez de CAE y el QR lleva `tipoCodAut` "A".
 
 ### El cambio de titular
 

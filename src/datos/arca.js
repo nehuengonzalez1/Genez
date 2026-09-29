@@ -91,6 +91,8 @@ const aFactura = (f) => f.estado === "autorizada"
       neto: f.neto != null ? Number(f.neto) : null,
       iva: f.iva != null ? Number(f.iva) : null,
       detalleIva: f.detalle_iva || null,
+      /* CAE o CAEA (0100): el papel lo dice y el QR lleva otro código. */
+      autorizacion: f.autorizacion || "CAE",
     }
   : null;
 
@@ -112,7 +114,7 @@ export const facturaDeComprobante = (c, operacionId) => aFactura({
  */
 export async function cargarFacturas(empresaId, desde) {
   if (!empresaId) throw new Error("cargarFacturas necesita la empresa.");
-  const campos = "operacion_id, numero_interno, fecha, total, cliente, estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha_factura, doc_tipo, doc_nro, ultimo_error, emisor, neto, iva, detalle_iva";
+  const campos = "operacion_id, numero_interno, fecha, total, cliente, estado, modo, cuit, letra, tipo, punto_venta, numero, cae, cae_vto, fecha_factura, doc_tipo, doc_nro, ultimo_error, emisor, neto, iva, detalle_iva, autorizacion";
 
   const [esperan, hechas] = await Promise.all([
     supabase.from("facturas_vista").select(campos).eq("empresa_id", empresaId)

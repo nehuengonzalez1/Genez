@@ -31,7 +31,8 @@ import { createClient } from "@supabase/supabase-js";
 import { origenValido } from "../_comun.js";
 import { generarPedido, leerCertificado, aliasDe } from "./_certificados.js";
 import { cifrar, descifrar } from "./_cifrado.js";
-import { clienteDeProduccion, ErrorArca } from "./_arca.js";
+import { clienteDeProduccion, clienteArca, cuitDe, ErrorArca } from "./_arca.js";
+import { ponerAlDia, caeaDeHoy } from "./_caea.js";
 
 const error = (res, estado, message) => res.status(estado).json({ error: { message } });
 
@@ -82,7 +83,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const acciones = { estado, generar, certificado, probar, activar };
+    const acciones = { estado, generar, certificado, probar, activar, caea };
     const hacer = acciones[cuerpo.accion];
     if (!hacer) return error(res, 400, "Acción desconocida.");
     return res.status(200).json(await hacer({ admin, empresaId, cuerpo, quien: { id: sesion.user.id, plataforma: !!yo.es_plataforma } }));
@@ -123,6 +124,27 @@ async function estado({ admin, empresaId }) {
       : null,
     prueba: cred ? cred.prueba : null,
     sinCAE: count || 0,
+    caea: con && con.punto_venta_caea ? await estadoCAEA(admin, con) : null,
+  };
+}
+
+/* Cómo va el CAEA (0100): el de hoy, lo que falta informar y la última
+   vuelta de la tarea diaria. Es lo que Ajustes muestra para que un
+   incumplimiento no pase callado. */
+async function estadoCAEA(admin, con) {
+  const hoy = await caeaDeHoy(admin, con, cuitDe(con));
+  const desde = new Date(Date.now() - 60 * 86400000).toISOString();
+  const { data } = await admin.from("comprobantes").select("id, caea_informes ( informado_en, error )")
+    .eq("empresa_id", con.empresa_id).eq("autorizacion", "CAEA").eq("estado", "autorizado").gte("creado_en", desde);
+  const informe = (c) => (Array.isArray(c.caea_informes) ? c.caea_informes[0] : c.caea_informes) || {};
+  const faltan = (data || []).filter((c) => !informe(c).informado_en);
+  return {
+    puntoVenta: con.punto_venta_caea,
+    hoy: hoy ? { caea: hoy.caea, desde: hoy.vig_desde, hasta: hoy.vig_hasta, informarHasta: hoy.tope_informar } : null,
+    emitidos: (data || []).length,
+    sinInformar: faltan.length,
+    errorInforme: (faltan.find((c) => informe(c).error) && informe(faltan.find((c) => informe(c).error)).error) || null,
+    tarea: con.caea_estado || null,
   };
 }
 
@@ -370,5 +392,53 @@ async function activar({ admin, empresaId, cuerpo }) {
   return estado({ admin, empresaId });
 }
 
+/* El punto de venta CAEA (0100). Cargarlo activa el CAEA en el comercio:
+   desde ese momento, si ARCA no contesta, se emite con CAEA, y la tarea
+   diaria pide el de cada quincena e informa. Vacío lo apaga (lo ya
+   emitido se sigue informando: la tarea mira los comprobantes, no esto).
+
+   En producción se verifica contra ARCA que el punto exista, sea de este
+   CUIT y sea de tipo CAEA (RG 5782, art. 5: tiene que ser uno propio). Y
+   al cargarlo se pide ya el CAEA de la quincena, para no quedar sin
+   cobertura hasta la próxima vuelta de la tarea. */
+async function caea({ admin, empresaId, cuerpo }) {
+  const { con } = await leer(admin, empresaId);
+  if (!con) throw new ErrorArca("Primero conectá el comercio con ARCA.", 409);
+
+  const valor = cuerpo.puntoVentaCaea;
+  if (valor === null || valor === undefined || valor === "") {
+    const r = await admin.from("arca_conexiones").update({ punto_venta_caea: null }).eq("empresa_id", empresaId);
+    if (r.error) throw r.error;
+    return estado({ admin, empresaId });
+  }
+  const pv = Number(valor);
+  if (!Number.isInteger(pv) || pv < 1 || pv > 99998) throw new ErrorArca("El punto de venta es un número entre 1 y 99998.");
+  if (pv === con.punto_venta) throw new ErrorArca(`El ${pv} es el punto de venta del CAE. El CAEA necesita uno propio, de tipo CAEA.`);
+
+  const afip = await clienteArca(admin, con);
+  if (con.modo === "produccion") {
+    const puntos = await afip.ElectronicBilling.getSalesPoints();
+    const p = puntos.find((x) => x.numero === pv);
+    if (!p) throw new ErrorArca(`El ${pv} no es un punto de venta de web service de este CUIT. En ARCA se crea en "Administración de puntos de venta y domicilios", eligiendo el sistema CAEA.`);
+    if (!/CAEA/i.test(p.tipo)) throw new ErrorArca(`El ${pv} es de tipo ${p.tipo}, no CAEA. El CAEA necesita un punto de venta propio de ese tipo.`);
+    if (p.bloqueado || p.baja) throw new ErrorArca(`El ${pv} está ${p.baja ? "dado de baja" : "bloqueado"} en ARCA.`);
+    /* La numeración del punto CAEA la lleva la base, sin preguntarle a
+       ARCA (que cuando se usa está caído). Si ese punto ya tuviera
+       comprobantes de otro sistema, Genez empezaría en el 1 y ARCA
+       rechazaría los informes. Tiene que estar sin estrenar. */
+    const { emp } = await leer(admin, empresaId);
+    const inscripto = fiscalDe(emp).condicion === "RI";
+    for (const tipo of inscripto ? [1, 6] : [11]) {
+      const ultimo = await afip.ElectronicBilling.getLastVoucher(pv, tipo);
+      if (Number(ultimo) > 0) throw new ErrorArca(`El punto ${pv} ya tiene comprobantes (tipo ${tipo}, último ${ultimo}). El CAEA necesita un punto de venta nuevo, sin usar.`);
+    }
+  }
+
+  const r = await admin.from("arca_conexiones").update({ punto_venta_caea: pv }).eq("empresa_id", empresaId);
+  if (r.error) throw r.error;
+  await ponerAlDia({ admin, afip, conexion: { ...con, punto_venta_caea: pv }, cuit: cuitDe(con) });
+  return estado({ admin, empresaId });
+}
+
 /* Para scripts/probar-arca.mjs: las acciones sin el HTTP ni la sesión. */
-export { estado, generar, certificado, probar, activar };
+export { estado, generar, certificado, probar, activar, caea };

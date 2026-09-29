@@ -4,5 +4,8 @@
     { "source": "/cliente", "destination": "/cliente.html" },
     { "source": "/landing", "destination": "/landing.html" },
     { "source": "/empezar", "destination": "/landing.html" }
+  ],
+  "crons": [
+    { "path": "/api/arca/caea", "schedule": "0 11 * * *" }
   ]
 }

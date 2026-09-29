@@ -63,6 +63,13 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
               </select>
             </Campo>
           )}
+          {/* Va impresa en cada A: es la cuenta a la que el comprador tiene
+              que pagar, la misma que está informada en ARCA. */}
+          {f.condicion === "RI" && f.claseInscripto === "A_CBU" && (
+            <Campo label="CBU informada en ARCA">
+              <input value={f.cbu || ""} onChange={(e) => setFiscal({ cbu: e.target.value.replace(/D/g, "").slice(0, 22) })} placeholder="22 dígitos" className={`${inputCls} f-m`} />
+            </Campo>
+          )}
           <Campo label="CUIT">
             <input value={f.cuit || ""} onChange={(e) => setFiscal({ cuit: e.target.value })} className={`${inputCls} f-m`} />
           </Campo>
@@ -102,6 +109,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
               La clase la decide ARCA y puede cambiar en febrero, junio y octubre: se mira en Regímenes de
               Facturación y Registración → Habilitación de Comprobantes.
               {f.claseInscripto === "A_RETENCION" && " Tus facturas A llevan la leyenda \"Operación sujeta a retención\"."}
+              {f.claseInscripto === "A_CBU" && " Tus facturas A llevan la leyenda \"Pago en CBU informada\" y tu CBU."}
               {f.claseInscripto === "M" && " Con M, el comprador te retiene el IVA y Ganancias."}
             </p>
           )}
