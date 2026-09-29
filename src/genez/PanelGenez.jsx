@@ -2206,7 +2206,13 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           <div className="mt-auto px-2.5 py-3 border-t border-borde">
             <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Caja</div>
             <div className={`text-sm font-semibold ${caja.abierta ? "text-bien" : "text-texto-tenue"}`}>{caja.abierta ? "Abierta" : "Cerrada"}</div>
-            <div className="text-[11px] text-texto-tenue mt-1">Prototipo · datos simulados</div>
+            {/* Qué caja es esta computadora (y en qué local, con más de uno).
+                Antes decía "Prototipo · datos simulados", heredado del
+                prototipo, en un comercio que vende de verdad. */}
+            <div className="text-[11px] text-texto-tenue mt-1 truncate">
+              {[((cajas || []).find((c) => c.id === cajaId) || {}).nombre || "Sin caja elegida",
+                lugar.varias ? (sucursales.find((s) => s.id === sucursalActual) || {}).nombre : null].filter(Boolean).join(" · ")}
+            </div>
           </div>
         </aside>
 

@@ -71,7 +71,25 @@ No hay linter ni typechecker. Las pruebas son los `scripts/probar-*.mjs`, que co
 La lista completa está en `ARQUITECTURA.md`, con la advertencia de por qué esa
 diferencia importa.
 
-Para probar a mano hay que loguearse con un usuario real de Supabase Auth. Los
+### La pantalla de pruebas
+
+```bash
+node node_modules/vite/bin/vite.js --mode pruebas --port 5191   # o "genez-pruebas" en .claude/launch.json
+```
+
+El sistema entero con una conexión a Supabase **de mentira** (`src/pruebas/`): entra
+solo, con un comercio inventado, y nada de lo que se haga llega a la base ni a
+`api/`. `?rubro=minimercado`, `gastronomia` o `servicios` elige el comercio. Los
+menús y roles son los de producción (`src/pruebas/plataforma.json`, que regenera
+`node scripts/armar-datos-de-prueba.mjs`); lo demás es inventado.
+
+**Antes de publicar un cambio de pantalla**, abrirla y correr en la consola
+`await window.__genezRecorrer()`: entra a cada sección del menú y devuelve los
+errores y los avisos rojos de cada una. Así se habría visto la pantalla en negro del
+29/09 (un `const` usado antes de declararse en `Sistema`), que se publicó porque nadie
+pudo ver la pantalla montada. El build de producción no incluye nada de esto.
+
+Para probar a mano contra la base hay que loguearse con un usuario real de Supabase Auth. Los
 perfiles los crean `supabase/migrations/0003_semilla.sql` y
 `supabase/seed/gastronomia_usuario.sql`, pero esos usuarios **de arranque** se
 crean a mano en Authentication → Users (con "Auto Confirm User"):

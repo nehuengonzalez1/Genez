@@ -4,8 +4,26 @@
     {
       "name": "genez",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5190", "--strictPort"],
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--port",
+        "5190",
+        "--strictPort"
+      ],
       "port": 5190
+    },
+    {
+      "name": "genez-pruebas",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--mode",
+        "pruebas",
+        "--port",
+        "5191",
+        "--strictPort"
+      ],
+      "port": 5191
     }
   ]
 }

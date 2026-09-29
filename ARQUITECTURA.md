@@ -1289,6 +1289,33 @@ indicadores ya miraban solo lo confirmado.
 Si la compra se registra pero marcar la orden falla, la mercadería no se pierde: la
 orden sigue pendiente y la pantalla avisa que se refresque antes de recibirla de nuevo.
 
+## La pantalla de pruebas
+
+`vite --mode pruebas` (ver CLAUDE.md), `src/pruebas/` y un plugin en `vite.config.js`.
+Hasta acá ninguna pantalla se podía ver sin un usuario real, y así se publicó una
+que se caía al montar.
+
+**Cambia una sola cosa:** el plugin resuelve `src/datos/supabase.js` a
+`src/pruebas/supabaseFalso.js`, un cliente que entiende lo que usa la aplicación
+(eq, in, is, gte/lte, order, range, single, insert, update, delete, upsert, rpc) contra
+tablas en memoria. Todo lo demás —`src/datos/`, las pantallas, `Genezapp`— es el
+código de producción, sin cambios. Lo que no entiende (filtros sobre tablas anidadas,
+or, not) lo deja pasar sin filtrar; las funciones de la base que hacen falta para
+arrancar y cobrar tienen una respuesta armada y las demás contestan vacío.
+
+**Nada sale del navegador:** en ese modo no se sirve `api/`, así que Mercado Pago,
+ARCA y la base real no se enteran. La página lo dice abajo, siempre. El build de
+producción no la ve (se verificó: nada de `src/pruebas/` en `dist/`).
+
+**Qué detecta:** `window.__genezErrores` junta los errores (de React, de la consola y
+los no atrapados) y `window.__genezAvisos` los toasts rojos, que se van solos.
+`window.__genezRecorrer()` entra a cada sección y los reporta por sección. Se probó
+reintroduciendo la pantalla en negro: la detecta en el arranque. Lo que se llamó queda
+en `window.__genezPruebas.registro`, y las tablas en `window.__genezPruebas.tablas`.
+
+Los datos son un comercio inventado por rubro (`src/pruebas/datos.js`). Lo único que
+viene de la base es lo de plataforma: los rubros y los roles de fábrica.
+
 ## La cuenta corriente
 
 Migraciones 0075 y 0085, `src/datos/cuentas.js` y la sección Cuenta
