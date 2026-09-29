@@ -35,6 +35,9 @@ export function CartaMesa({ token }) {
     cargarCartaDeMesa(token).then(setCarta).catch(() => setError("No pudimos cargar la carta. Revisá la conexión."));
   };
   useEffect(leer, [token]);
+  /* La pestaña decía "Tus turnos", el título de la app de turnos, que
+     es la misma página (cliente.html). */
+  useEffect(() => { if (carta) document.title = `${carta.comercio} · Carta`; }, [carta]);
 
   const porId = useMemo(() => new Map((carta ? carta.secciones : []).flatMap((s) => s.items).map((i) => [i.id, i])), [carta]);
   const lineas = Object.entries(pedido).filter(([, v]) => v.cantidad > 0).map(([id, v]) => ({ itemId: id, ...v, item: porId.get(id) })).filter((l) => l.item);
