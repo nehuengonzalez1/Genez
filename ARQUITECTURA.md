@@ -61,6 +61,7 @@ node scripts/probar-catalogo-base.mjs   # las reglas del nombre y el rubro, la c
 node scripts/probar-qr-dinamico.mjs    # api/mp/qr.js contra un Mercado Pago de mentira (orden, estados, cancelar pagada) y 0107
 node scripts/probar-multi-sucursal.mjs  # 0108: lo viejo completado, la sucursal que viaja sola, pasar mercadería, informes por sucursal y quién
 node scripts/probar-conteo.mjs         # 0109: el conteo contra lo que hay ahora, lo que no entra, y sin sesión no se llama
+node scripts/probar-indicadores.mjs    # 0110: comandas y devoluciones en la venta, stock_cargado, la planilla de stock y los indicadores
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1239,6 +1240,31 @@ inventa el generador, y el menú contaba pendientes que nadie hizo.
 
 Los indicadores de Stock (reponer, vencimientos, sin rotación) siguen
 calculándose con la serie simulada y `HOY`: es lo que falta migrar.
+
+## Los indicadores de stock
+
+Migración 0110, `calcular()` en `src/utils/diagnostico.js`, el aviso de Stock y
+`StockInicial.jsx`. Los indicadores ya salían de la base (`items_vista` y la serie
+diaria); lo que estaba mal era qué contaban.
+
+**La venta de cada producto** (`u30`, de donde sale la velocidad) contaba solo ventas
+de mostrador: las comandas cerradas no existían y el bar tenía todo "sin movimiento".
+Ahora cuenta venta, comanda y devolución (en negativo), solo confirmadas; la última
+venta no cuenta una devolución.
+
+**Stock cargado.** Un comercio que nunca cargó su stock lo tiene en cero, y cada venta
+lo deja en negativo: Super 25 tenía 381 productos bajo cero y "Para reponer" le mostraba
+cien que nadie había contado. `items_vista.stock_cargado` dice si el producto tuvo
+alguna vez un movimiento que no sea venta ni devolución. Sin eso no entra en "Para
+reponer", en el pedido sugerido, en "Sin movimiento" ni en el valor del inventario, que
+además ya no resta stock negativo. Va aparte (`k.sinCargar`), y Stock lo avisa arriba:
+si no, "para reponer" vacío parecería una buena noticia.
+
+**Cargar desde una planilla.** Código y cantidad, en Stock → Conteo de inventario. Se
+muestra qué cruzó y qué no antes de cargar; un código repetido suma (dos góndolas).
+`ajustar_stock_lote` pasa cada fila por `ajustar_stock` (0109), de a mil por
+transacción: queda igual que un conteo a mano, con quién lo hizo, y sirve también para
+un recuento general. Una fila mala frena su lote entero.
 
 ## La cuenta corriente
 

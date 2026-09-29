@@ -58,6 +58,9 @@ function aProducto(f, historial) {
     u30: n(f.u30),
     u30p: n(f.u30p),
     vel: n(f.vel),
+    /* Si alguna vez se contó, se compró o se cargó (0110). Sin eso el stock
+       es lo vendido en negativo. Sin la columna (antes de 0110), como antes. */
+    stockCargado: f.stock_cargado !== false,
     ultimaVenta: fecha(f.ultima_venta),
     descripcion: f.descripcion || "",
     /* La foto es del producto y no de la pantalla que lo muestra: la

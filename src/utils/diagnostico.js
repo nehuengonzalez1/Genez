@@ -31,7 +31,11 @@ export function calcular(productos, diario, coberturaDias) {
   const ticketsP = sum(prev30, "tickets");
   const ticketPromP = ticketsP ? sum(prev30, "ventas") / ticketsP : 0;
 
-  const valorStock = productos.reduce((s, p) => s + p.stock * p.costo, 0);
+  /* Solo lo que se contó alguna vez (0110), y nunca en negativo: un
+     stock que nunca se cargó es lo vendido con signo menos, y restaba del
+     valor del inventario. */
+  const valorStock = productos.reduce((s, p) => s + (p.stockCargado === false ? 0 : Math.max(0, p.stock) * p.costo), 0);
+  const sinCargar = productos.filter((p) => p.activo && p.stockCargado === false);
 
   const subas = productos
     .filter((p) => p.costo > p.costoPrev * 1.005 && p.u30 > 0)
@@ -48,7 +52,9 @@ export function calcular(productos, diario, coberturaDias) {
 
   /* Lo marcado "No reponer" en Stock (campos_extra.noReponer) no se pide:
      se vende lo que queda y listo. */
-  const seRepone = (p) => !(p.camposExtra && p.camposExtra.noReponer);
+  /* Y lo que nunca se contó tampoco: no está por agotarse, nadie sabe
+     cuánto hay (0110). Va aparte, en sinCargar. */
+  const seRepone = (p) => !(p.camposExtra && p.camposExtra.noReponer) && p.stockCargado !== false;
   const criticos = productos
     .filter((p) => p.activo && seRepone(p) && p.vel > 0.08 && p.stock <= Math.max(p.stockMin, p.vel * 3))
     .map((p) => ({ p, cobertura: p.vel > 0 ? p.stock / p.vel : 99 }))
@@ -59,7 +65,7 @@ export function calcular(productos, diario, coberturaDias) {
     .filter((x) => x.faltan.length);
 
   const dormidos = productos
-    .filter((p) => p.u30 === 0 && p.stock > 0 && !p.nuevo)
+    .filter((p) => p.u30 === 0 && p.stock > 0 && !p.nuevo && p.stockCargado !== false)
     .map((p) => ({ p, valor: p.stock * p.costo }))
     .sort((a, b) => b.valor - a.valor);
   const valorDormido = dormidos.reduce((s, x) => s + x.valor, 0);
@@ -89,7 +95,7 @@ export function calcular(productos, diario, coberturaDias) {
   return {
     v30, v30p, ventas30, ventas30p, margen30, margen30p, ticketProm, ticketPromP, tickets30,
     valorStock, subas, impactoTotal, criticos, dormidos, valorDormido, incompletos,
-    porVencer, valorVencer, margenFlaco, sugeridos, diario,
+    porVencer, valorVencer, margenFlaco, sugeridos, diario, sinCargar,
   };
 }
 

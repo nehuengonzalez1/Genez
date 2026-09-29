@@ -97,28 +97,35 @@ rompe la lectura.
 Los comentarios explican **por qué** está hecho así —qué se rompía antes, qué se
 descartó— no qué hace la línea de abajo. Es el estilo de todo el repositorio.
 
-## La migración está a mitad de camino
+## Lo que queda del prototipo
 
-Conviene saberlo antes de leer un módulo y sacar conclusiones.
+Conviene saberlo antes de leer un módulo y sacar conclusiones, y **verificarlo en el
+código antes de afirmarlo**: esta sección estuvo meses diciendo que los indicadores
+salían de datos simulados cuando ya salían de la base.
 
-Ya salen de la base: catálogo, ventas, comandas, salón y reservas, pedidos y canales,
-caja, ajustes y la sesión. Todo eso pasa por `src/datos/`, que es el único lugar que
-habla con Supabase.
+Sale de la base todo lo que importa: catálogo, ventas, comandas, salón y reservas,
+pedidos y canales, caja, clientes, proveedores, ajustes, la sesión, la serie diaria de
+ventas (`ventas_diarias`, 0071) y lo que alimenta los indicadores (`items_vista`: stock,
+velocidad, última venta, vencimiento; ver 0110). Todo pasa por `src/datos/`, que es el
+único lugar que habla con Supabase. `diasHasta`/`diasDesde` ya cuentan contra la fecha
+real.
 
-Todavía viven en memoria, heredados del prototipo: la serie de 90 días de ventas que
-alimenta los KPIs (`DATA.diario`, que consume `calcular()`), los pedidos de picking
-(`PEDIDOS_INICIALES`), los clientes (`CLIENTES_INICIALES`) y los proveedores
-(`PROV_INFO`). Los arma `src/datos/generador.js` con un PRNG determinista
-(`mulberry32(20260809)`), así que son idénticos en cada carga y se pierden al
-refrescar.
+Lo que sigue en memoria y se pierde al refrescar:
 
-De ahí sale **`HOY`**, una fecha fija (`new Date(2026, 7, 9)`): es el "hoy" de los
-cálculos que todavía dependen de los datos simulados —vencimientos, cobertura, series
-diarias—. `Date.now()` real se usa para cosas del navegador (hora de tickets, sondeo
-de Mercado Pago, ráfagas del lector). No mezclar los dos: mientras un cálculo tome
-datos del generador, tiene que usar `HOY`/`addDays`/`diasHasta`.
+- **Las órdenes de compra** (`pedidos` en `Sistema`, pestaña Compras → Órdenes de
+  compra). La recepción sí registra la compra en la base.
+- **Los pedidos de picking** (`pedidosCli`): un espacio de trabajo; la venta de cada uno
+  se cobra y se guarda como cualquier otra. Ya no arrancan con pedidos inventados.
 
-Al migrar algo a la base, la fecha congelada sale con ello.
+**`HOY`** (`new Date(2026, 7, 9)`, de `src/datos/generador.js`) todavía aparece en
+Compras (la fecha de una orden de compra nueva, el historial de costo en memoria) y en
+Ajustes (el historial de costo al cargar mercadería). Es un resto: cualquier fecha nueva
+va con la real. Inicio y el Asistente lo importan sin usarlo. El generador sigue dando
+`uid`, `fdate`/`fdatel` y el PRNG del modo demo.
+
+Stock: el conteo, "No reponer" y "Poner 30% menos" se guardan desde 0109; el stock que
+nunca se cargó (`stock_cargado`, 0110) no entra en "Para reponer" ni en el valor del
+inventario.
 
 ## Estado
 

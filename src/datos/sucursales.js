@@ -77,3 +77,17 @@ export async function guardarConteo({ itemId, real, sucursalId = null, motivo = 
   const f = (data || [])[0] || {};
   return { antes: Number(f.antes) || 0, diferencia: Number(f.diferencia) || 0 };
 }
+
+/* El stock inicial por planilla (0110): muchos conteos en una sola
+   transacción cada mil. Si una fila está mal, ese lote no queda a medias.
+   Devuelve [{ itemId, antes, diferencia }]. */
+export async function guardarConteoLote(filas, { sucursalId = null, motivo = null } = {}) {
+  const hechos = [];
+  for (let i = 0; i < filas.length; i += 1000) {
+    const lote = filas.slice(i, i + 1000).map((f) => ({ item_id: f.itemId, real: Number(f.real) }));
+    const { data, error } = await supabase.rpc("ajustar_stock_lote", { p_filas: lote, p_sucursal: sucursalId, p_motivo: motivo });
+    if (error) throw new Error((error.message || "No se pudo cargar el stock.") + (hechos.length ? ` Ya habían quedado cargados ${hechos.length}.` : ""));
+    for (const r of data || []) hechos.push({ itemId: r.item_id, antes: Number(r.antes) || 0, diferencia: Number(r.diferencia) || 0 });
+  }
+  return hechos;
+}

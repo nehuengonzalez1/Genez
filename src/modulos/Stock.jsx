@@ -8,6 +8,7 @@ import { uid, fdatel } from "../datos/generador.js";
 import { diasDesde, money, moneyk, nf } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Kpi, Tabs, Vacio, Boton, TablaSimple } from "../ui/Base.jsx";
 import { inputCls } from "../ui/Campos.jsx";
+import { StockInicial } from "./StockInicial.jsx";
 import { cargarStockPorSucursal, transferirStock, guardarConteo } from "../datos/sucursales.js";
 
 export function Stock({ productos, setProductos, k, toast, empresaId = null, lugar = { sucursales: [], varias: false }, actualizarProducto = null, crearPromo = null }) {
@@ -59,8 +60,19 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
     ...(lugar.varias && empresaId ? [{ k: "sucursales", n: "Sucursales" }] : []),
   ];
 
+  const sinCargar = (k.sinCargar || []).length;
   return (
     <div className="space-y-4">
+      {/* Lo que nunca se contó no entra en ningún indicador (0110): si no
+          se dice, "para reponer" vacío parece una buena noticia. */}
+      {sinCargar > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-ojo bg-ojo-suave rounded-lg px-4 py-3">
+          <p className="text-sm">
+            <strong className="f-m">{nf.format(sinCargar)}</strong> productos nunca se contaron: su stock es lo vendido en negativo, y no entran en "Para reponer" ni en el valor del inventario.
+          </p>
+          <Boton size="sm" onClick={() => setTab("inventario")}>Cargar el stock</Boton>
+        </div>
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Valor del inventario" valor={moneyk(k.valorStock)} sub={`${nf.format(productos.length)} artículos`} />
         <Kpi label="Para reponer ya" valor={nf.format(k.criticos.filter((x) => x.cobertura < 4).length)} sub="menos de 4 días" tono="mal" />
@@ -168,6 +180,7 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
                 ))}
               </div>
             )}
+            <StockInicial productos={productos} setProductos={setProductos} lugar={lugar} toast={toast} />
             {ajustados.length > 0 && (
               <div className="mt-5">
                 <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-2">Ajustes de esta sesión</div>
