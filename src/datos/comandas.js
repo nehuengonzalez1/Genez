@@ -47,6 +47,8 @@ function aMesa(f) {
     sinEnviar: n(f.sin_enviar),
     enCocina: n(f.en_cocina),
     listos: n(f.listos),
+    /* Renglones que la mesa pidió por QR y el mozo todavía no confirmó. */
+    pedidosQr: n(f.pedidos_qr),
 
     /* El estado lo resuelve la vista y no la pantalla: el mapa, la lista
        de mesas y el recuento de abajo tienen que decir lo mismo, y si
@@ -78,6 +80,10 @@ function aLinea(f) {
     destino: f.destino || null,
     modificadores: f.modificadores || [],
     enviadaEn: f.enviada_en ? new Date(f.enviada_en) : null,
+    /* Lo pidió la mesa desde el QR (0104): entra en borrador y el mozo lo
+       confirma o lo anula. */
+    qr: !!(f.campos_extra && f.campos_extra.origen === "qr"),
+    qrNombre: (f.campos_extra && f.campos_extra.nombre) || null,
   };
 }
 
@@ -254,7 +260,7 @@ export async function cargarComanda(comandaId) {
       recursos ( nombre, sector ),
       operacion_lineas (
         id, item_id, descripcion, cantidad, precio_unitario, costo_unitario,
-        total, estado, notas, destino, modificadores, enviada_en
+        total, estado, notas, destino, modificadores, enviada_en, campos_extra
       )
     `)
     .eq("id", comandaId)

@@ -54,6 +54,7 @@ node scripts/probar-cajas.mjs      # varias cajas: una sesión abierta por caja,
 node scripts/probar-lista-proveedor.mjs  # leer la lista de un proveedor: títulos, columnas, importes, cruce por EAN (sin base)
 node scripts/probar-promociones.mjs      # la cuenta de las promos: 2x1, segunda, pack, porcentaje, orden, cuándo valen (sin base)
 node scripts/probar-promociones-base.mjs # la tabla de promos: lo que acepta, lo que no, y quién puede cargarlas
+node scripts/probar-carta-qr.mjs   # la carta QR como la página pública: leer, pedir, y todo lo que no se tiene que poder
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -239,6 +240,34 @@ pagó y cuánto falta.
 cantidad y aplicar un descuento van a la bitácora con quién y cuándo: es
 por donde se va la plata de un local. El alta no se anota porque la línea
 misma ya es el registro, y ahora lleva `usuario_id`.
+
+## La carta QR
+
+Migración 0104, `src/cliente/CartaMesa.jsx` (la página),
+`src/datos/cartaQr.js`, y en el salón el botón QR (`QrMesas.jsx`).
+Cada mesa tiene un QR que abre `/cliente?mesa=<código>`: la carta en el
+teléfono, sin cuenta ni descarga, y un pedido que cae en la comanda de
+esa mesa.
+
+**Lo que pide la mesa entra en borrador y lo confirma el mozo.** La
+página es pública: cualquiera con una foto del QR puede mandar pedidos.
+Borrador ya significaba "anotado, todavía no salió" (0018), así que el
+mozo lo confirma con el mismo "A cocina" de siempre o lo anula, y un
+pedido falso nunca se cocina. La comanda lo marca ("Pidió la mesa por
+QR · confirmalo") y el plano del salón pone un "QR n" titilando en la
+mesa (`salon_vista.pedidos_qr`).
+
+**Ninguna tabla se abre a quien escanea.** Todo pasa por dos funciones
+con security definer: `carta_de_la_mesa` (sin costos) y
+`pedir_desde_la_mesa`. El precio lo pone la base, nunca el teléfono.
+Topes: 20 renglones por pedido, 20 unidades por renglón y 6 pedidos por
+mesa cada 10 minutos (`pedidos_qr`). Si una foto del QR circula, se
+renueva el código de esa mesa (`renovar_qr`, pide configurar) y el
+impreso deja de servir. Un producto se saca de la carta con
+`campos_extra.fuera_de_carta`.
+
+Pagar desde la mesa todavía no: va con Mercado Pago, cuando el comercio
+conecte su cuenta.
 
 ## El centro de pedidos
 

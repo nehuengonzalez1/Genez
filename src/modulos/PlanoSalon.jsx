@@ -25,8 +25,9 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import {
   Clock, Pencil, Plus, Trash2, X, Save, RefreshCw, Filter, Map as Mapa, List,
   CalendarClock, Link2, Unlink, DoorOpen, ChefHat, Sprout, ArrowLeft, History, Layers,
-  Type, Bath, GlassWater, Grid3x3, Square, Search, ClipboardList, Receipt,
+  Type, Bath, GlassWater, Grid3x3, Square, Search, ClipboardList, Receipt, QrCode,
 } from "lucide-react";
+import { QrMesas } from "./QrMesas.jsx";
 import { money, hora } from "../utils/helpers.js";
 import {
   guardarPlano, guardarElementos, borrarElemento, crearRecurso, borrarRecurso,
@@ -149,6 +150,7 @@ export function PlanoSalon({
   empleado = "", cajaAbierta = false, onVolver = null, onHistorial = null, pleno = false,
 }) {
   const [editando, setEditando] = useState(false);
+  const [verQr, setVerQr] = useState(false);
   const [borrador, setBorrador] = useState(null);   // { mesas, elementos, borradas, elemBorrados }
   const [sel, setSel] = useState(null);             // { tipo, id }
   const [guardando, setGuardando] = useState(false);
@@ -657,6 +659,7 @@ export function PlanoSalon({
 
   return (
     <div className={`flex flex-col gap-2.5 ${pleno ? "h-full min-h-0" : "min-h-[40rem]"}`}>
+      {verQr && <QrMesas empresaId={empresaId} toast={toast} onCerrar={() => setVerQr(false)} />}
 
       {/* En celular no entran las tres zonas: los costados se pliegan. */}
       <div className="lg:hidden shrink-0 flex items-center gap-2">
@@ -761,6 +764,11 @@ export function PlanoSalon({
               {!editando && onActualizar && (
                 <Boton size="md" variant="ghost" onClick={onActualizar} title="Volver a leer el salón">
                   <RefreshCw size={15} />
+                </Boton>
+              )}
+              {!editando && puedeEditar && (
+                <Boton size="md" variant="ghost" onClick={() => setVerQr(true)} title="Los QR de las mesas, para pedir desde el teléfono">
+                  <QrCode size={15} /> QR
                 </Boton>
               )}
               {!editando && puedeEditar && (
@@ -998,6 +1006,14 @@ function PiezaMesa({ m, celda, editando, elegida, marcada, abriendo, estado, apa
 
       {m.unidas > 0 && (
         <span className="absolute top-1 right-1"><Link2 size={11} /></span>
+      )}
+
+      {/* La mesa pidió por QR y nadie lo confirmó (0104): se ve desde lejos,
+          porque hasta que el mozo lo mande, la cocina no se entera. */}
+      {!editando && m.pedidosQr > 0 && (
+        <span className="absolute -top-2 -left-2 z-20 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-ojo text-fondo border-2 border-fondo animate-pulse">
+          QR {m.pedidosQr}
+        </span>
       )}
 
       {abriendo && <span className="text-[10px] mt-1">Abriendo…</span>}
