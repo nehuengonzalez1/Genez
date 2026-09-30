@@ -4,6 +4,7 @@
     { "source": "/cliente", "destination": "/cliente.html" },
     { "source": "/landing", "destination": "/landing.html" },
     { "source": "/login", "destination": "/index.html" },
+    { "source": "/privacidad", "destination": "/landing.html" },
     { "source": "/empezar", "destination": "/landing.html" }
   ],
   "crons": [

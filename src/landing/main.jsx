@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import Landing from "./Landing.jsx";
+import Privacidad from "./Privacidad.jsx";
 import { iniciarTema } from "./tema.js";
 import "../index.css";
 import "./landing.css";
@@ -13,10 +14,16 @@ document.documentElement.style.fontSize = "16px";
 /* Claro u oscuro según el teléfono, con un botón para fijarlo (tema.js). */
 iniciarTema();
 
+/* /privacidad llega acá por el rewrite de vercel.json. En desarrollo Vite
+   no aplica esos rewrites: ahí se abre con landing.html?privacidad. */
+const esPrivacidad = location.pathname.startsWith("/privacidad")
+  || (import.meta.env.DEV && new URLSearchParams(location.search).has("privacidad"));
+if (esPrivacidad) document.title = "Política de privacidad · Genez";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <div className="min-h-screen bg-fondo text-texto">
-      <Landing />
+      {esPrivacidad ? <Privacidad /> : <Landing />}
     </div>
   </React.StrictMode>
 );

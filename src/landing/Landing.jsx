@@ -753,6 +753,7 @@ function Pie({ onEmpezar }) {
             <a href="#incluye" className="hover:text-texto">Qué incluye</a>
             <a href="#preguntas" className="hover:text-texto">Preguntas</a>
             <a href="/login" className="hover:text-texto">Entrar</a>
+            <a href="/privacidad" className="hover:text-texto">Privacidad</a>
           </nav>
           <div className="text-xs text-texto-tenue">© {new Date().getFullYear()} Genez · Argentina</div>
         </div>
