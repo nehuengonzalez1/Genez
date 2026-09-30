@@ -282,7 +282,9 @@ modelo de `window.__API_MODELO__`. Dos entornos, mismo path:
 
 Dos lugares consumen el modelo: el chat de `Asistente` (le pasa un `snapshot` JSON de
 los KPIs) y `CargarCompra`, en `Compras.jsx`, que manda la foto de un remito en
-base64 y espera JSON estricto. Todo lo demás —incluidos los diagnósticos de "Lo que
+base64 y espera JSON estricto. Un tercero no pasa por el proxy: el asistente de WhatsApp de
+Founder (`api/_bot.js`, 0121) llama desde el servidor con el SDK oficial y deja
+borradores; ver su sección en `ARQUITECTURA.md`. Todo lo demás —incluidos los diagnósticos de "Lo que
 tenés que saber"— se calcula en `src/utils/` (`calcular()` + `insights()`) y funciona
 sin conexión.
 

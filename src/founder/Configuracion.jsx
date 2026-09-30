@@ -15,6 +15,7 @@ import { inputCls, TextoDiferido } from "../ui/Campos.jsx";
 import { cargarModelo, guardarPasoModelo } from "../datos/internoClientes.js";
 import { cargarAjustes, guardarAjuste, buscarPerfil, sumarMiembro, editarMiembro } from "../datos/internoFinanzas.js";
 import { ConexionWhatsapp } from "./ConexionWhatsapp.jsx";
+import { ConfigAsistente } from "./ConfigAsistente.jsx";
 import {
   cargarEtapas, crearEtapa, editarEtapa, cargarListas, crearItemDeLista, editarItemDeLista, cargarMiembros, TIPOS_DE_LISTA,
 } from "../datos/interno.js";
@@ -29,13 +30,14 @@ export function ConfiguracionFounder({ interno, toast }) {
         <h1 className="f-d text-3xl">Configuración</h1>
         <p className="text-sm text-texto-suave mt-1">Cómo está armado Founder. Lo que se cambia acá lo ven todas las pantallas.</p>
       </header>
-      <Tabs value={pestana} onChange={setPestana} items={[{ k: "pipeline", n: "Pipeline" }, { k: "listas", n: "Listas" }, { k: "implementacion", n: "Implementación" }, { k: "genez", n: "Genez y agenda" }, { k: "equipo", n: "Equipo" }, { k: "whatsapp", n: "WhatsApp" }]} />
+      <Tabs value={pestana} onChange={setPestana} items={[{ k: "pipeline", n: "Pipeline" }, { k: "listas", n: "Listas" }, { k: "implementacion", n: "Implementación" }, { k: "genez", n: "Genez y agenda" }, { k: "equipo", n: "Equipo" }, { k: "whatsapp", n: "WhatsApp" }, { k: "asistente", n: "Asistente" }]} />
       {pestana === "pipeline" && <Etapas toast={toast} />}
       {pestana === "listas" && <Listas toast={toast} />}
       {pestana === "implementacion" && <ModeloImplementacion toast={toast} />}
       {pestana === "genez" && <DatosGenez toast={toast} />}
       {pestana === "equipo" && <Equipo interno={interno} toast={toast} />}
       {pestana === "whatsapp" && <ConexionWhatsapp interno={interno} toast={toast} />}
+      {pestana === "asistente" && <ConfigAsistente toast={toast} />}
     </div>
   );
 }

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@afipsdk/afip.js": "^1.2.3",
+    "@anthropic-ai/sdk": "^0.130.0",
     "@supabase/supabase-js": "^2.112.3",
     "@vercel/functions": "^3.9.5",
     "fast-xml-parser": "^5.11.1",

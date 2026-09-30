@@ -9,7 +9,7 @@
  *
  *   GET  con hub.mode           Meta verificando el webhook.
  *   POST con X-Hub-Signature-256  Meta avisando mensajes y estados.
- *   POST con Authorization      Founder: enviar, estado, registrar, suscribir.
+ *   POST con Authorization      Founder: enviar, borrador, estado, registrar, suscribir.
  *
  * Lo próximo de Founder que necesite servidor va acá también, como otra
  * `accion`, hasta que el plan cambie.
@@ -34,6 +34,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { origenValido, quienLlama } from "./_comun.js";
 import { GRAPH, errorDeMeta, firmaValida, leerCrudo, mensajeDeTexto, verificarSuscripcion } from "./_whatsapp.js";
+import Anthropic from "@anthropic-ai/sdk";
+import { waitUntil } from "@vercel/functions";
+import { generar, pideUnaPersona, conAviso, errorLegible } from "./_bot.js";
 
 /* En Vercel (y en Next) esto deja el cuerpo sin leer, que es lo que la
    firma necesita. */
@@ -119,6 +122,16 @@ async function webhook(req, res) {
      que va a fallar igual. */
   const { data, error: e } = await db.rpc("interno_wa_procesar", { p_cuerpo: cuerpo });
   if (e) return error(res, 500, "No se pudo guardar el evento.");
+
+  /* El asistente trabaja después de contestarle a Meta: Meta espera la
+     respuesta pocos segundos, y un modelo puede tardar más. waitUntil
+     mantiene viva la función hasta que termina. Si el asistente falla, el
+     mensaje ya está guardado: lo contesta una persona. */
+  const convs = (data && data.conversaciones) || [];
+  if (convs.length) {
+    const trabajo = Promise.allSettled(convs.map((id) => atender(db, id)));
+    try { waitUntil(trabajo); } catch { /* fuera de Vercel (desarrollo) corre igual */ }
+  }
   return res.status(200).json({ ok: true, evento: data && data.evento });
 }
 
@@ -144,6 +157,7 @@ async function accionDeFounder(req, res) {
 
   switch (cuerpo.accion) {
     case "enviar": return enviar(res, db, quien, cuerpo);
+    case "borrador": return pedirBorrador(res, db, quien, cuerpo);
     case "estado": return estado(req, res, db, quien);
     case "registrar":
     case "suscribir": return alta(res, db, quien, cuerpo.accion);
@@ -151,22 +165,26 @@ async function accionDeFounder(req, res) {
   }
 }
 
-async function enviar(res, db, quien, { conversacion, texto, idempotencia }) {
+/* Prepara en la base y manda por Meta. Lo usan una persona desde Founder
+   (con su perfil) y el asistente en modo automático (perfil null: la
+   base le aplica sus frenos). Devuelve { mensaje, estado, wamid?, error?,
+   repetido? } o tira el error de la base, con su código. */
+async function mandar(db, { perfil, conversacion, texto, idempotencia, borrador = null }) {
   /* Antes de preparar nada: sin token no sale, y un mensaje que queda en
      'enviando' para siempre confunde más que un aviso. */
-  if (!process.env.WHATSAPP_TOKEN) return error(res, 503, "Falta WHATSAPP_TOKEN en el servidor: todavía no se puede mandar.");
+  if (!process.env.WHATSAPP_TOKEN) throw Object.assign(new Error("Falta WHATSAPP_TOKEN en el servidor: todavía no se puede mandar."), { http: 503 });
   const { phone_number_id: telefono } = await ajustesWhatsapp(db);
-  if (!telefono) return error(res, 503, "Falta el phone_number_id en Configuración → WhatsApp.");
+  if (!telefono) throw Object.assign(new Error("Falta el phone_number_id en Configuración → WhatsApp."), { http: 503 });
 
   const { data: p, error: e } = await db.rpc("interno_wa_preparar_envio", {
-    p_perfil: quien.id, p_conversacion: conversacion, p_texto: texto, p_idempotencia: idempotencia,
+    p_perfil: perfil, p_conversacion: conversacion, p_texto: texto, p_idempotencia: idempotencia, p_borrador: borrador,
   });
-  if (e) return error(res, e.code === "42501" ? 403 : 400, e.message);
+  if (e) throw Object.assign(new Error(e.message), { http: e.code === "42501" ? 403 : 400 });
 
   /* La misma clave otra vez: ese mensaje ya se mandó o se está mandando.
      No se reintenta acá, porque no hay forma de saber si el primero llegó
      a Meta; mandarlo de nuevo podría hacer que salga dos veces. */
-  if (p.repetido) return res.status(200).json({ mensaje: p.mensaje, estado: p.estado, repetido: true });
+  if (p.repetido) return { mensaje: p.mensaje, estado: p.estado, repetido: true };
 
   let r;
   try {
@@ -178,9 +196,108 @@ async function enviar(res, db, quien, { conversacion, texto, idempotencia }) {
   const wamid = r.ok && r.datos && r.datos.messages && r.datos.messages[0] && r.datos.messages[0].id;
   const falla = wamid ? null : errorDeMeta(r.datos, r.estado);
   await db.rpc("interno_wa_resultado_envio", { p_mensaje: p.mensaje, p_wamid: wamid || null, p_error: falla });
+  return falla ? { mensaje: p.mensaje, estado: "fallido", error: falla } : { mensaje: p.mensaje, estado: "enviado", wamid };
+}
 
-  if (falla) return res.status(502).json({ mensaje: p.mensaje, estado: "fallido", error: falla });
-  return res.status(200).json({ mensaje: p.mensaje, estado: "enviado", wamid });
+async function enviar(res, db, quien, { conversacion, texto, idempotencia, borrador }) {
+  try {
+    const r = await mandar(db, { perfil: quien.id, conversacion, texto, idempotencia, borrador: borrador || null });
+    return res.status(r.error ? 502 : 200).json(r);
+  } catch (e) {
+    return error(res, e.http || 500, e.message);
+  }
+}
+
+
+/* ---------- El asistente (0121) ---------- */
+async function ajustesBot(db) {
+  const { data } = await db.from("interno_ajustes").select("valor").eq("clave", "bot").maybeSingle();
+  return (data && data.valor) || {};
+}
+
+/**
+ * Le pide al asistente que atienda una conversación: arma el borrador
+ * (o deriva) y, en modo automático, lo manda. `forzar` es el "Pedir
+ * borrador" de Founder: corre aunque el asistente esté apagado o
+ * pausado en esa conversación, y nunca manda solo.
+ *
+ * Nunca tira: todo lo que sale mal queda como un borrador con error,
+ * que es lo que se ve en la conversación. Devuelve el id del borrador,
+ * o null si no correspondía hacer nada.
+ */
+async function atender(db, conversacionId, { forzar = false, cliente = null } = {}) {
+  const guardar = (o) => db.rpc("interno_bot_guardar", {
+    p_conversacion: conversacionId, p_origen: o.origen || null, p_accion: o.accion, p_texto: o.texto || null,
+    p_motivo: o.motivo || null, p_datos: o.datos || {}, p_conocimiento: o.conocimiento || [], p_modelo: o.modelo || null,
+    p_uso: o.uso || null, p_error: o.error || null,
+  }).then(({ data, error: e }) => { if (e) throw e; return data; });
+
+  const bot = await ajustesBot(db);
+  if (!forzar && !bot.activo) return null;
+
+  const { data: c } = await db.from("interno_wa_conversaciones").select("*").eq("id", conversacionId).maybeSingle();
+  if (!c) return null;
+  const ventana = c.ultimo_entrante_en && Date.now() - new Date(c.ultimo_entrante_en).getTime() < 24 * 3600 * 1000;
+  /* A quien pidió la baja no se le contesta, y fuera de la ventana no hay
+     nada que se pueda mandar: un borrador ahí sería trabajo tirado. */
+  if (c.consentimiento === "baja" || !ventana) return null;
+  if (!forzar && c.bot_pausado) return null;
+
+  const { data: historial } = await db.from("interno_wa_mensajes").select("id, direccion, tipo, texto, del_bot, momento")
+    .eq("conversacion_id", conversacionId).order("momento", { ascending: false }).limit(30);
+  const mensajes = (historial || []).reverse();
+  const ultimo = mensajes[mensajes.length - 1];
+  if (!ultimo || (ultimo.direccion !== "entrante" && !forzar)) return null;
+  const origen = [...mensajes].reverse().find((m) => m.direccion === "entrante");
+
+  if (origen && pideUnaPersona(origen.texto)) {
+    return guardar({ origen: origen.id, accion: "derivar", motivo: "Pidió hablar con una persona." });
+  }
+
+  const { data: docs } = await db.from("interno_documentos").select("id, titulo, version, contenido")
+    .eq("tipo", "base_bot").eq("estado", "vigente").is("archivado_en", null).order("titulo");
+  const documentos = docs || [];
+  const conocimiento = documentos.map((d) => ({ id: d.id, titulo: d.titulo, version: d.version }));
+  /* Sin base, el modelo solo podría inventar. */
+  if (!documentos.length) {
+    return guardar({ origen: origen && origen.id, accion: "error", error: "La base del asistente está vacía: pasá al menos un documento de tipo \"Base del asistente\" a vigente." });
+  }
+  if (!cliente && !process.env.ANTHROPIC_API_KEY) {
+    return guardar({ origen: origen && origen.id, accion: "error", error: "Falta ANTHROPIC_API_KEY en el servidor." });
+  }
+
+  const modelo = bot.modelo || "claude-opus-5-5";
+  let d;
+  try {
+    d = await generar({ cliente: cliente || new Anthropic(), modelo, documentos, historial: mensajes });
+  } catch (e) {
+    return guardar({ origen: origen && origen.id, accion: "error", error: errorLegible(e), modelo, conocimiento });
+  }
+  const id = await guardar({ origen: origen && origen.id, ...d, conocimiento, modelo });
+
+  if (d.accion === "responder" && !forzar && bot.activo && bot.modo === "automatico") {
+    const yaSePresento = mensajes.some((m) => m.del_bot);
+    try {
+      await mandar(db, { perfil: null, conversacion: conversacionId, texto: conAviso(d.texto, bot.aviso, yaSePresento), idempotencia: `bot-${id}`, borrador: id });
+    } catch {
+      /* Si la base lo frenó (tope por hora, pausa) o Meta falló, el
+         borrador queda pendiente para que lo mande una persona. */
+    }
+  }
+  return id;
+}
+
+async function pedirBorrador(res, db, quien, { conversacion }) {
+  const { data: puede } = await quien.suyo.rpc("es_interno", { p_area: "mensajes" });
+  if (!puede) return error(res, 403, "Hace falta el área Conversaciones de WhatsApp.");
+  try {
+    const id = await atender(db, conversacion, { forzar: true });
+    if (!id) return error(res, 400, "No hay nada para contestar: la ventana de 24 horas está cerrada o la persona pidió la baja.");
+    const { data: b } = await db.from("interno_wa_borradores").select("*").eq("id", id).maybeSingle();
+    return res.status(200).json({ borrador: b });
+  } catch (e) {
+    return error(res, 500, e.message);
+  }
 }
 
 /* Lo que muestra Configuración → WhatsApp. De los secretos dice si están,

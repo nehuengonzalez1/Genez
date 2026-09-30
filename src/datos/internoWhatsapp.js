@@ -14,7 +14,7 @@ import { aApp } from "./internoCrm.js";
 import { conColumnas, traducir } from "./internoClientes.js";
 
 const dato = ({ data, error }) => { if (error) throw traducir(error); return data; };
-const EDITABLES = ["prospectoId", "estado", "asignadoId", "noLeidos", "consentimiento", "consentimientoNota", "notas"];
+const EDITABLES = ["prospectoId", "estado", "asignadoId", "noLeidos", "consentimiento", "consentimientoNota", "notas", "botPausado", "derivadaEn", "derivadaMotivo"];
 
 export const ESTADOS_CONVERSACION = { abierta: "Abierta", pendiente: "Pendiente", cerrada: "Cerrada" };
 export const CONSENTIMIENTOS = {
@@ -73,7 +73,8 @@ async function llamar(cuerpo) {
 export const claveDeEnvio = () =>
   (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
-export const enviarMensaje = (conversacion, texto, idempotencia) => llamar({ accion: "enviar", conversacion, texto, idempotencia });
+export const enviarMensaje = (conversacion, texto, idempotencia, borrador = null) => llamar({ accion: "enviar", conversacion, texto, idempotencia, borrador });
+export const pedirBorrador = (conversacion) => llamar({ accion: "borrador", conversacion });
 export const estadoWhatsapp = () => llamar({ accion: "estado" });
 export const registrarNumero = () => llamar({ accion: "registrar" });
 export const suscribirApp = () => llamar({ accion: "suscribir" });
@@ -86,4 +87,25 @@ export function ventanaRestante(ultimoEntrante, ahora = Date.now()) {
   const h = Math.floor(falta / 3600000);
   const m = Math.floor((falta % 3600000) / 60000);
   return h > 0 ? `${h} h ${m} min` : `${m} min`;
+}
+
+/* ---------- El asistente (0121) ---------- */
+/* Lo último que hizo el asistente en la conversación: se muestra si está
+   esperando (pendiente) o si falló (error). Un derivado ya se ve en la
+   conversación marcada; uno enviado o descartado ya no importa. */
+export async function cargarUltimoBorrador(conversacionId) {
+  const fila = dato(await supabase.from("interno_wa_borradores").select("*").eq("conversacion_id", conversacionId)
+    .order("creado_en", { ascending: false }).limit(1).maybeSingle());
+  return fila && ["pendiente", "error"].includes(fila.estado) ? aApp(fila) : null;
+}
+export async function descartarBorrador(id) {
+  dato(await supabase.from("interno_wa_borradores").update({ estado: "descartado" }).eq("id", id));
+}
+export async function cargarErroresDelAsistente(limite = 5) {
+  return (dato(await supabase.from("interno_wa_borradores").select("id, creado_en, error, conversacion_id").eq("estado", "error")
+    .order("creado_en", { ascending: false }).limit(limite)) || []).map(aApp);
+}
+export async function cargarBaseDelAsistente() {
+  return (dato(await supabase.from("interno_documentos").select("id, titulo, estado, version, actualizado_en")
+    .eq("tipo", "base_bot").is("archivado_en", null).order("titulo")) || []).map(aApp);
 }
