@@ -23,6 +23,7 @@ import { cargarClientes, cargarTickets, abierto, ESTADO_TICKET } from "../datos/
 import { motivosDeAtencion } from "./Clientes.jsx";
 import { cargarObjetivos, METRICA } from "../datos/internoMarketing.js";
 import { situacion } from "./Objetivos.jsx";
+import { AlertasInicio } from "./Automatizaciones.jsx";
 import { useConfig, diaLargo, hora, relativo, fechaHora, diaAR, hoyAR, vencido } from "./util.js";
 
 const CONTACTO = new Set(["llamada", "whatsapp", "email", "visita", "reunion", "demo", "propuesta"]);
@@ -107,6 +108,8 @@ export function InicioFounder({ sesion, ir, abrir, abrirCliente, toast, nuevo })
           <Boton variant="ghost" onClick={() => nuevo("evento")}><CalendarPlus size={14} /> Reunión</Boton>
         </div>
       </header>
+
+      <AlertasInicio abrir={abrir} ir={ir} toast={toast} />
 
       {d.objetivos && (() => {
         /* Los que están en curso hoy; los semanales de un plan, solo el de esta semana. */

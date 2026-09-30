@@ -208,6 +208,7 @@ const DEFECTOS = {
   interno_impl_modelo: { rubros: [], modulos: [], activo: true, orden: 0 },
   interno_cuentas: { tipo: "banco", moneda: "ARS", saldo_inicial: 0, activa: true },
   interno_hallazgos: { datos: {}, prospecto_id: null, descartado_en: null },
+  interno_wa_plantillas: { estado: "borrador", archivado_en: null, variables: [], ejemplos: [] },
   interno_suscripciones: { moneda: "ARS", estado: "activa", dia_cobro: 10 },
   interno_movimientos: { moneda: "ARS", estado: "pendiente", facturado: false, fijo: false },
   interno_planes: { estado: "activo", archivado_en: null },
@@ -347,9 +348,12 @@ const DISPARADORES = {
 
 /* Lo embebido (select("*, interno_prospectos(nombre)")): se pega la fila
    relacionada por su clave, prospecto_id para interno_prospectos. */
+/* Las que no salen de sacarle la "s": automatizaciones no es
+   automatizacione_id, y la plantilla va sin el wa_. */
+const CLAVE_EMBEBIDA = { interno_automatizaciones: "automatizacion_id", interno_wa_plantillas: "plantilla_id" };
 function embeber(filas, embebidos) {
   for (const tabla of embebidos) {
-    const clave = tabla.replace(/^interno_/, "").replace(/s$/, "") + "_id";
+    const clave = CLAVE_EMBEBIDA[tabla] || tabla.replace(/^interno_/, "").replace(/s$/, "") + "_id";
     for (const f of filas) {
       if (f[tabla] !== undefined || !(clave in f)) continue;
       const r = (T[tabla] || []).find((x) => x.id === f[clave]);
@@ -683,6 +687,19 @@ if (typeof window !== "undefined" && !window.__genezFounderFalso) {
       Object.assign(c, { ultimo_mensaje_en: ahora, ultimo_texto: m.texto.slice(0, 200), ultimo_direccion: "saliente", no_leidos: 0 });
       return json({ mensaje: m.id, estado: "enviado", wamid: m.wamid });
     }
+    /* Las automatizaciones de mentira: la corrida no genera nada nuevo;
+       mandar a Meta pasa la plantilla a revisión. */
+    if (cuerpo.accion === "automatizaciones") {
+      const r = { generados: 0, alertas: 0, enviados: 0, fallidos: 0, error: null };
+      tablaDe("interno_auto_corridas").unshift({ id: Date.now(), empezo_en: new Date().toISOString(), termino_en: new Date().toISOString(), origen: "manual", ...r });
+      return json(r);
+    }
+    if (cuerpo.accion === "plantilla") {
+      const p = tablaDe("interno_wa_plantillas").find((x) => x.id === cuerpo.plantilla);
+      if (p) p.estado = "enviada";
+      return json({ ok: true, estado: "enviada" });
+    }
+    if (cuerpo.accion === "sincronizar") return json({ ok: true });
     /* El asistente de mentira: siempre el mismo borrador, sin modelo. */
     if (cuerpo.accion === "borrador") {
       tablaDe("interno_wa_borradores").forEach((b) => { if (b.conversacion_id === cuerpo.conversacion && b.estado === "pendiente") b.estado = "reemplazado"; });

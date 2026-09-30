@@ -79,6 +79,8 @@ node scripts/probar-founder-whatsapp.mjs  # 0120: webhook sin duplicar, estados 
 node scripts/probar-whatsapp.mjs  # sin base ni red: la firma de Meta, la verificación del webhook y lo que contesta api/founder.js antes de la base
 node scripts/probar-founder-bot.mjs  # 0121: un borrador pendiente por conversación, derivar pausa, del navegador solo se descarta, los frenos del envío automático
 node scripts/probar-bot.mjs  # sin base ni red: lo que se le manda al modelo, cómo se lee, pedir una persona, los errores en castellano
+node scripts/probar-founder-auto.mjs  # 0122: la cola sin duplicar, lo omitido con motivo, los frenos al mandar, las llaves del reloj, y que la API no exponga net
+node scripts/probar-automatizaciones.mjs  # sin base ni red: el pedido de aprobación a Meta, el envío de plantilla, qué se reintenta
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1719,6 +1721,46 @@ borrador con el error en castellano (sin crédito, clave mala, modelo inexistent
 Modelo de fábrica `claude-opus-5-5` con esfuerzo bajo, cambiable en Configuración.
 Usa `ANTHROPIC_API_KEY`, la misma del Asistente de los comercios: lo que gasta el bot
 sale de la misma cuenta.
+
+### Automatizaciones (0122)
+
+`api/_automatizaciones.js` (plantillas y errores de Meta, sin red), las rutas del reloj y
+de plantillas en `api/founder.js`, `src/datos/internoAutomatizaciones.js`, la sección
+Automatizaciones (cola, reglas, plantillas, corridas), las alertas del Inicio, y
+`scripts/probar-founder-auto.mjs` y `probar-automatizaciones.mjs`. Es la etapa 5.
+
+**Las reglas no mandan: llenan una cola** (`interno_envios`), uno por destinatario y
+ocasión (`clave_unica`: correr dos veces no duplica). De fábrica cada envío espera
+aprobación. Lo que no se puede mandar queda `omitido` con el motivo (sin teléfono, sin
+consentimiento, pidió la baja, sin plantilla aprobada): una regla que "no hace nada"
+casi siempre está omitiendo por algo, y ahí se ve.
+
+**Fuera de las 24 horas solo sale una plantilla aprobada por Meta**, y se cobra. Se
+escriben en Founder (con una variable y un ejemplo por cada `{{n}}`), se mandan a
+aprobar por el servidor y se sincroniza su estado en cada corrida. Una plantilla ya
+mandada no se edita: Meta aprobó ese texto.
+
+**Los frenos están en `interno_auto_preparar`**, la única puerta para mandar: vuelve a
+mirar consentimiento, baja, horario y días de la regla, topes por persona (día y
+semana) y por regla, y que el evento siga en pie. Fuera de horario no omite: queda para
+después. Un error pasajero de Meta se reintenta hasta tres veces; uno de pago (131042),
+de plantilla o de número sin WhatsApp, no.
+
+**El reloj es de la base**: `pg_cron` corre `interno_auto_disparar()` cada 5 minutos.
+Genera en SQL y, si hay algo para mandar o plantillas en revisión, llama a
+`api/founder` con `pg_net`. El servidor no confía en quien llama: el pedido trae una
+llave de un solo uso (`interno_auto_llaves`, que solo ve la service_role, cinco minutos
+de vida). Así no hay un secreto compartido entre Vercel y la base.
+
+**pg_net y la API.** Supabase le da el esquema `net` a anon y authenticated con su
+propio usuario, y esos permisos no se pueden revocar desde una migración. Lo que evita
+que alguien haga pedidos HTTP desde la base es que la API solo expone `public` y
+`graphql_public`; `probar-founder-auto.mjs` lo comprueba. Agregar `net` a los esquemas
+expuestos rompería eso.
+
+**Alertas internas** (`interno_alertas`): oportunidades abiertas sin contacto y
+conversaciones que esperan (sin leer o derivadas por el asistente). Se ven en el Inicio
+de todo el equipo y se descartan; no le mandan nada a nadie.
 
 ## La cuenta corriente
 

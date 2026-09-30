@@ -9,7 +9,9 @@
  *
  *   GET  con hub.mode           Meta verificando el webhook.
  *   POST con X-Hub-Signature-256  Meta avisando mensajes y estados.
- *   POST con Authorization      Founder: enviar, borrador, estado, registrar, suscribir.
+ *   POST con X-Genez-Llave      el reloj de la base (0122): mandar la cola.
+ *   POST con Authorization      Founder: enviar, borrador, automatizaciones,
+ *                               plantilla, sincronizar, estado, registrar, suscribir.
  *
  * Lo próximo de Founder que necesite servidor va acá también, como otra
  * `accion`, hasta que el plan cambie.
@@ -37,6 +39,7 @@ import { GRAPH, errorDeMeta, firmaValida, leerCrudo, mensajeDeTexto, verificarSu
 import Anthropic from "@anthropic-ai/sdk";
 import { waitUntil } from "@vercel/functions";
 import { generar, pideUnaPersona, conAviso, errorLegible } from "./_bot.js";
+import { plantillaParaMeta, mensajeDePlantilla, estadoDeMeta, reintentable, textoDeError } from "./_automatizaciones.js";
 
 /* En Vercel (y en Next) esto deja el cuerpo sin leer, que es lo que la
    firma necesita. */
@@ -84,6 +87,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return error(res, 405, "Solo GET y POST.");
 
   if (req.headers["x-hub-signature-256"]) return webhook(req, res);
+  if (req.headers["x-genez-llave"]) return llamadaDelReloj(req, res);
   return accionDeFounder(req, res);
 }
 
@@ -158,6 +162,9 @@ async function accionDeFounder(req, res) {
   switch (cuerpo.accion) {
     case "enviar": return enviar(res, db, quien, cuerpo);
     case "borrador": return pedirBorrador(res, db, quien, cuerpo);
+    case "automatizaciones": return correrDesdeFounder(res, db, quien);
+    case "plantilla": return enviarPlantillaAMeta(res, db, quien, cuerpo);
+    case "sincronizar": return sincronizarDesdeFounder(res, db, quien);
     case "estado": return estado(req, res, db, quien);
     case "registrar":
     case "suscribir": return alta(res, db, quien, cuerpo.accion);
@@ -367,4 +374,121 @@ async function alta(res, db, quien, accion) {
   }
   if (!r.ok) return res.status(502).json({ error: errorDeMeta(r.datos, r.estado) });
   return res.status(200).json({ ok: true, respuesta: r.datos });
+}
+
+/* ---------- Automatizaciones (0122) ---------- */
+/* La llamada del reloj de la base: trae una llave de un solo uso que la
+   base acaba de escribir. Si la llave no existe o ya se usó, no se hace
+   nada: así nadie de afuera puede disparar envíos. */
+async function llamadaDelReloj(req, res) {
+  const db = maestra();
+  if (!db) return error(res, 503, "Falta SUPABASE_SERVICE_ROLE_KEY en el servidor.");
+  const { data: ok } = await db.rpc("interno_auto_usar_llave", { p_llave: String(req.headers["x-genez-llave"] || "") });
+  if (!ok) return error(res, 401, "Llave inválida.");
+  const r = await correrAutomatizaciones(db, { origen: "servidor", generar: false });
+  return res.status(200).json(r);
+}
+
+async function correrDesdeFounder(res, db, quien) {
+  const { data: puede } = await quien.suyo.rpc("es_interno", { p_area: "mensajes" });
+  if (!puede) return error(res, 403, "Hace falta el área Conversaciones de WhatsApp.");
+  const r = await correrAutomatizaciones(db, { origen: "manual", generar: true });
+  return res.status(200).json(r);
+}
+
+/**
+ * Una corrida: generar (si no lo hizo ya la base), sincronizar las
+ * plantillas que esperan a Meta, y mandar lo aprobado que toca. Queda
+ * registrada en interno_auto_corridas. Nunca tira.
+ */
+async function correrAutomatizaciones(db, { origen, generar: conGenerar }) {
+  const { data: corrida } = await db.from("interno_auto_corridas").insert({ origen }).select("id").single();
+  const cuenta = { generados: 0, alertas: 0, enviados: 0, fallidos: 0 };
+  let falla = null;
+  try {
+    if (conGenerar) {
+      const { data, error: e } = await db.rpc("interno_auto_generar");
+      if (e) throw e;
+      cuenta.generados = data.generados; cuenta.alertas = data.alertas;
+    }
+    if (process.env.WHATSAPP_TOKEN) {
+      await sincronizarPlantillas(db).catch(() => { /* se reintenta en la próxima corrida */ });
+      Object.assign(cuenta, await mandarCola(db));
+    }
+  } catch (e) {
+    falla = e.message || String(e);
+  }
+  if (corrida) {
+    await db.from("interno_auto_corridas").update({ ...cuenta, error: falla, termino_en: new Date().toISOString() }).eq("id", corrida.id);
+  }
+  return { ...cuenta, error: falla };
+}
+
+async function mandarCola(db) {
+  const { phone_number_id: telefono } = await ajustesWhatsapp(db);
+  if (!telefono) return { enviados: 0, fallidos: 0 };
+  const ahora = new Date().toISOString();
+  /* De a veinte por corrida: si hay más, siguen en la próxima (5 min). */
+  const { data: cola } = await db.from("interno_envios").select("id").eq("estado", "aprobado").lte("programado_para", ahora)
+    .or(`proximo_intento.is.null,proximo_intento.lte.${ahora}`).order("programado_para").limit(20);
+  let enviados = 0, fallidos = 0;
+  for (const { id } of cola || []) {
+    const { data: p, error: e } = await db.rpc("interno_auto_preparar", { p_envio: id });
+    if (e || !p || !p.listo) continue;
+    let r;
+    try {
+      r = await graph(`${telefono}/messages`, { metodo: "POST", cuerpo: mensajeDePlantilla(p.wa_id, p.plantilla, p.idioma, p.valores) });
+    } catch (x) {
+      r = { ok: false, estado: 0, datos: { error: { message: `No se pudo hablar con Meta: ${x.message}` } } };
+    }
+    const wamid = r.ok && r.datos && r.datos.messages && r.datos.messages[0] && r.datos.messages[0].id;
+    const falla = wamid ? null : { ...errorDeMeta(r.datos, r.estado) };
+    if (falla) falla.message = textoDeError(falla);
+    await db.rpc("interno_auto_resultado", { p_envio: id, p_wamid: wamid || null, p_error: falla, p_reintentar: reintentable(falla) });
+    if (falla) fallidos++; else enviados++;
+  }
+  return { enviados, fallidos };
+}
+
+/* Le pregunta a Meta cómo están las plantillas que mandamos a aprobar. */
+async function sincronizarPlantillas(db) {
+  const { data: esperan } = await db.from("interno_wa_plantillas").select("id, nombre, idioma, estado").in("estado", ["enviada", "aprobada", "pausada"]).is("archivado_en", null);
+  if (!esperan || !esperan.length) return;
+  const { waba_id: waba } = await ajustesWhatsapp(db);
+  if (!waba) return;
+  const r = await graph(`${waba}/message_templates?fields=id,name,status,language,category,rejected_reason&limit=200`);
+  if (!r.ok) throw new Error(errorDeMeta(r.datos, r.estado).message);
+  for (const p of esperan) {
+    const m = (r.datos.data || []).find((t) => t.name === p.nombre && t.language === p.idioma);
+    if (!m) continue;
+    const estado = estadoDeMeta(m.status);
+    if (!estado) continue;
+    await db.from("interno_wa_plantillas").update({
+      estado, meta_id: m.id, sincronizada_en: new Date().toISOString(),
+      motivo_rechazo: m.rejected_reason && m.rejected_reason !== "NONE" ? m.rejected_reason : null,
+    }).eq("id", p.id);
+  }
+}
+
+async function enviarPlantillaAMeta(res, db, quien, { plantilla }) {
+  const { data: puede } = await quien.suyo.rpc("es_interno", { p_area: "mensajes" });
+  if (!puede) return error(res, 403, "Hace falta el área Conversaciones de WhatsApp.");
+  if (!process.env.WHATSAPP_TOKEN) return error(res, 503, "Falta WHATSAPP_TOKEN en el servidor.");
+  const { waba_id: waba } = await ajustesWhatsapp(db);
+  if (!waba) return error(res, 503, "Falta el waba_id en Configuración → WhatsApp.");
+  const { data: p } = await db.from("interno_wa_plantillas").select("*").eq("id", plantilla).maybeSingle();
+  if (!p) return error(res, 404, "No existe esa plantilla.");
+  if (p.estado !== "borrador") return error(res, 400, "Esa plantilla ya se mandó a Meta.");
+  const r = await graph(`${waba}/message_templates`, { metodo: "POST", cuerpo: plantillaParaMeta(p) });
+  if (!r.ok) return res.status(502).json({ error: errorDeMeta(r.datos, r.estado) });
+  const estado = estadoDeMeta(r.datos && r.datos.status) || "enviada";
+  await db.from("interno_wa_plantillas").update({ estado, meta_id: r.datos && r.datos.id, sincronizada_en: new Date().toISOString() }).eq("id", p.id);
+  return res.status(200).json({ ok: true, estado });
+}
+
+async function sincronizarDesdeFounder(res, db, quien) {
+  const { data: puede } = await quien.suyo.rpc("es_interno", { p_area: "mensajes" });
+  if (!puede) return error(res, 403, "Hace falta el área Conversaciones de WhatsApp.");
+  if (!process.env.WHATSAPP_TOKEN) return error(res, 503, "Falta WHATSAPP_TOKEN en el servidor.");
+  try { await sincronizarPlantillas(db); return res.status(200).json({ ok: true }); } catch (e) { return error(res, 502, e.message); }
 }

@@ -56,7 +56,7 @@ try {
   await c.query("set local idle_in_transaction_session_timeout = '60s'");
   /* Las migraciones de Founder que falten se aplican adentro, en orden:
      así la frontera se prueba también sobre lo que todavía no se aplicó. */
-  for (const [tabla, migracion] of [["interno_miembros", "0113_interno_base.sql"], ["interno_prospectos", "0114_interno_crm.sql"], ["interno_clientes", "0115_interno_clientes.sql"], ["interno_roadmap", "0116_interno_producto.sql"], ["interno_objetivos", "0117_interno_marketing.sql"], ["interno_movimientos", "0118_interno_finanzas.sql"], ["interno_hallazgos", "0119_interno_prospector.sql"], ["interno_wa_mensajes", "0120_interno_whatsapp.sql"], ["interno_wa_borradores", "0121_interno_bot.sql"]]) {
+  for (const [tabla, migracion] of [["interno_miembros", "0113_interno_base.sql"], ["interno_prospectos", "0114_interno_crm.sql"], ["interno_clientes", "0115_interno_clientes.sql"], ["interno_roadmap", "0116_interno_producto.sql"], ["interno_objetivos", "0117_interno_marketing.sql"], ["interno_movimientos", "0118_interno_finanzas.sql"], ["interno_hallazgos", "0119_interno_prospector.sql"], ["interno_wa_mensajes", "0120_interno_whatsapp.sql"], ["interno_wa_borradores", "0121_interno_bot.sql"], ["interno_envios", "0122_interno_automatizaciones.sql"]]) {
     if (!(await una(`select to_regclass('public.${tabla}') t`)).t) await c.query(readFileSync(`supabase/migrations/${migracion}`, "utf8"));
   }
   /* Tablas y vistas: una vista mal hecha también es una puerta. */
@@ -82,9 +82,14 @@ try {
   console.log("\nA · el fundador");
   await como(A);
   decir((await una("select es_interno() v")).v === true && (await una("select es_interno('finanzas') v")).v === true, "es interno, en todas las áreas");
+  /* Las llaves del reloj (0122) no las lee nadie desde el navegador, ni
+     el fundador: con una, cualquiera podría pedirle al servidor que
+     mande la cola. */
+  const SOLO_SERVIDOR = ["interno_auto_llaves"];
   for (const t of tablas) {
     const { e } = await intentar(`select count(*) from ${t}`);
-    decir(!e, `lee ${t}`);
+    if (SOLO_SERVIDOR.includes(t)) decir(e && /permission denied/.test(e.message), `no lee ${t} (solo el servidor)`);
+    else decir(!e, `lee ${t}`);
   }
   let x = await intentar("insert into interno_listas (tipo, clave, nombre) values ('zona', 'prueba_a', 'Zona de prueba') returning id, creado_por");
   decir(!x.e && x.r.rows[0].creado_por === A, "crea en la configuración, y el autor lo pone la base");
