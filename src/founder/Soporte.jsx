@@ -20,6 +20,7 @@ import { cargarTickets, cargarTicket, guardarTicket, agregarMensaje, ticketsPare
 import { guardarTarea } from "../datos/internoCrm.js";
 import { useConfig, relativo, fechaHora, PRIORIDAD, ESTADO_TAREA } from "./util.js";
 import { Adjuntos } from "./Adjuntos.jsx";
+import { ticketAProducto, elementosDeTicket, TIPO_ROADMAP, ESTADO_ROADMAP } from "../datos/internoProducto.js";
 
 const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const TONO_PRIORIDAD = { urgente: "text-mal", alta: "text-ojo", normal: "text-texto-tenue", baja: "text-texto-tenue" };
@@ -222,15 +223,17 @@ function NuevoTicket({ inicial, onCerrar, onListo, abrirTicket, toast }) {
 }
 
 /* ---------- El ticket ---------- */
-export function Ticket({ id, volver, abrirCliente, abrirTicket, toast }) {
+export function Ticket({ id, volver, abrirCliente, abrirTicket, abrirElemento, puedeProducto, toast }) {
   const { cfg, de, nombre } = useConfig();
   const [d, setD] = useState(null);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState({ tipo: "nota", texto: "" });
   const [resolviendo, setResolviendo] = useState(null);   // el estado al que se quería pasar
   const [parecidos, setParecidos] = useState([]);
+  const [producto, setProducto] = useState([]);
   const leer = useCallback(() => cargarTicket(id).then((x) => {
     setD(x);
+    if (puedeProducto) elementosDeTicket(id).then(setProducto);
     ticketsParecidos(`${x.ticket.titulo} ${x.ticket.descripcion || ""}`, x.ticket.modulo, id).then(setParecidos);
   }).catch((e) => setError(e.message)), [id]);
   useEffect(() => { leer(); }, [leer]);
@@ -276,7 +279,13 @@ export function Ticket({ id, volver, abrirCliente, abrirTicket, toast }) {
             <h1 className="f-d text-2xl mt-1">{t.titulo}</h1>
             {t.clienteNombre && <button onClick={() => abrirCliente(t.clienteId)} className="text-sm text-texto-suave hover:text-acento mt-1">{t.clienteNombre}{t.sucursal ? ` · ${t.sucursal}` : ""}</button>}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {puedeProducto && producto.length === 0 && (
+              <Boton variant="ghost" onClick={async () => {
+                try { const rid = await ticketAProducto(t.id); toast(t.categoria === "error" ? "Pasó a producto como bug." : "Pasó a producto como pedido."); abrirElemento(rid); }
+                catch (e) { toast(e.message, "mal"); }
+              }}>Pasar a producto</Boton>
+            )}
             <Boton variant="ghost" onClick={crearTarea}>Crear tarea de desarrollo</Boton>
           </div>
         </div>
@@ -344,6 +353,18 @@ export function Ticket({ id, volver, abrirCliente, abrirTicket, toast }) {
             <h2 className="f-d text-lg px-5 pt-4 pb-2">Archivos</h2>
             <Adjuntos area="soporte" tabla="interno_tickets" filaId={t.id} lista={d.adjuntos} onCambio={leer} toast={toast} />
           </Card>
+          {producto.length > 0 && (
+            <Card className="p-5">
+              <h2 className="f-d text-lg mb-2">En producto</h2>
+              <ul className="space-y-1.5">
+                {producto.map((r) => (
+                  <li key={r.id}><button onClick={() => abrirElemento(r.id)} className="text-left text-sm hover:text-acento">
+                    <span className="text-[10px] uppercase tracking-wider text-texto-tenue">{TIPO_ROADMAP[r.tipo]}</span> {r.titulo} <span className="text-[11px] text-texto-tenue">· {ESTADO_ROADMAP[r.estado]}</span>
+                  </button></li>
+                ))}
+              </ul>
+            </Card>
+          )}
           {parecidos.length > 0 && (
             <Card className="p-5">
               <h2 className="f-d text-lg mb-2">Parecidos</h2>

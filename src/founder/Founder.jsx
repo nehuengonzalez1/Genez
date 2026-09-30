@@ -17,7 +17,7 @@
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
-import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Settings, ArrowLeftRight, LogOut } from "lucide-react";
+import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Boxes, BookOpen, Settings, ArrowLeftRight, LogOut } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { puedeArea } from "../datos/interno.js";
 import { InicioFounder } from "./Inicio.jsx";
@@ -30,6 +30,9 @@ import { Agenda } from "./Agenda.jsx";
 import { Clientes } from "./Clientes.jsx";
 import { FichaCliente } from "./FichaCliente.jsx";
 import { Soporte, Ticket } from "./Soporte.jsx";
+import { Producto } from "./Producto.jsx";
+import { FichaElemento, FichaProyecto } from "./FichaProducto.jsx";
+import { Documentos, Documento } from "./Documentos.jsx";
 
 const SECCIONES = [
   { k: "inicio", n: "Inicio", i: Home, area: null },
@@ -39,6 +42,8 @@ const SECCIONES = [
   { k: "agenda", n: "Agenda", i: CalendarDays, area: "agenda" },
   { k: "clientes", n: "Clientes", i: Store, area: "clientes" },
   { k: "soporte", n: "Soporte", i: LifeBuoy, area: "soporte" },
+  { k: "producto", n: "Producto", i: Boxes, area: "producto" },
+  { k: "documentos", n: "Documentos", i: BookOpen, area: "docs" },
   { k: "config", n: "Configuración", i: Settings, area: "config" },
 ];
 
@@ -59,6 +64,12 @@ export default function Founder({ sesion, onComercios, onSalir }) {
   const abrir = apilar("prospecto");
   const abrirCliente = apilar("cliente");
   const abrirTicket = apilar("ticket");
+  const abrirElemento = apilar("elemento");
+  const abrirProyecto = apilar("proyecto");
+  const abrirDocumento = apilar("documento");
+  /* Un documento nuevo no tiene id todavía: se apila con lo que ya se sabe
+     (desde un proyecto, su proyecto; desde el roadmap, su elemento). */
+  const nuevoDocumento = (inicial) => setPila((p) => [...p, { tipo: "documento", id: null, inicial, n: Date.now() }]);
   const crear = (que, para) => {
     const destino = { prospecto: "prospectos", tarea: "tareas", evento: "agenda", ticket: "soporte" }[que];
     setPila([]); setSeccionCruda(destino); setNuevo({ que, para });
@@ -119,7 +130,13 @@ export default function Founder({ sesion, onComercios, onSalir }) {
         {encima && encima.tipo === "prospecto" && <Ficha key={encima.id} id={encima.id} volver={volver} abrirCliente={abrirCliente} toast={toast} />}
         {encima && encima.tipo === "cliente" && <FichaCliente key={encima.id} id={encima.id} volver={volver} abrirProspecto={abrir} abrirTicket={abrirTicket}
           nuevoTicket={(clienteId) => crear("ticket", clienteId)} toast={toast} />}
-        {encima && encima.tipo === "ticket" && <Ticket key={encima.id} id={encima.id} volver={volver} abrirCliente={abrirCliente} abrirTicket={abrirTicket} toast={toast} />}
+        {encima && encima.tipo === "ticket" && <Ticket key={encima.id} id={encima.id} volver={volver} abrirCliente={abrirCliente} abrirTicket={abrirTicket}
+          abrirElemento={abrirElemento} puedeProducto={puedeArea(interno, "producto")} toast={toast} />}
+        {encima && encima.tipo === "elemento" && <FichaElemento key={encima.id} id={encima.id} volver={volver} abrirTicket={abrirTicket} abrirProyecto={abrirProyecto}
+          abrirDocumento={abrirDocumento} nuevoDocumento={puedeArea(interno, "docs") ? nuevoDocumento : null} toast={toast} />}
+        {encima && encima.tipo === "proyecto" && <FichaProyecto key={encima.id} id={encima.id} volver={volver} abrirElemento={abrirElemento}
+          abrirDocumento={abrirDocumento} nuevoDocumento={puedeArea(interno, "docs") ? nuevoDocumento : null} toast={toast} />}
+        {encima && encima.tipo === "documento" && <Documento key={encima.id || encima.n} id={encima.id} inicial={encima.inicial} volver={volver} abrirDocumento={abrirDocumento} toast={toast} />}
         {!encima && <>
           {actual && actual.k === "inicio" && <InicioFounder sesion={sesion} ir={setSeccion} abrir={abrir} abrirCliente={abrirCliente} toast={toast} nuevo={crear} />}
           {actual && actual.k === "prospectos" && <Prospectos key={nuevoQue || "p"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevoQue === "prospecto"} />}
@@ -127,6 +144,8 @@ export default function Founder({ sesion, onComercios, onSalir }) {
           {actual && actual.k === "tareas" && <Tareas key={nuevoQue || "t"} abrir={abrir} toast={toast} nuevaAlAbrir={nuevoQue === "tarea"} />}
           {actual && actual.k === "agenda" && <Agenda key={nuevoQue || "a"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevoQue === "evento"} />}
           {actual && actual.k === "clientes" && <Clientes abrirCliente={abrirCliente} toast={toast} />}
+          {actual && actual.k === "producto" && <Producto abrirElemento={abrirElemento} abrirProyecto={abrirProyecto} toast={toast} />}
+          {actual && actual.k === "documentos" && <Documentos abrirDocumento={abrirDocumento} nuevoDocumento={nuevoDocumento} />}
           {actual && actual.k === "soporte" && <Soporte key={nuevoQue === "ticket" ? `n${nuevo.para || ""}` : "s"} abrirTicket={abrirTicket} toast={toast}
             nuevoPara={nuevoQue === "ticket" ? nuevo.para || "" : undefined} />}
           {actual && actual.k === "config" && <ConfiguracionFounder interno={interno} toast={toast} />}
