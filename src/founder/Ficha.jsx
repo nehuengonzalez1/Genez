@@ -61,6 +61,16 @@ export function Ficha({ id, volver, abrirCliente, toast }) {
             <p className="text-sm text-texto-suave mt-1">
               {[nombre("rubro", p.rubro), p.direccion, p.localidad || nombre("zona", p.zona)].filter(Boolean).join(" · ") || "Sin rubro ni dirección"}
             </p>
+            {p.origenProveedor && p.origenProveedor !== "planilla" && (
+              <p className="text-[11px] mt-1 text-texto-tenue">
+                Datos de {p.origenProveedor === "osm" ? "OpenStreetMap" : p.origenProveedor}{p.origenObtenidoEn ? ` (${fecha(p.origenObtenidoEn)})` : ""}
+                {p.origenVerificadoEn ? <span className="text-bien"> · confirmados {fecha(p.origenVerificadoEn)}</span> : <>
+                  <span className="text-ojo"> · sin verificar</span>{" "}
+                  <button className="underline hover:text-texto" onClick={async () => {
+                    try { await editarProspecto(p.id, { origenVerificadoEn: new Date() }); toast("Datos confirmados."); leer(); } catch (e) { toast(e.message, "mal"); }
+                  }}>Los confirmé</button></>}
+              </p>
+            )}
             <p className="text-sm mt-2">
               {p.proximoContacto
                 ? <><span className={vencido(p.proximoContacto) ? "text-mal font-semibold" : "text-texto"}>Próximo: {relativo(p.proximoContacto)}</span>

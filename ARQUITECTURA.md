@@ -73,6 +73,8 @@ node scripts/probar-markdown.mjs        # sin base: el markdown de los documento
 node scripts/probar-founder-marketing.mjs  # 0117: el valor real de cada métrica (en días de Buenos Aires), objetivos, planes, contenidos, métricas y lo originado
 node scripts/probar-founder-finanzas.mjs  # 0118: cuentas, movimientos, suscripciones y su historial, cobros sin duplicar, ajustes, buscar cuentas, áreas
 node scripts/probar-indicadores-genez.mjs  # sin base: cada indicador financiero contra su definición, y que el MRR cierre
+node scripts/probar-founder-prospector.mjs  # 0119: proveedores, zonas, hallazgos sin duplicar, pasar al CRM o vincular sin pisar, áreas
+node scripts/probar-osm.mjs [--en-vivo]  # sin base: el conector de OpenStreetMap; --en-vivo hace un pedido chico a Overpass
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1587,6 +1589,40 @@ administrador busca una cuenta existente por su mail exacto (`interno_buscar_per
 que no lista a nadie más) y le da rol y áreas. La membresía lleva `perfilId`, porque la
 sesión de plataforma no trae el id y la pantalla lo necesita para no ofrecerle a nadie
 editarse a sí mismo (la base igual lo impide).
+
+### El prospector (0119)
+
+`src/datos/internoProspector.js`, los conectores en `src/utils/proveedores/` (hoy
+`osm.js`), la sección Prospector, y `scripts/probar-founder-prospector.mjs` y
+`probar-osm.mjs`. Es la etapa 2 de la extensión de prospección; la auditoría (qué se
+puede y qué no con WhatsApp, Google y el Registro No Llame) está en
+`docs/founder-integraciones.md`.
+
+**Solo fuentes que permiten guardar sus datos.** OpenStreetMap (ODbL, citando la fuente)
+y las planillas propias. Google Places no: sus términos solo dejan guardar el
+`place_id`. Cada proveedor tiene sus reglas escritas en `interno_proveedores` (licencia,
+atribución, campos, retención, costo, límites), y la pantalla las muestra.
+
+**Un conector por proveedor**: arma el pedido y devuelve hallazgos con una forma común.
+Sumar una fuente es escribir otro archivo en `utils/proveedores/` y su fila de
+proveedor. La búsqueda la hace el navegador (Overpass acepta pedidos del navegador): no
+usa una función de Vercel ni credenciales. Fuera del navegador Overpass rechaza con 406
+el agente genérico de node: hay que mandarle uno propio.
+
+**Un hallazgo no es un prospecto.** `interno_hallazgos` guarda lo encontrado, único por
+proveedor e id: buscar de nuevo actualiza, no duplica. Pasa al CRM cuando se elige
+(`interno_incorporar_hallazgo`): nuevo, o vinculado a uno existente completando solo lo
+vacío. Los duplicados se sugieren en la pantalla (`duplicadoDe`, con las reglas de la
+planilla) y nunca se vincula solo; lo "seguro" no entra en el paso masivo.
+
+**Sin verificar hasta que alguien confirme.** El prospecto guarda su origen
+(`origen_proveedor`, `origen_externo_id`, `origen_obtenido_en`) y
+`origen_verificado_en`, que se llena con "Los confirmé" en la ficha.
+
+**El mapa** es Leaflet con los mosaicos de OpenStreetMap (uso liviano, con atribución),
+en su propio archivo: se descarga solo al abrirlo. Los colores salen de las variables
+del tema. En la pantalla de pruebas Overpass contesta con datos fijos
+(`src/pruebas/supabaseFalso.js`); los mosaicos del mapa sí son los reales.
 
 ## La cuenta corriente
 

@@ -23,9 +23,63 @@ probablemente obligue a juntar funciones o a pasar de plan.
 | **Facturación electrónica de Genez** | `interno_movimientos.facturado` y `comprobante`; `interno_ajustes.empresa` (razón social, CUIT, condición de IVA) | Certificado de ARCA a nombre de Genez y un punto de venta propio. El código de ARCA de los comercios (`api/arca`) se puede reutilizar, pero con otra identidad fiscal | Se marca "facturado" y se escribe el número a mano |
 | **Pasarelas de pago** | `interno_movimientos.fecha_pago`, `medio_pago`, `referencia`; `interno_suscripciones` | Cuenta de Mercado Pago (u otra) de Genez; suscripciones con débito y un webhook para marcar cobrado | Se marca "cobrado" a mano; los cobros del mes se generan con un botón que no duplica |
 | **Automatizaciones de seguimiento** | `interno_tareas` (con repetición), `interno_prospectos.proximo_contacto` | Un proceso programado del lado del servidor (Vercel Cron o una función de Postgres con `pg_cron`) | La base ya hace sola lo que no necesita reloj: próxima tarea de una serie, seguimiento después de un contacto, recordatorios al pasar a cliente |
+| **Prospector (fuentes de comercios)** | `interno_proveedores`, `interno_busquedas`, `interno_hallazgos` (0119); un conector por fuente en `src/utils/proveedores/` | Para otra fuente: sus términos (qué se puede guardar y cuánto tiempo), su fila de proveedor y su conector | OpenStreetMap y planillas, funcionando |
 | **Formularios de captura** | `solicitudes` (el formulario de la web, que ya existe) → `interno_prospectos` (`solicitud_id`, `fuente`) | Pasar cada solicitud a prospecto, a mano o con un disparador | Inicio muestra cuántos pedidos hay; se cargan a mano |
 | **Redes sociales** | `interno_contenido_metricas` (7 y 30 días), `interno_contenidos.url` | APIs de cada red (Meta, TikTok, YouTube, LinkedIn), con OAuth y permisos de lectura de métricas | Métricas cargadas a mano; la pantalla lo dice |
 | **Analítica** | `interno_prospectos.contenido_id`, `fuente`, `campania` | Etiquetas UTM en los links y una herramienta que las lea | Lo originado por cada contenido sale de los prospectos atados |
+
+## Prospección y WhatsApp: lo que se verificó (29/09/2026)
+
+Auditoría de la extensión de prospección, en las fuentes oficiales. Las reglas cambian:
+volver a verificarlas antes de implementar cada etapa.
+
+**No se puede escribir en frío por WhatsApp.** La política de mensajería de WhatsApp
+Business solo permite contactar a quien *te dio* su número y aceptó recibir tus mensajes
+([política](https://whatsappbusiness.com/es-la/policy/)). Un teléfono sacado de Google,
+de un directorio o de OpenStreetMap no cumple ninguna de las dos. Además, el Registro
+Nacional No Llame (Ley 26.951) cubre la mensajería instantánea: la AAIP menciona WhatsApp
+textualmente; las excepciones son una relación contractual o el permiso expreso
+([preguntas frecuentes de la AAIP](https://nollame.aaip.gob.ar/faqs.html)).
+Consecuencia de diseño: el prospector sirve para saber a quién visitar o llamar;
+WhatsApp, para quien escribe primero o dio su consentimiento, con el consentimiento
+registrado.
+
+**WhatsApp Business Platform (Cloud API de Meta):**
+- Se cobra por mensaje de plantilla *entregado*, desde el 01/07/2025. Responder dentro
+  de la ventana de atención (24 h desde el último mensaje del cliente) es gratis, y
+  también las plantillas de servicio (utility) dentro de esa ventana. Las tarifas en
+  pesos están en los CSV oficiales
+  ([precios](https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing));
+  fuentes no oficiales citan ~US$0,062 por marketing y ~US$0,026 por utility en
+  Argentina, sin confirmar.
+- Límite inicial: 250 destinatarios únicos por día fuera de la ventana, por portfolio;
+  2.000 con la verificación del negocio
+  ([límites](https://developers.facebook.com/documentation/business-messaging/whatsapp/messaging-limits)).
+- El webhook viene firmado en `X-Hub-Signature-256` (HMAC SHA-256 con el secreto de la
+  app), y Meta reintenta hasta 7 días: hay que deduplicar por el id del mensaje.
+- Desde el 15/01/2026 Meta prohíbe usar la API para distribuir asistentes de IA de uso
+  general. Un bot que atiende las consultas del propio negocio sigue permitido.
+- Hace falta: portfolio de Meta Business verificado, un número que no esté en la app de
+  WhatsApp, un token permanente de usuario de sistema, el secreto de la app y el token
+  de verificación del webhook. Nada de esto existe todavía.
+
+**Google Places:** los términos (sección 14 de los términos por servicio) solo dejan
+guardar el `place_id` para siempre y las coordenadas 30 días; nombre, teléfono y
+dirección no se pueden guardar
+([términos](https://cloud.google.com/maps-platform/terms/maps-service-terms)). El
+teléfono y la web son del SKU Enterprise: US$35 cada 1.000 búsquedas de texto, con
+1.000 gratis por mes, y hasta 60 resultados por búsqueda
+([precios](https://developers.google.com/maps/billing-and-pricing/pricing)). Por eso no
+es una fuente del prospector.
+
+**OpenStreetMap:** en un radio de 2,5 km alrededor de Caseros había 602 comercios, 525
+con nombre, 25 con teléfono y 19 con web. Sirve para descubrir, poco para contactar.
+
+**Infraestructura para lo que viene:** Vercel Hobby solo corre tareas programadas una
+vez por día ([cron](https://vercel.com/docs/cron-jobs/usage-and-pricing)); los
+recordatorios de WhatsApp tendrían que correr en la base, con `pg_cron` y `pg_net`, que
+están disponibles en el proyecto (sin instalar). Vault ya está instalado para
+credenciales.
 
 ## Avisos
 

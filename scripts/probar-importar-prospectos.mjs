@@ -11,7 +11,7 @@
      node scripts/probar-importar-prospectos.mjs
    ============================================================ */
 
-import { normTel, filaDeTitulos, adivinarColumnas, armarFilas } from "../src/utils/importarProspectos.js";
+import { normTel, filaDeTitulos, adivinarColumnas, armarFilas, duplicadoDe } from "../src/utils/importarProspectos.js";
 
 let fallas = 0;
 const decir = (ok, texto) => { if (!ok) fallas++; console.log(`  ${ok ? "ok" : "MAL"}  ${texto}`); };
@@ -65,6 +65,21 @@ const ya = fila(8);
 decir(ya && ya.duplicado && ya.duplicado.includes("archivado") && !ya.incluir, `lo que ya estaba, aunque archivado, se marca: ${ya && ya.duplicado}`);
 const verdu = fila(10);
 decir(verdu && verdu.incluir && verdu.avisos.some((a) => a.includes("pocos dígitos")) && verdu.datos.interes === "tibio", "un teléfono de dos dígitos se avisa pero la fila entra");
+
+console.log("\nEl prospector: ¿ya está en el CRM?");
+const crm = [
+  { id: "a", nombre: "La Espiga", telefono: "011 15-4444-5555", localidad: "Caseros" },
+  { id: "b", nombre: "Kiosco Don Juan", email: "donjuan@correo.test" },
+  { id: "c", nombre: "Pilates Centro", localidad: "Villa Bosch" },
+];
+const d1 = duplicadoDe({ nombre: "Panadería de otro nombre", telefono: "+54 9 11 4444-5555" }, crm);
+decir(d1 && d1.prospecto.id === "a" && d1.seguro && d1.motivo === "mismo teléfono", "el mismo celular escrito distinto: seguro");
+decir(duplicadoDe({ nombre: "X", email: "DonJuan@correo.test " }, crm).prospecto.id === "b", "el mismo mail: seguro");
+const d3 = duplicadoDe({ nombre: "Panadería La Espiga" }, crm);
+decir(d3 && d3.prospecto.id === "a" && !d3.seguro, "un nombre que contiene al otro: parecido, no seguro");
+decir(duplicadoDe({ nombre: "Pilates Centro", localidad: "Caseros" }, crm) === null, "el mismo nombre en otra localidad: no es el mismo");
+decir(duplicadoDe({ nombre: "Pilates Centro" }, crm).seguro, "el mismo nombre sin localidad: se avisa como seguro");
+decir(duplicadoDe({ nombre: "Bar" }, [{ id: "z", nombre: "Barbería" }]) === null, "nombres cortos no cuentan como parecidos");
 
 console.log(fallas ? `\n${fallas} MAL\n` : "\nTodo bien\n");
 process.exit(fallas ? 1 : 0);
