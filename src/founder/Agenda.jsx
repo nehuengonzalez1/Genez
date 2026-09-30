@@ -17,9 +17,10 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, Boton, Tabs, Cargando, ErrorEstado, Vacio } from "../ui/Base.jsx";
 import { cargarEventos } from "../datos/internoCrm.js";
 import { useConfig, hora, fechaHora, diaAR, hoyAR, ZONA, deInput } from "./util.js";
+import { cargarAjustes } from "../datos/internoFinanzas.js";
 import { FormEvento } from "./Formularios.jsx";
 
-const HORA_INICIO = 7, HORA_FIN = 22, ALTO_HORA = 48;
+const ALTO_HORA = 48;
 /* El mediodía del día en la Argentina, para moverse de día en día sin
    que el horario de la computadora corra la fecha. */
 const mediodia = (iso) => new Date(`${iso}T12:00:00-03:00`);
@@ -35,6 +36,13 @@ export function Agenda({ abrir, toast, nuevoAlAbrir = false }) {
   const [eventos, setEventos] = useState(null);
   const [error, setError] = useState("");
   const [modal, setModal] = useState(nuevoAlAbrir ? { datos: {} } : null);
+  /* El horario de la grilla sale de Configuración (interno_ajustes, 0118);
+     mientras llega, o si no se puede leer, el de siempre: de 7 a 22. */
+  const [horas, setHoras] = useState([7, 22]);
+  useEffect(() => {
+    cargarAjustes().then((a) => { const g = a.agenda || {}; if (g.hora_fin > g.hora_inicio) setHoras([Number(g.hora_inicio), Number(g.hora_fin)]); }).catch(() => {});
+  }, []);
+  const [HORA_INICIO, HORA_FIN] = horas;
 
   const rango = useMemo(() => {
     if (vista === "dia") return [dia, dia];

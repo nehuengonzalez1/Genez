@@ -71,6 +71,8 @@ node scripts/probar-founder-clientes.mjs  # 0115: pasar a cliente, desde un come
 node scripts/probar-founder-producto.mjs  # 0116: proyectos, versiones, roadmap, ticket a producto, documentos con búsqueda y versiones, áreas
 node scripts/probar-markdown.mjs        # sin base: el markdown de los documentos no ejecuta nada y entiende lo que dice
 node scripts/probar-founder-marketing.mjs  # 0117: el valor real de cada métrica (en días de Buenos Aires), objetivos, planes, contenidos, métricas y lo originado
+node scripts/probar-founder-finanzas.mjs  # 0118: cuentas, movimientos, suscripciones y su historial, cobros sin duplicar, ajustes, buscar cuentas, áreas
+node scripts/probar-indicadores-genez.mjs  # sin base: cada indicador financiero contra su definición, y que el MRR cierre
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1549,6 +1551,42 @@ dice. Lo real es lo originado: un prospecto puede nombrar su contenido de origen
 (`interno_prospectos.contenido_id`), y de ahí salen demos y clientes por publicación.
 Las columnas de la vista con número (`vis_semana`, no `vis_7d`): el pasaje a camelCase
 de `src/datos/` no toca un guion bajo seguido de un dígito, y el campo no llegaba.
+
+### Finanzas, ajustes y equipo (0118)
+
+`src/datos/internoFinanzas.js`, `utils/finanzasGenez.js` (los indicadores, puros), la
+sección Finanzas, las pestañas Genez y Equipo de Configuración, y
+`scripts/probar-founder-finanzas.mjs` y `probar-indicadores-genez.mjs`. Las
+integraciones que faltan y cómo sumar gente están en `docs/founder-integraciones.md`.
+
+**Tablas propias, no el módulo Finanzas de los comercios**: ese mira la caja de cada
+comercio, atada a su `empresa_id`, y mezclaría la plata de Genez con la de un cliente.
+
+**Cuatro cosas distintas, cada una con su columna**: contratado (MRR = suscripciones
+activas), devengado (`periodo`, el mes al que corresponde), facturado (a mano, con el
+número: no hay facturación de Genez) y cobrado o pagado (`fecha_pago`, la única que es
+plata). Un check impide "pagado" sin fecha y fecha sin "pagado".
+
+**Las suscripciones mandan sobre el importe del cliente**: un disparador lo iguala a la
+suma de sus activas en pesos, y cada cambio de importe o estado queda en
+`interno_suscripciones_cambios`. El MRR a cualquier fecha se arma con ese historial, y
+por eso cierra: inicio + nuevas − bajas + expansión − contracción = fin (lo prueba
+`probar-indicadores-genez`). **Dólares**: no se convierten ni se suman a los pesos.
+
+**Los cobros del mes** (`interno_generar_cobros`) salen de las suscripciones activas y
+no se duplican (índice único por suscripción y mes, salvo anulados): se puede apretar
+dos veces. El saldo de una cuenta es el inicial más lo cobrado menos lo pagado desde
+esa fecha: lo registrado, no el banco.
+
+**Cada indicador tiene su definición** en `utils/finanzasGenez.js` y la misma, escrita,
+en la pantalla. Si se cambia una, se cambian las dos.
+
+**Ajustes** (datos de Genez, horario de la agenda) en `interno_ajustes`, de clave y
+valor. `interno_anotar` ahora también identifica una fila por `clave`. **Equipo**: el
+administrador busca una cuenta existente por su mail exacto (`interno_buscar_perfil`,
+que no lista a nadie más) y le da rol y áreas. La membresía lleva `perfilId`, porque la
+sesión de plataforma no trae el id y la pantalla lo necesita para no ofrecerle a nadie
+editarse a sí mismo (la base igual lo impide).
 
 ## La cuenta corriente
 

@@ -60,7 +60,9 @@ function founder(usuario) {
     ["categoria_ticket", "Consulta de uso", "consulta"], ["categoria_ticket", "Error del sistema", "error"], ["categoria_ticket", "Impresión", "impresion"],
     ["canal_ticket", "WhatsApp", "whatsapp"], ["canal_ticket", "Llamada", "llamada"],
     ["tipo_documento", "Procedimiento", "procedimiento"], ["tipo_documento", "Guion de demo", "guion_demo"], ["tipo_documento", "Nota", "nota"], ["tipo_documento", "Decisión de producto", "decision"],
-    ["canal_contenido", "Instagram", "instagram"], ["canal_contenido", "TikTok", "tiktok"], ["formato_contenido", "Reel", "reel"], ["formato_contenido", "Carrusel", "carrusel"]];
+    ["canal_contenido", "Instagram", "instagram"], ["canal_contenido", "TikTok", "tiktok"], ["formato_contenido", "Reel", "reel"], ["formato_contenido", "Carrusel", "carrusel"],
+    ["categoria_ingreso", "Suscripción", "suscripcion"], ["categoria_ingreso", "Implementación", "implementacion"],
+    ["categoria_gasto", "Hosting", "hosting"], ["categoria_gasto", "Dominios", "dominios"], ["medio_pago", "Transferencia", "transferencia"], ["medio_pago", "Mercado Pago", "mercado_pago"]];
   const etapas = ETAPAS.map(([nombre, probabilidad, tipo], i) => ({ id: id(), nombre, orden: i + 1, probabilidad, tipo, activa: true }));
   /* Tres comercios inventados en etapas distintas, con una tarea de hoy,
      una vencida y una reunión de hoy: lo justo para que Mi día, el
@@ -88,6 +90,8 @@ function founder(usuario) {
       ["carga_datos", "Profesionales y sus horarios", ["agenda"]], ["usuarios", "Un usuario por persona, con su rol", []]]
       .map(([etapa, titulo, modulos], i) => ({ id: id(), etapa, titulo, modulos, rubros: [], orden: i, activo: true })),
     interno_clientes: [], interno_impl_etapas: [], interno_tickets: [], interno_ticket_mensajes: [], interno_adjuntos: [],
+    interno_cuentas: [], interno_suscripciones: [], interno_suscripciones_cambios: [], interno_movimientos: [],
+    interno_ajustes: [{ clave: "empresa", valor: {} }, { clave: "agenda", valor: { hora_inicio: 7, hora_fin: 22 } }],
     interno_planes: [], interno_objetivos: [], interno_contenidos: [], interno_contenido_metricas: [], interno_grabaciones: [],
     interno_proyectos: [], interno_versiones: [], interno_roadmap: [], interno_roadmap_tickets: [], interno_documentos: [], interno_documentos_versiones: [],
     interno_eventos: [{ id: id(), titulo: "Demo en el bar de prueba", tipo: "demo", prospecto_id: prospectos[1].id, inicio: hoyA(16), fin: hoyA(17), estado: "programado", archivado_en: null }],

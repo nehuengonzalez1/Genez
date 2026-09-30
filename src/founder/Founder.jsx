@@ -17,7 +17,7 @@
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
-import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Boxes, BookOpen, Target, Megaphone, BarChart3, Settings, ArrowLeftRight, LogOut } from "lucide-react";
+import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Boxes, BookOpen, Target, Megaphone, BarChart3, Wallet, Settings, ArrowLeftRight, LogOut } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { puedeArea } from "../datos/interno.js";
 import { InicioFounder } from "./Inicio.jsx";
@@ -36,6 +36,7 @@ import { Documentos, Documento } from "./Documentos.jsx";
 import { Objetivos } from "./Objetivos.jsx";
 import { Marketing, FichaContenido } from "./Marketing.jsx";
 import { Informes } from "./Informes.jsx";
+import { Finanzas } from "./Finanzas.jsx";
 
 const SECCIONES = [
   { k: "inicio", n: "Inicio", i: Home, area: null },
@@ -50,6 +51,7 @@ const SECCIONES = [
   { k: "producto", n: "Producto", i: Boxes, area: "producto" },
   { k: "documentos", n: "Documentos", i: BookOpen, area: "docs" },
   { k: "marketing", n: "Marketing", i: Megaphone, area: "marketing" },
+  { k: "finanzas", n: "Finanzas", i: Wallet, area: "finanzas" },
   { k: "config", n: "Configuración", i: Settings, area: "config" },
 ];
 
@@ -154,6 +156,7 @@ export default function Founder({ sesion, onComercios, onSalir }) {
           {actual && actual.k === "clientes" && <Clientes abrirCliente={abrirCliente} toast={toast} />}
           {actual && actual.k === "objetivos" && <Objetivos toast={toast} />}
           {actual && actual.k === "informes" && <Informes />}
+          {actual && actual.k === "finanzas" && <Finanzas toast={toast} />}
           {actual && actual.k === "marketing" && <Marketing abrirContenido={abrirContenido} toast={toast} />}
           {actual && actual.k === "producto" && <Producto abrirElemento={abrirElemento} abrirProyecto={abrirProyecto} toast={toast} />}
           {actual && actual.k === "documentos" && <Documentos abrirDocumento={abrirDocumento} nuevoDocumento={nuevoDocumento} />}

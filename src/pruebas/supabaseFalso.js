@@ -145,6 +145,24 @@ const VISTAS = {
       demos_originadas: ps.filter((p) => tablaDe("interno_actividades").some((a) => a.prospecto_id === p.id && a.tipo === "demo")).length,
       clientes_originados: ps.filter((p) => tablaDe("interno_clientes").some((k) => k.prospecto_id === p.id)).length };
   }),
+  /* Las de 0118: la suscripción con su cliente, el movimiento con su
+     cliente y su cuenta, y el saldo de cada cuenta desde su saldo inicial. */
+  interno_suscripciones_vista: () => tablaDe("interno_suscripciones").map((x) => {
+    const c = tablaDe("interno_clientes").find((k) => k.id === x.cliente_id);
+    const p = c && tablaDe("interno_prospectos").find((k) => k.id === c.prospecto_id);
+    return { ...x, cliente_nombre: p ? p.nombre : null, cliente_estado: c ? c.estado : null };
+  }),
+  interno_movimientos_vista: () => tablaDe("interno_movimientos").map((m) => {
+    const c = tablaDe("interno_clientes").find((k) => k.id === m.cliente_id);
+    const p = c && tablaDe("interno_prospectos").find((k) => k.id === c.prospecto_id);
+    const k = tablaDe("interno_cuentas").find((x) => x.id === m.cuenta_id);
+    return { ...m, cliente_nombre: p ? p.nombre : null, cuenta_nombre: k ? k.nombre : null };
+  }),
+  interno_cuentas_vista: () => tablaDe("interno_cuentas").map((k) => {
+    const ms = tablaDe("interno_movimientos").filter((m) => m.cuenta_id === k.id && m.estado === "pagado" && m.fecha_pago >= k.saldo_inicial_fecha);
+    const s = (t) => ms.filter((m) => m.tipo === t).reduce((a, m) => a + Number(m.importe), 0);
+    return { ...k, saldo: Number(k.saldo_inicial) + s("ingreso") - s("gasto") };
+  }),
   interno_tickets_vista: () => tablaDe("interno_tickets").map((t) => {
     const c = tablaDe("interno_clientes").find((x) => x.id === t.cliente_id);
     const p = c && tablaDe("interno_prospectos").find((x) => x.id === c.prospecto_id);
@@ -178,6 +196,9 @@ const DEFECTOS = {
   interno_ticket_mensajes: { tipo: "nota" },
   interno_adjuntos: { archivado_en: null },
   interno_impl_modelo: { rubros: [], modulos: [], activo: true, orden: 0 },
+  interno_cuentas: { tipo: "banco", moneda: "ARS", saldo_inicial: 0, activa: true },
+  interno_suscripciones: { moneda: "ARS", estado: "activa", dia_cobro: 10 },
+  interno_movimientos: { moneda: "ARS", estado: "pendiente", facturado: false, fijo: false },
   interno_planes: { estado: "activo", archivado_en: null },
   interno_objetivos: { periodo: "mensual", estado: "activo", archivado_en: null },
   interno_contenidos: { prioridad: "normal", estado: "idea", orden: 0, archivado_en: null },
@@ -193,6 +214,8 @@ const DEFECTOS = {
    oportunidad de un prospecto, y qué cambia al mover una de etapa. */
 let numeroTicket = 0;
 const ANTES = new Map();   // el documento como estaba, para su historial de versiones
+const ANTES_SUS = new Map();   // la suscripción como estaba, para su historial
+let numeroCambio = 0;
 const DISPARADORES = {
   /* Los checks de 0115 que la pantalla tiene que ver fallar: resolver sin
      solución y bloquear sin decir qué bloquea. */
@@ -239,6 +262,29 @@ const DISPARADORES = {
     for (const o of filas) {
       if (o.metrica !== "manual" && o.valor_manual != null) throw new Error('violates check constraint "interno_objetivos_manual"');
       if (o.limite < o.inicio) throw new Error('violates check constraint "interno_objetivos_fechas"');
+    }
+  },
+  /* 0118: los checks de un movimiento, y el historial y el importe del
+     cliente que escribe la base al tocar una suscripción. */
+  interno_movimientos: (op, filas) => {
+    for (const m of filas) {
+      if (m.estado !== "anulado" && (m.estado === "pagado") !== !!m.fecha_pago) throw new Error('violates check constraint "interno_movimientos_pago"');
+      if (!(Number(m.importe) > 0)) throw new Error('violates check constraint "interno_movimientos_importe"');
+    }
+  },
+  interno_suscripciones: (op, filas, datos) => {
+    const hoy = hoyDia();
+    for (const x of filas) {
+      if (x.estado === "baja" && !x.fin) throw new Error('violates check constraint "interno_suscripciones_baja"');
+      const antes = ANTES_SUS.get(x.id);
+      if (op === "insert") tablaDe("interno_suscripciones_cambios").push({ id: ++numeroCambio, suscripcion_id: x.id, fecha: x.inicio, importe_antes: null, importe_despues: x.importe_mensual, estado_antes: null, estado_despues: x.estado });
+      else if (antes && (Number(antes.importe) !== Number(x.importe_mensual) || antes.estado !== x.estado)) {
+        tablaDe("interno_suscripciones_cambios").push({ id: ++numeroCambio, suscripcion_id: x.id, fecha: x.estado === "baja" && antes.estado !== "baja" ? x.fin || hoy : hoy,
+          importe_antes: antes.importe, importe_despues: x.importe_mensual, estado_antes: antes.estado, estado_despues: x.estado });
+      }
+      ANTES_SUS.set(x.id, { importe: x.importe_mensual, estado: x.estado });
+      const c = tablaDe("interno_clientes").find((k) => k.id === x.cliente_id);
+      if (c) c.importe_mensual = tablaDe("interno_suscripciones").filter((k) => k.cliente_id === c.id && k.estado === "activa" && k.moneda === "ARS").reduce((a, k) => a + Number(k.importe_mensual), 0);
     }
   },
   interno_impl_etapas: (op, filas, datos) => {
@@ -408,6 +454,24 @@ const palabras = (t) => [...new Set(String(t || "").toLowerCase().normalize("NFD
 
 const FUNCIONES = {
   interno_convertir_en_cliente: convertir,
+  interno_generar_cobros: ({ p_mes }) => {
+    const mes = String(p_mes).slice(0, 7), ini = `${mes}-01`;
+    const fin = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    let n = 0;
+    for (const x of tablaDe("interno_suscripciones")) {
+      if (x.estado !== "activa" || !(Number(x.importe_mensual) > 0) || x.inicio > fin || (x.fin && x.fin < ini)) continue;
+      if (tablaDe("interno_movimientos").some((m) => m.suscripcion_id === x.id && m.periodo === ini && m.estado !== "anulado")) continue;
+      const c = tablaDe("interno_clientes").find((k) => k.id === x.cliente_id);
+      const p = c && tablaDe("interno_prospectos").find((k) => k.id === c.prospecto_id);
+      tablaDe("interno_movimientos").push({ id: uuid(), tipo: "ingreso", concepto: `Suscripción ${x.plan ? `${x.plan} · ` : ""}${p ? p.nombre : ""} · ${mes.slice(5)}/${mes.slice(0, 4)}`,
+        categoria: "suscripcion", importe: x.importe_mensual, moneda: x.moneda, periodo: ini, emision: ini, vencimiento: `${mes}-${String(x.dia_cobro).padStart(2, "0")}`,
+        estado: "pendiente", facturado: false, fijo: false, cliente_id: x.cliente_id, suscripcion_id: x.id, creado_en: new Date().toISOString() });
+      n++;
+    }
+    return n;
+  },
+  interno_buscar_perfil: ({ p_email }) => tablaDe("perfiles").filter((p) => String(p.email || "").toLowerCase() === String(p_email || "").trim().toLowerCase())
+    .map((p) => ({ id: p.id, nombre: p.nombre, email: p.email, es_de_un_comercio: !!p.empresa_id, ya_es_miembro: tablaDe("interno_miembros").some((m) => m.perfil_id === p.id) })),
   interno_ticket_a_producto: ({ p_ticket, p_tipo }) => {
     const t = tablaDe("interno_tickets").find((x) => x.id === p_ticket);
     if (!t) throw new Error("No existe el ticket, o no tenés acceso a soporte");

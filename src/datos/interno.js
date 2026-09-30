@@ -18,7 +18,9 @@ export async function miMembresia() {
   if (!user) return null;
   const { data, error } = await supabase.from("interno_miembros").select("rol, areas, activo").eq("perfil_id", user.id).maybeSingle();
   if (error || !data) return null;
-  return { rol: data.rol, areas: data.areas || [], activo: data.activo !== false };
+  /* perfilId: la sesión de plataforma no trae el id, y el equipo lo
+     necesita para no ofrecerle a nadie editarse a sí mismo. */
+  return { perfilId: user.id, rol: data.rol, areas: data.areas || [], activo: data.activo !== false };
 }
 
 export const puedeArea = (interno, area) =>

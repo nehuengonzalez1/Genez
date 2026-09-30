@@ -10,9 +10,10 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Plus } from "lucide-react";
-import { Card, Boton, Tabs, Cargando, ErrorEstado, Vacio } from "../ui/Base.jsx";
+import { Card, Boton, Tabs, Cargando, ErrorEstado, Vacio, Modal } from "../ui/Base.jsx";
 import { inputCls, TextoDiferido } from "../ui/Campos.jsx";
 import { cargarModelo, guardarPasoModelo } from "../datos/internoClientes.js";
+import { cargarAjustes, guardarAjuste, buscarPerfil, sumarMiembro, editarMiembro } from "../datos/internoFinanzas.js";
 import {
   cargarEtapas, crearEtapa, editarEtapa, cargarListas, crearItemDeLista, editarItemDeLista, cargarMiembros, TIPOS_DE_LISTA,
 } from "../datos/interno.js";
@@ -27,11 +28,12 @@ export function ConfiguracionFounder({ interno, toast }) {
         <h1 className="f-d text-3xl">Configuración</h1>
         <p className="text-sm text-texto-suave mt-1">Cómo está armado Founder. Lo que se cambia acá lo ven todas las pantallas.</p>
       </header>
-      <Tabs value={pestana} onChange={setPestana} items={[{ k: "pipeline", n: "Pipeline" }, { k: "listas", n: "Listas" }, { k: "implementacion", n: "Implementación" }, { k: "equipo", n: "Equipo" }]} />
+      <Tabs value={pestana} onChange={setPestana} items={[{ k: "pipeline", n: "Pipeline" }, { k: "listas", n: "Listas" }, { k: "implementacion", n: "Implementación" }, { k: "genez", n: "Genez y agenda" }, { k: "equipo", n: "Equipo" }]} />
       {pestana === "pipeline" && <Etapas toast={toast} />}
       {pestana === "listas" && <Listas toast={toast} />}
       {pestana === "implementacion" && <ModeloImplementacion toast={toast} />}
-      {pestana === "equipo" && <Equipo interno={interno} />}
+      {pestana === "genez" && <DatosGenez toast={toast} />}
+      {pestana === "equipo" && <Equipo interno={interno} toast={toast} />}
     </div>
   );
 }
@@ -163,36 +165,188 @@ function FilaItem({ i, guardar, alternar }) {
   );
 }
 
-/* ---------- Equipo ---------- */
-function Equipo({ interno }) {
+/* ---------- El equipo ---------- */
+/* Sumar a alguien es darle áreas a una cuenta que ya existe: crear la
+   cuenta (el usuario y la contraseña) es de Supabase Auth, y para un
+   miembro que no es de ningún comercio todavía no hay pantalla. Nadie se
+   cambia a sí mismo (lo impide la base, 0113), y solo el fundador o un
+   administrador suman y editan. */
+const AREAS = [["crm", "CRM y objetivos"], ["agenda", "Agenda"], ["tareas", "Tareas"], ["clientes", "Clientes"], ["soporte", "Soporte"],
+  ["producto", "Producto"], ["docs", "Documentos"], ["marketing", "Marketing"], ["finanzas", "Finanzas"], ["config", "Configuración"]];
+const ROLES = [["fundador", "Fundador"], ["administrador", "Administrador"], ["comercial", "Comercial"], ["marketing", "Marketing"],
+  ["desarrollo", "Desarrollo"], ["soporte", "Soporte"], ["administracion", "Administración"]];
+
+function Equipo({ interno, toast }) {
   const [miembros, setMiembros] = useState(null);
   const [error, setError] = useState("");
-  useEffect(() => { cargarMiembros().then(setMiembros).catch((e) => setError(e.message)); }, []);
+  const [sumando, setSumando] = useState(false);
+  const admin = ["fundador", "administrador"].includes(interno.rol);
+  const leer = () => cargarMiembros().then(setMiembros).catch((e) => setError(e.message));
+  useEffect(() => { leer(); }, []);
   if (error) return <Card><ErrorEstado>{error}</ErrorEstado></Card>;
   if (!miembros) return <Card><Cargando /></Card>;
+  const cambiar = async (m, c) => { try { await editarMiembro(m.perfil_id, c); toast("Guardado."); leer(); } catch (e) { toast(e.message, "mal"); } };
   return (
     <Card className="overflow-hidden">
-      <div className="px-5 py-4 border-b border-borde">
-        <h2 className="f-d text-lg">Equipo interno</h2>
-        <p className="text-sm text-texto-suave mt-1">
-          Quién entra a Founder y a qué áreas. Ser del equipo no da acceso a los datos de ningún comercio. Por ahora el alta de un miembro nuevo se hace desde la base; la pantalla para sumar gente llega cuando haya a quién sumar.
-        </p>
+      <div className="px-5 py-4 border-b border-borde flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <h2 className="f-d text-lg">Equipo interno</h2>
+          <p className="text-sm text-texto-suave mt-1">Quién entra a Founder y a qué áreas. Ser del equipo no da acceso a los datos de ningún comercio: eso lo sigue decidiendo cada comercio.</p>
+        </div>
+        {admin && <Boton onClick={() => setSumando(true)}><Plus size={14} /> Sumar</Boton>}
       </div>
       <ul className="divide-y divide-borde">
-        {miembros.map((m) => (
-          <li key={m.perfil_id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
-            <span className="flex-1 min-w-0">
-              <span className="font-medium">{m.nombre || m.email}</span>
-              <span className="block text-[11px] text-texto-tenue">{m.email}</span>
-            </span>
-            <span className="text-xs uppercase tracking-wider text-texto-suave">{m.rol}</span>
-            <span className="f-m text-xs text-texto-tenue">{m.areas.includes("*") ? "todas las áreas" : m.areas.join(", ")}</span>
-            {!m.activo && <span className="text-xs text-mal">desactivado</span>}
-          </li>
-        ))}
+        {miembros.map((m) => {
+          const yo = m.perfil_id === interno.perfilId;
+          const editable = admin && !yo;
+          const todas = m.areas.includes("*");
+          return (
+            <li key={m.perfil_id} className="px-5 py-3 text-sm space-y-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="flex-1 min-w-0">
+                  <span className="font-medium">{m.nombre || m.email || "Cuenta sin nombre visible"}</span>{yo && <span className="text-[11px] text-acento ml-2">vos</span>}
+                  <span className="block text-[11px] text-texto-tenue">{m.email}</span>
+                </span>
+                {editable ? (
+                  <>
+                    <select value={m.rol} onChange={(e) => cambiar(m, { rol: e.target.value })} className="text-xs bg-transparent border border-borde rounded-md px-1.5 py-1" aria-label="Rol">
+                      {ROLES.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                    </select>
+                    <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={m.activo} onChange={(e) => cambiar(m, { activo: e.target.checked })} className="accent-acento" /> Activo</label>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs uppercase tracking-wider text-texto-suave">{(ROLES.find(([k]) => k === m.rol) || [0, m.rol])[1]}</span>
+                    {!m.activo && <span className="text-xs text-mal">desactivado</span>}
+                  </>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {todas ? <span className="text-[11px] px-2 py-0.5 rounded-md border border-acento text-acento">Todas las áreas</span>
+                  : AREAS.map(([k, n]) => {
+                    const tiene = m.areas.includes(k);
+                    return editable
+                      ? <button key={k} onClick={() => cambiar(m, { areas: tiene ? m.areas.filter((x) => x !== k) : [...m.areas, k] })}
+                          className={`text-[11px] px-2 py-0.5 rounded-md border ${tiene ? "border-acento bg-acento-suave" : "border-borde text-texto-tenue"}`}>{n}</button>
+                      : tiene ? <span key={k} className="text-[11px] px-2 py-0.5 rounded-md border border-borde text-texto-suave">{n}</span> : null;
+                  })}
+              </div>
+            </li>
+          );
+        })}
       </ul>
-      <p className="px-5 py-3 border-t border-borde text-[11px] text-texto-tenue">Tu rol: {interno.rol}.</p>
+      <p className="px-5 py-3 border-t border-borde text-[11px] text-texto-tenue">
+        {admin ? "Nadie se cambia a sí mismo, tampoco el fundador: tus áreas y tu rol los cambia otro administrador." : "Solo el fundador o un administrador suman gente y cambian áreas."}
+      </p>
+      {sumando && <SumarMiembro toast={toast} onCerrar={() => setSumando(false)} onListo={() => { setSumando(false); leer(); }} />}
     </Card>
+  );
+}
+
+function SumarMiembro({ onCerrar, onListo, toast }) {
+  const [email, setEmail] = useState("");
+  const [encontrado, setEncontrado] = useState(undefined);
+  const [rol, setRol] = useState("comercial");
+  const [areas, setAreas] = useState(["crm", "agenda", "tareas"]);
+  const buscar = async () => {
+    if (!email.trim()) return;
+    try { setEncontrado(await buscarPerfil(email.trim())); } catch (e) { toast(e.message, "mal"); }
+  };
+  const sumar = async () => {
+    if (!areas.length) return toast("Elegí al menos un área.", "mal");
+    try { await sumarMiembro(encontrado.id, rol, areas); toast("Sumado al equipo."); onListo(); } catch (e) { toast(e.message, "mal"); }
+  };
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5 space-y-3">
+        <h3 className="f-d text-xl">Sumar al equipo</h3>
+        <p className="text-sm text-texto-suave">Con el mail de una cuenta que ya existe. La cuenta (usuario y contraseña) se crea en Supabase, en Authentication.</p>
+        <div className="flex gap-2">
+          <input value={email} onChange={(e) => { setEmail(e.target.value); setEncontrado(undefined); }} onKeyDown={(e) => { if (e.key === "Enter") buscar(); }}
+            placeholder="mail@ejemplo.com" type="email" autoFocus className={`${inputCls} mt-0`} />
+          <Boton variant="ghost" onClick={buscar}>Buscar</Boton>
+        </div>
+        {encontrado === null && <p className="text-sm text-mal">No hay ninguna cuenta con ese mail.</p>}
+        {encontrado && (
+          <div className="space-y-3">
+            <p className="text-sm"><span className="font-medium">{encontrado.nombre || encontrado.email}</span> <span className="text-texto-tenue">{encontrado.email}</span></p>
+            {encontrado.ya_es_miembro && <p className="text-sm text-ojo">Ya es del equipo: sus áreas se cambian desde la lista.</p>}
+            {encontrado.es_de_un_comercio && !encontrado.ya_es_miembro && (
+              <p className="text-sm text-ojo">Es la cuenta de alguien de un comercio. Sumarla no le da nada nuevo sobre los comercios, pero va a ver lo interno de las áreas que le des.</p>
+            )}
+            {!encontrado.ya_es_miembro && (
+              <>
+                <label className="block"><span className="block text-xs text-texto-suave">Rol</span>
+                  <select value={rol} onChange={(e) => setRol(e.target.value)} className={inputCls}>{ROLES.filter(([k]) => k !== "fundador").map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
+                </label>
+                <div>
+                  <span className="block text-xs text-texto-suave mb-1">Áreas</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {AREAS.map(([k, n]) => (
+                      <button key={k} onClick={() => setAreas(areas.includes(k) ? areas.filter((x) => x !== k) : [...areas, k])}
+                        className={`text-[11px] px-2 py-0.5 rounded-md border ${areas.includes(k) ? "border-acento bg-acento-suave" : "border-borde text-texto-tenue"}`}>{n}</button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        <div className="flex justify-end gap-2">
+          <Boton variant="ghost" onClick={onCerrar}>Cancelar</Boton>
+          {encontrado && !encontrado.ya_es_miembro && <Boton onClick={sumar}>Sumar</Boton>}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- Los datos de Genez y la agenda ---------- */
+/* Pocos datos, guardados como clave y valor (interno_ajustes). Los de la
+   empresa todavía no los usa ningún comprobante: quedan listos para
+   cuando haya facturación propia. */
+const CAMPOS_EMPRESA = [["razon_social", "Razón social"], ["cuit", "CUIT"], ["condicion_iva", "Condición frente al IVA"], ["domicilio", "Domicilio"],
+  ["email", "Email"], ["telefono", "Teléfono"], ["web", "Web"]];
+
+function DatosGenez({ toast }) {
+  const [a, setA] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => { cargarAjustes().then(setA).catch((e) => setError(e.message)); }, []);
+  if (error) return <Card><ErrorEstado>{error}</ErrorEstado></Card>;
+  if (!a) return <Card><Cargando /></Card>;
+  const empresa = a.empresa || {}, agenda = a.agenda || {};
+  const guardarEmpresa = async (k, v) => {
+    try { const valor = { ...empresa, [k]: v }; await guardarAjuste("empresa", valor); setA({ ...a, empresa: valor }); toast("Guardado."); } catch (e) { toast(e.message, "mal"); }
+  };
+  const guardarAgenda = async (k, v) => {
+    const valor = { ...agenda, [k]: Number(v) };
+    if (!(valor.hora_inicio >= 0 && valor.hora_fin <= 24 && valor.hora_fin > valor.hora_inicio)) return toast("La agenda tiene que terminar después de empezar, entre las 0 y las 24.", "mal");
+    try { await guardarAjuste("agenda", valor); setA({ ...a, agenda: valor }); toast("Guardado. La agenda lo toma al volver a abrirla."); } catch (e) { toast(e.message, "mal"); }
+  };
+  return (
+    <div className="space-y-4">
+      <Card className="p-5 space-y-3">
+        <div>
+          <h2 className="f-d text-lg">Genez, la empresa</h2>
+          <p className="text-sm text-texto-suave mt-1">Los datos de Genez para cuando haya comprobantes propios. Todavía no los usa nada: no hay facturación de Genez conectada.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {CAMPOS_EMPRESA.map(([k, n]) => (
+            <label key={k}><span className="block text-xs text-texto-suave">{n}</span><TextoDiferido valor={empresa[k]} onGuardar={(v) => guardarEmpresa(k, v)} className={inputCls} /></label>
+          ))}
+        </div>
+      </Card>
+      <Card className="p-5 space-y-3">
+        <h2 className="f-d text-lg">Agenda</h2>
+        <div className="grid grid-cols-2 gap-3 max-w-sm">
+          <label><span className="block text-xs text-texto-suave">Empieza a las</span>
+            <select value={agenda.hora_inicio ?? 7} onChange={(e) => guardarAgenda("hora_inicio", e.target.value)} className={inputCls}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{h}:00</option>)}</select></label>
+          <label><span className="block text-xs text-texto-suave">Termina a las</span>
+            <select value={agenda.hora_fin ?? 22} onChange={(e) => guardarAgenda("hora_fin", e.target.value)} className={inputCls}>{Array.from({ length: 24 }, (_, h) => h + 1).map((h) => <option key={h} value={h}>{h}:00</option>)}</select></label>
+        </div>
+        <p className="text-[11px] text-texto-tenue">Las horas que muestra la grilla del día y de la semana. Los avisos son dentro de Founder (Mi día, vencidos); avisos por mail o al teléfono necesitan un servicio que todavía no está conectado.</p>
+      </Card>
+    </div>
   );
 }
 
