@@ -18,7 +18,7 @@ import { supabase } from "./supabase.js";
 const aCamel = (s) => s.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
 const aSnake = (s) => s.replace(/[A-Z]/g, (l) => "_" + l.toLowerCase());
 const FECHAS = new Set(["creadoEn", "actualizadoEn", "archivadoEn", "ultimoContacto", "proximoContacto", "fecha", "proximaFecha",
-  "vence", "completadaEn", "inicio", "fin", "fechaSeguimiento", "ganadaEn", "cerradaEn", "clienteDesde", "resueltoEn", "cerradoEn", "completadoEn", "terminadoEn", "lanzadaEn"]);
+  "vence", "completadaEn", "inicio", "fin", "fechaSeguimiento", "ganadaEn", "cerradaEn", "clienteDesde", "resueltoEn", "cerradoEn", "completadoEn", "terminadoEn", "lanzadaEn", "publicadoEn"]);
 
 export function aApp(fila) {
   if (!fila) return fila;
