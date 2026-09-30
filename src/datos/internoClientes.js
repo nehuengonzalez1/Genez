@@ -27,25 +27,27 @@ const COLUMNAS = {
     "prioridad", "gravedad", "estado", "responsableId", "solucion", "archivadoEn"],
 };
 
-function aBase(tabla, obj) {
+/* Exportada: la usa también internoProducto.js, con sus propias listas. */
+export function conColumnas(lista, obj) {
   const o = {};
-  for (const k of COLUMNAS[tabla]) {
+  for (const k of lista) {
     if (!(k in (obj || {})) || obj[k] === undefined) continue;
     const v = obj[k];
     o[aSnake(k)] = v instanceof Date ? v.toISOString() : v === "" ? null : v;
   }
   return o;
 }
+const aBase = (tabla, obj) => conColumnas(COLUMNAS[tabla], obj);
 /* aApp convierte "fecha" a Date (en la línea de tiempo es un momento);
    acá las fechas sin hora quedan como vinieron. */
-const aAppDia = (fila) => {
+export const aAppDia = (fila) => {
   if (!fila) return fila;
   const o = aApp(fila);
   for (const k of SIN_HORA) if (k in fila && fila[k] && !String(fila[k]).includes("T")) o[k] = fila[k];
   return o;
 };
 
-const traducir = (error) => {
+export const traducir = (error) => {
   if (!error) return null;
   if (/interno_tickets_solucion/.test(error.message || "")) return new Error("Para resolverlo o cerrarlo, escribí la solución.");
   if (/interno_impl_etapas_bloqueo/.test(error.message || "")) return new Error("Una etapa bloqueada tiene que decir qué la bloquea.");

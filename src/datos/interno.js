@@ -38,6 +38,7 @@ export const TIPOS_DE_LISTA = [
   { k: "modulo", n: "Módulos (para soporte)" },
   { k: "categoria_ticket", n: "Categorías de tickets" },
   { k: "canal_ticket", n: "Canales de soporte" },
+  { k: "tipo_documento", n: "Tipos de documento" },
 ];
 
 const traducir = (error, que) => {
