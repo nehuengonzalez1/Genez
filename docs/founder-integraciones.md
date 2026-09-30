@@ -16,7 +16,7 @@ probablemente obligue a juntar funciones o a pasar de plan.
 
 | Integración | Dónde entra | Qué hace falta | Hoy |
 |---|---|---|---|
-| **WhatsApp Business** | `interno_actividades` (tipo `whatsapp`), `interno_ticket_mensajes` (tipo `del_cliente` / `al_cliente`) | Cuenta de WhatsApp Business API (Meta), número verificado, webhook para mensajes entrantes | Links `wa.me` desde la ficha; lo que se habla se registra a mano |
+| **WhatsApp Business** | `interno_actividades` (tipo `whatsapp`), `interno_ticket_mensajes` (tipo `del_cliente` / `al_cliente`) | Cuenta de WhatsApp Business API (Meta), número verificado, webhook para mensajes entrantes | **Conectado en código desde 0120** (Conversaciones, Configuración → WhatsApp): recibir y contestar dentro de la ventana de 24 h. Falta que Meta termine el alta y cargar las variables en Vercel. Sin plantillas ni envíos salientes |
 | **Email** | `interno_actividades` (tipo `email`), `interno_ticket_mensajes` | Un proveedor de envío (y de recepción, para tickets por mail) con dominio verificado | Link `mailto:`; se registra a mano |
 | **Google Calendar** | `interno_eventos` (tiene `zona_horaria`, `inicio`, `fin`, `link`) | OAuth de Google por usuario, y decidir quién manda si el mismo evento cambia en los dos lados | Agenda propia |
 | **Google Drive / almacenamiento** | `interno_adjuntos` (ruta, tipo, tamaño) | OAuth y decidir si Drive reemplaza al bucket o se suma | Bucket privado `interno` de Supabase, por área |
@@ -61,7 +61,9 @@ registrado.
   general. Un bot que atiende las consultas del propio negocio sigue permitido.
 - Hace falta: portfolio de Meta Business verificado, un número que no esté en la app de
   WhatsApp, un token permanente de usuario de sistema, el secreto de la app y el token
-  de verificación del webhook. Nada de esto existe todavía.
+  de verificación del webhook. El código está (0120, ver ARQUITECTURA.md → WhatsApp);
+  del lado de Meta, al 30/09 faltaba el PIN de dos pasos, el medio de pago, el usuario
+  del sistema con su token y terminar la verificación del negocio.
 
 **Google Places:** los términos (sección 14 de los términos por servicio) solo dejan
 guardar el `place_id` para siempre y las coordenadas 30 días; nombre, teléfono y

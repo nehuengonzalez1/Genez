@@ -75,6 +75,8 @@ node scripts/probar-founder-finanzas.mjs  # 0118: cuentas, movimientos, suscripc
 node scripts/probar-indicadores-genez.mjs  # sin base: cada indicador financiero contra su definición, y que el MRR cierre
 node scripts/probar-founder-prospector.mjs  # 0119: proveedores, zonas, hallazgos sin duplicar, pasar al CRM o vincular sin pisar, áreas
 node scripts/probar-osm.mjs [--en-vivo]  # sin base: el conector de OpenStreetMap; --en-vivo hace un pedido chico a Overpass
+node scripts/probar-founder-whatsapp.mjs  # 0120: webhook sin duplicar, estados que no retroceden, ventana de 24 h, baja, lo que el navegador no puede escribir
+node scripts/probar-whatsapp.mjs  # sin base ni red: la firma de Meta, la verificación del webhook y lo que contesta api/founder.js antes de la base
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1623,6 +1625,58 @@ planilla) y nunca se vincula solo; lo "seguro" no entra en el paso masivo.
 en su propio archivo: se descarga solo al abrirlo. Los colores salen de las variables
 del tema. En la pantalla de pruebas Overpass contesta con datos fijos
 (`src/pruebas/supabaseFalso.js`); los mosaicos del mapa sí son los reales.
+
+### WhatsApp (0120)
+
+`api/founder.js` (la función número 12 de las 12 que deja el plan Hobby: todo lo de
+Founder que necesite servidor va ahí, como otra `accion`), `api/_whatsapp.js`,
+`src/datos/internoWhatsapp.js`, la sección Conversaciones, Configuración → WhatsApp, y
+`scripts/probar-founder-whatsapp.mjs` y `probar-whatsapp.mjs`. Es la etapa 3 de la
+extensión: recibir y contestar por la Cloud API oficial. No hay plantillas, envíos
+masivos ni bot todavía.
+
+**Una función, tres llamadores.** Un GET con `hub.mode` es Meta verificando el webhook;
+un POST con `X-Hub-Signature-256` es Meta avisando; un POST con `Authorization` es
+Founder (enviar, estado, registrar, suscribir). La URL del webhook es
+`https://genez.com.ar/api/founder`, sin rutas ni rewrites.
+
+**La firma se calcula sobre los bytes crudos.** Sobre el JSON rearmado no coincide
+nunca (Meta escapa los acentos). Por eso el webhook no toca `req.body`: en Vercel el
+stream sigue ahí mientras nadie lo lea, y en desarrollo el middleware de
+`vite.config.js` lo deja en `req.cuerpoCrudo`. Sin firma válida no se guarda nada.
+
+**El navegador no escribe mensajes.** Tres funciones de la base que solo ejecuta la
+`service_role`: `interno_wa_procesar` (el webhook), `interno_wa_preparar_envio` y
+`interno_wa_resultado_envio`. Si el navegador pudiera escribir un mensaje, podría
+escribir uno "entregado" que nunca salió. Quién pide el envío lo dice su token, y si es
+del equipo con el área `mensajes` lo decide `interno_es_miembro`, la misma regla que
+`es_interno` pero con el id que pasa el servidor (la service_role no tiene uid). De la
+conversación, el navegador solo cambia la gestión (estado, asignada, prospecto,
+consentimiento, notas): permisos por columna.
+
+**Meta reintenta y desordena.** `wamid` es único (un reintento no duplica ni suma no
+leídos), y un estado nunca retrocede (`interno_wa_rango`): "entregado" después de
+"leído" no lo pisa. La hora de cada mensaje es la de Meta, no la del webhook. Un cuerpo
+que no se puede leer queda en `interno_wa_eventos` con su error y se contesta 200, para
+que Meta no lo reintente siete días; si la base no contesta, 500, para que sí.
+
+**La ventana de 24 horas y la baja las controla la base**, no la pantalla: fuera de la
+ventana no se prepara ningún envío, y a quien escribió BAJA o STOP (solos, no dentro de
+una frase) no le sale nada más. Un envío lleva una clave de idempotencia: un doble clic
+o un reintento no manda dos. Si la misma clave vuelve, no se reintenta contra Meta,
+porque no hay forma de saber si el primero llegó.
+
+**El prospecto se sugiere, no se engancha.** La vista sugiere uno solo si hay uno solo
+con ese teléfono (`tel_norm`); con dos, ninguno.
+
+**Los secretos solo en Vercel**: `WHATSAPP_TOKEN`, `WHATSAPP_APP_SECRET`,
+`WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_PIN`. Los ids del número y de la cuenta no son
+secretos y están en `interno_ajustes` (clave `whatsapp`). Configuración → WhatsApp dice
+si cada variable está, nunca cuánto vale.
+
+No hay tiempo real: la bandeja se relee cada 8 s y el hilo cada 5 s mientras la pestaña
+está a la vista. El número argentino se manda como llega (`549…`): Meta ya no pide
+sacar el 9.
 
 ## La cuenta corriente
 

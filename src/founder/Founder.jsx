@@ -17,7 +17,7 @@
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
-import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Boxes, BookOpen, Target, Megaphone, BarChart3, Wallet, Compass, Settings, ArrowLeftRight, LogOut } from "lucide-react";
+import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Boxes, BookOpen, Target, Megaphone, BarChart3, Wallet, Compass, MessageCircle, Settings, ArrowLeftRight, LogOut } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { puedeArea } from "../datos/interno.js";
 import { InicioFounder } from "./Inicio.jsx";
@@ -38,12 +38,14 @@ import { Marketing, FichaContenido } from "./Marketing.jsx";
 import { Informes } from "./Informes.jsx";
 import { Finanzas } from "./Finanzas.jsx";
 import { Prospector } from "./Prospector.jsx";
+import { Conversaciones } from "./Conversaciones.jsx";
 
 const SECCIONES = [
   { k: "inicio", n: "Inicio", i: Home, area: null },
   { k: "prospectos", n: "Prospectos", i: Users, area: "crm" },
   { k: "prospector", n: "Prospector", i: Compass, area: "crm" },
   { k: "pipeline", n: "Pipeline", i: Columns3, area: "crm" },
+  { k: "conversaciones", n: "Conversaciones", i: MessageCircle, area: "mensajes" },
   { k: "tareas", n: "Tareas", i: ListChecks, area: "tareas" },
   { k: "agenda", n: "Agenda", i: CalendarDays, area: "agenda" },
   { k: "objetivos", n: "Objetivos", i: Target, area: "crm" },
@@ -152,6 +154,7 @@ export default function Founder({ sesion, onComercios, onSalir }) {
         {!encima && <>
           {actual && actual.k === "inicio" && <InicioFounder sesion={sesion} ir={setSeccion} abrir={abrir} abrirCliente={abrirCliente} toast={toast} nuevo={crear} />}
           {actual && actual.k === "prospectos" && <Prospectos key={nuevoQue || "p"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevoQue === "prospecto"} />}
+          {actual && actual.k === "conversaciones" && <Conversaciones interno={interno} abrir={abrir} toast={toast} />}
           {actual && actual.k === "prospector" && <Prospector abrir={abrir} toast={toast} />}
           {actual && actual.k === "pipeline" && <Pipeline abrir={abrir} abrirCliente={abrirCliente} puedeClientes={puedeArea(interno, "clientes")} toast={toast} />}
           {actual && actual.k === "tareas" && <Tareas key={nuevoQue || "t"} abrir={abrir} toast={toast} nuevaAlAbrir={nuevoQue === "tarea"} />}
