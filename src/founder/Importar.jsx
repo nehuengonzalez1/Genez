@@ -18,6 +18,7 @@ import { inputCls } from "../ui/Campos.jsx";
 import { cargarPlanilla } from "../utils/planilla.js";
 import { CAMPOS, filaDeTitulos, adivinarColumnas, armarFilas } from "../utils/importarProspectos.js";
 import { cargarProspectos, importarProspectos } from "../datos/internoCrm.js";
+import { registrarPlanilla } from "../datos/internoProspector.js";
 
 async function leerFilas(archivo) {
   const XLSX = await cargarPlanilla();
@@ -69,7 +70,12 @@ export function ImportarProspectos({ de, onCerrar, onListo, toast }) {
   const confirmar = async () => {
     setTrabajando(`Creando 0 de ${aCrear.length}…`);
     try {
-      const n = await importarProspectos(aCrear.map((r) => r.datos), (k) => setTrabajando(`Creando ${k} de ${aCrear.length}…`));
+      /* El origen queda en cada prospecto, y la planilla en el historial de
+         búsquedas del prospector (0119). */
+      const ahora = new Date();
+      const n = await importarProspectos(aCrear.map((r) => ({ ...r.datos, fuente: r.datos.fuente || "planilla", origenProveedor: "planilla", origenObtenidoEn: ahora })),
+        (k) => setTrabajando(`Creando ${k} de ${aCrear.length}…`));
+      await registrarPlanilla(archivo, revisadas.length, n).catch(() => {});
       toast(`${n} ${n === 1 ? "prospecto importado" : "prospectos importados"}.`);
       onListo();
     } catch (e) {

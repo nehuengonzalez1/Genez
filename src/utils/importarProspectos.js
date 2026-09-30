@@ -87,6 +87,33 @@ function enLista(valor, items) {
 
 const INTERES = { frio: "frio", tibio: "tibio", caliente: "caliente", bajo: "frio", medio: "tibio", alto: "caliente" };
 
+/* ¿Este comercio ya está en el CRM? Para el prospector: compara un
+   hallazgo contra los prospectos (activos y archivados) con las mismas
+   reglas que la planilla, más un nivel "parecido" cuando un nombre
+   contiene al otro ("Panadería La Espiga" y "La Espiga"). Es una
+   sugerencia: nunca vincula solo. Devuelve { prospecto, motivo, seguro }
+   o null. */
+export function duplicadoDe(h, prospectos) {
+  const tel = normTel(h.telefono) || normTel(h.whatsapp);
+  const mail = norm(h.email);
+  const nom = norm(h.nombre);
+  const lugar = norm(h.localidad);
+  let parecido = null;
+  for (const p of prospectos) {
+    if (tel && (normTel(p.telefono) === tel || normTel(p.whatsapp) === tel)) return { prospecto: p, motivo: "mismo teléfono", seguro: true };
+    if (mail && norm(p.email) === mail) return { prospecto: p, motivo: "mismo mail", seguro: true };
+    const pn = norm(p.nombre);
+    if (!nom || !pn) continue;
+    /* Con las dos localidades cargadas y distintas es otro comercio (u
+       otra sucursal): ni seguro ni parecido. */
+    if (lugar && norm(p.localidad) && norm(p.localidad) !== lugar) continue;
+    if (pn === nom) return { prospecto: p, motivo: "mismo nombre", seguro: true };
+    const corto = pn.length < nom.length ? pn : nom, largo = pn.length < nom.length ? nom : pn;
+    if (!parecido && corto.length >= 6 && largo.includes(corto)) parecido = { prospecto: p, motivo: "nombre parecido", seguro: false };
+  }
+  return parecido;
+}
+
 /* Las filas listas para revisar.
    filas: la planilla como arreglo de arreglos; desde: la fila de títulos;
    mapa: { campo: índice }; listas: { rubro: [...], zona: [...], fuente: [...] };
