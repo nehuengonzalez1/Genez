@@ -274,8 +274,8 @@ select o.*,
    pasan por las políticas: sin 'crm', lo originado da cero. */
 create or replace view interno_contenidos_vista with (security_invoker = true) as
 select c.*, g.tema as grabacion_tema,
-       m7.visualizaciones as vis_7d, m7.interacciones as int_7d, m7.consultas as consultas_7d,
-       m30.visualizaciones as vis_30d, m30.interacciones as int_30d, m30.consultas as consultas_30d,
+       m7.visualizaciones as vis_semana, m7.interacciones as int_semana, m7.consultas as consultas_semana,
+       m30.visualizaciones as vis_mes, m30.interacciones as int_mes, m30.consultas as consultas_mes,
        (select count(*) from interno_prospectos p where p.contenido_id = c.id)::int as prospectos_originados,
        (select count(distinct a.prospecto_id) from interno_actividades a join interno_prospectos p on p.id = a.prospecto_id
          where p.contenido_id = c.id and a.tipo = 'demo')::int as demos_originadas,

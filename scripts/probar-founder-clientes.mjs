@@ -40,6 +40,9 @@ const como = async (u) => {
 try {
   await c.query("begin");
   await c.query("set local lock_timeout = '3s'");
+  /* Si la prueba se corta a mitad de camino, el pooler puede dejar la sesión
+     abierta y con sus bloqueos: la base la cierra sola (y la deshace). */
+  await c.query("set local idle_in_transaction_session_timeout = '60s'");
   if (!(await una("select to_regclass('public.interno_clientes') t")).t) {
     await c.query(readFileSync("supabase/migrations/0115_interno_clientes.sql", "utf8"));
   }
@@ -80,17 +83,23 @@ try {
   const cam = await una("select resultado from interno_actividades where prospecto_id = $1 and tipo = 'cambio_etapa'", [cl2.prospecto_id]);
   decir(cam && /Ganado/.test(cam.resultado), `y su oportunidad ganada queda en la línea de tiempo: ${cam && cam.resultado}`);
   const t2 = (await todas("select pasos from interno_impl_etapas where cliente_id = $1", [cid2])).flatMap((e) => e.pasos.map((s) => s.titulo));
-  decir(t2.includes("Catálogo de productos con precio") && !t2.includes("Profesionales y sus horarios"), "sus pasos salen de los módulos del comercio: catálogo sí, horarios de profesionales no");
+  /* Los módulos de la réplica cambian cuando Nehuen prueba: lo esperado se
+     arma con los que tiene hoy, no con una lista fija. */
+  const modulosReplica = (await una("select modulos from empresas where id = $1", [REPLICA])).modulos;
+  const conModulos = await todas("select titulo, modulos from interno_impl_modelo where activo and cardinality(modulos) > 0 and cardinality(rubros) = 0");
+  const bien = conModulos.every((m) => t2.includes(m.titulo) === m.modulos.some((x) => modulosReplica.includes(x)));
+  decir(bien && conModulos.some((m) => !m.modulos.some((x) => modulosReplica.includes(x))),
+    `sus pasos salen de los módulos del comercio (${modulosReplica.join(", ")}): cada paso con módulos está si y solo si tiene alguno`);
   x = await intentar("select interno_cliente_desde_comercio($1, '{}')", [REPLICA]);
   decir(x.e && /ya es cliente/.test(x.e.message), "un comercio tiene un solo cliente");
   decir(!(await todas("select id from interno_comercios_libres()")).some((r) => r.id === REPLICA), "y ya no aparece entre los libres");
   const com = (await una("select interno_comercio($1) j", [REPLICA])).j;
-  decir(com && Array.isArray(com.modulos) && com.modulos.includes("productos") && Array.isArray(com.sucursales) && !("config" in com),
+  decir(com && Array.isArray(com.modulos) && JSON.stringify(com.modulos) === JSON.stringify(modulosReplica) && Array.isArray(com.sucursales) && !("config" in com),
     "la ficha lee del comercio los módulos y las sucursales, y nada más (ni la configuración)");
 
   console.log("\nEl modelo de implementación");
   decir((await una("select interno_impl_armar($1) n", [cid2])).n === 0, "volver a armar no duplica pasos");
-  await c.query("insert into interno_impl_modelo (etapa, titulo, modulos) values ('capacitacion', 'Paso nuevo de prueba', '{stock}')");
+  await c.query("insert into interno_impl_modelo (etapa, titulo, modulos) values ('capacitacion', 'Paso nuevo de prueba', $1)", [[modulosReplica[0]]]);
   decir((await una("select interno_impl_armar($1) n", [cid2])).n === 1, "un paso nuevo del modelo se suma a quien le corresponde");
   decir((await una("select interno_impl_armar($1) n", [cid])).n === 0, "y no a quien no tiene ese módulo");
 

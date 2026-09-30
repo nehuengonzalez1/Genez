@@ -38,6 +38,9 @@ const valor = async (m, a = "2031-03-01", b = "2031-03-31") => Number((await una
 try {
   await c.query("begin");
   await c.query("set local lock_timeout = '3s'");
+  /* Si la prueba se corta a mitad de camino, el pooler puede dejar la sesión
+     abierta y con sus bloqueos: la base la cierra sola (y la deshace). */
+  await c.query("set local idle_in_transaction_session_timeout = '60s'");
   if (!(await una("select to_regclass('public.interno_objetivos') t")).t) {
     await c.query(readFileSync("supabase/migrations/0117_interno_marketing.sql", "utf8"));
   }
@@ -96,8 +99,8 @@ try {
   x = await intentar("insert into interno_contenido_metricas (contenido_id, momento, visualizaciones) values ($1, '30d', -5)", [k.id]);
   decir(x.e && /positivas/.test(x.e.message), "sin números negativos");
   await c.query("update interno_prospectos set contenido_id = $1 where id = $2", [k.id, p.id]);
-  const kv = await una("select vis_7d, prospectos_originados, demos_originadas, clientes_originados from interno_contenidos_vista where id = $1", [k.id]);
-  decir(kv.vis_7d === 1200 && kv.prospectos_originados === 1 && kv.demos_originadas === 1 && kv.clientes_originados === 1,
+  const kv = await una("select vis_semana, prospectos_originados, demos_originadas, clientes_originados from interno_contenidos_vista where id = $1", [k.id]);
+  decir(kv.vis_semana === 1200 && kv.prospectos_originados === 1 && kv.demos_originadas === 1 && kv.clientes_originados === 1,
     "el contenido muestra sus métricas cargadas y lo que originó: 1 prospecto, 1 demo, 1 cliente");
   const g = await una("insert into interno_grabaciones (tema, fecha) values ('Grabación de prueba', '2031-03-02 15:00-03') returning id");
   await c.query("update interno_contenidos set grabacion_id = $1 where id = $2", [g.id, k.id]);

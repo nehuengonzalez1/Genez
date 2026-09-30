@@ -37,6 +37,9 @@ const como = async (u) => {
 try {
   await c.query("begin");
   await c.query("set local lock_timeout = '3s'");
+  /* Si la prueba se corta a mitad de camino, el pooler puede dejar la sesión
+     abierta y con sus bloqueos: la base la cierra sola (y la deshace). */
+  await c.query("set local idle_in_transaction_session_timeout = '60s'");
   if (!(await una("select to_regclass('public.interno_prospectos') t")).t) {
     await c.query(readFileSync("supabase/migrations/0114_interno_crm.sql", "utf8"));
   }
