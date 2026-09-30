@@ -3,6 +3,7 @@
     { "source": "/api/anthropic/:ruta*", "destination": "/api/anthropic" },
     { "source": "/cliente", "destination": "/cliente.html" },
     { "source": "/landing", "destination": "/landing.html" },
+    { "source": "/login", "destination": "/index.html" },
     { "source": "/empezar", "destination": "/landing.html" }
   ],
   "crons": [
