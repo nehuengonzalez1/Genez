@@ -197,6 +197,7 @@ const DEFECTOS = {
   interno_adjuntos: { archivado_en: null },
   interno_impl_modelo: { rubros: [], modulos: [], activo: true, orden: 0 },
   interno_cuentas: { tipo: "banco", moneda: "ARS", saldo_inicial: 0, activa: true },
+  interno_hallazgos: { datos: {}, prospecto_id: null, descartado_en: null },
   interno_suscripciones: { moneda: "ARS", estado: "activa", dia_cobro: 10 },
   interno_movimientos: { moneda: "ARS", estado: "pendiente", facturado: false, fijo: false },
   interno_planes: { estado: "activo", archivado_en: null },
@@ -454,6 +455,44 @@ const palabras = (t) => [...new Set(String(t || "").toLowerCase().normalize("NFD
 
 const FUNCIONES = {
   interno_convertir_en_cliente: convertir,
+  /* 0119, en chico: guardar sin duplicar por proveedor e id, y pasar al CRM. */
+  interno_guardar_hallazgos: ({ p_busqueda, p_items }) => {
+    const b = tablaDe("interno_busquedas").find((x) => x.id === p_busqueda);
+    if (!b) throw new Error("No existe la búsqueda");
+    const out = [];
+    for (const it of p_items || []) {
+      if (!String(it.nombre || "").trim() || !it.externo_id) continue;
+      let h = tablaDe("interno_hallazgos").find((x) => x.proveedor === b.proveedor && x.externo_id === it.externo_id);
+      const nuevo = !h;
+      const campos = { ...it, web: /^https?:\/\//i.test(it.web || "") ? it.web : null, busqueda_id: p_busqueda, visto_en: new Date().toISOString() };
+      if (h) Object.assign(h, campos, { zona: h.zona || it.zona });
+      else { h = { id: uuid(), proveedor: b.proveedor, prospecto_id: null, descartado_en: null, obtenido_en: new Date().toISOString(), creado_en: new Date().toISOString(), ...campos }; tablaDe("interno_hallazgos").push(h); }
+      out.push({ hallazgo_id: h.id, nuevo });
+    }
+    Object.assign(b, { resultados: out.length, nuevos: out.filter((x) => x.nuevo).length });
+    return out;
+  },
+  interno_incorporar_hallazgo: ({ p_hallazgo, p_prospecto }) => {
+    const h = tablaDe("interno_hallazgos").find((x) => x.id === p_hallazgo);
+    if (!h) throw new Error("No existe el hallazgo");
+    if (h.prospecto_id) throw new Error("Ya está en el CRM");
+    let p;
+    if (!p_prospecto) {
+      p = { id: uuid(), nombre: h.nombre, rubro: h.rubro, zona: h.zona, localidad: h.localidad, direccion: h.direccion, telefono: h.telefono, email: h.email,
+        fuente: h.proveedor === "osm" ? "openstreetmap" : "planilla", origen_proveedor: h.proveedor, origen_externo_id: h.externo_id, origen_obtenido_en: h.obtenido_en,
+        origen_verificado_en: null, archivado_en: null, creado_en: new Date().toISOString(), modulos: [], etiquetas: [], campos_extra: {} };
+      tablaDe("interno_prospectos").push(p);
+      DISPARADORES.interno_prospectos("insert", [p]);
+    } else {
+      p = tablaDe("interno_prospectos").find((x) => x.id === p_prospecto);
+      if (!p) throw new Error("No existe el prospecto");
+      for (const k of ["rubro", "zona", "localidad", "direccion", "telefono", "email"]) if (p[k] == null || p[k] === "") p[k] = h[k];
+      p.origen_proveedor = p.origen_proveedor || h.proveedor; p.origen_externo_id = p.origen_externo_id || h.externo_id; p.origen_obtenido_en = p.origen_obtenido_en || h.obtenido_en;
+    }
+    h.prospecto_id = p.id;
+    tablaDe("interno_actividades").push({ id: uuid(), prospecto_id: p.id, tipo: "nota", fecha: new Date().toISOString(), resultado: `Encontrado en OpenStreetMap. Datos sin verificar.`, datos: {} });
+    return p.id;
+  },
   interno_generar_cobros: ({ p_mes }) => {
     const mes = String(p_mes).slice(0, 7), ini = `${mes}-01`;
     const fin = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10);
@@ -579,6 +618,28 @@ export const supabase = {
     }),
   },
 };
+
+/* ============================================================
+   OpenStreetMap de mentira
+   ============================================================
+   El prospector le pide a Overpass desde el navegador. En la pantalla
+   de pruebas contesta esto, siempre igual: la prueba no depende de que
+   el servidor público esté libre (el 29/09 devolvió 504), y no le suma
+   pedidos. Comercios inventados, con ids que no existen en OSM. */
+if (typeof window !== "undefined" && !window.__genezOverpassFalso) {
+  window.__genezOverpassFalso = true;
+  const original = window.fetch.bind(window);
+  window.fetch = (url, opciones) => {
+    if (!String(url).includes("overpass-api.de")) return original(url, opciones);
+    registro.push({ overpass: true });
+    const elementos = [
+      { type: "node", id: 9000001, lat: -34.6071, lon: -58.5655, tags: { name: "Almacén de prueba El Sol", shop: "convenience", phone: "011 4750-0001", "addr:street": "Calle de prueba", "addr:housenumber": "100" } },
+      { type: "node", id: 9000002, lat: -34.6080, lon: -58.5670, tags: { name: "Panadería de prueba", shop: "bakery", website: "panaderia.test" } },
+      { type: "way", id: 9000003, center: { lat: -34.6065, lon: -58.5640 }, tags: { name: "Kiosco de prueba 24", shop: "kiosk", phone: "1100000000" } },
+    ];
+    return Promise.resolve(new Response(JSON.stringify({ elements: elementos }), { status: 200, headers: { "Content-Type": "application/json" } }));
+  };
+}
 
 /* ============================================================
    Recorrer todas las pestañas: await window.__genezRecorrer()

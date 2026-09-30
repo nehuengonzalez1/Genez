@@ -49,7 +49,7 @@ function founder(usuario) {
   const ETAPAS = [["Nuevo", 5, "abierta"], ["Para investigar", 5, "abierta"], ["Contacto pendiente", 10, "abierta"], ["Contactado", 15, "abierta"],
     ["Interesado", 30, "abierta"], ["Demo agendada", 45, "abierta"], ["Demo realizada", 60, "abierta"], ["Propuesta enviada", 70, "abierta"],
     ["Negociación", 80, "abierta"], ["Ganado", 100, "ganada"], ["Perdido", 0, "perdida"], ["Pausado", 0, "pausada"]];
-  const LISTAS = [["zona", "Caseros"], ["zona", "San Martín Centro"], ["zona", "Villa Ballester"], ["zona", "Villa Bosch"],
+  const LISTAS = [["zona", "Caseros", "caseros", { lat: -34.607366, lng: -58.5661311, radio: 1500 }], ["zona", "San Martín Centro"], ["zona", "Villa Ballester"], ["zona", "Villa Bosch"],
     ["rubro", "Gastronomía"], ["rubro", "Almacén, kiosco o supermercado"], ["fuente", "Visita en persona"], ["fuente", "WhatsApp"],
     ["motivo_perdida", "Precio"], ["motivo_perdida", "No le interesa"], ["tipo_actividad", "Llamada"], ["tipo_actividad", "WhatsApp"],
     ["tipo_actividad", "Visita"], ["tipo_actividad", "Demo"], ["tipo_actividad", "Propuesta"], ["tipo_actividad", "Nota"],
@@ -79,7 +79,7 @@ function founder(usuario) {
   return {
     interno_miembros: [{ perfil_id: usuario.id, rol: "fundador", areas: ["*"], activo: true, creado_en: hace(30), perfiles: { nombre: "Persona de prueba", email: usuario.email } }],
     interno_etapas: etapas,
-    interno_listas: LISTAS.map(([tipo, nombre, clave], i) => ({ id: id(), tipo, clave: clave || nombre.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_"), nombre, orden: i, activo: true, datos: {} })),
+    interno_listas: LISTAS.map(([tipo, nombre, clave, datos], i) => ({ id: id(), tipo, clave: clave || nombre.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_"), nombre, orden: i, activo: true, datos: datos || {} })),
     interno_historial: [], solicitudes: [],
     interno_prospectos: prospectos, interno_oportunidades: oportunidades, interno_contactos: [],
     interno_actividades: [{ id: id(), prospecto_id: prospectos[1].id, tipo: "visita", fecha: hace(1), resultado: "Le interesa, pidió una demo", datos: {} }],
@@ -90,6 +90,12 @@ function founder(usuario) {
       ["carga_datos", "Profesionales y sus horarios", ["agenda"]], ["usuarios", "Un usuario por persona, con su rol", []]]
       .map(([etapa, titulo, modulos], i) => ({ id: id(), etapa, titulo, modulos, rubros: [], orden: i, activo: true })),
     interno_clientes: [], interno_impl_etapas: [], interno_tickets: [], interno_ticket_mensajes: [], interno_adjuntos: [],
+    interno_proveedores: [
+      { clave: "osm", nombre: "OpenStreetMap (Overpass)", licencia: "ODbL 1.0", atribucion: "© colaboradores de OpenStreetMap, disponible bajo la licencia ODbL",
+        campos_permitidos: ["nombre", "rubro", "direccion", "telefono"], retencion_dias: null, costo: "Gratis", limites: "Uso razonable", terminos_url: "https://wiki.openstreetmap.org/wiki/Overpass_API", activo: true, notas: "Datos de voluntarios, sin verificar." },
+      { clave: "planilla", nombre: "Planilla propia (CSV o Excel)", licencia: "Propia", atribucion: null, campos_permitidos: ["nombre"], retencion_dias: null, costo: "Gratis", limites: null, terminos_url: null, activo: true, notas: null },
+    ],
+    interno_busquedas: [], interno_hallazgos: [],
     interno_cuentas: [], interno_suscripciones: [], interno_suscripciones_cambios: [], interno_movimientos: [],
     interno_ajustes: [{ clave: "empresa", valor: {} }, { clave: "agenda", valor: { hora_inicio: 7, hora_fin: 22 } }],
     interno_planes: [], interno_objetivos: [], interno_contenidos: [], interno_contenido_metricas: [], interno_grabaciones: [],
