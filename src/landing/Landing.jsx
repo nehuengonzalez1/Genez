@@ -115,8 +115,11 @@ const useOscuro = () => useContext(TemaCtx);
 
    Es un interruptor y no un borrado. Cuando se abra, esta línea pasa a
    `true` y vuelve todo: las tarjetas de rubro, el botón y el enlace
-   directo con `?rubro=`. No hay nada más que deshacer. */
-const ALTA_ABIERTA = false;
+   directo con `?rubro=`. No hay nada más que deshacer.
+
+   Abierta el 30/09 para probar el alta de punta a punta: los pedidos llegan
+   de verdad (a `solicitudes` y al WhatsApp de Precios, en el Panel). */
+const ALTA_ABIERTA = true;
 
 const CTA = ALTA_ABIERTA ? "Armar mi sistema" : "Próximamente";
 
@@ -222,7 +225,7 @@ function Cabecera({ conMenu, onAlternarTema, onEmpezar }) {
             className="w-10 h-10 rounded-md border border-borde-fuerte text-texto-suave hover:text-texto flex items-center justify-center">
             {oscuro ? <Sun size={17} /> : <Moon size={17} />}
           </button>
-          <a href="/" className={`${LINEA} !py-2 !px-4 text-sm`}>Entrar</a>
+          <a href="/login" className={`${LINEA} !py-2 !px-4 text-sm`}>Entrar</a>
           {conMenu && (
             <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className={`${SOLIDO} !py-2 !px-4 text-sm hidden sm:inline-flex`}>{CTA} <ArrowRight size={15} /></button>
           )}
@@ -749,7 +752,7 @@ function Pie({ onEmpezar }) {
             <a href="#como-funciona" className="hover:text-texto">Cómo funciona</a>
             <a href="#incluye" className="hover:text-texto">Qué incluye</a>
             <a href="#preguntas" className="hover:text-texto">Preguntas</a>
-            <a href="/" className="hover:text-texto">Entrar</a>
+            <a href="/login" className="hover:text-texto">Entrar</a>
           </nav>
           <div className="text-xs text-texto-tenue">© {new Date().getFullYear()} Genez · Argentina</div>
         </div>

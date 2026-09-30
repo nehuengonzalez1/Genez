@@ -13,6 +13,25 @@
       // vercel.json, pero es el mismo archivo en los dos.
       window.__API_BASE__ = "/api/anthropic";
       window.__API_MODELO__ = "claude-sonnet-5";
+
+      // genez.com.ar muestra la landing; el sistema se entra por /login.
+      // Salvo en la compu que ya tiene la sesión iniciada: la caja de un
+      // comercio abre genez.com.ar (es la app que tiene instalada) y no
+      // puede caer en la landing en medio de una venta. Tampoco se desvía
+      // la vuelta del correo de "olvidé mi clave", que llega a / con el
+      // token en la dirección y todavía sin sesión guardada. Solo en el
+      // dominio de producción: en desarrollo y en las vistas previas de
+      // Vercel la raíz sigue siendo el sistema.
+      (function () {
+        if (!/^(www\.)?genez\.com\.ar$/.test(location.hostname) || location.pathname !== "/") return;
+        if (/access_token|type=recovery|error_description/.test(location.hash) || /[?&](code|token_hash)=/.test(location.search)) return;
+        try {
+          for (var i = 0; i < localStorage.length; i++) {
+            if (/^sb-.+-auth-token$/.test(localStorage.key(i))) return;
+          }
+        } catch (e) { /* sin localStorage no hay sesión guardada */ }
+        location.replace("/landing");
+      })();
     </script>
   </head>
   <body>
