@@ -149,6 +149,20 @@ miembro del equipo no tiene que verlos. Toda tabla nueva de Founder: RLS por ár
 para anon, revocar lo que Supabase da solo, y `probar-founder-seguridad.mjs` tiene que
 pasar. Ver la sección en `ARQUITECTURA.md`.
 
+Lo que ya costó y no se ve en el código:
+
+- `interno_anotar` identifica la fila por `id`, `perfil_id` o `clave`: una tabla nueva
+  sin ninguno de los tres rompe el historial.
+- Una columna con un guion bajo seguido de un dígito (`vis_7d`) no pasa a camelCase en
+  `src/datos/`: el campo no llega. Nombrarla sin dígito.
+- Las fechas sin hora (`alta`, `limite`, `periodo`, `fin` de un plan) quedan como texto
+  `AAAA-MM-DD`: como `Date` caen al día anterior en Buenos Aires.
+- Lo que se escribe desde `src/datos/interno*` pasa por una lista de columnas por tabla
+  (`conColumnas`): las vistas traen campos que en otras tablas son columnas de verdad.
+- `Boton` no tiene `type`: adentro de un `<form>`, "Cancelar" también lo manda.
+- Las pruebas `probar-founder-*` ponen `idle_in_transaction_session_timeout`: una prueba
+  cortada dejó una sesión abierta en producción, con bloqueos. Correrlas de a una.
+
 ## Estado
 
 `Genezapp.jsx` es la raíz y decide qué se ve según quién entró: sin sesión → `Login`
