@@ -68,6 +68,8 @@ node scripts/probar-founder-seguridad.mjs  # 0113+: la frontera de Founder con s
 node scripts/probar-founder-crm.mjs      # 0114: la oportunidad que nace sola, etapas, seguimiento, series de tareas, teléfonos y duplicados, áreas
 node scripts/probar-importar-prospectos.mjs  # sin base: columnas, filas con error o aviso, repetidos en la planilla y ya cargados
 node scripts/probar-founder-clientes.mjs  # 0115: pasar a cliente, desde un comercio, implementación por módulos, tickets, Storage y áreas
+node scripts/probar-founder-producto.mjs  # 0116: proyectos, versiones, roadmap, ticket a producto, documentos con búsqueda y versiones, áreas
+node scripts/probar-markdown.mjs        # sin base: el markdown de los documentos no ejecuta nada y entiende lo que dice
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1487,6 +1489,37 @@ link firmado de diez minutos. Sin política de borrar: se archiva el registro en
 campos que en otras tablas son columnas de verdad. Las fechas sin hora (alta,
 renovación, la fecha de una etapa) viajan como `AAAA-MM-DD`; convertidas a `Date` caen
 a la medianoche de Londres, que acá es el día anterior.
+
+### Producto y documentación (0116)
+
+`src/datos/internoProducto.js`, las secciones Producto (roadmap, bugs, proyectos,
+versiones) y Documentos, `founder/FichaProducto.jsx`, `utils/markdown.js` con
+`founder/Markdown.jsx`, y `scripts/probar-founder-producto.mjs` y `probar-markdown.mjs`.
+
+**El roadmap es una tabla con tipo**, no siete: idea, funcionalidad, mejora, bug, pedido
+de cliente, deuda técnica e integración comparten casi todo y pasan por los mismos
+estados. Los campos del bug (entorno, pasos, esperado, actual, gravedad) quedan vacíos
+en lo demás. `version_id` es la versión en la que sale o, en un bug, en la que se
+corrigió. Es qué construir y para quién, no el seguimiento del código.
+
+**Del ticket a producto** con `interno_ticket_a_producto`: un error entra como bug con
+sus pasos y su gravedad, un pedido como solicitud, y queda atado al ticket en
+`interno_roadmap_tickets`. "Lo piden N clientes" cuenta los clientes distintos de los
+tickets atados; no es un número que alguien escribe. Es security invoker: hace falta
+ver el ticket (soporte) y escribir en el roadmap (producto).
+
+**Documentos en markdown propio, sin HTML.** `utils/markdown.js` no produce HTML sino
+bloques que `Markdown.jsx` convierte en elementos de React, que escapan todo el texto:
+un `<script>` o un `onerror=` se ve escrito, no se ejecuta, y los links solo pueden ser
+http, https o mailto. No usar `dangerouslySetInnerHTML` ni una librería que arme HTML
+para esto. `probar-markdown.mjs` lo comprueba.
+
+**Buscar y versionar lo hace la base.** `busqueda` es un tsvector en castellano (título
+y etiquetas pesan más que el contenido; "impresoras" encuentra "impresora"). Las
+etiquetas pasan por `interno_etiquetas_texto`, declarada inmutable porque
+`array_to_string` no lo es y la columna generada lo exige. Cambiar título o contenido
+guarda la versión anterior en `interno_documentos_versiones`, que no tiene política de
+escritura; restaurar una versión es guardar una nueva. No hay columna "público".
 
 ## La cuenta corriente
 

@@ -50,6 +50,14 @@ function consulta(tabla) {
     lte(c, v) { if (!c.includes(".")) q.filtros.push((f) => valor(f, c) == null || valor(f, c) <= v); return p; },
     gt(c, v) { if (!c.includes(".")) q.filtros.push((f) => valor(f, c) > v); return p; },
     lt(c, v) { if (!c.includes(".")) q.filtros.push((f) => valor(f, c) < v); return p; },
+    /* La búsqueda de texto de la base, en chico: todas las palabras
+       tienen que estar en el título, las etiquetas o el contenido. */
+    textSearch(_c, v) {
+      const sin = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const palabras = sin(v).split(/\s+/).filter(Boolean).map((w) => w.replace(/(es|s)$/, ""));
+      q.filtros.push((f) => { const t = sin(`${f.titulo} ${(f.etiquetas || []).join(" ")} ${f.contenido}`); return palabras.every((w) => t.includes(w)); });
+      return p;
+    },
     order(c, o = {}) { if (!c.includes(".")) q.orden.push([c, o.ascending !== false]); return p; },
     limit(n) { q.hasta = q.desde + n - 1; return p; },
     range(a, z) { q.desde = a; q.hasta = z; return p; },
@@ -86,6 +94,25 @@ const VISTAS = {
       tickets_abiertos: tk.length, tickets_urgentes: tk.filter((t) => ["alta", "urgente"].includes(t.prioridad) || ["grave", "critica"].includes(t.gravedad)).length,
       tareas_vencidas: tablaDe("interno_tareas").filter((t) => t.prospecto_id === c.prospecto_id && !t.archivado_en && ["pendiente", "en_curso", "en_espera"].includes(t.estado) && t.vence && t.vence < new Date().toISOString()).length };
   }),
+  /* Las de 0116: el elemento con su versión, proyecto, cliente y
+     cuántos lo piden; el proyecto con sus conteos. */
+  interno_roadmap_vista: () => tablaDe("interno_roadmap").map((r) => {
+    const v = tablaDe("interno_versiones").find((x) => x.id === r.version_id);
+    const pr = tablaDe("interno_proyectos").find((x) => x.id === r.proyecto_id);
+    const c = tablaDe("interno_clientes").find((x) => x.id === r.cliente_id);
+    const pp = c && tablaDe("interno_prospectos").find((x) => x.id === c.prospecto_id);
+    const rel = tablaDe("interno_roadmap_tickets").filter((x) => x.roadmap_id === r.id);
+    const clientes = new Set(rel.map((x) => (tablaDe("interno_tickets").find((t) => t.id === x.ticket_id) || {}).cliente_id).filter(Boolean));
+    return { ...r, version_nombre: v ? v.nombre : null, version_estado: v ? v.estado : null, proyecto_nombre: pr ? pr.nombre : null, cliente_nombre: pp ? pp.nombre : null,
+      tickets: rel.length, clientes_que_piden: clientes.size,
+      tareas_abiertas: tablaDe("interno_tareas").filter((t) => t.roadmap_id === r.id && !t.archivado_en && ["pendiente", "en_curso", "en_espera"].includes(t.estado)).length };
+  }),
+  interno_proyectos_vista: () => tablaDe("interno_proyectos").map((p) => {
+    const ts = tablaDe("interno_tareas").filter((t) => t.proyecto_id === p.id && !t.archivado_en && t.estado !== "cancelada");
+    const rs = tablaDe("interno_roadmap").filter((r) => r.proyecto_id === p.id && !r.archivado_en);
+    return { ...p, tareas_total: ts.length, tareas_hechas: ts.filter((t) => t.estado === "completada").length,
+      elementos: rs.length, elementos_terminados: rs.filter((r) => ["lanzado", "descartado"].includes(r.estado)).length };
+  }),
   interno_tickets_vista: () => tablaDe("interno_tickets").map((t) => {
     const c = tablaDe("interno_clientes").find((x) => x.id === t.cliente_id);
     const p = c && tablaDe("interno_prospectos").find((x) => x.id === c.prospecto_id);
@@ -119,11 +146,16 @@ const DEFECTOS = {
   interno_ticket_mensajes: { tipo: "nota" },
   interno_adjuntos: { archivado_en: null },
   interno_impl_modelo: { rubros: [], modulos: [], activo: true, orden: 0 },
+  interno_proyectos: { estado: "idea", prioridad: "normal", archivado_en: null },
+  interno_versiones: { estado: "planificada" },
+  interno_roadmap: { tipo: "mejora", estado: "idea", prioridad: "normal", orden: 0, archivado_en: null },
+  interno_documentos: { tipo: "nota", contenido: "", etiquetas: [], estado: "borrador", version: 1, archivado_en: null },
 };
 
 /* Lo que en la base hacen los disparadores de 0114, en chico: la primera
    oportunidad de un prospecto, y qué cambia al mover una de etapa. */
 let numeroTicket = 0;
+const ANTES = new Map();   // el documento como estaba, para su historial de versiones
 const DISPARADORES = {
   /* Los checks de 0115 que la pantalla tiene que ver fallar: resolver sin
      solución y bloquear sin decir qué bloquea. */
@@ -135,6 +167,21 @@ const DISPARADORES = {
         t.resuelto_en = t.resuelto_en || new Date().toISOString();
       } else t.resuelto_en = null;
       t.cerrado_en = t.estado === "cerrado" ? t.cerrado_en || new Date().toISOString() : null;
+    }
+  },
+  /* 0116: las fechas de terminado y el historial de versiones del documento. */
+  interno_roadmap: (op, filas) => { for (const r of filas) r.terminado_en = ["lanzado", "descartado"].includes(r.estado) ? r.terminado_en || new Date().toISOString() : null; },
+  interno_proyectos: (op, filas) => { for (const p of filas) p.completado_en = p.estado === "completado" ? p.completado_en || new Date().toISOString() : null; },
+  interno_versiones: (op, filas) => { for (const v of filas) v.lanzada_en = v.estado === "lanzada" ? v.lanzada_en || new Date().toISOString() : null; },
+  interno_documentos: (op, filas, datos) => {
+    for (const d of filas) {
+      d.actualizado_en = new Date().toISOString();
+      if (op !== "update" || !datos || !ANTES.has(d.id)) { ANTES.set(d.id, { titulo: d.titulo, contenido: d.contenido, fecha: d.actualizado_en }); continue; }
+      if (("contenido" in datos && ANTES.get(d.id).contenido !== d.contenido) || ("titulo" in datos && ANTES.get(d.id).titulo !== d.titulo)) {
+        tablaDe("interno_documentos_versiones").push({ id: uuid(), documento_id: d.id, version: d.version, titulo: ANTES.get(d.id).titulo, contenido: ANTES.get(d.id).contenido, fecha: ANTES.get(d.id).fecha });
+        d.version = (d.version || 1) + 1;
+      }
+      ANTES.set(d.id, { titulo: d.titulo, contenido: d.contenido, fecha: d.actualizado_en });
     }
   },
   interno_impl_etapas: (op, filas, datos) => {
@@ -304,6 +351,17 @@ const palabras = (t) => [...new Set(String(t || "").toLowerCase().normalize("NFD
 
 const FUNCIONES = {
   interno_convertir_en_cliente: convertir,
+  interno_ticket_a_producto: ({ p_ticket, p_tipo }) => {
+    const t = tablaDe("interno_tickets").find((x) => x.id === p_ticket);
+    if (!t) throw new Error("No existe el ticket, o no tenés acceso a soporte");
+    const tipo = p_tipo || (t.categoria === "error" ? "bug" : "solicitud");
+    const r = { id: uuid(), tipo, titulo: t.titulo, descripcion: t.descripcion || null, pasos: t.pasos || null, modulo: t.modulo || null,
+      gravedad: tipo === "bug" ? t.gravedad : null, cliente_id: t.cliente_id || null, prioridad: t.prioridad, estado: "idea", orden: 0,
+      archivado_en: null, creado_en: new Date().toISOString() };
+    tablaDe("interno_roadmap").push(r);
+    tablaDe("interno_roadmap_tickets").push({ roadmap_id: r.id, ticket_id: t.id, creado_en: new Date().toISOString() });
+    return r.id;
+  },
   interno_cliente_desde_comercio: ({ p_empresa, p_datos = {} }) => {
     const em = tablaDe("empresas").find((x) => x.id === p_empresa);
     if (!em) throw new Error("No existe el comercio");
