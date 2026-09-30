@@ -39,7 +39,7 @@ export async function editarConversacion(id, cambios) {
 }
 
 /* ---------- Lo que pasa por el servidor ---------- */
-async function llamar(cuerpo) {
+export async function llamar(cuerpo) {
   const { data } = await supabase.auth.getSession();
   const token = data && data.session ? data.session.access_token : null;
   if (!token) throw new Error("Se venció la sesión. Volvé a entrar.");

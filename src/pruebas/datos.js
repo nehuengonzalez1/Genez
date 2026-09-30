@@ -140,6 +140,40 @@ function whatsapp() {
       m(c3, "entrante", "¿Cuánto sale?", 1, "recibido"),
     ],
     interno_wa_eventos: [{ id: 1, recibido_en: hora(2), mensajes: 1, estados: 0, error: null }],
+    ...automatizaciones(c2, hora),
+  };
+}
+
+/* Automatizaciones (0122): una plantilla aprobada y otra en borrador,
+   las cuatro reglas de arranque (el recordatorio prendido), y una cola
+   con algo por aprobar, algo omitido y algo enviado. */
+function automatizaciones(conv, hora) {
+  const pl = { id: id(), nombre: "recordatorio_demo", idioma: "es_AR", categoria: "UTILITY", estado: "aprobada", archivado_en: null, creado_en: hora(48),
+    cuerpo: "Hola {{1}}, te recordamos la demo de Genez del {{2}} a las {{3}}. Si no podés, respondé este mensaje.", variables: ["nombre", "dia", "hora"], ejemplos: ["Juan", "martes", "10:00"] };
+  const borr = { id: id(), nombre: "seguimiento_info", idioma: "es_AR", categoria: "MARKETING", estado: "borrador", archivado_en: null, creado_en: hora(2),
+    cuerpo: "Hola {{1}}, ¿pudiste ver lo que te mandamos de Genez? Si querés, coordinamos una demo.", variables: ["nombre"], ejemplos: ["Juan"] };
+  const base = { parametros: {}, hora_desde: 9, hora_hasta: 20, dias: [1, 2, 3, 4, 5, 6], tope_persona_dia: 1, tope_persona_semana: 2, tope_dia: 30, aprobacion_manual: true, archivado_en: null, plantilla_id: null };
+  const r1 = { ...base, id: id(), nombre: "Recordatorio de demo o reunión", tipo: "recordatorio_evento", activa: true, plantilla_id: pl.id, parametros: { horas_antes: 24, tipos: ["demo", "reunion", "visita"] }, consentimiento: "sin_baja", creado_en: hora(90) };
+  const r2 = { ...base, id: id(), nombre: "Seguimiento a quien pidió información", tipo: "seguimiento", activa: false, parametros: { dias: 3 }, consentimiento: "dado", creado_en: hora(89) };
+  const r3 = { ...base, id: id(), nombre: "Oportunidades sin contacto", tipo: "alerta_oportunidad", activa: true, parametros: { dias: 7 }, consentimiento: "dado", creado_en: hora(88) };
+  const r4 = { ...base, id: id(), nombre: "Conversaciones que esperan", tipo: "alerta_conversacion", activa: true, parametros: { minutos: 60 }, consentimiento: "dado", creado_en: hora(87) };
+  const env = (o) => ({ id: id(), automatizacion_id: r1.id, plantilla_id: pl.id, intentos: 0, error: null, programado_para: hora(1), creado_en: hora(1), ...o });
+  return {
+    interno_wa_plantillas: [pl, borr],
+    interno_automatizaciones: [r1, r2, r3, r4],
+    interno_envios: [
+      env({ clave_unica: "a", destinatario: "Almacén de prueba La Esquina", destino_wa: "5491100000000", valores: ["Almacén", "jueves", "16:00"], estado: "por_aprobar" }),
+      env({ clave_unica: "b", destinatario: "Kiosco de prueba 24", destino_wa: null, valores: [], estado: "omitido", motivo: "El prospecto no tiene WhatsApp ni teléfono cargado." }),
+      env({ clave_unica: "c", destinatario: "Rosa (prueba)", destino_wa: conv.wa_id, valores: ["Rosa", "martes", "10:00"], estado: "enviado", creado_en: hora(26) }),
+    ],
+    interno_auto_corridas: [
+      { id: 2, empezo_en: hora(0.05), termino_en: hora(0.05), origen: "reloj", generados: 1, alertas: 1, enviados: 0, fallidos: 0, error: null },
+      { id: 1, empezo_en: hora(26), termino_en: hora(26), origen: "servidor", generados: 0, alertas: 0, enviados: 1, fallidos: 0, error: null },
+    ],
+    interno_alertas: [
+      { id: id(), tipo: "oportunidad_quieta", titulo: "Kiosco de prueba 24", detalle: "Sin contacto desde hace 9 días.", enlace_tipo: "prospecto", enlace_id: null, clave_unica: "q", creada_en: hora(3), descartada_en: null },
+      { id: id(), tipo: "conversacion_espera", titulo: "Kiosco (prueba)", detalle: "El asistente te la pasó y nadie la atendió.", enlace_tipo: "conversacion", enlace_id: null, clave_unica: "e", creada_en: hora(0.5), descartada_en: null },
+    ],
   };
 }
 
