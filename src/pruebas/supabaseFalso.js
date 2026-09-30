@@ -113,6 +113,38 @@ const VISTAS = {
     return { ...p, tareas_total: ts.length, tareas_hechas: ts.filter((t) => t.estado === "completada").length,
       elementos: rs.length, elementos_terminados: rs.filter((r) => ["lanzado", "descartado"].includes(r.estado)).length };
   }),
+  /* Las de 0117: el objetivo con su valor medido (la misma cuenta que
+     interno_objetivo_valor, en días de Buenos Aires) y el contenido con
+     su medición y lo que originó. */
+  interno_objetivos_vista: () => tablaDe("interno_objetivos").map((o) => {
+    const desde = new Date(`${o.inicio}T00:00:00-03:00`).toISOString();
+    const hasta = new Date(new Date(`${o.limite}T00:00:00-03:00`).getTime() + 86400000).toISOString();
+    const en = (f) => f && f >= desde && f < hasta;
+    const acts = tablaDe("interno_actividades").filter((a) => en(a.fecha));
+    const valor = {
+      prospectos: () => tablaDe("interno_prospectos").filter((p) => en(p.creado_en)).length,
+      contactos: () => acts.filter((a) => ["llamada", "whatsapp", "email", "visita", "reunion", "demo", "propuesta"].includes(a.tipo)).length,
+      demos: () => acts.filter((a) => a.tipo === "demo").length,
+      propuestas: () => acts.filter((a) => a.tipo === "propuesta" || (a.tipo === "cambio_etapa" && /propuesta/i.test((a.datos && a.datos.a_nombre) || ""))).length,
+      ventas: () => tablaDe("interno_oportunidades").filter((x) => x.estado === "ganada" && en(x.ganada_en)).length,
+      recurrente: () => tablaDe("interno_clientes").filter((c) => c.alta >= o.inicio && c.alta <= o.limite && c.estado !== "cancelado").reduce((s, c) => s + Number(c.importe_mensual || 0), 0),
+      clientes: () => tablaDe("interno_clientes").filter((c) => c.alta <= o.limite && ["implementacion", "activo", "en_riesgo"].includes(c.estado) && Number(c.importe_mensual) > 0).length,
+      manual: () => o.valor_manual ?? null,
+    }[o.metrica];
+    const ts = tablaDe("interno_tareas").filter((t) => t.objetivo_id === o.id && !t.archivado_en && t.estado !== "cancelada");
+    return { ...o, valor_actual: valor ? valor() : null, tareas_total: ts.length, tareas_hechas: ts.filter((t) => t.estado === "completada").length };
+  }),
+  interno_contenidos_vista: () => tablaDe("interno_contenidos").map((c) => {
+    const m = (x) => tablaDe("interno_contenido_metricas").find((k) => k.contenido_id === c.id && k.momento === x) || {};
+    const ps = tablaDe("interno_prospectos").filter((p) => p.contenido_id === c.id);
+    const g = tablaDe("interno_grabaciones").find((x) => x.id === c.grabacion_id);
+    return { ...c, grabacion_tema: g ? g.tema : null,
+      vis_semana: m("7d").visualizaciones ?? null, int_semana: m("7d").interacciones ?? null, consultas_semana: m("7d").consultas ?? null,
+      vis_mes: m("30d").visualizaciones ?? null, int_mes: m("30d").interacciones ?? null, consultas_mes: m("30d").consultas ?? null,
+      prospectos_originados: ps.length,
+      demos_originadas: ps.filter((p) => tablaDe("interno_actividades").some((a) => a.prospecto_id === p.id && a.tipo === "demo")).length,
+      clientes_originados: ps.filter((p) => tablaDe("interno_clientes").some((k) => k.prospecto_id === p.id)).length };
+  }),
   interno_tickets_vista: () => tablaDe("interno_tickets").map((t) => {
     const c = tablaDe("interno_clientes").find((x) => x.id === t.cliente_id);
     const p = c && tablaDe("interno_prospectos").find((x) => x.id === c.prospecto_id);
@@ -146,6 +178,11 @@ const DEFECTOS = {
   interno_ticket_mensajes: { tipo: "nota" },
   interno_adjuntos: { archivado_en: null },
   interno_impl_modelo: { rubros: [], modulos: [], activo: true, orden: 0 },
+  interno_planes: { estado: "activo", archivado_en: null },
+  interno_objetivos: { periodo: "mensual", estado: "activo", archivado_en: null },
+  interno_contenidos: { prioridad: "normal", estado: "idea", orden: 0, archivado_en: null },
+  interno_grabaciones: { estado: "planificada", archivado_en: null },
+  interno_contenido_metricas: { momento: "7d" },
   interno_proyectos: { estado: "idea", prioridad: "normal", archivado_en: null },
   interno_versiones: { estado: "planificada" },
   interno_roadmap: { tipo: "mejora", estado: "idea", prioridad: "normal", orden: 0, archivado_en: null },
@@ -182,6 +219,26 @@ const DISPARADORES = {
         d.version = (d.version || 1) + 1;
       }
       ANTES.set(d.id, { titulo: d.titulo, contenido: d.contenido, fecha: d.actualizado_en });
+    }
+  },
+  /* 0117: publicado pone su fecha; una medición por momento; lo manual solo en la métrica manual. */
+  interno_contenidos: (op, filas) => {
+    for (const c of filas) {
+      if (c.url && !/^https?:\/\//i.test(c.url)) throw new Error('violates check constraint "interno_contenidos_url"');
+      if (["publicado", "medicion"].includes(c.estado)) c.publicado_en = c.publicado_en || new Date().toISOString();
+    }
+  },
+  interno_contenido_metricas: (op, filas) => {
+    for (const m of filas) {
+      if (m.momento !== "otro" && tablaDe("interno_contenido_metricas").filter((x) => x.contenido_id === m.contenido_id && x.momento === m.momento).length > 1) {
+        throw new Error('duplicate key value violates unique constraint "interno_contenido_metricas_una"');
+      }
+    }
+  },
+  interno_objetivos: (op, filas) => {
+    for (const o of filas) {
+      if (o.metrica !== "manual" && o.valor_manual != null) throw new Error('violates check constraint "interno_objetivos_manual"');
+      if (o.limite < o.inicio) throw new Error('violates check constraint "interno_objetivos_fechas"');
     }
   },
   interno_impl_etapas: (op, filas, datos) => {

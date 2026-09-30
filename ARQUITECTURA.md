@@ -70,6 +70,7 @@ node scripts/probar-importar-prospectos.mjs  # sin base: columnas, filas con err
 node scripts/probar-founder-clientes.mjs  # 0115: pasar a cliente, desde un comercio, implementación por módulos, tickets, Storage y áreas
 node scripts/probar-founder-producto.mjs  # 0116: proyectos, versiones, roadmap, ticket a producto, documentos con búsqueda y versiones, áreas
 node scripts/probar-markdown.mjs        # sin base: el markdown de los documentos no ejecuta nada y entiende lo que dice
+node scripts/probar-founder-marketing.mjs  # 0117: el valor real de cada métrica (en días de Buenos Aires), objetivos, planes, contenidos, métricas y lo originado
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1520,6 +1521,34 @@ etiquetas pasan por `interno_etiquetas_texto`, declarada inmutable porque
 `array_to_string` no lo es y la columna generada lo exige. Cambiar título o contenido
 guarda la versión anterior en `interno_documentos_versiones`, que no tiene política de
 escritura; restaurar una versión es guardar una nueva. No hay columna "público".
+
+### Objetivos, informes y marketing (0117)
+
+`src/datos/internoMarketing.js`, las secciones Objetivos, Informes y Marketing, y
+`scripts/probar-founder-marketing.mjs`.
+
+**El avance de un objetivo no se guarda: se calcula.** `interno_objetivo_valor()`
+cuenta los registros reales entre dos días de Buenos Aires (prospectos creados,
+contactos, demos, propuestas, ventas ganadas, recurrente de clientes dados de alta,
+clientes vigentes con importe). La única carga a mano es la métrica `manual`, que la
+pantalla marca como tal, y un check impide cargar a mano las demás. Es la regla del
+brief de no inventar porcentajes, puesta en la base.
+
+**El plan de 30 días** crea el plan, la meta de ventas del período y, por semana, las
+metas de ritmo (prospectos, contactos, demos, propuestas) que se completaron; la quinta
+"semana" (dos días) se prorratea. Las actividades son tareas atadas al objetivo.
+
+**Los informes leen por cohorte**: los prospectos que entraron en el período y hasta
+dónde llegó cada uno. Pérdidas y días hasta cerrar miran lo cerrado en el período. Se
+calculan en la pantalla con los mismos datos del CRM; no hay tablas de informes.
+
+**Marketing.** Ideas y calendario son una tabla (`interno_contenidos`): una idea es un
+contenido en estado `idea`. Las métricas se cargan a mano, una a los 7 días y otra a
+los 30 (`interno_contenido_metricas`): no hay integración con redes y la pantalla lo
+dice. Lo real es lo originado: un prospecto puede nombrar su contenido de origen
+(`interno_prospectos.contenido_id`), y de ahí salen demos y clientes por publicación.
+Las columnas de la vista con número (`vis_semana`, no `vis_7d`): el pasaje a camelCase
+de `src/datos/` no toca un guion bajo seguido de un dígito, y el campo no llegaba.
 
 ## La cuenta corriente
 
