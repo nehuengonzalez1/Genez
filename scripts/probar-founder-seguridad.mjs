@@ -51,9 +51,12 @@ const admin = () => c.query("reset role");
 try {
   await c.query("begin");
   await c.query("set local lock_timeout = '3s'");
+  /* Si la prueba se corta a mitad de camino, el pooler puede dejar la sesión
+     abierta y con sus bloqueos: la base la cierra sola (y la deshace). */
+  await c.query("set local idle_in_transaction_session_timeout = '60s'");
   /* Las migraciones de Founder que falten se aplican adentro, en orden:
      así la frontera se prueba también sobre lo que todavía no se aplicó. */
-  for (const [tabla, migracion] of [["interno_miembros", "0113_interno_base.sql"], ["interno_prospectos", "0114_interno_crm.sql"], ["interno_clientes", "0115_interno_clientes.sql"], ["interno_roadmap", "0116_interno_producto.sql"]]) {
+  for (const [tabla, migracion] of [["interno_miembros", "0113_interno_base.sql"], ["interno_prospectos", "0114_interno_crm.sql"], ["interno_clientes", "0115_interno_clientes.sql"], ["interno_roadmap", "0116_interno_producto.sql"], ["interno_objetivos", "0117_interno_marketing.sql"]]) {
     if (!(await una(`select to_regclass('public.${tabla}') t`)).t) await c.query(readFileSync(`supabase/migrations/${migracion}`, "utf8"));
   }
   /* Tablas y vistas: una vista mal hecha también es una puerta. */

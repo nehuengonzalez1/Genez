@@ -17,7 +17,7 @@
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
-import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Boxes, BookOpen, Settings, ArrowLeftRight, LogOut } from "lucide-react";
+import { Home, Users, Columns3, ListChecks, CalendarDays, Store, LifeBuoy, Boxes, BookOpen, Target, Megaphone, BarChart3, Settings, ArrowLeftRight, LogOut } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { puedeArea } from "../datos/interno.js";
 import { InicioFounder } from "./Inicio.jsx";
@@ -33,6 +33,9 @@ import { Soporte, Ticket } from "./Soporte.jsx";
 import { Producto } from "./Producto.jsx";
 import { FichaElemento, FichaProyecto } from "./FichaProducto.jsx";
 import { Documentos, Documento } from "./Documentos.jsx";
+import { Objetivos } from "./Objetivos.jsx";
+import { Marketing, FichaContenido } from "./Marketing.jsx";
+import { Informes } from "./Informes.jsx";
 
 const SECCIONES = [
   { k: "inicio", n: "Inicio", i: Home, area: null },
@@ -40,10 +43,13 @@ const SECCIONES = [
   { k: "pipeline", n: "Pipeline", i: Columns3, area: "crm" },
   { k: "tareas", n: "Tareas", i: ListChecks, area: "tareas" },
   { k: "agenda", n: "Agenda", i: CalendarDays, area: "agenda" },
+  { k: "objetivos", n: "Objetivos", i: Target, area: "crm" },
+  { k: "informes", n: "Informes", i: BarChart3, area: "crm" },
   { k: "clientes", n: "Clientes", i: Store, area: "clientes" },
   { k: "soporte", n: "Soporte", i: LifeBuoy, area: "soporte" },
   { k: "producto", n: "Producto", i: Boxes, area: "producto" },
   { k: "documentos", n: "Documentos", i: BookOpen, area: "docs" },
+  { k: "marketing", n: "Marketing", i: Megaphone, area: "marketing" },
   { k: "config", n: "Configuración", i: Settings, area: "config" },
 ];
 
@@ -67,6 +73,7 @@ export default function Founder({ sesion, onComercios, onSalir }) {
   const abrirElemento = apilar("elemento");
   const abrirProyecto = apilar("proyecto");
   const abrirDocumento = apilar("documento");
+  const abrirContenido = apilar("contenido");
   /* Un documento nuevo no tiene id todavía: se apila con lo que ya se sabe
      (desde un proyecto, su proyecto; desde el roadmap, su elemento). */
   const nuevoDocumento = (inicial) => setPila((p) => [...p, { tipo: "documento", id: null, inicial, n: Date.now() }]);
@@ -136,6 +143,7 @@ export default function Founder({ sesion, onComercios, onSalir }) {
           abrirDocumento={abrirDocumento} nuevoDocumento={puedeArea(interno, "docs") ? nuevoDocumento : null} toast={toast} />}
         {encima && encima.tipo === "proyecto" && <FichaProyecto key={encima.id} id={encima.id} volver={volver} abrirElemento={abrirElemento}
           abrirDocumento={abrirDocumento} nuevoDocumento={puedeArea(interno, "docs") ? nuevoDocumento : null} toast={toast} />}
+        {encima && encima.tipo === "contenido" && <FichaContenido key={encima.id} id={encima.id} volver={volver} abrirProspecto={abrir} toast={toast} />}
         {encima && encima.tipo === "documento" && <Documento key={encima.id || encima.n} id={encima.id} inicial={encima.inicial} volver={volver} abrirDocumento={abrirDocumento} toast={toast} />}
         {!encima && <>
           {actual && actual.k === "inicio" && <InicioFounder sesion={sesion} ir={setSeccion} abrir={abrir} abrirCliente={abrirCliente} toast={toast} nuevo={crear} />}
@@ -144,6 +152,9 @@ export default function Founder({ sesion, onComercios, onSalir }) {
           {actual && actual.k === "tareas" && <Tareas key={nuevoQue || "t"} abrir={abrir} toast={toast} nuevaAlAbrir={nuevoQue === "tarea"} />}
           {actual && actual.k === "agenda" && <Agenda key={nuevoQue || "a"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevoQue === "evento"} />}
           {actual && actual.k === "clientes" && <Clientes abrirCliente={abrirCliente} toast={toast} />}
+          {actual && actual.k === "objetivos" && <Objetivos toast={toast} />}
+          {actual && actual.k === "informes" && <Informes />}
+          {actual && actual.k === "marketing" && <Marketing abrirContenido={abrirContenido} toast={toast} />}
           {actual && actual.k === "producto" && <Producto abrirElemento={abrirElemento} abrirProyecto={abrirProyecto} toast={toast} />}
           {actual && actual.k === "documentos" && <Documentos abrirDocumento={abrirDocumento} nuevoDocumento={nuevoDocumento} />}
           {actual && actual.k === "soporte" && <Soporte key={nuevoQue === "ticket" ? `n${nuevo.para || ""}` : "s"} abrirTicket={abrirTicket} toast={toast}

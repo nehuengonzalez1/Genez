@@ -9,8 +9,8 @@
    período. Todo sale de los registros: nada se estima ni se completa
    para que se vea lleno. Cada número abre lo que lo forma.
 
-   El objetivo comercial contra el resultado llega con Objetivos
-   (fase 4): no se inventa una meta acá.
+   Arriba de todo, los objetivos en curso contra lo real (0117): el
+   avance lo calcula la base, y los que vencen pronto se marcan.
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
@@ -21,6 +21,8 @@ import { cargarProspectos, cargarOportunidadesAbiertas, cargarTareas, cargarEven
 import { contarSolicitudes } from "../datos/interno.js";
 import { cargarClientes, cargarTickets, abierto, ESTADO_TICKET } from "../datos/internoClientes.js";
 import { motivosDeAtencion } from "./Clientes.jsx";
+import { cargarObjetivos, METRICA } from "../datos/internoMarketing.js";
+import { situacion } from "./Objetivos.jsx";
 import { useConfig, diaLargo, hora, relativo, fechaHora, diaAR, hoyAR, vencido } from "./util.js";
 
 const CONTACTO = new Set(["llamada", "whatsapp", "email", "visita", "reunion", "demo", "propuesta"]);
@@ -46,9 +48,9 @@ export function InicioFounder({ sesion, ir, abrir, abrirCliente, toast, nuevo })
       cargarProspectos().catch(() => []), cargarOportunidadesAbiertas().catch(() => []), cargarTareas().catch(() => []),
       cargarEventos(hoy0, new Date(hoy0.getTime() + 8 * 86400000)).catch(() => []),
       actividadReciente(8).catch(() => []), actividadesDesde(new Date(hoy0.getTime() - 40 * 86400000)).catch(() => []), contarSolicitudes(),
-      cargarClientes().catch(() => null), cargarTickets().catch(() => null),
-    ]).then(([prospectos, ops, tareas, eventos, recientes, actividades, solicitudes, clientes, tickets]) =>
-      setD({ prospectos, ops, tareas, eventos, recientes, actividades, solicitudes, clientes, tickets }))
+      cargarClientes().catch(() => null), cargarTickets().catch(() => null), cargarObjetivos().catch(() => null),
+    ]).then(([prospectos, ops, tareas, eventos, recientes, actividades, solicitudes, clientes, tickets, objetivos]) =>
+      setD({ prospectos, ops, tareas, eventos, recientes, actividades, solicitudes, clientes, tickets, objetivos }))
       .catch((e) => setError(e.message || "No se pudo leer Founder."));
   };
   useEffect(() => { leer(); }, []);
@@ -105,6 +107,36 @@ export function InicioFounder({ sesion, ir, abrir, abrirCliente, toast, nuevo })
           <Boton variant="ghost" onClick={() => nuevo("evento")}><CalendarPlus size={14} /> Reunión</Boton>
         </div>
       </header>
+
+      {d.objetivos && (() => {
+        /* Los que están en curso hoy; los semanales de un plan, solo el de esta semana. */
+        const vivos = d.objetivos.filter((o) => o.estado === "activo" && o.inicio <= hoy && o.limite >= hoy);
+        if (!vivos.length) return null;
+        return (
+          <Card className="p-5">
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+              <h2 className="f-d text-lg"><button onClick={() => ir("objetivos")} className="hover:text-acento">Objetivos</button></h2>
+              <span className="text-[11px] text-texto-tenue">lo real contra la meta</span>
+            </div>
+            <ul className="grid md:grid-cols-2 gap-x-6 gap-y-2">
+              {vivos.slice(0, 8).map((o) => {
+                const s = situacion(o, hoy);
+                const p = o.valorActual == null ? 0 : Math.min(100, (o.valorActual / o.valorObjetivo) * 100);
+                const cifra = (v) => (v == null ? "—" : METRICA[o.metrica].plata ? money(Math.round(v)) : Number(v).toLocaleString("es-AR"));
+                return (
+                  <li key={o.id} className="text-sm">
+                    <div className="flex justify-between gap-2"><span className="truncate">{o.nombre}</span><span className={`text-[11px] shrink-0 ${s.tono}`}>{s.t}</span></div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="flex-1 h-1.5 rounded bg-superficie-2 overflow-hidden"><span className={`block h-full ${p >= 100 ? "bg-bien" : "bg-acento"}`} style={{ width: `${p}%` }} /></span>
+                      <span className="f-m text-[11px]">{cifra(o.valorActual)} / {cifra(o.valorObjetivo)}{o.metrica === "manual" ? " (manual)" : ""}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        );
+      })()}
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="p-5 lg:col-span-2 space-y-5">
