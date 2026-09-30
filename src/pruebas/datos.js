@@ -97,10 +97,35 @@ function founder(usuario) {
     ],
     interno_busquedas: [], interno_hallazgos: [],
     interno_cuentas: [], interno_suscripciones: [], interno_suscripciones_cambios: [], interno_movimientos: [],
-    interno_ajustes: [{ clave: "empresa", valor: {} }, { clave: "agenda", valor: { hora_inicio: 7, hora_fin: 22 } }],
+    interno_ajustes: [{ clave: "empresa", valor: {} }, { clave: "agenda", valor: { hora_inicio: 7, hora_fin: 22 } },
+      { clave: "whatsapp", valor: { phone_number_id: "000000000000000", waba_id: "000000000000000", numero: "+54 9 11 0000-0000" } }],
+    ...whatsapp(),
     interno_planes: [], interno_objetivos: [], interno_contenidos: [], interno_contenido_metricas: [], interno_grabaciones: [],
     interno_proyectos: [], interno_versiones: [], interno_roadmap: [], interno_roadmap_tickets: [], interno_documentos: [], interno_documentos_versiones: [],
     interno_eventos: [{ id: id(), titulo: "Demo en el bar de prueba", tipo: "demo", prospecto_id: prospectos[1].id, inicio: hoyA(16), fin: hoyA(17), estado: "programado", archivado_en: null }],
+  };
+}
+
+/* WhatsApp (0120): una conversación con la ventana abierta y mensajes sin
+   leer, y otra con la ventana cerrada, para ver el cuadro apagado. */
+function whatsapp() {
+  const hora = (h) => new Date(Date.now() - h * 3600000).toISOString();
+  const c1 = { id: id(), wa_id: "5491155550001", nombre_perfil: "Almacén Don Prueba", estado: "abierta", consentimiento: "sin_dato", no_leidos: 2,
+    ultimo_entrante_en: hora(2), ultimo_mensaje_en: hora(2), ultimo_texto: "¿Y cuánto sale por mes?", ultimo_direccion: "entrante", prospecto_id: null, asignado_id: null };
+  const c2 = { id: id(), wa_id: "5491155550002", nombre_perfil: "Rosa (prueba)", estado: "pendiente", consentimiento: "dado", no_leidos: 0,
+    ultimo_entrante_en: hora(30), ultimo_mensaje_en: hora(29), ultimo_texto: "Te paso los precios mañana.", ultimo_direccion: "saliente", prospecto_id: null, asignado_id: null };
+  const m = (c, direccion, texto, h, estado) => ({ id: id(), conversacion_id: c.id, direccion, tipo: "text", texto, datos: {}, estado, error: null, momento: hora(h), estado_en: hora(h) });
+  return {
+    interno_wa_conversaciones: [c1, c2],
+    interno_wa_mensajes: [
+      m(c1, "entrante", "Hola, vi el cartel del sistema para comercios", 3, "recibido"),
+      m(c1, "saliente", "¡Hola! Sí, es Genez. ¿Qué tipo de comercio tenés?", 2.9, "leido"),
+      m(c1, "entrante", "Un almacén en Caseros", 2.1, "recibido"),
+      m(c1, "entrante", "¿Y cuánto sale por mes?", 2, "recibido"),
+      m(c2, "entrante", "Hola, quería info", 30, "recibido"),
+      m(c2, "saliente", "Te paso los precios mañana.", 29, "entregado"),
+    ],
+    interno_wa_eventos: [{ id: 1, recibido_en: hora(2), mensajes: 1, estados: 0, error: null }],
   };
 }
 

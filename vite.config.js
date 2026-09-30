@@ -65,6 +65,11 @@ function servirApi() {
               req.on("error", mal);
             });
 
+            /* Para api/founder.js: la firma de Meta se calcula sobre los bytes
+               como llegaron, y acá el stream ya se leyó. En Vercel no hace
+               falta: si nadie toca req.body, el stream sigue ahí. */
+            req.cuerpoCrudo = crudo;
+
             req.body = crudo && (req.headers["content-type"] || "").includes("json")
               ? JSON.parse(crudo)
               : crudo;

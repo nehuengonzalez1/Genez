@@ -177,6 +177,15 @@ const VISTAS = {
     return { ...p, oportunidad_id: o ? o.id : null, etapa_id: o ? o.etapa_id : null, etapa_nombre: e ? e.nombre : null, etapa_orden: e ? e.orden : null,
       valor: o ? o.valor : null, probabilidad: o ? o.probabilidad : null, oportunidad_estado: o ? o.estado : null };
   }),
+  interno_wa_conversaciones_vista: () => tablaDe("interno_wa_conversaciones").map((c) => {
+    const tel = c.wa_id.replace(/^549/, "");
+    const mismos = tablaDe("interno_prospectos").filter((p) => [p.telefono, p.whatsapp].some((t) => String(t || "").replace(/\D/g, "").endsWith(tel)));
+    const p = tablaDe("interno_prospectos").find((x) => x.id === c.prospecto_id);
+    const k = p && tablaDe("interno_clientes").find((x) => x.prospecto_id === p.id);
+    const abierta = !!c.ultimo_entrante_en && Date.now() - new Date(c.ultimo_entrante_en).getTime() < 24 * 3600000;
+    return { ...c, tel_norm: tel, ventana_abierta: abierta, prospecto_nombre: p ? p.nombre : null, cliente_id: k ? k.id : null, cliente_estado: k ? k.estado : null,
+      prospecto_sugerido_id: !c.prospecto_id && mismos.length === 1 ? mismos[0].id : null, prospecto_sugerido_nombre: !c.prospecto_id && mismos.length === 1 ? mismos[0].nombre : null };
+  }),
   clientes_vista: () => (T.clientes || []).map((c) => ({
     turnos: 0, asistio: 0, ausencias: 0, asistencia: null, gastado: 0, compras: 0, abonos_activos: 0, notas: 0,
     ultima: null, proxima: null, activo: true, ...c,
@@ -638,6 +647,52 @@ if (typeof window !== "undefined" && !window.__genezOverpassFalso) {
       { type: "way", id: 9000003, center: { lat: -34.6065, lon: -58.5640 }, tags: { name: "Kiosco de prueba 24", shop: "kiosk", phone: "1100000000" } },
     ];
     return Promise.resolve(new Response(JSON.stringify({ elements: elementos }), { status: 200, headers: { "Content-Type": "application/json" } }));
+  };
+}
+
+/* ============================================================
+   api/founder.js de mentira (WhatsApp, 0120)
+   ============================================================
+   En modo pruebas api/ no se sirve. Mandar deja el mensaje como lo
+   dejaría el servidor (con las mismas negativas de la base: la baja y la
+   ventana) y "estado" contesta como un número todavía pendiente, con
+   las variables a medio cargar, que es donde está hoy el de Genez. */
+if (typeof window !== "undefined" && !window.__genezFounderFalso) {
+  window.__genezFounderFalso = true;
+  const anterior = window.fetch;
+  const json = (o, status = 200) => Promise.resolve(new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json" } }));
+  window.fetch = (url, opciones = {}) => {
+    if (!String(url).startsWith("/api/founder")) return anterior(url, opciones);
+    const cuerpo = JSON.parse(opciones.body || "{}");
+    registro.push({ api: "founder", accion: cuerpo.accion });
+    if (cuerpo.accion === "enviar") {
+      const c = tablaDe("interno_wa_conversaciones").find((x) => x.id === cuerpo.conversacion);
+      if (!c) return json({ error: { message: "No existe esa conversación." } }, 400);
+      if (c.consentimiento === "baja") return json({ error: { message: "Esta persona pidió que no le escriban." } }, 403);
+      if (!c.ultimo_entrante_en || Date.now() - new Date(c.ultimo_entrante_en).getTime() > 24 * 3600000) {
+        return json({ error: { message: "Pasaron más de 24 horas desde su último mensaje: Meta solo deja mandar una plantilla aprobada." } }, 403);
+      }
+      const ya = tablaDe("interno_wa_mensajes").find((m) => m.idempotencia === cuerpo.idempotencia);
+      if (ya) return json({ mensaje: ya.id, estado: ya.estado, repetido: true });
+      const ahora = new Date().toISOString();
+      const m = { id: uuid(), conversacion_id: c.id, direccion: "saliente", tipo: "text", texto: String(cuerpo.texto).trim(), datos: {}, estado: "enviado",
+        error: null, idempotencia: cuerpo.idempotencia, wamid: `wamid.prueba-${Date.now()}`, momento: ahora, estado_en: ahora };
+      tablaDe("interno_wa_mensajes").push(m);
+      Object.assign(c, { ultimo_mensaje_en: ahora, ultimo_texto: m.texto.slice(0, 200), ultimo_direccion: "saliente", no_leidos: 0 });
+      return json({ mensaje: m.id, estado: "enviado", wamid: m.wamid });
+    }
+    if (cuerpo.accion === "estado") {
+      const aj = (tablaDe("interno_ajustes").find((a) => a.clave === "whatsapp") || {}).valor || {};
+      return json({
+        webhook: `${location.origin}/api/founder`,
+        variables: { WHATSAPP_TOKEN: true, WHATSAPP_APP_SECRET: true, WHATSAPP_VERIFY_TOKEN: false, WHATSAPP_PIN: false },
+        ajustes: aj,
+        numero: { display_phone_number: aj.numero, verified_name: "Genez", name_status: "APPROVED", status: "PENDING", quality_rating: "UNKNOWN" },
+        suscripcion: { data: [] },
+        eventos: tablaDe("interno_wa_eventos").slice().reverse(),
+      });
+    }
+    return json({ error: { message: "En la pantalla de pruebas no se habla con Meta." } }, 503);
   };
 }
 

@@ -14,6 +14,7 @@ import { Card, Boton, Tabs, Cargando, ErrorEstado, Vacio, Modal } from "../ui/Ba
 import { inputCls, TextoDiferido } from "../ui/Campos.jsx";
 import { cargarModelo, guardarPasoModelo } from "../datos/internoClientes.js";
 import { cargarAjustes, guardarAjuste, buscarPerfil, sumarMiembro, editarMiembro } from "../datos/internoFinanzas.js";
+import { ConexionWhatsapp } from "./ConexionWhatsapp.jsx";
 import {
   cargarEtapas, crearEtapa, editarEtapa, cargarListas, crearItemDeLista, editarItemDeLista, cargarMiembros, TIPOS_DE_LISTA,
 } from "../datos/interno.js";
@@ -28,12 +29,13 @@ export function ConfiguracionFounder({ interno, toast }) {
         <h1 className="f-d text-3xl">Configuración</h1>
         <p className="text-sm text-texto-suave mt-1">Cómo está armado Founder. Lo que se cambia acá lo ven todas las pantallas.</p>
       </header>
-      <Tabs value={pestana} onChange={setPestana} items={[{ k: "pipeline", n: "Pipeline" }, { k: "listas", n: "Listas" }, { k: "implementacion", n: "Implementación" }, { k: "genez", n: "Genez y agenda" }, { k: "equipo", n: "Equipo" }]} />
+      <Tabs value={pestana} onChange={setPestana} items={[{ k: "pipeline", n: "Pipeline" }, { k: "listas", n: "Listas" }, { k: "implementacion", n: "Implementación" }, { k: "genez", n: "Genez y agenda" }, { k: "equipo", n: "Equipo" }, { k: "whatsapp", n: "WhatsApp" }]} />
       {pestana === "pipeline" && <Etapas toast={toast} />}
       {pestana === "listas" && <Listas toast={toast} />}
       {pestana === "implementacion" && <ModeloImplementacion toast={toast} />}
       {pestana === "genez" && <DatosGenez toast={toast} />}
       {pestana === "equipo" && <Equipo interno={interno} toast={toast} />}
+      {pestana === "whatsapp" && <ConexionWhatsapp interno={interno} toast={toast} />}
     </div>
   );
 }
@@ -172,7 +174,7 @@ function FilaItem({ i, guardar, alternar }) {
    cambia a sí mismo (lo impide la base, 0113), y solo el fundador o un
    administrador suman y editan. */
 const AREAS = [["crm", "CRM y objetivos"], ["agenda", "Agenda"], ["tareas", "Tareas"], ["clientes", "Clientes"], ["soporte", "Soporte"],
-  ["producto", "Producto"], ["docs", "Documentos"], ["marketing", "Marketing"], ["finanzas", "Finanzas"], ["config", "Configuración"]];
+  ["producto", "Producto"], ["docs", "Documentos"], ["marketing", "Marketing"], ["finanzas", "Finanzas"], ["mensajes", "Conversaciones de WhatsApp"], ["config", "Configuración"]];
 const ROLES = [["fundador", "Fundador"], ["administrador", "Administrador"], ["comercial", "Comercial"], ["marketing", "Marketing"],
   ["desarrollo", "Desarrollo"], ["soporte", "Soporte"], ["administracion", "Administración"]];
 
