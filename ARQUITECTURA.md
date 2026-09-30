@@ -77,6 +77,8 @@ node scripts/probar-founder-prospector.mjs  # 0119: proveedores, zonas, hallazgo
 node scripts/probar-osm.mjs [--en-vivo]  # sin base: el conector de OpenStreetMap; --en-vivo hace un pedido chico a Overpass
 node scripts/probar-founder-whatsapp.mjs  # 0120: webhook sin duplicar, estados que no retroceden, ventana de 24 h, baja, lo que el navegador no puede escribir
 node scripts/probar-whatsapp.mjs  # sin base ni red: la firma de Meta, la verificación del webhook y lo que contesta api/founder.js antes de la base
+node scripts/probar-founder-bot.mjs  # 0121: un borrador pendiente por conversación, derivar pausa, del navegador solo se descarta, los frenos del envío automático
+node scripts/probar-bot.mjs  # sin base ni red: lo que se le manda al modelo, cómo se lee, pedir una persona, los errores en castellano
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1677,6 +1679,46 @@ si cada variable está, nunca cuánto vale.
 No hay tiempo real: la bandeja se relee cada 8 s y el hilo cada 5 s mientras la pestaña
 está a la vista. El número argentino se manda como llega (`549…`): Meta ya no pide
 sacar el 9.
+
+### El asistente de WhatsApp (0121)
+
+`api/_bot.js` (qué contestar, sin red ni base), `atender()` en `api/founder.js`
+(cuándo, y guardar), el borrador en Conversaciones, Configuración → Asistente, y
+`scripts/probar-bot.mjs` y `probar-founder-bot.mjs`. Es la etapa 4 de la extensión.
+
+**De fábrica deja borradores, no manda.** El borrador aparece arriba del cuadro de
+respuesta: "Usar y revisar" lo pasa al cuadro para corregirlo, y al mandarlo queda
+marcado como enviado. El modo automático existe, apagado, y pide confirmación.
+
+**La base de conocimiento son Documentos** de tipo `base_bot` en estado `vigente`:
+ya tenían editor y versiones. Cada borrador guarda qué documentos y qué versión usó
+(`conocimiento`). Los tres de 0121 entran en borrador: el asistente no los lee hasta
+que alguien los revisa. Sin ningún documento vigente no se le pregunta al modelo:
+queda un borrador con error que lo dice.
+
+**El modelo no tiene herramientas.** Devuelve un JSON con esquema fijo
+(`output_config.format`): responder o derivar, el texto, el motivo y lo que cree
+haber entendido (`datos`), que nunca se escribe solo en el CRM. Lo que escribe un
+desconocido por WhatsApp puede traer instrucciones; un modelo sin herramientas no
+puede obedecerlas más que en el texto que propone, y ese texto lo ve una persona.
+
+**Pedir una persona no pasa por el modelo** (`pideUnaPersona`): tiene que llegar a
+una persona aunque no haya crédito o el modelo se equivoque. Derivar marca la
+conversación ("te necesita") y pausa el asistente ahí, para que al próximo mensaje no
+conteste lo que acaba de decir que no sabe.
+
+**El envío del bot tiene sus frenos en la base**: `interno_wa_preparar_envio` sin
+perfil exige asistente prendido y en automático, conversación no pausada y un tope de
+mensajes por hora (contra dos bots contestándose). Los mensajes del bot llevan
+`del_bot`; la presentación ("soy un asistente automático") va solo en el primero.
+
+**Corre después de contestarle a Meta**, con `waitUntil`: Meta espera pocos segundos
+y el modelo puede tardar más. Si falla, el mensaje ya está guardado y queda un
+borrador con el error en castellano (sin crédito, clave mala, modelo inexistente).
+
+Modelo de fábrica `claude-opus-5-5` con esfuerzo bajo, cambiable en Configuración.
+Usa `ANTHROPIC_API_KEY`, la misma del Asistente de los comercios: lo que gasta el bot
+sale de la misma cuenta.
 
 ## La cuenta corriente
 

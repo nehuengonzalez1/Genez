@@ -184,7 +184,8 @@ const VISTAS = {
     const k = p && tablaDe("interno_clientes").find((x) => x.prospecto_id === p.id);
     const abierta = !!c.ultimo_entrante_en && Date.now() - new Date(c.ultimo_entrante_en).getTime() < 24 * 3600000;
     return { ...c, tel_norm: tel, ventana_abierta: abierta, prospecto_nombre: p ? p.nombre : null, cliente_id: k ? k.id : null, cliente_estado: k ? k.estado : null,
-      prospecto_sugerido_id: !c.prospecto_id && mismos.length === 1 ? mismos[0].id : null, prospecto_sugerido_nombre: !c.prospecto_id && mismos.length === 1 ? mismos[0].nombre : null };
+      prospecto_sugerido_id: !c.prospecto_id && mismos.length === 1 ? mismos[0].id : null, prospecto_sugerido_nombre: !c.prospecto_id && mismos.length === 1 ? mismos[0].nombre : null,
+      con_borrador: tablaDe("interno_wa_borradores").some((b) => b.conversacion_id === c.id && b.estado === "pendiente") };
   }),
   clientes_vista: () => (T.clientes || []).map((c) => ({
     turnos: 0, asistio: 0, ausencias: 0, asistencia: null, gastado: 0, compras: 0, abonos_activos: 0, notas: 0,
@@ -672,6 +673,7 @@ if (typeof window !== "undefined" && !window.__genezFounderFalso) {
       if (!c.ultimo_entrante_en || Date.now() - new Date(c.ultimo_entrante_en).getTime() > 24 * 3600000) {
         return json({ error: { message: "Pasaron más de 24 horas desde su último mensaje: Meta solo deja mandar una plantilla aprobada." } }, 403);
       }
+      if (cuerpo.borrador) { const b = tablaDe("interno_wa_borradores").find((x) => x.id === cuerpo.borrador && x.estado === "pendiente"); if (b) b.estado = "enviado"; }
       const ya = tablaDe("interno_wa_mensajes").find((m) => m.idempotencia === cuerpo.idempotencia);
       if (ya) return json({ mensaje: ya.id, estado: ya.estado, repetido: true });
       const ahora = new Date().toISOString();
@@ -680,6 +682,15 @@ if (typeof window !== "undefined" && !window.__genezFounderFalso) {
       tablaDe("interno_wa_mensajes").push(m);
       Object.assign(c, { ultimo_mensaje_en: ahora, ultimo_texto: m.texto.slice(0, 200), ultimo_direccion: "saliente", no_leidos: 0 });
       return json({ mensaje: m.id, estado: "enviado", wamid: m.wamid });
+    }
+    /* El asistente de mentira: siempre el mismo borrador, sin modelo. */
+    if (cuerpo.accion === "borrador") {
+      tablaDe("interno_wa_borradores").forEach((b) => { if (b.conversacion_id === cuerpo.conversacion && b.estado === "pendiente") b.estado = "reemplazado"; });
+      const b = { id: uuid(), conversacion_id: cuerpo.conversacion, accion: "responder", estado: "pendiente", creado_en: new Date().toISOString(), modelo: "de-prueba",
+        texto: "¡Hola! Genez es un sistema de gestión para comercios. ¿Qué tipo de negocio tenés?", motivo: "Primer contacto.", datos: { rubro: "", necesidad: "", negocio: "", quiere_demo: false },
+        conocimiento: [{ id: "doc", titulo: "Qué es Genez", version: 2 }] };
+      tablaDe("interno_wa_borradores").push(b);
+      return json({ borrador: b });
     }
     if (cuerpo.accion === "estado") {
       const aj = (tablaDe("interno_ajustes").find((a) => a.clave === "whatsapp") || {}).valor || {};

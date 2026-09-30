@@ -59,7 +59,7 @@ function founder(usuario) {
     ["modulo", "Cobro", "cobro"], ["modulo", "Productos", "productos"], ["modulo", "Stock", "stock"], ["modulo", "Impresión", "impresion"], ["modulo", "Agenda y turnos", "agenda"],
     ["categoria_ticket", "Consulta de uso", "consulta"], ["categoria_ticket", "Error del sistema", "error"], ["categoria_ticket", "Impresión", "impresion"],
     ["canal_ticket", "WhatsApp", "whatsapp"], ["canal_ticket", "Llamada", "llamada"],
-    ["tipo_documento", "Procedimiento", "procedimiento"], ["tipo_documento", "Guion de demo", "guion_demo"], ["tipo_documento", "Nota", "nota"], ["tipo_documento", "Decisión de producto", "decision"],
+    ["tipo_documento", "Procedimiento", "procedimiento"], ["tipo_documento", "Guion de demo", "guion_demo"], ["tipo_documento", "Nota", "nota"], ["tipo_documento", "Decisión de producto", "decision"], ["tipo_documento", "Base del asistente", "base_bot"],
     ["canal_contenido", "Instagram", "instagram"], ["canal_contenido", "TikTok", "tiktok"], ["formato_contenido", "Reel", "reel"], ["formato_contenido", "Carrusel", "carrusel"],
     ["categoria_ingreso", "Suscripción", "suscripcion"], ["categoria_ingreso", "Implementación", "implementacion"],
     ["categoria_gasto", "Hosting", "hosting"], ["categoria_gasto", "Dominios", "dominios"], ["medio_pago", "Transferencia", "transferencia"], ["medio_pago", "Mercado Pago", "mercado_pago"]];
@@ -98,10 +98,14 @@ function founder(usuario) {
     interno_busquedas: [], interno_hallazgos: [],
     interno_cuentas: [], interno_suscripciones: [], interno_suscripciones_cambios: [], interno_movimientos: [],
     interno_ajustes: [{ clave: "empresa", valor: {} }, { clave: "agenda", valor: { hora_inicio: 7, hora_fin: 22 } },
-      { clave: "whatsapp", valor: { phone_number_id: "000000000000000", waba_id: "000000000000000", numero: "+54 9 11 0000-0000" } }],
+      { clave: "whatsapp", valor: { phone_number_id: "000000000000000", waba_id: "000000000000000", numero: "+54 9 11 0000-0000" } },
+      { clave: "bot", valor: { activo: false, modo: "borrador", modelo: "claude-opus-5-5", aviso: "Hola, soy el asistente automático de Genez. Si preferís hablar con una persona, escribí PERSONA.", max_por_hora: 6 } }],
     ...whatsapp(),
     interno_planes: [], interno_objetivos: [], interno_contenidos: [], interno_contenido_metricas: [], interno_grabaciones: [],
-    interno_proyectos: [], interno_versiones: [], interno_roadmap: [], interno_roadmap_tickets: [], interno_documentos: [], interno_documentos_versiones: [],
+    interno_proyectos: [], interno_versiones: [], interno_roadmap: [], interno_roadmap_tickets: [], interno_documentos: [
+      { id: id(), titulo: "Qué es Genez", tipo: "base_bot", categoria: "Asistente", estado: "vigente", version: 2, contenido: "Genez es un sistema de gestión para comercios.", etiquetas: [], archivado_en: null, actualizado_en: hace(1), creado_en: hace(2) },
+      { id: id(), titulo: "Precios y condiciones", tipo: "base_bot", categoria: "Asistente", estado: "borrador", version: 1, contenido: "Precios a confirmar.", etiquetas: [], archivado_en: null, actualizado_en: hace(1), creado_en: hace(2) }],
+    interno_documentos_versiones: [],
     interno_eventos: [{ id: id(), titulo: "Demo en el bar de prueba", tipo: "demo", prospecto_id: prospectos[1].id, inicio: hoyA(16), fin: hoyA(17), estado: "programado", archivado_en: null }],
   };
 }
@@ -114,9 +118,18 @@ function whatsapp() {
     ultimo_entrante_en: hora(2), ultimo_mensaje_en: hora(2), ultimo_texto: "¿Y cuánto sale por mes?", ultimo_direccion: "entrante", prospecto_id: null, asignado_id: null };
   const c2 = { id: id(), wa_id: "5491155550002", nombre_perfil: "Rosa (prueba)", estado: "pendiente", consentimiento: "dado", no_leidos: 0,
     ultimo_entrante_en: hora(30), ultimo_mensaje_en: hora(29), ultimo_texto: "Te paso los precios mañana.", ultimo_direccion: "saliente", prospecto_id: null, asignado_id: null };
+  const c3 = { id: id(), wa_id: "5491155550003", nombre_perfil: "Kiosco (prueba)", estado: "abierta", consentimiento: "sin_dato", no_leidos: 1,
+    ultimo_entrante_en: hora(1), ultimo_mensaje_en: hora(1), ultimo_texto: "¿Cuánto sale?", ultimo_direccion: "entrante", prospecto_id: null, asignado_id: null,
+    bot_pausado: true, derivada_en: hora(1), derivada_motivo: "Pide precios y la base no los tiene." };
+  Object.assign(c1, { bot_pausado: false, derivada_en: null, derivada_motivo: null });
+  Object.assign(c2, { bot_pausado: false, derivada_en: null, derivada_motivo: null });
   const m = (c, direccion, texto, h, estado) => ({ id: id(), conversacion_id: c.id, direccion, tipo: "text", texto, datos: {}, estado, error: null, momento: hora(h), estado_en: hora(h) });
   return {
-    interno_wa_conversaciones: [c1, c2],
+    interno_wa_conversaciones: [c1, c2, c3],
+    interno_wa_borradores: [{ id: id(), conversacion_id: c1.id, accion: "responder", estado: "pendiente", creado_en: hora(1.9), modelo: "claude-opus-5-5",
+      texto: "Depende de los módulos que necesites. ¿Me contás qué vendés y si trabajás con lector de códigos? Así te paso a alguien del equipo con el presupuesto.",
+      motivo: "Pregunta el precio; la base no tiene precios.", datos: { rubro: "almacén", necesidad: "", negocio: "Almacén Don Prueba", quiere_demo: false },
+      conocimiento: [{ id: "doc", titulo: "Qué es Genez", version: 2 }, { id: "doc2", titulo: "Precios y condiciones", version: 1 }] }],
     interno_wa_mensajes: [
       m(c1, "entrante", "Hola, vi el cartel del sistema para comercios", 3, "recibido"),
       m(c1, "saliente", "¡Hola! Sí, es Genez. ¿Qué tipo de comercio tenés?", 2.9, "leido"),
@@ -124,6 +137,7 @@ function whatsapp() {
       m(c1, "entrante", "¿Y cuánto sale por mes?", 2, "recibido"),
       m(c2, "entrante", "Hola, quería info", 30, "recibido"),
       m(c2, "saliente", "Te paso los precios mañana.", 29, "entregado"),
+      m(c3, "entrante", "¿Cuánto sale?", 1, "recibido"),
     ],
     interno_wa_eventos: [{ id: 1, recibido_en: hora(2), mensajes: 1, estados: 0, error: null }],
   };
