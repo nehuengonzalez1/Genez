@@ -898,3 +898,100 @@ html {
   .ct-fila-textos { margin-left: 12px; }
   .ct-continuar { margin-right: 0; }
 }
+
+/* ------------------------------------------------------------
+   El plan del alta en oscuro (01/10), copiado de la maqueta
+   ------------------------------------------------------------
+   La maqueta mide 1536 y el contenido va de 264 a 1340: no está
+   centrado, así que se corre desde el medio de la pantalla. */
+.pl-seccion { background: rgb(12 10 8); }
+.pl-contenido { width: calc(1076 * var(--u)); margin-left: calc(50% - 504 * var(--u)); }
+.pl-costado-izq { left: 0; width: calc(258 * var(--u)); -webkit-mask-image: linear-gradient(to right, #000 85%, transparent); mask-image: linear-gradient(to right, #000 85%, transparent); }
+.pl-costado-der { right: 0; width: calc(194 * var(--u)); -webkit-mask-image: linear-gradient(to left, #000 80%, transparent); mask-image: linear-gradient(to left, #000 80%, transparent); }
+.pl-arriba { height: calc(85 * var(--u)); }
+.pl-arriba .an-volver { left: calc(4 * var(--u)); top: calc(25 * var(--u)); font-size: calc(17 * var(--u)); color: rgb(var(--an-texto)); }
+.pl-pasos { left: calc(270 * var(--u)); top: calc(22 * var(--u)); }
+.pl-pasos .an-paso { width: calc(91 * var(--u)); }
+.pl-pasos .an-numero { width: calc(38 * var(--u)); height: calc(38 * var(--u)); font-size: calc(15 * var(--u)); font-weight: 600; }
+.pl-pasos .an-linea { width: calc(105 * var(--u)); margin-top: calc(19 * var(--u)); }
+.pl-pasos .an-paso-nombre { font-size: calc(13.5 * var(--u)); }
+.pl-nota { position: absolute; left: calc(855 * var(--u)); top: calc(52 * var(--u)); font-size: calc(23 * var(--u)); line-height: 1.25; transform: rotate(-9deg); color: rgb(var(--an-texto)); }
+.pl-nota-flecha { display: block; width: calc(52 * var(--u)); margin: calc(4 * var(--u)) calc(20 * var(--u)) 0 auto; }
+.pl-etiqueta { font-size: calc(16 * var(--u)); font-weight: 700; text-transform: uppercase; color: rgb(var(--an-naranja)); }
+.pl-titulo { margin-top: calc(8 * var(--u)); font-size: calc(44.7 * var(--u)); }
+.pl-bajada { margin-top: calc(8 * var(--u)); font-size: calc(17.5 * var(--u)); line-height: calc(24 * var(--u)); color: rgb(var(--an-texto) / 0.88); }
+
+.pl-grilla { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(21 * var(--u)); margin-top: calc(16 * var(--u)); margin-right: calc(6 * var(--u)); }
+.pl-start { --pl: 46 204 92; --pl-oscuro: 8 34 14; --pl-texto-boton: 46 204 92; }
+.pl-pro { --pl: 250 107 21; --pl-oscuro: 44 20 6; --pl-texto-boton: 248 246 242; }
+.pl-empresa { --pl: 18 156 252; --pl-oscuro: 4 26 46; --pl-texto-boton: 18 156 252; }
+.pl-tarjeta {
+  position: relative; display: flex; flex-direction: column; padding: 0 calc(27 * var(--u)) calc(14 * var(--u)); border-radius: calc(8 * var(--u));
+  border: 1.5px solid rgb(var(--pl) / 0.75);
+  background: radial-gradient(120% 45% at 50% 0%, rgb(var(--pl-oscuro)) 0%, rgb(13 12 10) 70%), rgb(13 12 10);
+  box-shadow: 0 0 calc(16 * var(--u)) rgb(var(--pl) / 0.18);
+}
+.pl-recomendado { border-color: rgb(var(--pl)); box-shadow: 0 0 calc(26 * var(--u)) rgb(var(--pl) / 0.45); }
+.pl-sello {
+  position: absolute; top: calc(-19 * var(--u)); left: 50%; transform: translateX(-50%); padding: calc(6 * var(--u)) calc(18 * var(--u)); border-radius: calc(6 * var(--u)) calc(6 * var(--u)) 0 0;
+  font-size: calc(10.5 * var(--u)); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; background: rgb(var(--pl)); color: rgb(3 14 26);
+}
+.pl-cabeza { display: flex; align-items: center; gap: calc(19 * var(--u)); height: calc(139 * var(--u)); margin: 0 calc(-9 * var(--u)); border-bottom: 1px solid rgb(255 255 255 / 0.12); }
+.pl-dibujo { width: calc(134 * var(--u)); height: calc(136 * var(--u)); flex-shrink: 0; -webkit-mask-image: radial-gradient(closest-side, #000 75%, transparent); mask-image: radial-gradient(closest-side, #000 75%, transparent); }
+.pl-cabeza > div { margin-top: calc(16 * var(--u)); }
+.pl-nombre { font-size: calc(30 * var(--u)); font-weight: 700; letter-spacing: -0.01em; }
+.pl-lema-corto { white-space: nowrap; margin-top: calc(6 * var(--u)); font-size: calc(16.5 * var(--u)); line-height: calc(22 * var(--u)); color: rgb(var(--an-texto) / 0.8); }
+.pl-precio { margin-top: calc(5 * var(--u)); }
+.pl-monto { font-size: calc(21 * var(--u)); font-weight: 700; }
+.pl-mes { font-size: calc(14 * var(--u)); font-weight: 400; color: rgb(var(--an-suave)); }
+.pl-cuantos { margin-top: calc(0 * var(--u)); font-size: calc(14.5 * var(--u)); color: rgb(var(--an-texto) / 0.88); }
+.pl-boton {
+  margin-top: calc(8 * var(--u)); height: calc(37 * var(--u)); border-radius: calc(5 * var(--u)); font-size: calc(14.5 * var(--u)); font-weight: 600;
+  border: 1.5px solid rgb(var(--pl)); color: rgb(var(--pl-texto-boton)); transition: filter 0.15s, background 0.15s;
+}
+.pl-boton:hover { background: rgb(var(--pl) / 0.12); }
+.pl-recomendado .pl-boton { background: rgb(var(--pl)); color: rgb(3 14 26); }
+.pl-recomendado .pl-boton:hover { filter: brightness(1.08); }
+.pl-lista { flex: 1; margin-top: calc(13 * var(--u)); padding-left: calc(1 * var(--u)); }
+.pl-lista li { display: flex; align-items: center; gap: calc(14 * var(--u)); height: calc(22.5 * var(--u)); font-size: calc(15 * var(--u)); color: rgb(var(--an-suave) / 0.8); }
+.pl-lista li.pl-si { color: rgb(var(--an-texto)); }
+.pl-tilde { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(19 * var(--u)); height: calc(19 * var(--u)); border-radius: 9999px; border: 1.5px solid rgb(255 255 255 / 0.3); }
+.pl-si .pl-tilde { border-color: transparent; background: rgb(var(--pl)); color: rgb(10 10 10); }
+.pl-tilde svg { width: 68%; height: 68%; }
+.pl-faltan { margin-top: calc(8 * var(--u)); font-size: calc(13 * var(--u)); color: rgb(var(--an-naranja)); }
+.pl-pie { margin-top: calc(12 * var(--u)); padding-top: calc(10 * var(--u)); border-top: 1px solid rgb(255 255 255 / 0.12); font-size: calc(14.5 * var(--u)); color: rgb(var(--an-texto) / 0.85); }
+
+.pl-confianza { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(21 * var(--u)); margin-top: calc(18 * var(--u)); margin-right: calc(6 * var(--u)); }
+.pl-confianza li { display: flex; align-items: center; gap: calc(21 * var(--u)); height: calc(69 * var(--u)); padding: 0 calc(8 * var(--u)); border-radius: calc(6 * var(--u)); background: rgb(14 12 10); border: 1px solid rgb(255 255 255 / 0.12); }
+.pl-confianza-icono { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(50 * var(--u)); height: calc(50 * var(--u)); border-radius: calc(6 * var(--u)); background: rgb(52 20 4); color: rgb(var(--an-naranja)); }
+.pl-confianza-icono svg { width: 52%; height: 52%; }
+.pl-confianza-titulo { display: block; font-size: calc(14.5 * var(--u)); font-weight: 700; }
+.pl-confianza-detalle { display: block; margin-top: calc(6 * var(--u)); font-size: calc(13.5 * var(--u)); color: rgb(var(--an-suave)); }
+.pl-botones { margin-top: calc(29 * var(--u)); }
+.pl-volver-boton { height: calc(54 * var(--u)); padding: 0 calc(17 * var(--u)); font-size: calc(16 * var(--u)); }
+.pl-ver { width: calc(225 * var(--u)); height: calc(54 * var(--u)); font-size: calc(16.5 * var(--u)); border-radius: calc(5 * var(--u)); }
+
+@media (max-width: 1023px) {
+  .pl-contenido { width: auto; margin-left: 0; }
+  .pl-arriba { height: auto; }
+  .pl-arriba .an-volver { left: 0; }
+  .pl-nota { display: none; }
+  .pl-pasos .an-paso { width: 84px; }
+  .pl-pasos .an-linea { width: 28px; }
+  .pl-etiqueta { margin-top: 20px; font-size: 12px; }
+  .pl-titulo { font-size: 30px; }
+  .pl-bajada { font-size: 15px; line-height: 1.45; }
+  .pl-grilla, .pl-confianza { grid-template-columns: 1fr; margin-right: 0; }
+  .pl-grilla { gap: 28px; margin-top: 30px; }
+  .pl-tarjeta { padding: 0 18px 14px; }
+  .pl-cabeza { height: 110px; margin: 0; }
+  .pl-dibujo { width: 100px; height: 102px; }
+  .pl-nombre { font-size: 24px; }
+  .pl-lema-corto { max-width: none; font-size: 14px; line-height: 1.35; }
+  .pl-monto { font-size: 19px; }
+  .pl-cuantos, .pl-pie { font-size: 13px; }
+  .pl-boton { height: 44px; font-size: 15px; }
+  .pl-lista li { height: 26px; font-size: 14px; }
+  .pl-confianza li { height: auto; padding: 10px; }
+  .pl-ver { width: 100%; }
+}

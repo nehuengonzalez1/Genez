@@ -146,7 +146,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 5) {
-    return angosto(
+    return (
       <Plan opciones={opciones} tarifas={tarifas} todos={opciones[opciones.length - 1].armado.elegidos}
         onElegir={(k) => { setOpcion(k); ir(6); }} onVolver={() => ir(4)} />
     );
@@ -782,7 +782,109 @@ function Modulos({ armado, recomendada, sacados, sumados, onSacar, onSumar, onVo
 /* ------------------------------------------------------------
    Tu presupuesto · Start, Pro y Empresa
    ------------------------------------------------------------ */
-function Plan({ opciones, tarifas, todos, onElegir, onVolver }) {
+function Plan(props) {
+  if (estaOscuro()) return <PlanNoche {...props} />;
+  return <PlanClaro {...props} />;
+}
+
+/* En oscuro es la maqueta del 01/10 copiada tal cual: cada plan con su
+   color (Start verde, Pro naranja, Empresa azul) y su dibujo recortado de
+   la maqueta. "Recomendado" y el botón lleno no son de Empresa sino del
+   plan que `planes()` recomienda; el precio sale de las tarifas como
+   siempre, y sin tarifas dice "Consultar". "Ver mi presupuesto" sigue con
+   el recomendado. */
+function PlanNoche({ opciones, tarifas, todos, onElegir, onVolver }) {
+  const recomendado = opciones.find((o) => o.recomendado) || opciones[opciones.length - 1];
+  return (
+    <section className="an-seccion pl-seccion relative overflow-hidden">
+      <img src="/landing/alta/plan-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado pl-costado-izq" />
+      <img src="/landing/alta/plan-derecho.jpg" alt="" aria-hidden="true" className="an-costado pl-costado-der" />
+      <div className="an-contenido pl-contenido relative">
+        <div className="an-arriba pl-arriba">
+          <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
+          <PasosNoche actual={3} className="pl-pasos" />
+        </div>
+        <div className="manuscrita pl-nota" aria-hidden="true">
+          Mismo sistema.<br />Más posibilidades.
+          <svg viewBox="0 0 60 40" className="pl-nota-flecha" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M54 4 C 52 22, 34 32, 8 34" /><path d="M16 26 L 7 34 L 17 39" />
+          </svg>
+        </div>
+
+        <div className="pl-etiqueta">Tu presupuesto</div>
+        <h1 className="an-titulo pl-titulo">Elegí el plan que <span className="an-naranja">mejor se adapta</span></h1>
+        <p className="an-bajada pl-bajada">Con los módulos que seleccionaste, te recomendamos estos planes.<br className="qr-br" /> Si en el futuro necesitás más, podés cambiar de plan o sumar módulos.</p>
+
+        <div className="pl-grilla">
+          {opciones.map((o) => <TarjetaPlanNoche key={o.k} opcion={o} tarifas={tarifas} todos={todos} onElegir={() => onElegir(o.k)} />)}
+        </div>
+
+        <ul className="pl-confianza">
+          {CONFIANZA.slice(0, 3).map(([I, t, d]) => (
+            <li key={t}>
+              <span className="pl-confianza-icono"><I strokeWidth={1.75} /></span>
+              <span><span className="pl-confianza-titulo">{t}</span><span className="pl-confianza-detalle">{d}</span></span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="pn-botones pl-botones">
+          <button type="button" onClick={onVolver} className="pn-volver-boton pl-volver-boton"><ArrowLeft strokeWidth={2} /> Volver</button>
+          <button type="button" onClick={() => onElegir(recomendado.k)} className="an-continuar pl-ver">Ver mi presupuesto <ArrowRight strokeWidth={2.25} /></button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* Los cortes de renglón de la maqueta; si el texto cambia, corta solo. */
+const CORTE_LEMA = {
+  "Lo esencial para empezar.": ["Lo esencial", "para empezar."],
+  "Más control, más posibilidades.": ["Más control,", "más posibilidades."],
+  "Todo lo que tu negocio necesita.": ["Todo lo que tu", "negocio necesita."],
+};
+
+function TarjetaPlanNoche({ opcion, tarifas, todos, onElegir }) {
+  const pre = presupuestar(tarifas || TARIFAS_VACIAS, opcion.armado.elegidos);
+  const calculando = tarifas === null;
+  const incluye = (k) => opcion.armado.elegidos.includes(k);
+  return (
+    <div className={`pl-tarjeta pl-${opcion.k} ${opcion.recomendado ? "pl-recomendado" : ""}`}>
+      {opcion.recomendado && <span className="pl-sello">Recomendado</span>}
+      <div className="pl-cabeza">
+        <img src={`/landing/alta/plan-${opcion.k}.jpg`} alt="" aria-hidden="true" className="pl-dibujo" />
+        <div>
+          <div className="pl-nombre">{opcion.n}</div>
+          <div className="pl-lema-corto">{CORTE_LEMA[opcion.d] ? <>{CORTE_LEMA[opcion.d][0]}<br />{CORTE_LEMA[opcion.d][1]}</> : opcion.d}</div>
+        </div>
+      </div>
+      <div className="pl-precio">
+        {calculando && <div className="pl-monto">Calculando…</div>}
+        {!calculando && pre.mensual != null && <div className="pl-monto f-m">{pesos(pre.mensual)} <span className="pl-mes">/mes</span></div>}
+        {!calculando && pre.mensual == null && <div className="pl-monto">Consultar</div>}
+        <div className="pl-cuantos">{pre.cantidad} módulos: cobro, caja y ajustes incluidos</div>
+      </div>
+      <button type="button" onClick={onElegir} className="pl-boton">{opcion.recomendado ? "Plan recomendado" : "Seleccionar plan"}</button>
+      <ul className="pl-lista">
+        {todos.map((k) => {
+          const si = incluye(k);
+          return (
+            <li key={k} className={si ? "pl-si" : ""}>
+              <span className="pl-tilde">{si && <Check strokeWidth={3} />}</span>
+              {nombreDe(k)}
+            </li>
+          );
+        })}
+      </ul>
+      {opcion.faltan && opcion.faltan.length > 0 && (
+        <p className="pl-faltan">No incluye lo que marcaste: {opcion.faltan.map(nombreDe).join(", ")}.</p>
+      )}
+      <p className="pl-pie">{opcion.lema}</p>
+    </div>
+  );
+}
+
+function PlanClaro({ opciones, tarifas, todos, onElegir, onVolver }) {
   return (
     <Marco indicador={4} etiqueta="Tu presupuesto" titulo={<>Elegí el plan que <span className="text-acento">mejor se adapta</span></>}
       sub="Con los módulos que seleccionaste, te recomendamos estos planes. Si en el futuro necesitás más, podés cambiar de plan o sumar módulos."
