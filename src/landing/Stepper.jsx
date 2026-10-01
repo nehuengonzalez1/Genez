@@ -34,7 +34,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, Lock, Search, Lightbulb, Sparkles, User, Users, Building2, Store, Laptop, Layers,
   Sprout, Crown, BarChart3, CreditCard, Headphones, RefreshCw, LayoutGrid, MessageCircle, Copy, Printer, Pencil,
-  ShoppingCart, ShoppingBasket, Leaf, Cherry, Croissant, Hammer, Bath, Martini, Coffee, ConciergeBell, Beer, Drumstick, ShoppingBag,
+  ShoppingCart, ShoppingBasket, Archive, FileText, Truck, Leaf, Cherry, Croissant, Hammer, Bath, Martini, Coffee, ConciergeBell, Beer, Drumstick, ShoppingBag,
   Flower2, Scissors, Slice, PersonStanding, Dumbbell, Stethoscope, Flower, Ellipsis, UtensilsCrossed, CalendarDays,
 } from "lucide-react";
 import { estaOscuro } from "./tema.js";
@@ -131,7 +131,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 3) {
-    return angosto(
+    return (
       <ComoTrabajas preguntas={preguntasRubro} respuestas={respuestas} onTildar={tildar}
         escala={escala} onEscala={setEscala} canal={canal} onCanal={setCanal} sucursales={sucursales} onSucursales={setSucursales}
         onVolver={() => ir(2)} onSeguir={() => ir(4)} />
@@ -327,12 +327,14 @@ function PasosNoche({ actual, className = "" }) {
     <ol className={`an-pasos ${className}`}>
       {ETAPAS.map((n, i) => {
         const num = i + 1;
-        const estado = num === actual ? "an-paso-activo" : num < actual ? "an-paso-hecho" : "";
+        /* El 2.5 es el paso 2 todavía: naranja y con "2.5" adentro. */
+        const activo = num === Math.floor(actual);
+        const estado = activo ? "an-paso-activo" : num < actual ? "an-paso-hecho" : "";
         return (
           <li key={n} className={estado}>
             {i > 0 && <span className={`an-linea ${num <= actual ? "an-linea-hecha" : ""}`} aria-hidden="true" />}
             <span className="an-paso">
-              <span className="an-numero">{num < actual ? <Check strokeWidth={3} /> : num}</span>
+              <span className="an-numero">{activo ? actual : num < actual ? <Check strokeWidth={3} /> : num}</span>
               <span className="an-paso-nombre">{n}</span>
             </span>
           </li>
@@ -590,7 +592,118 @@ function ProblemasClaro({ respuestas, onTildar, mensaje, onMensaje, onVolver, on
 /* ------------------------------------------------------------
    2.5 · ¿Cómo trabajás actualmente?
    ------------------------------------------------------------ */
-function ComoTrabajas({ preguntas, respuestas, onTildar, escala, onEscala, canal, onCanal, sucursales, onSucursales, onVolver, onSeguir }) {
+function ComoTrabajas(props) {
+  if (estaOscuro()) return <ComoTrabajasNoche {...props} />;
+  return <ComoTrabajasClaro {...props} />;
+}
+
+/* En oscuro es la maqueta del 01/10 copiada tal cual. Los íconos de "¿Qué
+   otras cosas hacés?" son los de la maqueta para las preguntas de
+   minimercado; las de otros rubros usan el ícono de su primer módulo. */
+const ICONO_PREGUNTA = { stock: Archive, compras: ShoppingCart, peso: ShoppingCart, factura: FileText, pedidos: Truck, equipo: Users, asistente: Sparkles };
+
+function Radio({ activa }) {
+  return <span className={`ct-radio ${activa ? "ct-radio-activa" : ""}`} aria-hidden="true">{activa && <Check strokeWidth={3} />}</span>;
+}
+
+function Casilla({ activa }) {
+  return <span className={`ct-casilla ${activa ? "ct-casilla-activa" : ""}`} aria-hidden="true">{activa && <Check strokeWidth={3} />}</span>;
+}
+
+function ComoTrabajasNoche({ preguntas, respuestas, onTildar, escala, onEscala, canal, onCanal, sucursales, onSucursales, onVolver, onSeguir }) {
+  return (
+    <section className="an-seccion ct-seccion relative overflow-hidden">
+      <img src="/landing/alta/paso25-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado ct-costado-izq" />
+      <img src="/landing/alta/paso25-derecho.jpg" alt="" aria-hidden="true" className="an-costado ct-costado-der" />
+      <div className="an-contenido ct-contenido relative">
+        <div className="an-arriba ct-arriba">
+          <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
+          <PasosNoche actual={2.5} className="ct-pasos" />
+        </div>
+        <div className="manuscrita ct-nota" aria-hidden="true">
+          Cada negocio es único.
+          <svg viewBox="0 0 60 30" className="ct-nota-flecha" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M56 4 C 50 18, 30 24, 6 22" /><path d="M14 15 L 5 22 L 15 28" />
+          </svg>
+        </div>
+
+        <div className="an-etiqueta pn-etiqueta ct-etiqueta">Paso 2.5 de 3</div>
+        <h1 className="an-titulo ct-titulo">¿Cómo <span className="an-naranja">trabajás</span> actualmente?</h1>
+        <p className="an-bajada ct-bajada">Un poco más de detalle para ajustar el sistema a tu realidad.</p>
+
+        <div className="ct-rotulo ct-rotulo-primero">¿Cuántos puestos de venta o atención tenés?</div>
+        <div className="ct-tres">
+          {ESCALAS.map((e) => {
+            const I = ICONO_ESCALA[e.k] || User;
+            const activa = escala === e.k;
+            return (
+              <button key={e.k} type="button" onClick={() => onEscala(e.k)} aria-pressed={activa} className={`ct-opcion ct-escala ${activa ? "ct-activa" : ""}`}>
+                <Radio activa={activa} />
+                <I className="ct-opcion-icono" strokeWidth={1.5} />
+                <span className="ct-opcion-titulo">{e.n}</span>
+                <span className="ct-opcion-detalle">{e.d}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="ct-rotulo">¿Dónde vendés principalmente?</div>
+        <div className="ct-tres">
+          {CANALES.map((c) => {
+            const activa = canal === c.k;
+            return (
+              <button key={c.k} type="button" onClick={() => onCanal(c.k)} aria-pressed={activa} className={`ct-opcion ct-canal ${activa ? "ct-activa" : ""}`}>
+                <Radio activa={activa} />
+                <c.I className="ct-opcion-icono" strokeWidth={1.5} />
+                <span className="ct-opcion-titulo">{c.n}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="ct-rotulo">¿Tenés sucursales?</div>
+        <div className="ct-dos">
+          {[[false, "No, solo un local"], [true, "Sí, varias sucursales"]].map(([v, t]) => (
+            <button key={t} type="button" onClick={() => onSucursales(v)} aria-pressed={sucursales === v} className={`ct-fila ct-sucursal ${sucursales === v ? "ct-activa" : ""}`}>
+              <Casilla activa={sucursales === v} />
+              <span className="ct-fila-titulo">{t}</span>
+            </button>
+          ))}
+        </div>
+
+        {preguntas.length > 0 && (
+          <>
+            <div className="ct-rotulo">¿Qué otras cosas hacés?</div>
+            <div className="ct-dos">
+              {preguntas.map((q) => {
+                const I = ICONO_PREGUNTA[q.k] || ICONO_MODULO[(q.modulos || [])[0]] || Check;
+                const activa = !!respuestas[q.k];
+                const detalle = (q.modulos || []).map(nombreDe).join(" · ");
+                return (
+                  <button key={q.k} type="button" onClick={() => onTildar(q.k)} aria-pressed={activa} className={`ct-fila ct-pregunta ${activa ? "ct-activa" : ""}`}>
+                    <Casilla activa={activa} />
+                    <I className="ct-fila-icono" strokeWidth={1.5} />
+                    <span className="ct-fila-textos">
+                      <span className="ct-fila-titulo ct-pregunta-titulo">{q.n}</span>
+                      {detalle && <span className="ct-fila-detalle">{detalle}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <div className="pn-botones ct-botones">
+          <button type="button" onClick={onVolver} className="pn-volver-boton ct-volver-boton"><ArrowLeft strokeWidth={2} /> Volver</button>
+          <button type="button" onClick={onSeguir} className="an-continuar pn-continuar ct-continuar">Continuar <ArrowRight strokeWidth={2.25} /></button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ComoTrabajasClaro({ preguntas, respuestas, onTildar, escala, onEscala, canal, onCanal, sucursales, onSucursales, onVolver, onSeguir }) {
   return (
     <Marco indicador={2.5} etiqueta="Paso 2.5 de 3" titulo={<>¿Cómo <span className="text-acento">trabajás</span> actualmente?</>}
       sub="Un poco más de detalle para ajustar el sistema a tu realidad." anotacion="Cada negocio es único." onVolver={onVolver} onSeguir={onSeguir}>
