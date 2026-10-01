@@ -1521,3 +1521,21 @@ html:not(.tema-noche) footer { border-top-color: transparent; }
 .an-dia .an-tarjeta-activa { border-color: rgb(var(--an-naranja)); }
 .an-dia .an-foto { background: rgb(244 240 236); color: rgb(var(--an-suave)); }
 .an-dia .an-aviso { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.06); box-shadow: 0 calc(4 * var(--u)) calc(14 * var(--u)) rgb(90 60 30 / 0.05); }
+
+/* El paso 2 en claro (01/10): tarjetas blancas, el ícono en durazno y
+   el aviso en durazno con borde naranja, como su maqueta. Los costados
+   claros son más angostos que los oscuros. */
+.an-dia .pn-costado-izq { width: calc(176 * var(--u)); }
+.an-dia .pn-costado-der { width: calc(170 * var(--u)); }
+.an-dia .pn-tarjeta { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.07); box-shadow: 0 calc(4 * var(--u)) calc(16 * var(--u)) rgb(90 60 30 / 0.06); }
+.an-dia .pn-tarjeta:hover { border-color: rgb(var(--an-naranja) / 0.55); }
+.an-dia .pn-tarjeta-activa { background: rgb(255 248 240); border-color: rgb(var(--an-naranja)); box-shadow: 0 0 calc(16 * var(--u)) rgb(var(--an-naranja) / 0.2); }
+.an-dia .pn-casilla { border-color: rgb(0 0 0 / 0.3); }
+.an-dia .pn-tarjeta-activa .pn-casilla { border-color: rgb(var(--an-naranja)); }
+.an-dia .pn-icono { background: rgb(253 232 214); }
+.an-dia .pn-detalle { color: rgb(var(--an-suave)); }
+.an-dia .pn-aviso { background: rgb(255 245 236); border-color: rgb(var(--an-naranja) / 0.5); color: rgb(var(--an-texto) / 0.85); }
+.an-dia .pn-aviso-icono { background: transparent; }
+.an-dia .pn-volver-boton { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.15); }
+.an-dia .pn-volver-boton:hover { border-color: rgb(0 0 0 / 0.35); }
+.an-dia .pn-otro textarea { background: rgb(255 255 255); }

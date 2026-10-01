@@ -123,7 +123,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
   const preguntasRubro = rubro.presentacion.preguntas || [];
 
   if (paso === 2) {
-    return angosto(
+    return (
       <Problemas respuestas={respuestas} onTildar={tildar} mensaje={mensaje} onMensaje={setMensaje}
         onVolver={onVolver} onSeguir={() => ir(3)} />
     );
@@ -435,16 +435,16 @@ function ElegiNegocioNoche({ rubros, onElegir, onVolver, claro = false }) {
    laptop con el logo, el portapapeles con las tildes) son recortes de la
    maqueta y el resto anda como siempre. El claro sigue con el de antes. */
 function Problemas(props) {
-  if (estaOscuro()) return <ProblemasNoche {...props} />;
-  return <ProblemasClaro {...props} />;
+  return <ProblemasNoche {...props} claro={!estaOscuro()} />;
 }
 
-function ProblemasNoche({ respuestas, onTildar, mensaje, onMensaje, onVolver, onSeguir }) {
+function ProblemasNoche({ respuestas, onTildar, mensaje, onMensaje, onVolver, onSeguir, claro = false }) {
   const otro = DOLORES.find((d) => d.otro);
+  const dir = claro ? "/landing/alta-claro" : "/landing/alta";
   return (
-    <section className="an-seccion pn-seccion relative overflow-hidden">
-      <img src="/landing/alta/paso2-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado pn-costado-izq" />
-      <img src="/landing/alta/paso2-derecho.jpg" alt="" aria-hidden="true" className="an-costado pn-costado-der" />
+    <section className={`an-seccion pn-seccion ${claro ? "an-dia" : ""} relative overflow-hidden`}>
+      <img src={`${dir}/paso2-izquierdo.jpg`} alt="" aria-hidden="true" className="an-costado pn-costado-izq" />
+      <img src={`${dir}/paso2-derecho.jpg`} alt="" aria-hidden="true" className="an-costado pn-costado-der" />
       <div className="an-contenido pn-contenido relative">
         <div className="an-arriba pn-arriba">
           <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
@@ -503,29 +503,6 @@ function ProblemasNoche({ respuestas, onTildar, mensaje, onMensaje, onVolver, on
         </div>
       </div>
     </section>
-  );
-}
-
-function ProblemasClaro({ respuestas, onTildar, mensaje, onMensaje, onVolver, onSeguir }) {
-  const otro = DOLORES.find((d) => d.otro);
-  return (
-    <Marco indicador={2} etiqueta="Paso 2 de 3" titulo={<>Contanos sobre <span className="text-acento">tu negocio</span></>}
-      sub="Seleccioná los principales problemas que tenés en el día a día. Nos ayuda a recomendarte la mejor configuración."
-      anotacion="Contanos lo que te pasa. Es el primer paso para mejorar." onVolver={onVolver} onSeguir={onSeguir}>
-      <div className="grid sm:grid-cols-2 gap-3">
-        {DOLORES.map((d) => (
-          <TarjetaCasilla key={d.k} activa={!!respuestas[d.k]} onClick={() => onTildar(d.k)} icono={ICONO_DOLOR[d.k]} titulo={d.n} detalle={d.d} />
-        ))}
-      </div>
-      {otro && respuestas[otro.k] && (
-        <label className="block mt-3">
-          <span className="text-xs font-semibold text-texto-suave">Contanos cuál</span>
-          <textarea value={mensaje} onChange={(e) => onMensaje(e.target.value)} rows={3} autoFocus
-            placeholder="Ej.: tengo dos cajas y a fin de mes nunca sé cuánto gané" className={CAMPO} />
-        </label>
-      )}
-      <Nota className="mt-4">Con esta información te vamos a recomendar los módulos que realmente necesitás.</Nota>
-    </Marco>
   );
 }
 
