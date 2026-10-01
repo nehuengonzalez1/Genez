@@ -396,15 +396,17 @@ function FilaNoche({ rubro, onElegir, dir }) {
 }
 
 /* ------------------------------------------------------------
-   Qué resuelve · el ticket en claro, el papel de preguntas en oscuro
+   Qué resuelve · la tablet y el papel "Sin Genez"
    ------------------------------------------------------------ */
 /* En oscuro, "Qué resuelve" es la maqueta del 01/10 copiada tal cual: la
    tablet con el papel "Sin Genez" y la luz de la derecha (con el "Simple.
    Rápido. Sin vueltas." escrito a mano) son recortes de la maqueta; el
-   texto, el botón y la lista van en HTML. El claro sigue con la de antes. */
+   texto, el botón y la lista van en HTML. El claro (01/10) tiene la misma
+   disposición, pero la foto ocupa todo el ancho (la mesa, la ventana, la
+   planta): va la maqueta entera con el texto y el panel borrados, y encima
+   lo mismo que en oscuro con la clase qr-dia. */
 function QueResuelve() {
-  if (useOscuro()) return <QueResuelveNoche />;
-  return <QueResuelveClaro />;
+  return <QueResuelveNoche claro={!useOscuro()} />;
 }
 
 const PUNTOS_NOCHE = [
@@ -420,10 +422,11 @@ const DATOS_RESUELVE = [
   [Settings, <>Sin vueltas<br />ni configuraciones complejas</>],
 ];
 
-function QueResuelveNoche() {
+function QueResuelveNoche({ claro = false }) {
   return (
-    <section id="resuelve" className="qr-seccion scroll-mt-20 relative overflow-hidden">
+    <section id="resuelve" className={`qr-seccion ${claro ? "qr-dia" : ""} scroll-mt-20 relative overflow-hidden`}>
       <div className="qr-lienzo">
+        {claro && <img src="/landing/resuelve/qr-claro-fondo.jpg" width="1960" height="802" className="qr-fondo" alt="" aria-hidden="true" />}
         <div className="qr-texto">
           <div className="hn-rotulo">Qué resuelve <span className="hn-raya" aria-hidden="true" /></div>
           <h2 className="qr-titulo">Si vendés todos los<br />días, <span className="hn-naranja">cada uno<br />cuesta plata.</span></h2>
@@ -440,9 +443,13 @@ function QueResuelveNoche() {
             ))}
           </ul>
         </div>
-        <img src="/landing/resuelve/centro.jpg" width="745" height="803" className="qr-centro"
-          alt="El inicio de Genez en una tablet, y al lado un papel &quot;Sin Genez&quot; lleno de signos de pregunta" />
-        <img src="/landing/resuelve/derecha-arriba.jpg" width="418" height="215" className="qr-derecha" alt="" aria-hidden="true" />
+        {!claro && (
+          <>
+            <img src="/landing/resuelve/centro.jpg" width="745" height="803" className="qr-centro"
+              alt="El inicio de Genez en una tablet, y al lado un papel &quot;Sin Genez&quot; lleno de signos de pregunta" />
+            <img src="/landing/resuelve/derecha-arriba.jpg" width="418" height="215" className="qr-derecha" alt="" aria-hidden="true" />
+          </>
+        )}
         <ul className="qr-panel">
           {PUNTOS_NOCHE.map(([I, t], i) => (
             <li key={i}><span className="qr-panel-icono"><I strokeWidth={2} /></span><span>{t}</span></li>
@@ -450,85 +457,6 @@ function QueResuelveNoche() {
         </ul>
       </div>
     </section>
-  );
-}
-
-function QueResuelveClaro() {
-  const puntos = [
-    [Boxes, "Controlá tu stock en tiempo real"],
-    [TrendingUp, "Sabé qué productos dan más ganancia"],
-    [Bell, "Evitá faltantes y vencimientos"],
-    [BarChart3, "Tené tus números siempre claros"],
-    [Smartphone, "Todo desde el celu, la compu o la tablet."],
-  ];
-  return (
-    <section id="resuelve" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6 grid lg:grid-cols-[0.9fr_1.1fr] gap-10 items-center">
-      <div>
-        <div className={ROTULO_ACENTO}>Qué resuelve</div>
-        <h2 className="f-d text-4xl sm:text-5xl leading-[1.05] mt-3">
-          Si vendés todos los días, <span className="text-acento">cada uno cuesta plata.</span>
-        </h2>
-        <p className="text-texto-suave mt-4 text-[17px] leading-relaxed">
-          Llevar el negocio a mano hace que se te escape el stock, que no sepas qué te deja más ganancia y que a fin de mes la caja no
-          cierre. Genez ordena ventas, stock, compras y caja en un solo lugar, y te lo muestra en números, sin que tengas que entender
-          de computación.
-        </p>
-        <a href="#como-funciona" className={`${SOLIDO} mt-7`}>Conocé cómo funciona <ArrowRight size={16} /></a>
-      </div>
-
-      <div className="grid sm:grid-cols-[1fr_1.05fr] gap-8 items-center pt-12">
-        <div>
-          <div className="solo-claro"><TicketGenez /></div>
-          <div className="solo-oscuro"><PapelSinGenez /></div>
-        </div>
-        <div className="relative">
-          <div className="manuscrita hidden sm:block absolute -top-16 right-2 text-[18px] leading-[1.05] text-texto-suave -rotate-3 text-right">
-            Simple.<br />Rápido.<br />Sin vueltas.
-            <Flecha className="w-10 ml-auto -mt-1 -scale-x-100" />
-          </div>
-          <ul className="bg-superficie border border-borde rounded-xl p-5 space-y-3.5">
-            {puntos.map(([I, t]) => (
-              <li key={t} className="flex items-center gap-3 text-[15px] font-medium">
-                <span className="w-8 h-8 rounded-md bg-acento-suave text-acento flex items-center justify-center shrink-0"><I size={16} /></span>{t}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TicketGenez() {
-  const lineas = [["Leche entera 1 L", "$ 1.450"], ["Pan lactal", "$ 2.900"], ["Queso cremoso 0,350 kg", "$ 3.640"], ["Café molido 250 g", "$ 4.200"]];
-  return (
-    <div className="ticket rounded-t-lg p-5 -rotate-3 max-w-[290px] mx-auto">
-      <div className="flex justify-center"><LogoGenez size={22} conNombre /></div>
-      <ul className="mt-4 space-y-2 text-[13px]">
-        {lineas.map(([n, p]) => <li key={n} className="flex justify-between gap-3"><span>{n}</span><span className="f-m">{p}</span></li>)}
-      </ul>
-      <div className="mt-3 pt-3 border-t border-dashed border-[#d6d3d1] flex justify-between font-bold text-[15px]">
-        <span>Total</span><span className="f-m">$ 12.190</span>
-      </div>
-      <div className="mt-4 text-center">
-        <span className="manuscrita inline-block text-acento text-[18px] leading-[1.05] border-2 border-acento rounded-[50%] px-4 py-2 -rotate-3">
-          Cada venta cuenta<br />(sin perder plata)
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function PapelSinGenez() {
-  const preguntas = ["Ventas del día", "Stock", "Cuentas por pagar", "Ganancia real", "Clientes que vuelven"];
-  return (
-    <div className="papel rounded-md p-5 rotate-3 max-w-[290px] mx-auto">
-      <div className="text-[12px] font-bold tracking-[0.2em] text-center">SIN GENEZ</div>
-      <ul className="manuscrita mt-3 space-y-2 text-[20px] leading-none">
-        {preguntas.map((t) => <li key={t} className="flex justify-between border-b border-dotted border-[#a8a29e] pb-1"><span>{t}:</span><span>?</span></li>)}
-      </ul>
-      <div className="manuscrita text-[18px] mt-4 text-center text-[#57534e]">Demasiadas preguntas</div>
-    </div>
   );
 }
 

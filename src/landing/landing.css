@@ -1327,3 +1327,56 @@ html {
 .en-dia .en-tarjeta { border-color: rgb(0 0 0 / 0.05); box-shadow: 0 calc(4 * var(--u)) calc(16 * var(--u)) rgb(90 60 30 / 0.08); }
 .en-dia .en-tarjeta-foto { background: rgb(240 236 232); }
 .en-dia .en-nota-flecha { color: rgb(var(--en-naranja)); }
+
+/* ------------------------------------------------------------
+   "Qué resuelve" en claro (01/10), copiada de la maqueta
+   ------------------------------------------------------------
+   Mismos tamaños que la oscura. La maqueta clara corre un poco el texto
+   y el panel; los colores están medidos en ella. */
+.qr-dia {
+  --hn-texto: 10 12 14;
+  --qr-suave: 56 56 56;
+}
+:root .qr-dia { background: rgb(var(--fondo-dia)); }
+.qr-fondo { position: absolute; inset: 0; width: 100%; height: 100%; }
+.qr-dia .qr-texto { left: calc(112 * var(--u)); top: calc(94 * var(--u)); z-index: 2; }
+.qr-dia .qr-dato-icono { background: rgb(255 250 245); border-color: rgb(var(--hn-naranja) / 0.6); }
+@media (min-width: 1024px) { .qr-dia .qr-datos li + li { border-left: 1px solid rgb(0 0 0 / 0.12); padding-left: calc(22 * var(--u)); } }
+.qr-dia .qr-panel {
+  left: calc(1568 * var(--u)); top: calc(215 * var(--u)); width: calc(364 * var(--u)); height: calc(508 * var(--u)); padding: 0 calc(18 * var(--u));
+  background: rgb(255 249 243 / 0.82); border: 1.5px solid rgb(var(--hn-naranja) / 0.28);
+  box-shadow: 0 calc(10 * var(--u)) calc(40 * var(--u)) rgb(160 90 30 / 0.12); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.qr-dia .qr-panel li { padding: calc(12 * var(--u)) calc(10 * var(--u)); color: rgb(var(--hn-texto)); }
+.qr-dia .qr-panel li + li { border-top-color: rgb(var(--hn-naranja) / 0.12); }
+.qr-dia .qr-panel-icono { width: calc(66 * var(--u)); height: calc(66 * var(--u)); background: rgb(253 228 206); color: rgb(var(--hn-naranja)); }
+@media (min-width: 1024px) {
+  .qr-fondo {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent), linear-gradient(to bottom, transparent, #000 8%, #000 90%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent), linear-gradient(to bottom, transparent, #000 8%, #000 90%, transparent);
+    mask-composite: intersect;
+  }
+}
+@media (max-width: 1023px) {
+  .qr-dia .qr-lienzo { display: flex; flex-direction: column; }
+  .qr-dia .qr-fondo { position: static; order: 2; display: block; width: 100%; height: 260px; margin-top: 28px; object-fit: cover; object-position: 62% center; border-radius: 12px; }
+  .qr-dia .qr-panel { order: 3; width: auto; height: auto; padding: 8px 14px; }
+  .qr-dia .qr-panel { background: rgb(255 249 243); }
+}
+/* La maqueta clara tiene el texto un poco más grande que la oscura. */
+.qr-dia .hn-rotulo { font-size: calc(20.8 * var(--u)); }
+.qr-dia .qr-texto { width: calc(760 * var(--u)); }
+.qr-dia .qr-titulo { margin-top: calc(22 * var(--u)); font-size: calc(79.4 * var(--u)); line-height: 0.95; white-space: nowrap; }
+.qr-dia .qr-parrafo { margin-top: calc(17 * var(--u)); width: calc(700 * var(--u)); font-size: calc(24.8 * var(--u)); line-height: calc(30 * var(--u)); }
+.qr-dia .qr-boton { margin-top: calc(25 * var(--u)); height: calc(67 * var(--u)); padding: 0 calc(40 * var(--u)); font-size: calc(25.5 * var(--u)); }
+.qr-dia .qr-datos { margin-top: calc(49 * var(--u)); font-size: calc(16 * var(--u)); line-height: calc(22 * var(--u)); }
+@media (max-width: 1023px) {
+  .qr-dia .hn-rotulo { font-size: 12px; }
+  .qr-dia .qr-texto { width: auto; }
+  .qr-dia .qr-titulo { font-size: 36px; white-space: normal; }
+  .qr-dia .qr-parrafo { width: auto; font-size: 16px; line-height: 1.45; }
+  .qr-dia .qr-boton { height: 52px; padding: 0 22px; font-size: 16px; }
+  .qr-dia .qr-datos { font-size: 13px; line-height: 1.3; }
+  .qr-dia .qr-panel-icono { width: 44px; height: 44px; }
+}
