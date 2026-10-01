@@ -1634,3 +1634,24 @@ html:not(.tema-noche) footer { border-top-color: transparent; }
   .an-dia .li-ancho { grid-row: 3; }
   .an-dia .li-despues { grid-row: 4; }
 }
+
+/* El paso 2.5 en claro (01/10): la maqueta clara va de 231 a 1305, un
+   poco más ancha que la oscura, con los pasos más juntos. Tarjetas
+   blancas; las elegidas, con borde naranja sobre durazno. */
+.an-dia .ct-contenido { width: calc(1074 * var(--u)); }
+.an-dia .ct-costado-izq { width: calc(183 * var(--u)); }
+.an-dia .ct-costado-der { width: calc(214 * var(--u)); }
+@media (min-width: 1024px) {
+  .an-dia .ct-pasos { left: calc(284 * var(--u)); }
+  .an-dia .ct-pasos .an-paso { width: calc(93 * var(--u)); }
+  .an-dia .ct-pasos .an-linea { width: calc(115 * var(--u)); }
+  .an-dia .ct-nota { left: calc(884 * var(--u)); }
+}
+.an-dia .ct-opcion, .an-dia .ct-fila { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.08); box-shadow: 0 calc(4 * var(--u)) calc(14 * var(--u)) rgb(90 60 30 / 0.05); }
+.an-dia .ct-activa, .an-dia .ct-activa:hover { background: rgb(255 246 237); border-color: rgb(var(--an-naranja)); box-shadow: 0 calc(4 * var(--u)) calc(16 * var(--u)) rgb(var(--an-naranja) / 0.14); }
+.an-dia .ct-radio, .an-dia .ct-casilla { border-color: rgb(0 0 0 / 0.3); }
+.an-dia .ct-radio-activa, .an-dia .ct-casilla-activa { border-color: transparent; }
+.an-dia .pn-volver-boton.ct-volver-boton { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.15); }
+@media (max-width: 1023px) {
+  .an-dia .ct-contenido { width: auto; }
+}

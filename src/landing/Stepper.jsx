@@ -43,18 +43,14 @@ import { ESCALAS, DOLORES, GENERALES, conDolores, armarModulos, planes, presupue
 import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
 import { pedirPresupuesto, validarPedido } from "../datos/solicitudes.js";
 import { Tarjeta, Boton } from "../cliente/ui.jsx";
-import { ICONO_RUBRO, ICONO_MODULO, ICONO_DOLOR, foto, Anotacion } from "./comun.jsx";
+import { ICONO_RUBRO, ICONO_MODULO, ICONO_DOLOR, foto } from "./comun.jsx";
 
 const ROTULO = "text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold";
-const ETIQUETA = "text-[11px] uppercase tracking-[0.14em] font-bold text-acento";
 const pesos = (n) => "$" + new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(Math.round(n));
 const nombreDe = (k) => (moduloPorClave(k) || { n: k }).n;
 const esDolor = (k) => DOLORES.some((d) => d.k === k);
 const esGeneral = (k) => GENERALES.some((g) => g.k === k);
 
-const BOTON = "inline-flex items-center justify-center gap-2 rounded-md text-[15px] px-[18px] py-3 transition-colors";
-const SOLIDO = `${BOTON} bg-acento hover:bg-acento-vivo text-sobre-acento font-bold`;
-const LINEA = `${BOTON} border border-borde-fuerte hover:border-texto-tenue text-texto font-semibold`;
 const CAMPO = "mt-1 w-full border border-borde rounded-lg px-3 py-3 text-[15px] bg-superficie outline-none focus:border-acento";
 
 const CANALES = [
@@ -63,7 +59,6 @@ const CANALES = [
   { k: "ambos", n: "Ambos", I: Layers },
 ];
 const ICONO_ESCALA = { "1": User, "2-3": Users, "4+": Building2 };
-const ICONO_PLAN = { start: Sprout, pro: Crown, empresa: BarChart3 };
 
 export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, onVolver }) {
   const [paso, setPaso] = useState(2);            // 2 problemas · 3 cómo trabajás · 4 módulos · 5 plan · 6 listo
@@ -116,9 +111,6 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
 
   if (!rubro) return <ElegiNegocio rubros={rubros} onElegir={onElegirNegocio} onVolver={onVolver} />;
 
-  /* En claro, los pasos que todavía no tienen su maqueta clara siguen en
-     el contenedor angosto de antes; los copiados van a todo el ancho. */
-  const angosto = (contenido) => (estaOscuro() ? contenido : <div className="max-w-5xl mx-auto px-5 pb-20">{contenido}</div>);
   const p = rubroArmado.presentacion;
   const preguntasRubro = rubro.presentacion.preguntas || [];
 
@@ -129,7 +121,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 3) {
-    return angosto(
+    return (
       <ComoTrabajas preguntas={preguntasRubro} respuestas={respuestas} onTildar={tildar}
         escala={escala} onEscala={setEscala} canal={canal} onCanal={setCanal} sucursales={sucursales} onSucursales={setSucursales}
         onVolver={() => ir(2)} onSeguir={() => ir(4)} />
@@ -157,149 +149,14 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
   );
 }
 
-/* ------------------------------------------------------------
-   El marco de cada pantalla: volver, el indicador de tres pasos, la
-   etiqueta, el título con una palabra en naranja, la bajada, la
-   anotación a mano y los botones de abajo.
-   ------------------------------------------------------------ */
-function Marco({ indicador, etiqueta, titulo, sub, anotacion, ancho = "max-w-4xl", onVolver, volverTexto = "Volver",
-  onSeguir, seguirTexto = "Continuar", seguirDeshabilitado = false, pie, children }) {
-  return (
-    <section className={`relative pt-4 mx-auto ${ancho}`}>
-      <div className="no-imprimir">
-        {onVolver && (
-          <button type="button" onClick={onVolver} className="inline-flex items-center gap-1.5 text-sm text-texto-suave hover:text-texto">
-            <ArrowLeft size={16} /> {volverTexto}
-          </button>
-        )}
-        <Indicador actual={indicador} />
-      </div>
-
-      {anotacion && <Anotacion className="!top-24">{anotacion}</Anotacion>}
-
-      <div className="mt-8 lg:pr-52">
-        {etiqueta && <div className={ETIQUETA}>{etiqueta}</div>}
-        <h1 className="f-d text-3xl sm:text-4xl leading-tight mt-2">{titulo}</h1>
-        {sub && <p className="text-texto-suave mt-2 max-w-2xl leading-relaxed">{sub}</p>}
-      </div>
-
-      <div className="mt-6">{children}</div>
-
-      {(onVolver || onSeguir) && (
-        <div className="no-imprimir mt-8 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
-          {pie ? <div className="flex-1">{pie}</div>
-            : onVolver ? <button type="button" onClick={onVolver} className={LINEA}><ArrowLeft size={16} /> {volverTexto}</button> : <span />}
-          {onSeguir && (
-            <button type="button" onClick={onSeguir} disabled={seguirDeshabilitado} className={`${SOLIDO} disabled:opacity-40 disabled:cursor-not-allowed`}>
-              {seguirTexto} <ArrowRight size={16} />
-            </button>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
 const ETAPAS = ["Tu rubro", "Cómo trabajás", "Tus módulos"];
-
-/* Tres círculos unidos por una línea: número en el que se está, tilde
-   en los hechos. "Cómo trabajás" tiene dos pantallas (2 y 2.5). */
-function Indicador({ actual }) {
-  return (
-    <ol className="mt-4 flex items-start justify-center">
-      {ETAPAS.map((n, i) => {
-        const num = i + 1;
-        const activo = actual === num || (num === 2 && actual === 2.5);
-        const hecho = !activo && actual > num;
-        const rotulo = num === 2 && actual === 2.5 ? "2.5" : String(num);
-        return (
-          <li key={n} className="flex items-start">
-            {i > 0 && <span className={`mt-4 h-[2px] w-10 sm:w-24 ${actual >= num ? "bg-acento" : "bg-borde-fuerte"}`} />}
-            <div className="flex flex-col items-center w-[72px] sm:w-28">
-              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold ${
-                hecho || activo ? "bg-acento text-sobre-acento" : "bg-superficie border border-borde-fuerte text-texto-tenue"}`}>
-                {hecho ? <Check size={15} strokeWidth={3} /> : rotulo}
-              </span>
-              <span className={`mt-1.5 text-[11px] font-semibold text-center leading-tight ${activo ? "text-texto" : "text-texto-tenue"}`}>{n}</span>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function Nota({ children, className = "" }) {
-  return (
-    <div className={`flex items-start gap-3 bg-superficie border border-borde rounded-xl px-4 py-3 text-sm text-texto-suave ${className}`}>
-      <span className="w-8 h-8 rounded-lg bg-acento-suave text-acento flex items-center justify-center shrink-0"><Lightbulb size={16} /></span>
-      <span className="leading-snug pt-1">{children}</span>
-    </div>
-  );
-}
-
-/* Una tarjeta con casilla: para los dolores, las preguntas del rubro y
-   los módulos. Con `icono` lo muestra al lado de la casilla. */
-/* Un color por plan, el mismo en todos lados: verde Start, naranja Pro,
-   azul Empresa. Son los tonos de estado que ya existen en el sistema. */
-const TONO_NIVEL = {
-  start: "border-bien text-bien",
-  pro: "border-acento text-acento",
-  empresa: "border-info text-info",
-};
-const FONDO_NIVEL = {
-  start: "bg-bien-suave text-bien",
-  pro: "bg-acento-suave text-acento",
-  empresa: "bg-info-suave text-info",
-};
-
-function TarjetaCasilla({ activa, fija, onClick, icono: I, titulo, detalle, motivo, etiqueta, compacta = false }) {
-  return (
-    <button type="button" onClick={onClick} disabled={fija} aria-pressed={activa}
-      className={`text-left flex items-start gap-3 rounded-xl border transition-colors ${compacta ? "p-3" : "p-4"} ${
-        activa ? "border-acento bg-acento-suave/30" : "border-borde bg-superficie hover:border-borde-fuerte"} ${fija ? "opacity-80" : ""}`}>
-      <span className={`w-5 h-5 mt-0.5 rounded border flex items-center justify-center shrink-0 ${
-        activa ? "bg-acento border-acento text-sobre-acento" : "border-borde-fuerte"}`}>
-        {activa && (fija ? <Lock size={11} /> : <Check size={13} strokeWidth={3} />)}
-      </span>
-      {I && (
-        <span className={`${compacta ? "w-8 h-8" : "w-9 h-9"} rounded-lg flex items-center justify-center shrink-0 ${
-          activa ? "bg-acento/15 text-acento" : "bg-superficie-2 text-texto-suave"}`}>
-          <I size={compacta ? 16 : 18} />
-        </span>
-      )}
-      <span className="min-w-0 flex-1">
-        <span className={`block font-semibold leading-snug ${compacta ? "text-[14px]" : "text-[15px]"}`}>{titulo}</span>
-        {detalle && <span className="block text-xs text-texto-tenue mt-0.5 leading-snug">{detalle}</span>}
-        {motivo && <span className="block text-[11px] text-acento mt-1 leading-snug">{motivo}</span>}
-      </span>
-      {etiqueta && (
-        <span className={`shrink-0 text-[9px] uppercase tracking-wider font-bold rounded border px-1.5 py-0.5 ${TONO_NIVEL[etiqueta.k] || TONO_NIVEL.empresa}`}>{etiqueta.n}</span>
-      )}
-    </button>
-  );
-}
-
-/* Una opción grande con ícono arriba (puestos, dónde vendés). */
-function OpcionGrande({ activa, onClick, icono: I, titulo, detalle }) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={activa}
-      className={`rounded-xl border px-3 py-4 text-center min-h-[96px] flex flex-col items-center justify-center gap-1.5 transition-colors ${
-        activa ? "border-acento bg-acento-suave/30" : "border-borde bg-superficie hover:border-borde-fuerte"}`}>
-      <I size={22} className={activa ? "text-acento" : "text-texto-suave"} />
-      <span className="f-d text-[15px] leading-tight">{titulo}</span>
-      {detalle && <span className="text-[11px] text-texto-tenue leading-snug">{detalle}</span>}
-    </button>
-  );
-}
 
 /* ------------------------------------------------------------
    1 · ¿Qué negocio tenés?
    ------------------------------------------------------------ */
 /* En oscuro, el paso 1 es la maqueta del 01/10 copiada tal cual: las
    fotos de cada negocio y los costados son recortes de la maqueta, y el
-   resto (buscador, filtros, tarjetas, "Continuar") anda igual que antes.
-   El claro sigue con la de antes. */
+   resto (buscador, filtros, tarjetas, "Continuar") anda igual que antes. */
 /* El claro (01/10) es la misma maqueta con otra luz: el mismo paso, con
    sus recortes en alta-claro y la clase an-dia en la sección, que cambia
    los colores de todo lo que es an-*. */
@@ -510,8 +367,7 @@ function ProblemasNoche({ respuestas, onTildar, mensaje, onMensaje, onVolver, on
    2.5 · ¿Cómo trabajás actualmente?
    ------------------------------------------------------------ */
 function ComoTrabajas(props) {
-  if (estaOscuro()) return <ComoTrabajasNoche {...props} />;
-  return <ComoTrabajasClaro {...props} />;
+  return <ComoTrabajasNoche {...props} claro={!estaOscuro()} />;
 }
 
 /* En oscuro es la maqueta del 01/10 copiada tal cual. Los íconos de "¿Qué
@@ -527,11 +383,13 @@ function Casilla({ activa }) {
   return <span className={`ct-casilla ${activa ? "ct-casilla-activa" : ""}`} aria-hidden="true">{activa && <Check strokeWidth={3} />}</span>;
 }
 
-function ComoTrabajasNoche({ preguntas, respuestas, onTildar, escala, onEscala, canal, onCanal, sucursales, onSucursales, onVolver, onSeguir }) {
+function ComoTrabajasNoche({ preguntas, respuestas, onTildar, escala, onEscala, canal, onCanal, sucursales, onSucursales, onVolver, onSeguir, claro = false }) {
+  /* El claro (01/10) es el mismo paso con sus costados en alta-claro. */
+  const dir = claro ? "/landing/alta-claro" : "/landing/alta";
   return (
-    <section className="an-seccion ct-seccion relative overflow-hidden">
-      <img src="/landing/alta/paso25-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado ct-costado-izq" />
-      <img src="/landing/alta/paso25-derecho.jpg" alt="" aria-hidden="true" className="an-costado ct-costado-der" />
+    <section className={`an-seccion ct-seccion ${claro ? "an-dia" : ""} relative overflow-hidden`}>
+      <img src={`${dir}/paso25-izquierdo.jpg`} alt="" aria-hidden="true" className="an-costado ct-costado-izq" />
+      <img src={`${dir}/paso25-derecho.jpg`} alt="" aria-hidden="true" className="an-costado ct-costado-der" />
       <div className="an-contenido ct-contenido relative">
         <div className="an-arriba ct-arriba">
           <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
@@ -617,43 +475,6 @@ function ComoTrabajasNoche({ preguntas, respuestas, onTildar, escala, onEscala, 
         </div>
       </div>
     </section>
-  );
-}
-
-function ComoTrabajasClaro({ preguntas, respuestas, onTildar, escala, onEscala, canal, onCanal, sucursales, onSucursales, onVolver, onSeguir }) {
-  return (
-    <Marco indicador={2.5} etiqueta="Paso 2.5 de 3" titulo={<>¿Cómo <span className="text-acento">trabajás</span> actualmente?</>}
-      sub="Un poco más de detalle para ajustar el sistema a tu realidad." anotacion="Cada negocio es único." onVolver={onVolver} onSeguir={onSeguir}>
-      <div className={ROTULO}>¿Cuántos puestos de venta o atención tenés?</div>
-      <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-3">
-        {ESCALAS.map((e) => (
-          <OpcionGrande key={e.k} activa={escala === e.k} onClick={() => onEscala(e.k)} icono={ICONO_ESCALA[e.k] || User} titulo={e.n} detalle={e.d} />
-        ))}
-      </div>
-
-      <div className={`${ROTULO} mt-6`}>¿Dónde vendés principalmente?</div>
-      <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-3">
-        {CANALES.map((c) => <OpcionGrande key={c.k} activa={canal === c.k} onClick={() => onCanal(c.k)} icono={c.I} titulo={c.n} />)}
-      </div>
-
-      <div className={`${ROTULO} mt-6`}>¿Tenés sucursales?</div>
-      <div className="mt-2 grid sm:grid-cols-2 gap-2 sm:gap-3">
-        <TarjetaCasilla compacta activa={!sucursales} onClick={() => onSucursales(false)} titulo="No, solo un local" />
-        <TarjetaCasilla compacta activa={sucursales} onClick={() => onSucursales(true)} titulo="Sí, varias sucursales" />
-      </div>
-
-      {preguntas.length > 0 && (
-        <>
-          <div className={`${ROTULO} mt-6`}>¿Qué otras cosas hacés?</div>
-          <div className="mt-2 grid sm:grid-cols-2 gap-2 sm:gap-3">
-            {preguntas.map((q) => (
-              <TarjetaCasilla key={q.k} compacta activa={!!respuestas[q.k]} onClick={() => onTildar(q.k)} titulo={q.n}
-                detalle={(q.modulos || []).map(nombreDe).join(" · ") || null} />
-            ))}
-          </div>
-        </>
-      )}
-    </Marco>
   );
 }
 
