@@ -149,7 +149,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
         onElegir={(k) => { setOpcion(k); ir(6); }} onVolver={() => ir(4)} />
     );
   }
-  return angosto(
+  return (
     <Listo rubro={rubroArmado} negocio={negocio} escala={escala} canal={canal} sucursales={sucursales}
       respuestas={respuestasTotales} mensaje={mensaje} elegida={elegida} presupuesto={presupuesto} tarifas={tarifas}
       onVolver={() => ir(5)} onCambiarNegocio={onVolver} onEditarProblemas={() => ir(2)} onEditarTrabajo={() => ir(3)}
@@ -864,19 +864,6 @@ const CONFIANZA = [
   [LayoutGrid, "Todo en un mismo lugar", "Para hacer crecer tu negocio"],
 ];
 
-function Confianza({ className = "", cuantos = 3 }) {
-  return (
-    <ul className={`grid sm:grid-cols-${cuantos === 4 ? "2 lg:grid-cols-4" : "3"} gap-3 ${className}`}>
-      {CONFIANZA.slice(0, cuantos).map(([I, t, d]) => (
-        <li key={t} className="flex items-center gap-3 bg-superficie border border-borde rounded-xl px-4 py-3">
-          <span className="w-9 h-9 rounded-lg bg-acento-suave text-acento flex items-center justify-center shrink-0"><I size={17} /></span>
-          <span><span className="block text-sm font-bold leading-tight">{t}</span><span className="block text-[11px] text-texto-tenue">{d}</span></span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /* ------------------------------------------------------------
    ¡Listo! · el pedido, y el detalle plegado debajo
    ------------------------------------------------------------ */
@@ -923,131 +910,10 @@ function Listo({ rubro, negocio, escala, canal, sucursales, respuestas, mensaje,
     puesta_en_marcha: puestaEnMarcha,
   };
 
-  if (estaOscuro()) {
-    return (
-      <ListoNoche {...{ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, base, opcionales, nombresBase,
-        dolores, tildes, puestos, canalNombre, sucursales, texto, whatsapp, pedido, mensaje,
-        onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan }} />
-    );
-  }
-
   return (
-    <section className="relative pt-4 mx-auto max-w-4xl">
-      <div className="no-imprimir">
-        <button type="button" onClick={onVolver} className="inline-flex items-center gap-1.5 text-sm text-texto-suave hover:text-texto">
-          <ArrowLeft size={16} /> Volver
-        </button>
-        <Indicador actual={4} />
-      </div>
-
-      <div className="mt-8 text-center">
-        <div className="brillo mx-auto w-28 h-28 rounded-full flex items-center justify-center">
-          <span className="w-16 h-16 rounded-full bg-acento text-sobre-acento flex items-center justify-center"><Check size={34} strokeWidth={3} /></span>
-        </div>
-        <div className={`${ETIQUETA} mt-6`}>¡Listo!</div>
-        <h1 className="f-d text-3xl sm:text-4xl leading-tight mt-2">Tu Genez está casi listo.</h1>
-        <p className="text-texto-suave mt-3 max-w-xl mx-auto leading-relaxed">
-          Plan <strong className="text-texto">{elegida.n}</strong> para <strong className="text-texto">{titulo}</strong>: {cantidad} módulos
-          {!calculando && mensual != null ? <>, <strong className="text-texto">{pesos(mensual)} por mes</strong></> : null}.
-          Dejanos tu WhatsApp y nos ponemos en contacto para dejarlo andando.
-        </p>
-      </div>
-
-      <div className="mt-8 grid lg:grid-cols-[minmax(0,1fr)_340px] gap-4 lg:gap-8 items-start">
-        <div className="lg:order-2 lg:sticky lg:top-24 no-imprimir">
-          <Resumen key={elegida.k} calculando={calculando} sinPrecios={sinPrecios} mensual={mensual} puestaEnMarcha={puestaEnMarcha}
-            faltan={faltan} cantidad={cantidad} texto={texto} whatsapp={whatsapp} pedido={pedido} mensajeInicial={mensaje} plan={elegida.n} />
-        </div>
-
-        <div className="lg:order-1 space-y-3">
-          <Confianza cuantos={4} className="!grid-cols-2" />
-
-          <details className="group">
-            <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center justify-between gap-3 bg-superficie border border-borde rounded-xl px-4 py-3 text-sm font-semibold">
-              Ver el detalle de tu presupuesto
-              <span className="text-texto-tenue group-open:hidden">+</span><span className="text-texto-tenue hidden group-open:inline">–</span>
-            </summary>
-            <div className="mt-3 space-y-3">
-              <Tarjeta>
-                <div className={`${ROTULO} mb-3`}>Lo que elegiste</div>
-                <dl className="divide-y divide-borde">
-                  <Eleccion rotulo="Negocio" valor={titulo} accion="Cambiar" onClick={onCambiarNegocio} />
-                  <Eleccion rotulo="Plan" valor={`${elegida.n} · ${elegida.d}`} accion="Cambiar" onClick={onCambiarPlan} />
-                  <Eleccion rotulo="Te complica" valor={dolores.length ? dolores.map((q) => q.n).join(" · ") : "No marcaste nada"} accion="Editar" onClick={onEditarProblemas} />
-                  <Eleccion rotulo="Cómo trabajás" valor={`${puestos.n} · ${canalNombre} · ${sucursales ? "varias sucursales" : "un solo local"}${tildes.length ? " · " + tildes.map((q) => q.n).join(" · ") : ""}`} accion="Editar" onClick={onEditarTrabajo} />
-                </dl>
-              </Tarjeta>
-
-              <Tarjeta>
-                <div className="flex items-baseline justify-between gap-3 mb-3">
-                  <div className={ROTULO}>Tus {cantidad} módulos</div>
-                  <button type="button" onClick={onAjustar} className="no-imprimir inline-flex items-center gap-1 text-sm font-semibold text-acento hover:text-acento-vivo">
-                    <Pencil size={13} /> Ajustar
-                  </button>
-                </div>
-                <ul className="divide-y divide-borde">
-                  <Linea nombre="Base" detalle={nombresBase} motivo="Siempre incluida"
-                    precio={calculando ? "…" : base == null ? "Consultar" : pesos(base)} />
-                  {opcionales.map((l) => (
-                    <Linea key={l.k} nombre={l.n} detalle={l.d} motivo={armado.motivos[l.k]}
-                      precio={calculando ? "…" : l.monto == null ? "Consultar" : pesos(l.monto)} />
-                  ))}
-                  {!sinPrecios && !calculando && puestaEnMarcha > 0 && (
-                    <Linea nombre="Puesta en marcha" detalle="Una sola vez, al arrancar: cargamos tu catálogo y dejamos todo configurado" precio={pesos(puestaEnMarcha)} />
-                  )}
-                  {!sinPrecios && !calculando && mensual != null && (
-                    <li className="hidden print:flex items-center justify-between pt-3 font-bold">
-                      <span>Total por mes</span><span className="f-m">{pesos(mensual)}</span>
-                    </li>
-                  )}
-                </ul>
-                {sinPrecios && (
-                  <p className="text-sm text-texto-suave mt-3 pt-3 border-t border-borde">
-                    Todavía no publicamos precios. Dejanos tu WhatsApp y nos ponemos en contacto con el precio de estos {cantidad} módulos, sin sorpresas.
-                  </p>
-                )}
-              </Tarjeta>
-
-              <Tarjeta>
-                <div className={`${ROTULO} mb-3`}>Qué necesitás de tu lado</div>
-                {armado.necesita.length ? (
-                  <ul className="space-y-2">
-                    {armado.necesita.map((n) => (
-                      <li key={n} className="flex items-start gap-3 text-[15px]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-texto-tenue shrink-0 mt-2" />{n}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-[15px] text-texto-suave">Nada más que un celular o una computadora con internet.</p>
-                )}
-              </Tarjeta>
-
-              <Tarjeta>
-                <div className={`${ROTULO} mb-3`}>Qué pasa después</div>
-                <ol className="space-y-3">
-                  {[
-                    ["Nos ponemos en contacto por WhatsApp", "Te escribimos con el presupuesto confirmado y contestamos tus dudas."],
-                    ["Puesta en marcha", "Cargamos tu catálogo y dejamos los módulos configurados para tu negocio."],
-                    ["Una capacitación corta y arrancás", "La primera venta la hacés con nosotros al lado."],
-                  ].map(([t, d], i) => (
-                    <li key={t} className="flex gap-3">
-                      <span className="w-7 h-7 rounded-full bg-acento-suave text-acento f-d text-[13px] flex items-center justify-center shrink-0">{i + 1}</span>
-                      <span className="min-w-0">
-                        <span className="block text-[15px] font-medium leading-snug">{t}</span>
-                        <span className="block text-xs text-texto-tenue mt-0.5">{d}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </Tarjeta>
-            </div>
-          </details>
-
-          <div className="manuscrita text-right text-[19px] leading-[1.05] text-texto rotate-2 pt-2 pr-2" aria-hidden="true">Gracias por confiar en Genez.</div>
-        </div>
-      </div>
-    </section>
+    <ListoNoche {...{ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, base, opcionales, nombresBase,
+      dolores, tildes, puestos, canalNombre, sucursales, texto, whatsapp, pedido, mensaje,
+      onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan }} claro={!estaOscuro()} />
   );
 }
 
@@ -1065,14 +931,15 @@ const PASOS_DESPUES = [
 
 function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, base, opcionales, nombresBase,
   dolores, tildes, puestos, canalNombre, sucursales, texto, whatsapp, pedido, mensaje,
-  onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan }) {
+  onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan, claro = false }) {
   const [abierto, setAbierto] = useState(false);
+  const dir = claro ? "/landing/alta-claro" : "/landing/alta";
   const precio = (monto) => (calculando ? "…" : monto == null ? "Consultar" : pesos(monto));
   const IconoModulo = (k) => ICONO_MODULO_NOCHE[k] || ICONO_MODULO[k] || LayoutGrid;
   return (
-    <section className="an-seccion li-seccion relative overflow-hidden">
-      <img src="/landing/alta/listo-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado li-costado-izq no-imprimir" />
-      <img src="/landing/alta/listo-derecho.jpg" alt="" aria-hidden="true" className="an-costado li-costado-der no-imprimir" />
+    <section className={`an-seccion li-seccion ${claro ? "an-dia" : ""} relative overflow-hidden`}>
+      <img src={`${dir}/listo-izquierdo.jpg`} alt="" aria-hidden="true" className="an-costado li-costado-izq no-imprimir" />
+      <img src={`${dir}/listo-derecho.jpg`} alt="" aria-hidden="true" className="an-costado li-costado-der no-imprimir" />
       <div className="an-contenido li-contenido relative">
         <div className="an-arriba li-arriba no-imprimir">
           <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
@@ -1144,17 +1011,7 @@ function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios,
                 )}
               </div>
 
-              <div className="li-tarjeta">
-                <div className="li-rotulo">Qué necesitás de tu lado</div>
-                <div className="li-necesitas">
-                  <span className="li-icono"><ClipboardList strokeWidth={1.75} /></span>
-                  {armado.necesita.length ? (
-                    <ul>{armado.necesita.map((n) => <li key={n}>{n}</li>)}</ul>
-                  ) : (
-                    <p>Nada más que un celular o una computadora con internet.</p>
-                  )}
-                </div>
-              </div>
+              {!claro && <TarjetaNecesitas necesita={armado.necesita} />}
             </div>
 
             <div className="manuscrita li-gracias no-imprimir" aria-hidden="true">Gracias por confiar en Genez.</div>
@@ -1164,6 +1021,8 @@ function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios,
             <Resumen noche key={elegida.k} calculando={calculando} sinPrecios={sinPrecios} mensual={mensual} puestaEnMarcha={puestaEnMarcha}
               faltan={faltan} cantidad={cantidad} texto={texto} whatsapp={whatsapp} pedido={pedido} mensajeInicial={mensaje} plan={elegida.n} />
           </div>
+
+          {claro && <TarjetaNecesitas necesita={armado.necesita} className={`li-ancho ${abierto ? "" : "li-detalle-cerrado"}`} />}
 
           <div className={`li-tarjeta li-despues ${abierto ? "" : "li-detalle-cerrado"}`}>
             <div className="li-rotulo">Qué pasa después</div>
@@ -1182,6 +1041,24 @@ function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios,
         </div>
       </div>
     </section>
+  );
+}
+
+/* En la maqueta oscura va en la columna del detalle; en la clara, a todo
+   el ancho y con los requisitos en dos columnas. */
+function TarjetaNecesitas({ necesita, className = "" }) {
+  return (
+    <div className={`li-tarjeta ${className}`}>
+      <div className="li-rotulo">Qué necesitás de tu lado</div>
+      <div className="li-necesitas">
+        <span className="li-icono"><ClipboardList strokeWidth={1.75} /></span>
+        {necesita.length ? (
+          <ul>{necesita.map((n) => <li key={n}>{n}</li>)}</ul>
+        ) : (
+          <p>Nada más que un celular o una computadora con internet.</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1206,33 +1083,6 @@ function LineaNoche({ icono: I, nombre, detalle, motivo, precio }) {
         {motivo && <span className="li-linea-motivo">{motivo}</span>}
       </span>
       <span className={`li-precio ${sinNumero ? "li-precio-consultar" : "f-m"}`}>{precio}</span>
-    </li>
-  );
-}
-
-function Eleccion({ rotulo, valor, accion, onClick }) {
-  return (
-    <div className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <dt className="text-xs text-texto-tenue">{rotulo}</dt>
-        <dd className="text-[15px] leading-snug">{valor}</dd>
-      </div>
-      <button type="button" onClick={onClick} className="no-imprimir shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-acento hover:text-acento-vivo">
-        <Pencil size={13} /> {accion}
-      </button>
-    </div>
-  );
-}
-
-function Linea({ nombre, detalle, motivo, precio }) {
-  return (
-    <li className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <div className="text-[15px] font-medium leading-snug">{nombre}</div>
-        {detalle && <div className="text-xs text-texto-tenue mt-0.5">{detalle}</div>}
-        {motivo && <div className="text-[11px] text-acento mt-0.5">{motivo}</div>}
-      </div>
-      {precio != null && <span className={`f-m shrink-0 text-[15px] ${precio === "Consultar" || precio === "…" ? "text-texto-tenue" : ""}`}>{precio}</span>}
     </li>
   );
 }

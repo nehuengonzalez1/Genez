@@ -1603,3 +1603,34 @@ html:not(.tema-noche) footer { border-top-color: transparent; }
 }
 /* En la maqueta clara el motivo pasa por encima de la foto: se le deja ese ancho. */
 @media (min-width: 1024px) { .an-dia .mo-motivo { width: calc(250 * var(--u)); max-width: none; font-size: calc(13.2 * var(--u)); } }
+
+/* "¡Listo!" en claro (01/10): el contenido va de 150 a 888 (un poco más
+   ancho que el oscuro), las tarjetas son blancas con los íconos en
+   durazno, "Qué necesitás" ocupa todo el ancho con los requisitos en dos
+   columnas, y "Qué pasa después" va en tres. */
+.an-dia .li-contenido { width: calc(738 * var(--v)); }
+.an-dia .li-costado-izq { width: calc(148 * var(--v)); }
+.an-dia .li-costado-der { width: calc(129 * var(--v)); }
+@media (min-width: 1024px) {
+  .an-dia .li-grilla { grid-template-columns: minmax(0, 480fr) minmax(0, 248fr); column-gap: calc(10 * var(--v)); }
+  .an-dia .li-ancho { grid-column: 1 / -1; }
+  .an-dia .li-ancho .li-necesitas ul { columns: 2; column-gap: calc(40 * var(--v)); }
+  .an-dia .li-despues-cuerpo ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.an-dia .li-tarjeta, .an-dia .li-resumen { background: rgb(255 255 255 / 0.95); border-color: rgb(0 0 0 / 0.06); box-shadow: 0 calc(6 * var(--v)) calc(20 * var(--v)) rgb(90 60 30 / 0.06); }
+.an-dia .li-confianza li { background: rgb(255 255 255 / 0.95); border-color: rgb(0 0 0 / 0.06); box-shadow: 0 calc(4 * var(--v)) calc(14 * var(--v)) rgb(90 60 30 / 0.05); }
+.an-dia .li-confianza-icono, .an-dia .li-icono { background: rgb(253 232 214); }
+.an-dia .li-icono-suelto { background: transparent; }
+.an-dia .li-abrir { background: rgb(255 255 255); border-color: rgb(var(--an-naranja) / 0.75); }
+.an-dia .li-fila { border-top-color: rgb(0 0 0 / 0.06); }
+.an-dia .li-resumen-cuentas, .an-dia .li-nota-precios { border-top-color: rgb(0 0 0 / 0.08); }
+.an-dia .li-resumen-boton { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.15); }
+.an-dia .li-resumen-boton:hover { border-color: rgb(0 0 0 / 0.35); }
+.an-dia .li-tilde { box-shadow: 0 0 0 calc(10 * var(--v)) rgb(var(--an-naranja) / 0.12), 0 0 calc(30 * var(--v)) rgb(var(--an-naranja) / 0.35); }
+@media (max-width: 1023px) {
+  .an-dia .li-contenido { width: auto; }
+}
+@media (max-width: 1023px) {
+  .an-dia .li-ancho { grid-row: 3; }
+  .an-dia .li-despues { grid-row: 4; }
+}
