@@ -183,9 +183,9 @@ export default function Landing() {
           {paso === "cards" ? (
             <Portada rubros={rubros} onElegir={elegir} onEmpezar={empezar} />
           ) : (
-            /* En oscuro el alta decide su propio ancho: los pasos copiados de su
-               maqueta van a todo el ancho y los demás se encierran solos. */
-            <div className={oscuro ? "" : "max-w-5xl mx-auto px-5 pb-20"}>
+            /* El alta decide su propio ancho: los pasos copiados de su maqueta
+               van a todo el ancho y los demás se encierran solos (angosto). */
+            <div>
               <Stepper key={rubro ? `${rubro.clave}:${negocio || ""}` : "ninguno"} rubro={rubro} rubros={todos} negocio={negocio}
                 onElegirNegocio={elegir} onVolver={volver} />
             </div>

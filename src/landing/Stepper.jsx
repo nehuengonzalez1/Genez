@@ -116,24 +116,27 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
 
   if (!rubro) return <ElegiNegocio rubros={rubros} onElegir={onElegirNegocio} onVolver={onVolver} />;
 
+  /* En claro, los pasos que todavía no tienen su maqueta clara siguen en
+     el contenedor angosto de antes; los copiados van a todo el ancho. */
+  const angosto = (contenido) => (estaOscuro() ? contenido : <div className="max-w-5xl mx-auto px-5 pb-20">{contenido}</div>);
   const p = rubroArmado.presentacion;
   const preguntasRubro = rubro.presentacion.preguntas || [];
 
   if (paso === 2) {
-    return (
+    return angosto(
       <Problemas respuestas={respuestas} onTildar={tildar} mensaje={mensaje} onMensaje={setMensaje}
         onVolver={onVolver} onSeguir={() => ir(3)} />
     );
   }
   if (paso === 3) {
-    return (
+    return angosto(
       <ComoTrabajas preguntas={preguntasRubro} respuestas={respuestas} onTildar={tildar}
         escala={escala} onEscala={setEscala} canal={canal} onCanal={setCanal} sucursales={sucursales} onSucursales={setSucursales}
         onVolver={() => ir(2)} onSeguir={() => ir(4)} />
     );
   }
   if (paso === 4) {
-    return (
+    return angosto(
       <Modulos armado={necesidad} recomendada={recomendada} sacados={sacados} sumados={sumados}
         onSacar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
         onSumar={(k) => setSumados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
@@ -141,12 +144,12 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 5) {
-    return (
+    return angosto(
       <Plan opciones={opciones} tarifas={tarifas} todos={opciones[opciones.length - 1].armado.elegidos}
         onElegir={(k) => { setOpcion(k); ir(6); }} onVolver={() => ir(4)} />
     );
   }
-  return (
+  return angosto(
     <Listo rubro={rubroArmado} negocio={negocio} escala={escala} canal={canal} sucursales={sucursales}
       respuestas={respuestasTotales} mensaje={mensaje} elegida={elegida} presupuesto={presupuesto} tarifas={tarifas}
       onVolver={() => ir(5)} onCambiarNegocio={onVolver} onEditarProblemas={() => ir(2)} onEditarTrabajo={() => ir(3)}
@@ -297,9 +300,11 @@ function OpcionGrande({ activa, onClick, icono: I, titulo, detalle }) {
    fotos de cada negocio y los costados son recortes de la maqueta, y el
    resto (buscador, filtros, tarjetas, "Continuar") anda igual que antes.
    El claro sigue con la de antes. */
+/* El claro (01/10) es la misma maqueta con otra luz: el mismo paso, con
+   sus recortes en alta-claro y la clase an-dia en la sección, que cambia
+   los colores de todo lo que es an-*. */
 function ElegiNegocio(props) {
-  if (estaOscuro()) return <ElegiNegocioNoche {...props} />;
-  return <ElegiNegocioClaro {...props} />;
+  return <ElegiNegocioNoche {...props} claro={!estaOscuro()} />;
 }
 
 const slugAlta = (t) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -339,7 +344,8 @@ function PasosNoche({ actual, className = "" }) {
   );
 }
 
-function ElegiNegocioNoche({ rubros, onElegir, onVolver }) {
+function ElegiNegocioNoche({ rubros, onElegir, onVolver, claro = false }) {
+  const dir = claro ? "/landing/alta-claro" : "/landing/alta";
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const [sel, setSel] = useState(null);
@@ -351,9 +357,9 @@ function ElegiNegocioNoche({ rubros, onElegir, onVolver }) {
   const filtros = [{ clave: "todos", nombre: "Todos" }, ...rubros.filter((r) => r.clave !== "otro")];
 
   return (
-    <section className="an-seccion relative overflow-hidden">
-      <img src="/landing/alta/costado-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado an-costado-izq" />
-      <img src="/landing/alta/costado-derecho.jpg" alt="" aria-hidden="true" className="an-costado an-costado-der" />
+    <section className={`an-seccion ${claro ? "an-dia" : ""} relative overflow-hidden`}>
+      <img src={`${dir}/costado-izquierdo.jpg`} alt="" aria-hidden="true" className="an-costado an-costado-izq" />
+      <img src={`${dir}/costado-derecho.jpg`} alt="" aria-hidden="true" className="an-costado an-costado-der" />
       <div className="an-contenido relative">
         <div className="an-arriba">
           <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver a la portada</button>
@@ -395,7 +401,7 @@ function ElegiNegocioNoche({ rubros, onElegir, onVolver }) {
             const otro = rubro.clave === "otro";
             const activa = !!sel && sel.clave === rubro.clave && sel.nombre === n;
             const I = otro ? Ellipsis : (ICONO_NEGOCIO[n] || ICONO_RUBRO[rubro.presentacion.icono] || Store);
-            const src = otro ? null : FOTOS_ALTA.has(slugAlta(n)) ? `/landing/alta/${slugAlta(n)}.jpg` : foto(n);
+            const src = otro ? null : FOTOS_ALTA.has(slugAlta(n)) ? `${dir}/${slugAlta(n)}.jpg` : foto(n);
             return (
               <button key={`${rubro.clave}:${n}`} type="button" aria-pressed={activa} onClick={() => setSel({ clave: rubro.clave, nombre: n })}
                 className={`an-tarjeta ${activa ? "an-tarjeta-activa" : ""}`}>
@@ -419,67 +425,6 @@ function ElegiNegocioNoche({ rubros, onElegir, onVolver }) {
         </div>
       </div>
     </section>
-  );
-}
-
-function ElegiNegocioClaro({ rubros, onElegir, onVolver }) {
-  const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState("todos");
-  const [sel, setSel] = useState(null);   // { clave, nombre }
-  const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const negocios = rubros
-    .flatMap((r) => (r.presentacion.negocios || [r.presentacion.titulo]).map((n) => ({ n, rubro: r })))
-    .filter(({ n, rubro }) => (filtro === "todos" || rubro.clave === filtro)
-      && (!busca || norm(n).includes(norm(busca)) || norm(rubro.nombre).includes(norm(busca)) || norm(rubro.presentacion.para).includes(norm(busca))));
-  const filtros = [{ clave: "todos", nombre: "Todos" }, ...rubros.filter((r) => r.clave !== "otro")];
-
-  return (
-    <Marco indicador={1} etiqueta="Paso 1 de 3" titulo={<>¿Qué <span className="text-acento">negocio</span> tenés?</>}
-      sub="Elegí tu rubro y empezamos a armar Genez para vos." anotacion="Tu negocio, en las mejores manos." ancho="max-w-5xl"
-      onVolver={onVolver} volverTexto="Volver a la portada"
-      onSeguir={() => sel && onElegir(sel.clave, sel.nombre)} seguirDeshabilitado={!sel}
-      pie={<Nota>¿No encontrás tu rubro? También podemos armar un sistema a medida para tu negocio.</Nota>}>
-      <label className="relative block">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-tenue" />
-        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscá tu rubro… (ej. almacén, restaurante, estética)"
-          className="w-full border border-borde rounded-lg pl-9 pr-3 py-3 text-[15px] bg-superficie outline-none focus:border-acento" />
-      </label>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {filtros.map((r) => (
-          <button key={r.clave} type="button" onClick={() => setFiltro(r.clave)}
-            className={`text-sm font-semibold rounded-full border px-4 py-2 transition-colors ${
-              filtro === r.clave ? "pildora-activa" : "border-borde-fuerte bg-superficie text-texto-suave hover:text-texto"}`}>
-            {r.nombre}
-          </button>
-        ))}
-      </div>
-      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {negocios.map(({ n, rubro }) => (
-          <NegocioFoto key={`${rubro.clave}:${n}`} nombre={n} rubro={rubro}
-            activa={!!sel && sel.clave === rubro.clave && sel.nombre === n} onElegir={() => setSel({ clave: rubro.clave, nombre: n })} />
-        ))}
-        {negocios.length === 0 && (
-          <p className="col-span-full text-sm text-texto-suave">No encontramos ese rubro. Elegí «Otro» y contanos qué hacés.</p>
-        )}
-      </div>
-    </Marco>
-  );
-}
-
-function NegocioFoto({ nombre, rubro, activa, onElegir }) {
-  const otro = rubro.clave === "otro";
-  const I = otro ? ICONO_RUBRO.otro : (ICONO_RUBRO[rubro.presentacion.icono] || Store);
-  const src = otro ? null : foto(nombre);
-  return (
-    <button type="button" onClick={onElegir} aria-pressed={activa}
-      className={`text-left bg-superficie rounded-xl p-2 border transition-colors ${activa ? "border-acento ring-1 ring-acento" : "border-borde hover:border-borde-fuerte"}`}>
-      <div className="h-[72px] rounded-lg overflow-hidden bg-superficie-2 flex items-center justify-center text-texto-tenue">
-        {src ? <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" /> : <I size={24} />}
-      </div>
-      <div className="mt-2 flex items-center gap-1.5 text-[13px] font-semibold leading-tight">
-        <I size={12} className="text-acento shrink-0" /><span className="truncate">{otro ? "Otro" : nombre}</span>
-      </div>
-    </button>
   );
 }
 
