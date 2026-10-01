@@ -467,10 +467,11 @@ function QueResuelveNoche({ claro = false }) {
    fondo (las rayas de luz, la ola y la tablet) es la maqueta con la zona
    del texto y de las tarjetas pintada del color del fondo; encima van el
    texto y las tarjetas en HTML, en el mismo lugar. "Ver todos los
-   módulos" sigue andando: suma los demás abajo. El claro, la de antes. */
+   módulos" sigue andando: suma los demás abajo. El claro (01/10) es lo
+   mismo con su fondo pintado (qi-claro-fondo) y la clase qi-dia: tarjetas
+   blancas, y el texto y la grilla un poco más grandes, como su maqueta. */
 function QueIncluye() {
-  if (useOscuro()) return <QueIncluyeNoche />;
-  return <QueIncluyeClaro />;
+  return <QueIncluyeNoche claro={!useOscuro()} />;
 }
 
 /* Lo que dice cada tarjeta en la maqueta. Un módulo que no está acá
@@ -509,14 +510,14 @@ function TarjetaModuloNoche({ m, activa }) {
   );
 }
 
-function QueIncluyeNoche() {
+function QueIncluyeNoche({ claro = false }) {
   const [todos, setTodos] = useState(false);
   const vistos = new Set();
   const modulos = MODULOS.filter((m) => !vistos.has(m.n) && vistos.add(m.n));
   return (
-    <section id="incluye" className="qi-seccion scroll-mt-20 relative overflow-hidden">
+    <section id="incluye" className={`qi-seccion ${claro ? "qi-dia" : ""} scroll-mt-20 relative overflow-hidden`}>
       <div className="qi-lienzo">
-        <img src="/landing/incluye/fondo.jpg" width="1958" height="803" className="qi-fondo" alt="" aria-hidden="true" />
+        <img src={claro ? "/landing/incluye/qi-claro-fondo.jpg" : "/landing/incluye/fondo.jpg"} width="1958" height="803" className="qi-fondo" alt="" aria-hidden="true" />
         <div className="qi-texto">
           <div className="hn-rotulo qi-rotulo">Qué incluye <span className="qi-raya" aria-hidden="true" /></div>
           <h2 className="qi-titulo">Todo lo que un<br />comercio necesita,<br /><span className="hn-naranja">por módulos.</span></h2>
@@ -540,83 +541,6 @@ function QueIncluyeNoche() {
         </div>
       )}
     </section>
-  );
-}
-
-function QueIncluyeClaro() {
-  const [todos, setTodos] = useState(false);
-  /* Dos módulos se llaman "Informes" (uno mira márgenes, el otro
-     ocupación). Para el que lee de afuera es uno solo: se muestra una vez. */
-  const vistos = new Set();
-  const modulos = MODULOS.filter((m) => !vistos.has(m.n) && vistos.add(m.n));
-  const lista = todos ? modulos : modulos.slice(0, 12);
-
-  return (
-    <section id="incluye" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-10 grid lg:grid-cols-[0.62fr_1.38fr] gap-10 items-start">
-      <div>
-        <div className={ROTULO_ACENTO}>Qué incluye</div>
-        <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Todo lo que un comercio necesita, <span className="text-acento">por módulos.</span></h2>
-        <p className="text-texto-suave mt-3 text-[17px] leading-relaxed">
-          Pagás una base que incluye cobro, caja y ajustes, más cada módulo que sumes. Nada más.
-        </p>
-        <button type="button" onClick={() => setTodos(!todos)} className={`${LINEA_ACENTO} mt-6`}>
-          {todos ? "Ver menos" : "Ver todos los módulos"} <ArrowRight size={15} />
-        </button>
-      </div>
-
-      <div className="relative">
-        <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:pr-24">
-          {lista.map((m) => {
-            const I = ICONO_MODULO[m.k] || LayoutGrid;
-            return (
-              <li key={m.k} className="bg-superficie border border-borde rounded-xl px-3 py-2.5 flex items-center gap-2.5">
-                <span className="w-9 h-9 rounded-lg bg-superficie-2 text-texto flex items-center justify-center shrink-0"><I size={17} /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-[14px]">{m.n}</span>
-                    {m.base && <span className="text-[9px] uppercase tracking-wider font-bold text-acento bg-acento-suave rounded px-1.5 py-0.5">Base</span>}
-                  </div>
-                  <div className="text-[11px] text-texto-tenue mt-0.5 truncate">{m.d}</div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="hidden lg:block absolute right-0 bottom-0 w-[150px]" aria-hidden="true">
-          <TelefonoModulos />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TelefonoModulos() {
-  const barras = [30, 48, 42, 66, 58, 84, 72];
-  const oscuro = useOscuro();
-  return (
-    <div className="relative">
-      <div className="telefono">
-        <div className="telefono-pantalla relative bg-fondo text-texto" style={{ aspectRatio: "9 / 16" }}>
-          <div className="p-2.5">
-            <div className="scale-75 origin-top-left"><LogoGenez size={16} conNombre claro={oscuro} /></div>
-            <div className="mt-2 bg-superficie border border-borde rounded p-1.5">
-              <div className="text-[5px] text-texto-tenue uppercase tracking-wider font-bold">Ventas de la semana</div>
-              <div className="flex items-end gap-[2px] h-8 mt-1">
-                {barras.map((h, i) => <div key={i} className={`flex-1 rounded-[1px] ${i === 5 ? "bg-acento" : "bg-superficie-3"}`} style={{ height: `${h}%` }} />)}
-              </div>
-            </div>
-            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-              <div className="bg-superficie border border-borde rounded p-1.5"><div className="text-[5px] text-texto-tenue uppercase font-bold">Stock bajo</div><div className="f-d text-[10px]">7</div></div>
-              <div className="bg-superficie border border-borde rounded p-1.5"><div className="text-[5px] text-texto-tenue uppercase font-bold">Turnos</div><div className="f-d text-[10px]">24</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="absolute -left-20 bottom-6 w-[150px] bg-superficie border border-borde rounded-xl p-3 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.35)]">
-        <span className="w-8 h-8 rounded-md bg-acento text-sobre-acento flex items-center justify-center"><BarChart3 size={16} /></span>
-        <div className="f-d text-[15px] leading-tight mt-2">Sumá módulos y hacé crecer tu negocio.</div>
-      </div>
-    </div>
   );
 }
 
