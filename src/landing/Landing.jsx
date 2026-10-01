@@ -558,11 +558,11 @@ const PASOS_NOCHE = [
   { t: "Mirá tu presupuesto.", d: <>Base más cada módulo, con su precio.<br className="qr-br" /> Si te cierra, lo pedís y nos ponemos<br className="qr-br" /> en contacto por WhatsApp.</> },
 ];
 
-function ComoFuncionaNoche({ onEmpezar }) {
+function ComoFuncionaNoche({ onEmpezar, claro = false }) {
   return (
-    <section id="como-funciona" className="cf-seccion scroll-mt-20 relative overflow-hidden">
+    <section id="como-funciona" className={`cf-seccion ${claro ? "cf-dia" : ""} scroll-mt-20 relative overflow-hidden`}>
       <div className="cf-lienzo">
-        <img src="/landing/como-funciona/fondo.jpg" width="1958" height="803" className="cf-fondo"
+        <img src={claro ? "/landing/como-funciona/cf-claro-fondo.jpg" : "/landing/como-funciona/fondo.jpg"} width="1958" height="803" className="cf-fondo"
           alt="El inicio de Genez en una tablet y una tarjeta con el presupuesto" />
         <div className="cf-texto">
           <div className="hn-rotulo cf-rotulo">Cómo funciona <span className="cf-raya" aria-hidden="true" /></div>
@@ -586,42 +586,11 @@ function ComoFuncionaNoche({ onEmpezar }) {
   );
 }
 
+/* El claro (01/10) es la misma maqueta con otra luz: su fondo pintado
+   (cf-claro-fondo) y la clase cf-dia, con el texto un poco más grande y
+   corrido, medido contra su maqueta. */
 function ComoFunciona({ onEmpezar }) {
-  if (useOscuro()) return <ComoFuncionaNoche onEmpezar={onEmpezar} />;
-  return <ComoFuncionaClaro onEmpezar={onEmpezar} />;
-}
-
-function ComoFuncionaClaro({ onEmpezar }) {
-  const pasos = [
-    { n: "1", t: "Tocá tu negocio.", d: "Con eso ya sabemos con qué arranca un comercio como el tuyo." },
-    { n: "2", t: "Contanos cómo trabajás.", d: "Cuántos puestos tenés y unas tildes: stock, factura, delivery, equipo. Cada una suma solo lo que hace falta." },
-    { n: "3", t: "Mirá tu presupuesto.", d: "Base más cada módulo, con su precio. Si te cierra, lo pedís y nos ponemos en contacto por WhatsApp." },
-  ];
-  return (
-    <section id="como-funciona" className="scroll-mt-20 mt-10 sm:mt-14 banda">
-      <div className="max-w-6xl mx-auto px-5 py-14 sm:py-20 grid lg:grid-cols-[0.9fr_1.1fr] gap-10 lg:gap-16 items-center">
-        <div>
-          <div className={ROTULO_ACENTO}>Cómo funciona</div>
-          <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Tres pasos y sabés qué pagás.</h2>
-          <p className="opacity-70 mt-4 text-[17px] leading-relaxed">
-            Sin llamados de venta ni presupuestos por mail. Lo ves vos, en el momento, y hasta ahí no te pedimos tarjeta.
-          </p>
-          <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className={`${SOLIDO} mt-8`}>{CTA} <ArrowRight size={16} /></button>
-        </div>
-        <ol className="space-y-6">
-          {pasos.map((s) => (
-            <li key={s.n} className="flex gap-4">
-              <span className="w-9 h-9 rounded-full bg-acento text-sobre-acento f-d text-[15px] flex items-center justify-center shrink-0">{s.n}</span>
-              <div>
-                <div className="font-bold text-[17px] leading-snug">{s.t}</div>
-                <div className="opacity-70 mt-1 leading-relaxed">{s.d}</div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  );
+  return <ComoFuncionaNoche onEmpezar={onEmpezar} claro={!useOscuro()} />;
 }
 
 /* Las preguntas que hace un dueño antes de tocar nada. Las respuestas

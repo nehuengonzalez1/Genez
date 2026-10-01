@@ -1431,3 +1431,28 @@ html {
 }
 /* En la maqueta clara ninguna tarjeta viene resaltada: solo al pasar. */
 .qi-dia .qi-tarjeta-activa:not(:hover) { border-color: rgb(0 0 0 / 0.05); box-shadow: 0 calc(6 * var(--u)) calc(24 * var(--u)) rgb(120 70 30 / 0.08); background: rgb(255 255 255 / 0.96); }
+
+/* ------------------------------------------------------------
+   "Cómo funciona" en claro (01/10), copiada de la maqueta
+   ------------------------------------------------------------ */
+.cf-dia {
+  --hn-texto: 6 8 10;
+  --cf-suave: 72 78 84;
+}
+:root .cf-dia { background: rgb(var(--fondo-dia)); }
+@media (min-width: 1024px) {
+  .cf-dia .cf-texto { left: calc(100 * var(--u)); top: calc(166 * var(--u)); }
+  .cf-seccion.cf-dia .cf-rotulo { font-size: calc(21 * var(--u)); }
+  .cf-dia .cf-titulo { margin-top: calc(12 * var(--u)); font-size: calc(74 * var(--u)); line-height: 1.01; }
+  .cf-dia .cf-parrafo { margin-top: calc(16 * var(--u)); font-size: calc(24.7 * var(--u)); line-height: calc(31.5 * var(--u)); }
+  .cf-seccion.cf-dia .cf-boton { margin-top: calc(26 * var(--u)); height: calc(77 * var(--u)); padding: 0 calc(51 * var(--u)); font-size: calc(26.5 * var(--u)); }
+  .cf-dia .cf-paso { left: calc(1254 * var(--u)); }
+  .cf-dia .cf-paso-1 { top: calc(138 * var(--u)); }
+  .cf-dia .cf-paso-2 { top: calc(323 * var(--u)); }
+  .cf-dia .cf-paso-3 { top: calc(547 * var(--u)); }
+  .cf-dia .cf-paso-titulo { font-size: calc(30.2 * var(--u)); }
+  .cf-dia .cf-paso-texto { margin-top: calc(10 * var(--u)); font-size: calc(24 * var(--u)); line-height: calc(32 * var(--u)); }
+}
+@media (max-width: 1023px) {
+  .cf-dia .cf-paso { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.06); box-shadow: 0 6px 20px rgb(120 70 30 / 0.07); }
+}
