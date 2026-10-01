@@ -1085,3 +1085,143 @@ html {
   .mo-botones { margin-top: 28px; }
   .mo-ver { width: 100%; }
 }
+
+/* ------------------------------------------------------------
+   "¡Listo!" en oscuro (01/10), copiado de la maqueta
+   ------------------------------------------------------------
+   Esta maqueta mide 1024 de ancho y no 1536: --v es 1 px de ella, así
+   las medidas se escriben como se leen en la imagen. */
+.li-seccion { --v: calc(1.5 * var(--u)); background: rgb(12 10 8); padding-bottom: calc(40 * var(--v)); }
+.li-contenido { width: calc(698 * var(--v)); }
+.li-costado-izq { left: 0; width: calc(165 * var(--v)); object-position: top; -webkit-mask-image: linear-gradient(to right, #000 75%, transparent); mask-image: linear-gradient(to right, #000 75%, transparent); }
+.li-costado-der { right: 0; width: calc(156 * var(--v)); object-position: top; -webkit-mask-image: linear-gradient(to left, #000 80%, transparent); mask-image: linear-gradient(to left, #000 80%, transparent); }
+.li-arriba { height: calc(65 * var(--v)); }
+.li-arriba .an-volver { left: calc(10 * var(--v)); top: calc(6 * var(--v)); gap: calc(8 * var(--v)); font-size: calc(10.5 * var(--v)); color: rgb(var(--an-texto)); }
+.li-arriba .an-volver svg { width: calc(12 * var(--v)); height: calc(12 * var(--v)); }
+.li-pasos { left: calc(171 * var(--v)); top: calc(10 * var(--v)); }
+.li-pasos .an-paso { width: calc(76 * var(--v)); }
+.li-pasos .an-numero { width: calc(26 * var(--v)); height: calc(26 * var(--v)); }
+.li-pasos .an-linea { width: calc(62 * var(--v)); margin-top: calc(13 * var(--v)); }
+.li-pasos .an-paso-nombre { margin-top: calc(6 * var(--v)); font-size: calc(9.5 * var(--v)); }
+.li-nota { position: absolute; left: calc(615 * var(--v)); top: calc(55 * var(--v)); font-size: calc(14 * var(--v)); line-height: 1.2; transform: rotate(-9deg); color: rgb(var(--an-texto)); white-space: nowrap; }
+.li-nota-flecha { display: block; width: calc(34 * var(--v)); margin: calc(4 * var(--v)) calc(20 * var(--v)) 0 auto; }
+
+.li-cabeza { margin-top: calc(25 * var(--v)); display: flex; flex-direction: column; align-items: center; text-align: center; }
+.li-tilde {
+  display: flex; align-items: center; justify-content: center; width: calc(56 * var(--v)); height: calc(56 * var(--v)); border-radius: 9999px;
+  background: linear-gradient(180deg, rgb(254 134 43), rgb(244 100 14)); color: rgb(28 12 2);
+  box-shadow: 0 0 0 calc(10 * var(--v)) rgb(var(--an-naranja) / 0.12), 0 0 calc(40 * var(--v)) rgb(var(--an-naranja) / 0.55);
+}
+.li-tilde svg { width: 46%; height: 46%; }
+.li-etiqueta { margin-top: calc(18 * var(--v)); font-size: calc(10 * var(--v)); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgb(var(--an-naranja)); }
+.li-titulo { margin-top: calc(2 * var(--v)); font-size: calc(29 * var(--v)); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; }
+.li-bajada { margin-top: calc(8 * var(--v)); font-size: calc(12.5 * var(--v)); line-height: calc(19 * var(--v)); color: rgb(var(--an-suave)); }
+.li-bajada strong { color: rgb(var(--an-texto)); font-weight: 600; }
+
+.li-grilla { display: grid; grid-template-columns: minmax(0, 441fr) minmax(0, 237fr); column-gap: calc(20 * var(--v)); row-gap: calc(10 * var(--v)); align-items: start; margin-top: calc(19 * var(--v)); }
+.li-derecha { grid-column: 2; grid-row: 1; position: sticky; top: calc(90 * var(--v)); }
+.li-izquierda { grid-column: 1; grid-row: 1; }
+.li-despues { grid-column: 1 / -1; }
+
+.li-confianza { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(8 * var(--v)); }
+.li-confianza li { display: flex; align-items: center; gap: calc(14 * var(--v)); height: calc(50 * var(--v)); padding: 0 calc(12 * var(--v)); border-radius: calc(5 * var(--v)); background: rgb(24 21 17); border: 1px solid rgb(255 255 255 / 0.1); }
+.li-confianza-icono { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(28 * var(--v)); height: calc(28 * var(--v)); border-radius: calc(5 * var(--v)); background: rgb(52 22 6); color: rgb(var(--an-naranja)); }
+.li-confianza-icono svg { width: 55%; height: 55%; }
+.li-confianza-titulo { display: block; font-size: calc(10.5 * var(--v)); font-weight: 700; }
+.li-confianza-detalle { display: block; margin-top: calc(3 * var(--v)); font-size: calc(9 * var(--v)); color: rgb(var(--an-suave)); }
+.li-abrir {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; height: calc(36 * var(--v)); margin-top: calc(14 * var(--v)); padding: 0 calc(14 * var(--v));
+  border-radius: calc(5 * var(--v)); border: 2px solid rgb(var(--an-texto) / 0.85); font-size: calc(11.5 * var(--v)); font-weight: 600; text-align: left;
+}
+.li-abrir:hover { border-color: rgb(var(--an-naranja)); }
+.li-abrir svg { width: calc(12 * var(--v)); height: calc(12 * var(--v)); }
+.li-gracias { margin: calc(26 * var(--v)) calc(10 * var(--v)) 0 0; text-align: right; font-size: calc(14 * var(--v)); transform: rotate(-2deg); color: rgb(var(--an-texto)); }
+
+.li-detalle { display: flex; flex-direction: column; gap: calc(10 * var(--v)); margin-top: calc(14 * var(--v)); }
+.li-detalle-cerrado { display: none; }
+.li-tarjeta { padding: calc(14 * var(--v)) calc(14 * var(--v)) calc(10 * var(--v)); border-radius: calc(6 * var(--v)); background: rgb(24 21 17 / 0.96); border: 1px solid rgb(255 255 255 / 0.1); }
+.li-rotulo { font-size: calc(8.5 * var(--v)); font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgb(var(--an-suave)); }
+.li-rotulo-con-accion { display: flex; align-items: center; justify-content: space-between; }
+.li-filas { margin-top: calc(6 * var(--v)); }
+.li-fila { display: flex; align-items: center; gap: calc(16 * var(--v)); min-height: calc(43 * var(--v)); padding: calc(5 * var(--v)) 0; border-top: 1px solid rgb(255 255 255 / 0.08); }
+.li-fila:first-child { border-top: 0; }
+.li-icono { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(30 * var(--v)); height: calc(30 * var(--v)); border-radius: calc(5 * var(--v)); background: rgb(40 25 14); color: rgb(var(--an-naranja)); }
+.li-icono svg { width: 58%; height: 58%; }
+.li-fila-textos { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.li-fila-rotulo { font-size: calc(9.5 * var(--v)); color: rgb(var(--an-suave)); }
+.li-fila-valor { margin-top: calc(2 * var(--v)); font-size: calc(11 * var(--v)); line-height: 1.35; }
+.li-accion { display: inline-flex; align-items: center; gap: calc(6 * var(--v)); flex-shrink: 0; font-size: calc(10.5 * var(--v)); font-weight: 500; letter-spacing: 0; text-transform: none; color: rgb(var(--an-naranja)); }
+.li-accion:hover { filter: brightness(1.15); }
+.li-accion svg { width: calc(11 * var(--v)); height: calc(11 * var(--v)); }
+.li-linea-nombre { font-size: calc(11.5 * var(--v)); font-weight: 500; }
+.li-linea-detalle { font-size: calc(9.5 * var(--v)); color: rgb(var(--an-suave)); }
+.li-linea-motivo { font-size: calc(9 * var(--v)); color: rgb(var(--an-naranja)); }
+.li-precio { flex-shrink: 0; font-size: calc(12 * var(--v)); font-weight: 600; }
+.li-precio-consultar { font-weight: 400; color: rgb(var(--an-suave)); }
+.li-total { display: none; }
+.li-nota-precios { margin-top: calc(6 * var(--v)); padding-top: calc(8 * var(--v)); border-top: 1px solid rgb(255 255 255 / 0.08); font-size: calc(10 * var(--v)); line-height: 1.45; color: rgb(var(--an-suave)); }
+.li-necesitas { display: flex; align-items: flex-start; gap: calc(16 * var(--v)); margin-top: calc(10 * var(--v)); padding-bottom: calc(6 * var(--v)); }
+.li-necesitas ul { list-style: disc; padding-left: calc(14 * var(--v)); font-size: calc(11 * var(--v)); line-height: calc(15 * var(--v)); }
+.li-necesitas p { font-size: calc(11 * var(--v)); color: rgb(var(--an-suave)); }
+.li-despues-cuerpo { display: flex; align-items: flex-start; gap: calc(16 * var(--v)); margin-top: calc(12 * var(--v)); padding-bottom: calc(6 * var(--v)); }
+.li-icono-suelto { background: transparent; }
+.li-despues-cuerpo ol { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: calc(20 * var(--v)); row-gap: calc(12 * var(--v)); }
+.li-despues-cuerpo li { display: flex; align-items: flex-start; gap: calc(10 * var(--v)); }
+.li-numero { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(19 * var(--v)); height: calc(19 * var(--v)); border-radius: 9999px; border: 1.5px solid rgb(var(--an-naranja)); font-size: calc(9.5 * var(--v)); color: rgb(var(--an-naranja)); }
+.li-despues-titulo { display: block; font-size: calc(10.5 * var(--v)); font-weight: 600; }
+.li-despues-detalle { display: block; margin-top: calc(2 * var(--v)); font-size: calc(8.5 * var(--v)); color: rgb(var(--an-suave)); }
+
+.li-resumen { padding: calc(12 * var(--v)) calc(14 * var(--v)) calc(12 * var(--v)); border-radius: calc(6 * var(--v)); background: rgb(24 22 18 / 0.97); border: 1px solid rgb(255 255 255 / 0.1); }
+.li-resumen-rotulo { font-size: calc(7.5 * var(--v)); }
+.li-resumen-monto { margin-top: calc(1 * var(--v)); font-size: calc(19 * var(--v)); font-weight: 700; letter-spacing: -0.01em; }
+.li-resumen-monto span { font-size: calc(11 * var(--v)); font-weight: 400; color: rgb(var(--an-suave)); }
+.li-resumen-texto { margin-top: calc(6 * var(--v)); font-size: calc(9.5 * var(--v)); line-height: calc(14.5 * var(--v)); color: rgb(var(--an-suave)); }
+.li-resumen-cuentas { margin-top: calc(18 * var(--v)); padding-top: calc(10 * var(--v)); border-top: 1px solid rgb(255 255 255 / 0.1); font-size: calc(10.5 * var(--v)); }
+.li-resumen-cuentas li { display: flex; justify-content: space-between; gap: calc(10 * var(--v)); }
+.li-resumen-cuentas li span:first-child { color: rgb(var(--an-suave)); }
+.li-resumen-cuentas li + li { margin-top: calc(4 * var(--v)); }
+.li-seccion .li-resumen-pedir { width: 100%; height: calc(30 * var(--v)); margin-top: calc(10 * var(--v)); gap: calc(8 * var(--v)); font-size: calc(10.5 * var(--v)); border-radius: calc(4 * var(--v)); box-shadow: none; }
+.li-seccion .li-resumen-pedir svg { width: calc(11 * var(--v)); height: calc(11 * var(--v)); }
+.li-resumen-boton {
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(6 * var(--v)); height: calc(29 * var(--v)); border-radius: calc(4 * var(--v));
+  border: 1px solid rgb(255 255 255 / 0.3); font-size: calc(10.5 * var(--v)); font-weight: 600;
+}
+.li-resumen-boton:hover { border-color: rgb(255 255 255 / 0.55); }
+.li-resumen-boton svg { width: calc(11 * var(--v)); height: calc(11 * var(--v)); }
+.li-resumen-wa { display: flex; width: 100%; margin-top: calc(8 * var(--v)); }
+.li-resumen-wa svg { color: rgb(var(--an-naranja)); }
+.li-resumen-dos { display: grid; grid-template-columns: 1fr 1fr; gap: calc(7 * var(--v)); margin-top: calc(7 * var(--v)); }
+.li-resumen-pie { margin-top: calc(10 * var(--v)); text-align: center; font-size: calc(7.5 * var(--v)); color: rgb(var(--an-suave)); }
+
+@media (max-width: 1023px) {
+  .li-seccion { --v: 1.3px; }
+  .li-contenido { width: auto; }
+  .li-arriba { height: auto; }
+  .li-arriba .an-volver { left: 0; }
+  .li-nota { display: none; }
+  .li-pasos .an-paso { width: 84px; }
+  .li-pasos .an-linea { width: 28px; }
+  .li-seccion .li-cabeza { margin-top: 24px; }
+  .li-titulo { font-size: 28px; }
+  .li-bajada { font-size: 15px; line-height: 1.45; }
+  .li-bajada br { display: none; }
+  .li-grilla { grid-template-columns: 1fr; }
+  .li-derecha { grid-column: 1; grid-row: 1; position: static; }
+  .li-izquierda { grid-row: 2; }
+  .li-despues { grid-row: 3; }
+  .li-confianza { grid-template-columns: 1fr; }
+  .li-despues-cuerpo ol { grid-template-columns: 1fr; }
+}
+
+/* Al imprimir sale el presupuesto entero, en blanco y negro, aunque el
+   detalle esté cerrado. */
+@media print {
+  .li-seccion { background: white !important; color: black; padding: 0; }
+  .li-seccion .li-detalle-cerrado { display: flex; }
+  .li-seccion .li-despues.li-detalle-cerrado { display: block; }
+  .li-seccion .li-grilla { display: block; }
+  .li-seccion .li-tarjeta { background: white; border-color: #bbb; margin-top: 10px; break-inside: avoid; }
+  .li-seccion .li-tilde { box-shadow: none; }
+  .li-seccion .li-bajada, .li-seccion .li-bajada strong, .li-seccion .li-fila-valor, .li-seccion .li-linea-nombre, .li-seccion .li-precio, .li-seccion .li-despues-titulo, .li-seccion .li-necesitas ul { color: black; }
+  .li-seccion .li-total { display: flex; justify-content: space-between; padding-top: 8px; font-weight: 700; color: black; }
+}

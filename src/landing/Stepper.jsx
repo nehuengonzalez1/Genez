@@ -34,7 +34,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, Lock, Search, Lightbulb, Sparkles, User, Users, Building2, Store, Laptop, Layers,
   Sprout, Crown, BarChart3, CreditCard, Headphones, RefreshCw, LayoutGrid, MessageCircle, Copy, Printer, Pencil,
-  ShoppingCart, ShoppingBasket, Archive, FileText, Truck, Coins, Leaf, Cherry, Croissant, Hammer, Bath, Martini, Coffee, ConciergeBell, Beer, Drumstick, ShoppingBag,
+  ShoppingCart, ShoppingBasket, Archive, FileText, Truck, Coins, MapPin, ClipboardList, Rocket, Plus, Minus, Leaf, Cherry, Croissant, Hammer, Bath, Martini, Coffee, ConciergeBell, Beer, Drumstick, ShoppingBag,
   Flower2, Scissors, Slice, PersonStanding, Dumbbell, Stethoscope, Flower, Ellipsis, UtensilsCrossed, CalendarDays,
 } from "lucide-react";
 import { estaOscuro } from "./tema.js";
@@ -116,11 +116,6 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
 
   if (!rubro) return <ElegiNegocio rubros={rubros} onElegir={onElegirNegocio} onVolver={onVolver} />;
 
-  /* En oscuro, los pasos ya copiados de su maqueta (1 y 2) van a todo el
-     ancho y la landing no los encierra; los que todavía no, siguen en el
-     contenedor angosto de siempre. */
-  const angosto = (contenido) => (estaOscuro() ? <div className="max-w-5xl mx-auto px-5 pb-20">{contenido}</div> : contenido);
-
   const p = rubroArmado.presentacion;
   const preguntasRubro = rubro.presentacion.preguntas || [];
 
@@ -151,7 +146,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
         onElegir={(k) => { setOpcion(k); ir(6); }} onVolver={() => ir(4)} />
     );
   }
-  return angosto(
+  return (
     <Listo rubro={rubroArmado} negocio={negocio} escala={escala} canal={canal} sucursales={sucursales}
       respuestas={respuestasTotales} mensaje={mensaje} elegida={elegida} presupuesto={presupuesto} tarifas={tarifas}
       onVolver={() => ir(5)} onCambiarNegocio={onVolver} onEditarProblemas={() => ir(2)} onEditarTrabajo={() => ir(3)}
@@ -1102,6 +1097,14 @@ function Listo({ rubro, negocio, escala, canal, sucursales, respuestas, mensaje,
     puesta_en_marcha: puestaEnMarcha,
   };
 
+  if (estaOscuro()) {
+    return (
+      <ListoNoche {...{ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, base, opcionales, nombresBase,
+        dolores, tildes, puestos, canalNombre, sucursales, texto, whatsapp, pedido, mensaje,
+        onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan }} />
+    );
+  }
+
   return (
     <section className="relative pt-4 mx-auto max-w-4xl">
       <div className="no-imprimir">
@@ -1222,6 +1225,165 @@ function Listo({ rubro, negocio, escala, canal, sucursales, respuestas, mensaje,
   );
 }
 
+/* En oscuro es la maqueta del 01/10 copiada tal cual. La maqueta
+   muestra la pantalla dos veces: arriba con el detalle cerrado y abajo
+   abierto. Las filas de "Lo que elegiste" son las de siempre (qué te
+   complica, cómo trabajás), no las de la maqueta, que pone un problema
+   bajo el rótulo "Sucursales". El detalle se abre con estado y no con
+   <details>, para que al imprimir salga entero aunque esté cerrado. */
+const PASOS_DESPUES = [
+  ["Nos ponemos en contacto por WhatsApp", "Te escribimos con el presupuesto confirmado y contestamos tus dudas."],
+  ["Puesta en marcha", "Cargamos tu catálogo y dejamos los módulos configurados para tu negocio."],
+  ["Una capacitación corta y arrancás", "La primera venta la hacés con nosotros al lado."],
+];
+
+function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, base, opcionales, nombresBase,
+  dolores, tildes, puestos, canalNombre, sucursales, texto, whatsapp, pedido, mensaje,
+  onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan }) {
+  const [abierto, setAbierto] = useState(false);
+  const precio = (monto) => (calculando ? "…" : monto == null ? "Consultar" : pesos(monto));
+  const IconoModulo = (k) => ICONO_MODULO_NOCHE[k] || ICONO_MODULO[k] || LayoutGrid;
+  return (
+    <section className="an-seccion li-seccion relative overflow-hidden">
+      <img src="/landing/alta/listo-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado li-costado-izq no-imprimir" />
+      <img src="/landing/alta/listo-derecho.jpg" alt="" aria-hidden="true" className="an-costado li-costado-der no-imprimir" />
+      <div className="an-contenido li-contenido relative">
+        <div className="an-arriba li-arriba no-imprimir">
+          <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
+          <PasosNoche actual={4} className="li-pasos" />
+        </div>
+        <div className="manuscrita li-nota no-imprimir" aria-hidden="true">
+          Mismo sistema.<br />Más posibilidades.
+          <svg viewBox="0 0 50 34" className="li-nota-flecha" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M44 4 C 44 20, 30 28, 6 26" /><path d="M14 19 L 5 26 L 14 32" />
+          </svg>
+        </div>
+
+        <div className="li-cabeza">
+          <span className="li-tilde"><Check strokeWidth={3} /></span>
+          <div className="li-etiqueta">¡Listo!</div>
+          <h1 className="li-titulo">Tu Genez está <span className="an-naranja">casi listo.</span></h1>
+          <p className="li-bajada">
+            Plan <strong>{elegida.n}</strong> para <strong>{titulo}</strong> · {cantidad} módulos
+            {!calculando && mensual != null ? <> · <strong>{pesos(mensual)} por mes</strong></> : null}.
+            {" "}<br />Dejanos tu WhatsApp y nos ponemos en contacto para dejarlo andando.
+          </p>
+        </div>
+
+        <div className="li-grilla">
+          <div className="li-izquierda">
+            <ul className="li-confianza no-imprimir">
+              {CONFIANZA.map(([I, t, d]) => (
+                <li key={t}>
+                  <span className="li-confianza-icono"><I strokeWidth={1.75} /></span>
+                  <span><span className="li-confianza-titulo">{t}</span><span className="li-confianza-detalle">{d}</span></span>
+                </li>
+              ))}
+            </ul>
+
+            <button type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto} className="li-abrir no-imprimir">
+              Ver el detalle de tu presupuesto {abierto ? <Minus strokeWidth={2} /> : <Plus strokeWidth={2} />}
+            </button>
+
+            <div className={`li-detalle ${abierto ? "" : "li-detalle-cerrado"}`}>
+              <div className="li-tarjeta">
+                <div className="li-rotulo">Lo que elegiste</div>
+                <ul className="li-filas">
+                  <EleccionNoche icono={Store} rotulo="Negocio" valor={titulo} accion="Cambiar" onClick={onCambiarNegocio} />
+                  <EleccionNoche icono={Crown} rotulo="Plan" valor={`${elegida.n} · ${elegida.d}`} accion="Cambiar" onClick={onCambiarPlan} />
+                  <EleccionNoche icono={MapPin} rotulo="Te complica" valor={dolores.length ? dolores.map((q) => q.n).join(" · ") : "No marcaste nada"} accion="Editar" onClick={onEditarProblemas} />
+                  <EleccionNoche icono={Users} rotulo="Cómo trabajás" valor={`${puestos.n} · ${canalNombre} · ${sucursales ? "varias sucursales" : "un solo local"}${tildes.length ? " · " + tildes.map((q) => q.n).join(" · ") : ""}`} accion="Editar" onClick={onEditarTrabajo} />
+                </ul>
+              </div>
+
+              <div className="li-tarjeta">
+                <div className="li-rotulo li-rotulo-con-accion">
+                  Tus {cantidad} módulos
+                  <button type="button" onClick={onAjustar} className="li-accion no-imprimir"><Pencil strokeWidth={2} /> Ajustar</button>
+                </div>
+                <ul className="li-filas">
+                  <LineaNoche icono={IconoModulo("caja")} nombre="Base" detalle={nombresBase} motivo="Siempre incluida" precio={precio(base)} />
+                  {opcionales.map((l) => (
+                    <LineaNoche key={l.k} icono={IconoModulo(l.k)} nombre={l.n} detalle={l.d} motivo={armado.motivos[l.k]} precio={precio(l.monto)} />
+                  ))}
+                  {!sinPrecios && !calculando && puestaEnMarcha > 0 && (
+                    <LineaNoche icono={Rocket} nombre="Puesta en marcha" detalle="Una sola vez, al arrancar: cargamos tu catálogo y dejamos todo configurado" precio={pesos(puestaEnMarcha)} />
+                  )}
+                  {!sinPrecios && !calculando && mensual != null && (
+                    <li className="li-total"><span>Total por mes</span><span className="f-m">{pesos(mensual)}</span></li>
+                  )}
+                </ul>
+                {sinPrecios && (
+                  <p className="li-nota-precios">Todavía no publicamos precios. Dejanos tu WhatsApp y nos ponemos en contacto con el precio de estos {cantidad} módulos, sin sorpresas.</p>
+                )}
+              </div>
+
+              <div className="li-tarjeta">
+                <div className="li-rotulo">Qué necesitás de tu lado</div>
+                <div className="li-necesitas">
+                  <span className="li-icono"><ClipboardList strokeWidth={1.75} /></span>
+                  {armado.necesita.length ? (
+                    <ul>{armado.necesita.map((n) => <li key={n}>{n}</li>)}</ul>
+                  ) : (
+                    <p>Nada más que un celular o una computadora con internet.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="manuscrita li-gracias no-imprimir" aria-hidden="true">Gracias por confiar en Genez.</div>
+          </div>
+
+          <div className="li-derecha no-imprimir">
+            <Resumen noche key={elegida.k} calculando={calculando} sinPrecios={sinPrecios} mensual={mensual} puestaEnMarcha={puestaEnMarcha}
+              faltan={faltan} cantidad={cantidad} texto={texto} whatsapp={whatsapp} pedido={pedido} mensajeInicial={mensaje} plan={elegida.n} />
+          </div>
+
+          <div className={`li-tarjeta li-despues ${abierto ? "" : "li-detalle-cerrado"}`}>
+            <div className="li-rotulo">Qué pasa después</div>
+            <div className="li-despues-cuerpo">
+              <span className="li-icono li-icono-suelto"><Rocket strokeWidth={1.75} /></span>
+              <ol>
+                {PASOS_DESPUES.map(([t, d], i) => (
+                  <li key={t}>
+                    <span className="li-numero">{i + 1}</span>
+                    <span><span className="li-despues-titulo">{t}</span><span className="li-despues-detalle">{d}</span></span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function EleccionNoche({ icono: I, rotulo, valor, accion, onClick }) {
+  return (
+    <li className="li-fila">
+      <span className="li-icono"><I strokeWidth={1.75} /></span>
+      <span className="li-fila-textos"><span className="li-fila-rotulo">{rotulo}</span><span className="li-fila-valor">{valor}</span></span>
+      <button type="button" onClick={onClick} className="li-accion no-imprimir"><Pencil strokeWidth={2} /> {accion}</button>
+    </li>
+  );
+}
+
+function LineaNoche({ icono: I, nombre, detalle, motivo, precio }) {
+  const sinNumero = precio === "Consultar" || precio === "…";
+  return (
+    <li className="li-fila li-linea">
+      <span className="li-icono"><I strokeWidth={1.75} /></span>
+      <span className="li-fila-textos">
+        <span className="li-linea-nombre">{nombre}</span>
+        {detalle && <span className="li-linea-detalle">{detalle}{/[.!?]$/.test(detalle) ? "" : "."}</span>}
+        {motivo && <span className="li-linea-motivo">{motivo}</span>}
+      </span>
+      <span className={`li-precio ${sinNumero ? "li-precio-consultar" : "f-m"}`}>{precio}</span>
+    </li>
+  );
+}
+
 function Eleccion({ rotulo, valor, accion, onClick }) {
   return (
     <div className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-4">
@@ -1253,7 +1415,7 @@ const ACCION = "inline-flex items-center justify-center gap-1.5 rounded-md borde
 
 /* El resumen con la acción. Tres estados: ver, pedir (el formulario en
    el mismo lugar, sin ventana encima) y listo. */
-function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cantidad, texto, whatsapp, pedido, mensajeInicial, plan }) {
+function Resumen({ noche = false, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cantidad, texto, whatsapp, pedido, mensajeInicial, plan }) {
   const [modo, setModo] = useState("ver");     // ver | pedir | listo
   const [hecho, setHecho] = useState(null);     // { nombre, telefono }
   const [copiado, setCopiado] = useState(false);
@@ -1290,6 +1452,41 @@ function Resumen({ calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cant
           </a>
         )}
       </Tarjeta>
+    );
+  }
+
+  if (noche) {
+    return (
+      <div className="li-resumen">
+        <div className="li-rotulo li-resumen-rotulo">Plan {plan} · por mes</div>
+        {calculando && <p className="li-resumen-texto">Calculando…</p>}
+        {!calculando && mensual != null && <div className="li-resumen-monto f-m">{pesos(mensual)} <span>por mes</span></div>}
+        {!calculando && mensual == null && (
+          <>
+            <div className="li-resumen-monto">Consultar</div>
+            <p className="li-resumen-texto">
+              {sinPrecios
+                ? `Nos ponemos en contacto con vos por WhatsApp y te pasamos el precio de estos ${cantidad} módulos. Sin compromiso.`
+                : `Falta el precio de ${faltan.map(nombreDe).join(", ")}: nos ponemos en contacto y te lo confirmamos.`}
+            </p>
+          </>
+        )}
+        <ul className="li-resumen-cuentas">
+          <li><span>Módulos</span><span>{cantidad}</span></li>
+          {!calculando && puestaEnMarcha > 0 && <li><span>Puesta en marcha, una sola vez</span><span className="f-m">{pesos(puestaEnMarcha)}</span></li>}
+        </ul>
+        <button type="button" onClick={() => setModo("pedir")} className="an-continuar li-resumen-pedir">
+          {mensual == null ? "Quiero que me contacten" : "Quiero empezar"} <ArrowRight strokeWidth={2.25} />
+        </button>
+        {enlaceWa && (
+          <a href={enlaceWa} target="_blank" rel="noopener noreferrer" className="li-resumen-boton li-resumen-wa"><MessageCircle strokeWidth={1.75} /> Escribinos por WhatsApp ahora</a>
+        )}
+        <div className="li-resumen-dos">
+          <button type="button" onClick={copiar} className="li-resumen-boton"><Copy strokeWidth={1.75} /> {copiado ? "Copiado" : "Copiar"}</button>
+          <button type="button" onClick={() => window.print()} className="li-resumen-boton"><Printer strokeWidth={1.75} /> Imprimir</button>
+        </div>
+        <p className="li-resumen-pie">Sin tarjeta, sin compromiso. {mensual == null ? "Te contactamos nosotros." : "El número que te confirmemos es el que pagás."}</p>
+      </div>
     );
   }
 
