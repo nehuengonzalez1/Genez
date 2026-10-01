@@ -282,8 +282,8 @@ function Hero({ onEmpezar }) {
 function HeroNoche({ onEmpezar }) {
   return (
     <section className="hero-noche relative overflow-hidden">
-      <div className="lg:flex lg:items-stretch">
-        <div className="relative z-10 px-5 pt-10 pb-8 lg:p-0 lg:pl-[5.4vw] lg:w-[38%] lg:shrink-0 flex flex-col justify-center">
+      <div className="hn-marco lg:flex lg:items-stretch">
+        <div className="relative z-10 px-5 pt-10 pb-8 lg:p-0 lg:pl-[calc(106*var(--u))] lg:w-[38%] lg:shrink-0 flex flex-col justify-center">
           <div className="hn-rotulo">Tu negocio, en orden <span className="hn-raya" aria-hidden="true" /></div>
           <h1 className="hn-titulo">
             Un sistema<br />que se adapta<br /><span className="hn-naranja">a vos.</span>

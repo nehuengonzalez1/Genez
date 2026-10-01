@@ -172,6 +172,7 @@ html {
    ve el borde. Los tamaños escalan con el ancho (la maqueta mide 1959
    px), con un mínimo para el teléfono. */
 .hero-noche {
+  --u: min(calc(var(--escala-landing) * 1px), calc(var(--escala-landing) * 100vw / 1959));
   --hn-fondo: 7 7 7;
   --hn-texto: 250 248 246;
   --hn-suave: 181 181 181;
@@ -184,31 +185,31 @@ html {
 }
 .hn-rotulo {
   display: flex; align-items: center; gap: 0.9em;
-  font-size: clamp(11px, 0.78vw, 15px);
+  font-size: max(11px, calc(15.3 * var(--u)));
   font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
   color: rgb(var(--hn-naranja));
 }
 .hn-raya { display: inline-block; width: 1.4em; height: 1px; background: rgb(var(--hn-naranja)); }
 .hn-titulo {
-  margin-top: clamp(14px, 1.6vw, 32px);
-  font-size: clamp(44px, 4.65vw, 96px);
+  margin-top: max(14px, calc(31 * var(--u)));
+  font-size: max(44px, calc(91 * var(--u)));
   font-weight: 800; line-height: 0.98; letter-spacing: -0.035em;
 }
 /* Cada renglón de la maqueta es uno: en pantalla ancha no se parten. */
 @media (min-width: 1024px) { .hn-titulo { white-space: nowrap; } }
 .hn-naranja { color: rgb(var(--hn-naranja)); }
 .hn-parrafo {
-  margin-top: clamp(16px, 1.7vw, 34px);
+  margin-top: max(16px, calc(33 * var(--u)));
   max-width: 31em;
-  font-size: clamp(16px, 1.22vw, 24px);
+  font-size: max(16px, calc(24 * var(--u)));
   line-height: 1.4; color: rgb(var(--hn-suave));
 }
 .hn-boton {
-  margin-top: clamp(22px, 2.3vw, 46px);
+  margin-top: max(22px, calc(45 * var(--u)));
   display: inline-flex; align-items: center; gap: 0.7em;
-  padding: clamp(14px, 1.3vw, 26px) clamp(22px, 1.8vw, 36px);
-  border-radius: clamp(10px, 0.7vw, 14px);
-  font-size: clamp(16px, 1.22vw, 24px); font-weight: 600;
+  padding: max(14px, calc(25.5 * var(--u))) max(22px, calc(35 * var(--u)));
+  border-radius: max(10px, calc(13.7 * var(--u)));
+  font-size: max(16px, calc(24 * var(--u))); font-weight: 600;
   color: rgb(var(--hn-sobre-boton));
   background: linear-gradient(180deg, rgb(var(--hn-boton-arriba)), rgb(var(--hn-boton-abajo)));
   box-shadow: 0 0 34px rgb(var(--hn-naranja) / 0.45), 0 10px 28px rgb(var(--hn-naranja) / 0.25);
@@ -218,9 +219,9 @@ html {
 .hn-boton:disabled { opacity: 0.5; cursor: default; filter: none; }
 .hn-flecha { width: 1.15em; height: 1.15em; }
 .hn-datos {
-  margin-top: clamp(26px, 2.6vw, 52px);
+  margin-top: max(26px, calc(51 * var(--u)));
   display: flex; flex-wrap: wrap; align-items: center; row-gap: 14px;
-  font-size: clamp(12px, 0.87vw, 17px); line-height: 1.25;
+  font-size: max(12px, calc(17 * var(--u))); line-height: 1.25;
   color: rgb(var(--hn-texto));
 }
 .hn-datos li { display: flex; align-items: center; gap: 0.9em; padding-right: 1.6em; margin-right: 1.6em; border-right: 1px solid rgb(var(--hn-texto) / 0.14); }
@@ -265,7 +266,7 @@ html {
    y en una pantalla más chica se achica entero. En el teléfono, tamaños
    fijos. Las fotos son recortes de la maqueta (public/landing/empecemos). */
 .en-seccion {
-  --u: min(1px, calc(100vw / 1556));
+  --u: min(calc(var(--escala-landing) * 1px), calc(var(--escala-landing) * 100vw / 1556));
   --en-fondo: 7 7 7;
   --en-texto: 250 248 246;
   --en-suave: 205 205 205;
@@ -279,8 +280,8 @@ html {
   padding: calc(40 * var(--u)) 0 calc(34 * var(--u));
 }
 .en-costado { position: absolute; top: 0; height: 100%; width: calc(117 * var(--u)); object-fit: cover; pointer-events: none; }
-.en-costado-izq { left: 0; -webkit-mask-image: linear-gradient(to right, #000 70%, transparent); mask-image: linear-gradient(to right, #000 70%, transparent); }
-.en-costado-der { right: 0; -webkit-mask-image: linear-gradient(to left, #000 70%, transparent); mask-image: linear-gradient(to left, #000 70%, transparent); }
+.en-costado-izq { left: 0; --mascara-x: linear-gradient(to right, #000 70%, transparent); }
+.en-costado-der { right: 0; --mascara-x: linear-gradient(to left, #000 70%, transparent); }
 .en-contenido { width: calc(1326 * var(--u)); margin: 0 auto; }
 .en-cabeza { display: flex; justify-content: space-between; align-items: flex-start; padding: 0 calc(60 * var(--u)); }
 .en-seccion .hn-rotulo { font-size: calc(15 * var(--u)); }
@@ -380,7 +381,7 @@ html {
    está en la maqueta, medida en --u (1 px de la maqueta, o menos si la
    pantalla es más chica). En el teléfono, una columna. */
 .qr-seccion {
-  --u: min(1px, calc(100vw / 1958));
+  --u: min(calc(var(--escala-landing) * 1px), calc(var(--escala-landing) * 100vw / 1958));
   --hn-naranja: 250 107 21;
   --hn-texto: 250 248 246;
   --hn-boton-arriba: 254 134 43;
@@ -453,7 +454,7 @@ html {
    así que todo lo que va encima tiene que caer donde estaba: se mide en
    --u, que es 1 px de la maqueta. */
 .qi-seccion {
-  --u: min(1px, calc(100vw / 1958));
+  --u: min(calc(var(--escala-landing) * 1px), calc(var(--escala-landing) * 100vw / 1958));
   --hn-naranja: 250 107 21;
   --hn-texto: 250 248 246;
   --hn-boton-arriba: 254 134 43;
@@ -536,7 +537,7 @@ html {
    sección hacia abajo, y el fondo queda arriba, del tamaño de la
    maqueta. */
 .pf-seccion {
-  --u: min(1px, calc(100vw / 1958));
+  --u: min(calc(var(--escala-landing) * 1px), calc(var(--escala-landing) * 100vw / 1958));
   --hn-naranja: 250 107 21;
   --hn-texto: 250 248 246;
   --hn-boton-arriba: 254 134 43;
@@ -595,7 +596,7 @@ html {
    La maqueta mide 1536 px de ancho y el contenido va de 180 a 1356:
    --u es 1 px de la maqueta (o menos, si la pantalla es más chica). */
 .an-seccion {
-  --u: min(1px, calc(100vw / 1536));
+  --u: min(calc(var(--escala-landing) * 1px), calc(var(--escala-landing) * 100vw / 1536));
   --an-naranja: 250 107 21;
   --an-texto: 248 246 242;
   --an-suave: 190 186 180;
@@ -605,8 +606,8 @@ html {
   padding: 0 0 calc(40 * var(--u));
 }
 .an-costado { position: absolute; top: 0; height: 100%; object-fit: cover; pointer-events: none; }
-.an-costado-izq { left: 0; width: calc(172 * var(--u)); -webkit-mask-image: linear-gradient(to right, #000 75%, transparent); mask-image: linear-gradient(to right, #000 75%, transparent); }
-.an-costado-der { right: 0; width: calc(140 * var(--u)); -webkit-mask-image: linear-gradient(to left, #000 75%, transparent); mask-image: linear-gradient(to left, #000 75%, transparent); }
+.an-costado-izq { left: 0; width: calc(172 * var(--u)); --mascara-x: linear-gradient(to right, #000 75%, transparent); }
+.an-costado-der { right: 0; width: calc(140 * var(--u)); --mascara-x: linear-gradient(to left, #000 75%, transparent); }
 .an-contenido { width: calc(1176 * var(--u)); margin: 0 auto; }
 .an-arriba { position: relative; height: calc(84 * var(--u)); }
 .an-volver { position: absolute; left: 0; top: calc(16 * var(--u)); display: inline-flex; align-items: center; gap: calc(12 * var(--u)); font-size: calc(15 * var(--u)); color: rgb(var(--an-suave)); }
@@ -707,8 +708,8 @@ html {
    contenido va de 209 a 1327, los pasos más separados y las tarjetas en
    dos columnas. */
 .pn-contenido { width: calc(1118 * var(--u)); }
-.pn-costado-izq { left: 0; width: calc(204 * var(--u)); -webkit-mask-image: linear-gradient(to right, #000 80%, transparent); mask-image: linear-gradient(to right, #000 80%, transparent); }
-.pn-costado-der { right: 0; width: calc(204 * var(--u)); -webkit-mask-image: linear-gradient(to left, #000 85%, transparent); mask-image: linear-gradient(to left, #000 85%, transparent); }
+.pn-costado-izq { left: 0; width: calc(204 * var(--u)); --mascara-x: linear-gradient(to right, #000 80%, transparent); }
+.pn-costado-der { right: 0; width: calc(204 * var(--u)); --mascara-x: linear-gradient(to left, #000 85%, transparent); }
 .pn-arriba { height: calc(104 * var(--u)); }
 .pn-arriba .an-volver { top: calc(26 * var(--u)); font-size: calc(17 * var(--u)); }
 .pn-pasos { left: calc(274 * var(--u)); top: calc(15 * var(--u)); }
@@ -775,7 +776,7 @@ html {
    ------------------------------------------------------------
    La maqueta mide 1958 × 803, como "Qué incluye": --u es 1 px de ella. */
 .cf-seccion {
-  --u: min(1px, calc(100vw / 1958));
+  --u: min(calc(var(--escala-landing) * 1px), calc(var(--escala-landing) * 100vw / 1958));
   --hn-naranja: 250 107 21;
   --hn-texto: 250 248 246;
   --hn-boton-arriba: 254 134 43;
@@ -823,8 +824,8 @@ html {
    La maqueta también mide 1536: el contenido va de 264 a 1270. */
 .ct-seccion { background: rgb(18 16 12); }
 .ct-contenido { width: calc(1006 * var(--u)); }
-.ct-costado-izq { left: 0; width: calc(232 * var(--u)); -webkit-mask-image: linear-gradient(to right, #000 80%, transparent); mask-image: linear-gradient(to right, #000 80%, transparent); }
-.ct-costado-der { right: 0; width: calc(216 * var(--u)); -webkit-mask-image: linear-gradient(to left, #000 85%, transparent); mask-image: linear-gradient(to left, #000 85%, transparent); }
+.ct-costado-izq { left: 0; width: calc(232 * var(--u)); --mascara-x: linear-gradient(to right, #000 80%, transparent); }
+.ct-costado-der { right: 0; width: calc(216 * var(--u)); --mascara-x: linear-gradient(to left, #000 85%, transparent); }
 .ct-arriba { height: calc(107 * var(--u)); }
 .ct-arriba .an-volver { top: calc(23 * var(--u)); font-size: calc(16 * var(--u)); color: rgb(var(--an-texto)); }
 .ct-pasos { left: calc(229 * var(--u)); top: calc(33 * var(--u)); }
@@ -906,8 +907,8 @@ html {
    centrado, así que se corre desde el medio de la pantalla. */
 .pl-seccion { background: rgb(12 10 8); }
 .pl-contenido { width: calc(1076 * var(--u)); margin-left: calc(50% - 504 * var(--u)); }
-.pl-costado-izq { left: 0; width: calc(258 * var(--u)); -webkit-mask-image: linear-gradient(to right, #000 85%, transparent); mask-image: linear-gradient(to right, #000 85%, transparent); }
-.pl-costado-der { right: 0; width: calc(194 * var(--u)); -webkit-mask-image: linear-gradient(to left, #000 80%, transparent); mask-image: linear-gradient(to left, #000 80%, transparent); }
+.pl-costado-izq { left: 0; width: calc(258 * var(--u)); --mascara-x: linear-gradient(to right, #000 85%, transparent); }
+.pl-costado-der { right: 0; width: calc(194 * var(--u)); --mascara-x: linear-gradient(to left, #000 80%, transparent); }
 .pl-arriba { height: calc(85 * var(--u)); }
 .pl-arriba .an-volver { left: calc(4 * var(--u)); top: calc(25 * var(--u)); font-size: calc(17 * var(--u)); color: rgb(var(--an-texto)); }
 .pl-pasos { left: calc(270 * var(--u)); top: calc(22 * var(--u)); }
@@ -1002,8 +1003,8 @@ html {
    La maqueta también mide 1536: el contenido va de 198 a 1339. */
 .mo-seccion { background: rgb(14 11 9); }
 .mo-contenido { width: calc(1141 * var(--u)); }
-.mo-costado-izq { left: 0; width: calc(190 * var(--u)); -webkit-mask-image: linear-gradient(to right, #000 75%, transparent); mask-image: linear-gradient(to right, #000 75%, transparent); }
-.mo-costado-der { right: 0; width: calc(190 * var(--u)); -webkit-mask-image: linear-gradient(to left, #000 80%, transparent); mask-image: linear-gradient(to left, #000 80%, transparent); }
+.mo-costado-izq { left: 0; width: calc(190 * var(--u)); --mascara-x: linear-gradient(to right, #000 75%, transparent); }
+.mo-costado-der { right: 0; width: calc(190 * var(--u)); --mascara-x: linear-gradient(to left, #000 80%, transparent); }
 .mo-arriba { height: calc(118 * var(--u)); }
 .mo-arriba .an-volver { left: calc(-2 * var(--u)); top: calc(18 * var(--u)); font-size: calc(16.5 * var(--u)); color: rgb(var(--an-texto)); }
 .mo-pasos { left: calc(299 * var(--u)); top: calc(38 * var(--u)); }
@@ -1093,8 +1094,8 @@ html {
    las medidas se escriben como se leen en la imagen. */
 .li-seccion { --v: calc(1.5 * var(--u)); background: rgb(12 10 8); padding-bottom: calc(40 * var(--v)); }
 .li-contenido { width: calc(698 * var(--v)); }
-.li-costado-izq { left: 0; width: calc(165 * var(--v)); object-position: top; -webkit-mask-image: linear-gradient(to right, #000 75%, transparent); mask-image: linear-gradient(to right, #000 75%, transparent); }
-.li-costado-der { right: 0; width: calc(156 * var(--v)); object-position: top; -webkit-mask-image: linear-gradient(to left, #000 80%, transparent); mask-image: linear-gradient(to left, #000 80%, transparent); }
+.li-costado-izq { left: 0; width: calc(165 * var(--v)); object-position: top; --mascara-x: linear-gradient(to right, #000 75%, transparent); }
+.li-costado-der { right: 0; width: calc(156 * var(--v)); object-position: top; --mascara-x: linear-gradient(to left, #000 80%, transparent); }
 .li-arriba { height: calc(65 * var(--v)); }
 .li-arriba .an-volver { left: calc(10 * var(--v)); top: calc(6 * var(--v)); gap: calc(8 * var(--v)); font-size: calc(10.5 * var(--v)); color: rgb(var(--an-texto)); }
 .li-arriba .an-volver svg { width: calc(12 * var(--v)); height: calc(12 * var(--v)); }
@@ -1225,3 +1226,52 @@ html {
   .li-seccion .li-bajada, .li-seccion .li-bajada strong, .li-seccion .li-fila-valor, .li-seccion .li-linea-nombre, .li-seccion .li-precio, .li-seccion .li-despues-titulo, .li-seccion .li-necesitas ul { color: black; }
   .li-seccion .li-total { display: flex; justify-content: space-between; padding-top: 8px; font-weight: 700; color: black; }
 }
+
+/* ------------------------------------------------------------
+   Más chico y fundido (01/10)
+   ------------------------------------------------------------
+   Copiadas a escala 1, las maquetas quedaban grandes en una pantalla
+   común: todas las secciones oscuras miden en --u, y --u pasa por este
+   factor. En el teléfono los tamaños son fijos y no cambian.
+
+   Al achicarse, las imágenes que iban de borde a borde dejan aire a los
+   costados, y entre una sección y la otra se veía el corte: todas
+   tienen el mismo fondo y las imágenes se funden en él por sus cuatro
+   bordes. */
+:root { --escala-landing: 0.85; --fondo-noche: 10 8 6; }
+
+:root .hero-noche, :root .en-seccion, :root .qr-seccion, :root .qi-seccion, :root .cf-seccion, :root .pf-seccion, :root .an-seccion {
+  background: rgb(var(--fondo-noche));
+}
+
+@media (min-width: 1024px) {
+  .hn-marco { width: calc(1959 * var(--u)); margin: 0 auto; }
+
+  /* Los costados del alta y de "¿Qué negocio tenés?": hacia adentro ya
+     se fundían; ahora también arriba y abajo. */
+  .an-costado, .en-costado {
+    -webkit-mask-image: var(--mascara-x, linear-gradient(#000, #000)), linear-gradient(to bottom, transparent, #000 9%, #000 88%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: var(--mascara-x, linear-gradient(#000, #000)), linear-gradient(to bottom, transparent, #000 9%, #000 88%, transparent);
+    mask-composite: intersect;
+  }
+
+  /* Las imágenes grandes, por los cuatro bordes. */
+  .hn-arte img, .qi-fondo, .cf-fondo, .pf-fondo, .qr-centro {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent), linear-gradient(to bottom, transparent, #000 9%, #000 90%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent), linear-gradient(to bottom, transparent, #000 9%, #000 90%, transparent);
+    mask-composite: intersect;
+  }
+  .qr-derecha {
+    -webkit-mask-image: linear-gradient(to left, transparent, #000 18%), linear-gradient(to bottom, transparent, #000 15%, #000 70%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to left, transparent, #000 18%), linear-gradient(to bottom, transparent, #000 15%, #000 70%, transparent);
+    mask-composite: intersect;
+  }
+}
+
+/* El pie no tiene fondo propio y debajo está el del cuerpo, más claro:
+   en oscuro arranca del fondo de las secciones y se aclara de a poco,
+   sin la raya de arriba. */
+.tema-noche footer { border-top-color: transparent; background: linear-gradient(to bottom, rgb(var(--fondo-noche)), transparent); }
