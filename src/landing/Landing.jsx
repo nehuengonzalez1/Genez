@@ -436,7 +436,104 @@ function Telefono() {
 /* ------------------------------------------------------------
    Empecemos · una fila por rubro, los negocios con foto
    ------------------------------------------------------------ */
-function Empecemos({ rubros, onElegir }) {
+/* En oscuro, "¿Qué negocio tenés?" es la maqueta del 01/10 copiada tal
+   cual. Las fotos (de cada negocio, del fondo de cada rubro y de los
+   costados) son recortes de la maqueta; los textos, los filtros y las
+   tarjetas son de verdad, porque llevan al alta. El claro sigue con la
+   de antes. */
+function Empecemos(props) {
+  if (useOscuro()) return <EmpecemosNoche {...props} />;
+  return <EmpecemosClaro {...props} />;
+}
+
+/* Las fotos recortadas de la maqueta, por negocio. Uno que la maqueta no
+   tiene (Casa de sanitarios) usa la de Unsplash de siempre. */
+const FOTOS_NOCHE = new Set(["almacen", "minimercado", "kiosco", "dietetica", "verduleria", "panaderia", "ferreteria", "bar", "cafe", "restaurante",
+  "cerveceria", "rotiseria", "take-away", "estetica", "peluqueria", "barberia", "pilates", "gimnasio", "consultorio", "spa"]);
+const slug = (t) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const fotoNoche = (nombre) => (FOTOS_NOCHE.has(slug(nombre)) ? `/landing/empecemos/${slug(nombre)}.jpg` : foto(nombre));
+const PANEL_NOCHE = { minimercado: "comercio", gastronomia: "gastronomia", servicios: "servicios" };
+const PILDORA_NOCHE = { todos: LayoutGrid, minimercado: Store, gastronomia: UtensilsCrossed, servicios: CalendarDays };
+
+function EmpecemosNoche({ rubros, onElegir }) {
+  const [filtro, setFiltro] = useState("todos");
+  const visibles = rubros.filter((r) => filtro === "todos" || r.clave === filtro);
+  return (
+    <section id="empecemos" className="en-seccion scroll-mt-20 relative overflow-hidden">
+      <img src="/landing/empecemos/costado-izquierdo.jpg" alt="" aria-hidden="true" className="en-costado en-costado-izq" />
+      <img src="/landing/empecemos/costado-derecho.jpg" alt="" aria-hidden="true" className="en-costado en-costado-der" />
+      <div className="en-contenido relative">
+        <div className="en-cabeza">
+          <div>
+            <div className="hn-rotulo">Empecemos <span className="hn-raya en-raya-larga" aria-hidden="true" /></div>
+            <h2 className="en-titulo">¿Qué <span className="hn-naranja">negocio</span> tenés?</h2>
+            <p className="en-bajada">Elegí el tuyo y armamos Genez con los módulos que necesitás.</p>
+          </div>
+          <div className="manuscrita en-nota" aria-hidden="true">
+            Seleccioná tu rubro<br />y visualizá tu sistema
+            <Flecha className="en-nota-flecha" />
+          </div>
+        </div>
+
+        <div className="en-pildoras">
+          {[{ clave: "todos", nombre: "Todos" }, ...rubros].map((r) => {
+            const I = PILDORA_NOCHE[r.clave] || Store;
+            return (
+              <button key={r.clave} type="button" onClick={() => setFiltro(r.clave)} className={`en-pildora ${filtro === r.clave ? "en-pildora-activa" : ""}`}>
+                <I className="en-pildora-icono" strokeWidth={1.75} /> {r.nombre}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="en-filas">
+          {visibles.map((r) => <FilaNoche key={r.clave} rubro={r} onElegir={onElegir} />)}
+        </div>
+
+        <p className="en-pie">
+          <MessageCircle className="en-pie-icono" strokeWidth={1.5} aria-hidden="true" />
+          ¿No ves el tuyo?{" "}
+          <button type="button" onClick={() => onElegir("otro", "Otro negocio")} disabled={!ALTA_ABIERTA} className="en-pie-enlace">
+            Contanos qué hacés <ArrowRight className="en-flechita" strokeWidth={2.25} />
+          </button>
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function FilaNoche({ rubro, onElegir }) {
+  const p = rubro.presentacion;
+  const Icono = ICONOS[p.icono] || Store;
+  const negocios = p.negocios || [p.titulo];
+  const panel = PANEL_NOCHE[rubro.clave];
+  return (
+    <div className="en-fila">
+      <div className="en-panel">
+        {panel && <img src={`/landing/empecemos/panel-${panel}.jpg`} alt="" aria-hidden="true" className="en-panel-foto" />}
+        <div className="relative">
+          <span className="en-circulo"><Icono className="en-circulo-icono" strokeWidth={2} /></span>
+          <div className="en-panel-nombre">{rubro.nombre}</div>
+          <div className="en-panel-frase">{FRASE_RUBRO[rubro.clave] || p.bajada}</div>
+          <button type="button" onClick={() => onElegir(rubro.clave, null)} disabled={!ALTA_ABIERTA} className="en-elegir">
+            Elegir este rubro <ArrowRight className="en-flechita" strokeWidth={2.25} />
+          </button>
+        </div>
+      </div>
+      <div className="en-negocios fila-negocios">
+        {negocios.map((n) => (
+          <button key={n} type="button" onClick={() => onElegir(rubro.clave, n)} disabled={!ALTA_ABIERTA} className="en-tarjeta">
+            <span className="en-tarjeta-foto">{fotoNoche(n) ? <img src={fotoNoche(n)} alt="" loading="lazy" /> : <Icono size={22} />}</span>
+            <span className="en-tarjeta-nombre"><Icono className="en-tarjeta-icono" strokeWidth={2} />{n}</span>
+            <span className="en-tarjeta-ir"><ArrowRight strokeWidth={2.25} /></span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmpecemosClaro({ rubros, onElegir }) {
   const [filtro, setFiltro] = useState("todos");
   const visibles = rubros.filter((r) => filtro === "todos" || r.clave === filtro);
 

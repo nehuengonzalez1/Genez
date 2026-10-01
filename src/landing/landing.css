@@ -256,3 +256,116 @@ html {
   .hn-datos { column-gap: 1.6em; }
   .hn-datos li { border-right: 0; padding-right: 0; margin-right: 0; }
 }
+
+/* ------------------------------------------------------------
+   "¿Qué negocio tenés?" en oscuro (01/10), copiada de la maqueta
+   ------------------------------------------------------------
+   La maqueta mide 1556 px de ancho: en pantalla ancha todo se mide en
+   esa unidad (--u), que no pasa de 1 px, así a 1556 o más queda igual
+   y en una pantalla más chica se achica entero. En el teléfono, tamaños
+   fijos. Las fotos son recortes de la maqueta (public/landing/empecemos). */
+.en-seccion {
+  --u: min(1px, calc(100vw / 1556));
+  --en-fondo: 7 7 7;
+  --en-texto: 250 248 246;
+  --en-suave: 205 205 205;
+  --en-naranja: 250 107 21;
+  --en-tarjeta: 18 17 16;
+  /* Los de la portada, que usan el rótulo y el naranja que se reusan acá. */
+  --hn-naranja: 250 107 21;
+  --hn-texto: 250 248 246;
+  background: rgb(var(--en-fondo));
+  color: rgb(var(--en-texto));
+  padding: calc(40 * var(--u)) 0 calc(34 * var(--u));
+}
+.en-costado { position: absolute; top: 0; height: 100%; width: calc(117 * var(--u)); object-fit: cover; pointer-events: none; }
+.en-costado-izq { left: 0; -webkit-mask-image: linear-gradient(to right, #000 70%, transparent); mask-image: linear-gradient(to right, #000 70%, transparent); }
+.en-costado-der { right: 0; -webkit-mask-image: linear-gradient(to left, #000 70%, transparent); mask-image: linear-gradient(to left, #000 70%, transparent); }
+.en-contenido { width: calc(1326 * var(--u)); margin: 0 auto; }
+.en-cabeza { display: flex; justify-content: space-between; align-items: flex-start; padding: 0 calc(60 * var(--u)); }
+.en-seccion .hn-rotulo { font-size: calc(15 * var(--u)); }
+.en-raya-larga { width: calc(62 * var(--u)); }
+.en-titulo { margin-top: calc(14 * var(--u)); font-size: calc(58 * var(--u)); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+.en-bajada { margin-top: calc(10 * var(--u)); font-size: calc(22 * var(--u)); color: rgb(var(--en-suave)); }
+.en-nota { margin-top: calc(50 * var(--u)); margin-right: calc(12 * var(--u)); font-size: calc(24 * var(--u)); line-height: 1.15; color: rgb(var(--en-texto)); transform: rotate(-8deg); text-align: right; }
+.en-nota-flecha { width: calc(44 * var(--u)); margin: calc(8 * var(--u)) calc(70 * var(--u)) 0 auto; color: rgb(var(--en-texto)); transform: rotate(35deg) scaleX(-1); }
+.en-pildoras { display: flex; justify-content: center; flex-wrap: wrap; gap: calc(8 * var(--u)); margin-top: calc(30 * var(--u)); padding-right: calc(66 * var(--u)); }
+.en-pildora {
+  display: inline-flex; align-items: center; gap: calc(10 * var(--u));
+  height: calc(48 * var(--u)); padding: 0 calc(22 * var(--u)); border-radius: 9999px;
+  font-size: calc(15 * var(--u)); font-weight: 500; color: rgb(var(--en-texto));
+  background: rgb(14 14 14); border: 1px solid rgb(255 255 255 / 0.1);
+  transition: border-color 0.15s;
+}
+.en-pildora:hover { border-color: rgb(var(--en-naranja) / 0.6); }
+.en-pildora-icono { width: calc(18 * var(--u)); height: calc(18 * var(--u)); color: rgb(var(--en-naranja)); }
+.en-pildora-activa {
+  background: linear-gradient(180deg, rgb(254 134 43), rgb(244 100 14)); border-color: transparent;
+  box-shadow: 0 0 calc(22 * var(--u)) rgb(var(--en-naranja) / 0.45);
+}
+.en-pildora-activa .en-pildora-icono { color: rgb(var(--en-texto)); }
+.en-filas { margin-top: calc(23 * var(--u)); display: flex; flex-direction: column; gap: calc(12 * var(--u)); }
+.en-fila {
+  position: relative; display: flex; align-items: center; gap: calc(6 * var(--u));
+  min-height: calc(210 * var(--u)); border-radius: calc(16 * var(--u)); overflow: hidden;
+  background: linear-gradient(90deg, rgb(30 17 10), rgb(16 14 13) 35%, rgb(14 13 12));
+  border: 1px solid rgb(var(--en-naranja) / 0.14);
+  padding-right: calc(30 * var(--u));
+}
+.en-panel { position: relative; align-self: stretch; display: flex; align-items: center; width: calc(330 * var(--u)); flex-shrink: 0; padding-left: calc(42 * var(--u)); }
+.en-panel-foto {
+  position: absolute; right: 0; top: 0; height: 100%; width: 45%; object-fit: cover; opacity: 0.85;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 45%); mask-image: linear-gradient(to right, transparent, #000 45%);
+}
+.en-circulo { display: flex; align-items: center; justify-content: center; width: calc(58 * var(--u)); height: calc(58 * var(--u)); border-radius: 9999px; background: rgb(253 121 11); color: rgb(18 8 2); }
+.en-circulo-icono { width: calc(28 * var(--u)); height: calc(28 * var(--u)); }
+.en-panel-nombre { margin-top: calc(12 * var(--u)); font-size: calc(24 * var(--u)); font-weight: 800; letter-spacing: -0.01em; }
+.en-panel-frase { margin-top: calc(4 * var(--u)); max-width: calc(200 * var(--u)); font-size: calc(15 * var(--u)); line-height: 1.2; color: rgb(var(--en-suave)); }
+.en-elegir {
+  margin-top: calc(14 * var(--u)); display: inline-flex; align-items: center; gap: calc(8 * var(--u));
+  height: calc(38 * var(--u)); padding: 0 calc(22 * var(--u)); border-radius: calc(6 * var(--u));
+  font-size: calc(15 * var(--u)); font-weight: 600; color: rgb(26 11 2);
+  background: linear-gradient(180deg, rgb(254 134 43), rgb(244 100 14));
+  box-shadow: 0 0 calc(18 * var(--u)) rgb(var(--en-naranja) / 0.4);
+}
+.en-elegir:disabled, .en-tarjeta:disabled, .en-pie-enlace:disabled { opacity: 0.6; cursor: default; }
+.en-flechita { width: 1.05em; height: 1.05em; }
+.en-negocios { display: flex; gap: calc(14 * var(--u)); overflow-x: auto; flex: 1; min-width: 0; padding: calc(14 * var(--u)) 0; }
+.en-tarjeta {
+  flex: 1 0 calc(118 * var(--u)); max-width: calc(140 * var(--u)); display: flex; flex-direction: column; text-align: left;
+  padding: calc(5 * var(--u)); border-radius: calc(12 * var(--u));
+  background: rgb(var(--en-tarjeta)); border: 1px solid rgb(255 255 255 / 0.08);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.en-tarjeta:not(:disabled):hover { border-color: rgb(var(--en-naranja) / 0.7); transform: translateY(-2px); }
+.en-tarjeta-foto { display: flex; align-items: center; justify-content: center; height: calc(98 * var(--u)); border-radius: calc(9 * var(--u)); overflow: hidden; background: rgb(28 26 24); color: rgb(var(--en-naranja)); }
+.en-tarjeta-foto img { width: 100%; height: 100%; object-fit: cover; }
+.en-tarjeta-nombre { display: flex; align-items: center; gap: calc(5 * var(--u)); margin: calc(10 * var(--u)) calc(3 * var(--u)) 0; font-size: calc(14 * var(--u)); font-weight: 700; }
+.en-tarjeta-icono { width: calc(15 * var(--u)); height: calc(15 * var(--u)); flex-shrink: 0; color: rgb(var(--en-naranja)); }
+.en-tarjeta-ir {
+  align-self: flex-end; display: flex; align-items: center; justify-content: center; margin: calc(12 * var(--u)) calc(4 * var(--u)) calc(4 * var(--u)) 0;
+  width: calc(24 * var(--u)); height: calc(24 * var(--u)); border-radius: 9999px; border: 1.5px solid rgb(var(--en-naranja)); color: rgb(var(--en-naranja));
+}
+.en-tarjeta-ir svg { width: 60%; height: 60%; }
+.en-pie { display: flex; align-items: center; gap: calc(12 * var(--u)); margin-top: calc(16 * var(--u)); font-size: calc(16 * var(--u)); color: rgb(var(--en-suave)); }
+.en-pie-icono { width: calc(30 * var(--u)); height: calc(30 * var(--u)); color: rgb(var(--en-texto)); }
+.en-pie-enlace { display: inline-flex; align-items: center; gap: 0.3em; font-weight: 700; color: rgb(var(--en-naranja)); }
+
+/* En el teléfono: tamaños fijos, sin los costados, y el panel del rubro
+   arriba de sus tarjetas, que se deslizan. */
+@media (max-width: 1023px) {
+  .en-seccion { --u: 1px; padding: 48px 0 32px; }
+  .en-costado, .en-nota { display: none; }
+  .en-contenido { width: auto; padding: 0 20px; }
+  .en-cabeza { padding: 0; }
+  .en-seccion .hn-rotulo { font-size: 12px; }
+  .en-titulo { font-size: 36px; }
+  .en-bajada { font-size: 16px; }
+  .en-pildoras { justify-content: flex-start; padding-right: 0; margin-top: 22px; }
+  .en-pildora { height: 40px; padding: 0 16px; font-size: 14px; }
+  .en-fila { flex-direction: column; align-items: stretch; padding: 0 0 4px; }
+  .en-panel { width: auto; padding: 20px 20px 4px; }
+  .en-panel-foto { width: 55%; }
+  .en-negocios { padding: 12px 20px 14px; }
+  .en-tarjeta { flex: 0 0 128px; max-width: none; }
+}
