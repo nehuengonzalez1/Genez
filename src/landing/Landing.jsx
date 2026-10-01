@@ -42,7 +42,7 @@ import {
   ShoppingCart, UtensilsCrossed, CalendarDays, Store, ArrowRight, Plus, Minus, Sun, Moon,
   ScanBarcode, Wallet, Settings, Package, Boxes, Truck, ClipboardList, FileText, Users,
   Ticket, Landmark, LayoutGrid, BarChart3, MessageCircle, Bell, ShieldCheck, Sparkles,
-  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Lock, Leaf, Home, Calendar, Gift, User, Coins, Timer, Monitor,
+  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Lock, Leaf, Home, Calendar, Gift, User, Coins, Timer, Monitor, CircleCheck,
 } from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
 import { MODULOS } from "../datos/modulos.js";
@@ -758,7 +758,87 @@ function PapelSinGenez() {
 /* ------------------------------------------------------------
    Qué incluye · los módulos del catálogo, con el teléfono al costado
    ------------------------------------------------------------ */
+/* En oscuro, "Qué incluye" es la maqueta del 01/10 copiada tal cual. El
+   fondo (las rayas de luz, la ola y la tablet) es la maqueta con la zona
+   del texto y de las tarjetas pintada del color del fondo; encima van el
+   texto y las tarjetas en HTML, en el mismo lugar. "Ver todos los
+   módulos" sigue andando: suma los demás abajo. El claro, la de antes. */
 function QueIncluye() {
+  if (useOscuro()) return <QueIncluyeNoche />;
+  return <QueIncluyeClaro />;
+}
+
+/* Lo que dice cada tarjeta en la maqueta. Un módulo que no está acá
+   (aparecen con "Ver todos") usa su descripción de siempre. */
+const DESCRIPCION_NOCHE = {
+  cobro: <>Punto de venta, tickets<br />y múltiples medios de pago.</>,
+  caja: <>Arqueo, gastos, cierre<br />y control de efectivo.</>,
+  ajustes: <>Configuración del negocio,<br />usuarios y permisos.</>,
+  comandas: <>Mesas, comandas y cocina<br />en tiempo real.</>,
+  productos: <>Catálogo, precios, listas<br />y variantes.</>,
+  stock: <>Alertas, vencimientos<br />y movimientos.</>,
+  compras: <>Remitos, costos<br />y proveedores.</>,
+  pedidos: <>Preparación con pistola<br />y control de entregas.</>,
+  clientes: <>Ficha, historial, promociones<br />y cuentas corrientes.</>,
+  cuentas: <>Fiado: quién debe, cobros<br />y recordatorios.</>,
+  equipo: <>Quién trabaja, horarios,<br />comisiones y reportes.</>,
+  agenda: <>Turnos, clases y reservas<br />según tu rubro.</>,
+};
+const DATOS_INCLUYE = [
+  [CircleCheck, <>Activás solo<br />lo que necesitás</>],
+  [Settings, <>Escalás cuando<br />tu negocio crece</>],
+  [BarChart3, <>Todo integrado<br />en un solo lugar</>],
+];
+
+function TarjetaModuloNoche({ m, activa }) {
+  const I = ICONO_MODULO[m.k] || LayoutGrid;
+  return (
+    <li className={`qi-tarjeta ${activa ? "qi-tarjeta-activa" : ""}`}>
+      <span className="qi-icono"><I strokeWidth={2} /></span>
+      <div className="qi-cuerpo">
+        <div className="qi-nombre">{m.n}{m.base && <span className="qi-base">Base</span>}</div>
+        <div className="qi-descripcion">{DESCRIPCION_NOCHE[m.k] || m.d}</div>
+      </div>
+      <span className="qi-ir" aria-hidden="true"><ArrowRight strokeWidth={2.25} /></span>
+    </li>
+  );
+}
+
+function QueIncluyeNoche() {
+  const [todos, setTodos] = useState(false);
+  const vistos = new Set();
+  const modulos = MODULOS.filter((m) => !vistos.has(m.n) && vistos.add(m.n));
+  return (
+    <section id="incluye" className="qi-seccion scroll-mt-20 relative overflow-hidden">
+      <div className="qi-lienzo">
+        <img src="/landing/incluye/fondo.jpg" width="1958" height="803" className="qi-fondo" alt="" aria-hidden="true" />
+        <div className="qi-texto">
+          <div className="hn-rotulo qi-rotulo">Qué incluye <span className="qi-raya" aria-hidden="true" /></div>
+          <h2 className="qi-titulo">Todo lo que un<br />comercio necesita,<br /><span className="hn-naranja">por módulos.</span></h2>
+          <p className="qi-parrafo">Pagás una base que incluye cobro, caja y<br className="qr-br" /> ajustes, más cada módulo que sumes.<br className="qr-br" /> Nada más.</p>
+          <button type="button" onClick={() => setTodos(!todos)} className="hn-boton qi-boton">
+            {todos ? "Ver menos" : "Ver todos los módulos"} <ArrowRight className="hn-flecha" strokeWidth={2.25} />
+          </button>
+          <ul className="qi-datos">
+            {DATOS_INCLUYE.map(([I, t], i) => <li key={i}><I className="qi-dato-icono" strokeWidth={2} aria-hidden="true" /><span>{t}</span></li>)}
+          </ul>
+        </div>
+        <ul className="qi-grilla">
+          {modulos.slice(0, 12).map((m, i) => <TarjetaModuloNoche key={m.k} m={m} activa={i === 0} />)}
+        </ul>
+      </div>
+      {todos && (
+        <div className="qi-resto-caja">
+          <ul className="qi-grilla qi-resto">
+            {modulos.slice(12).map((m) => <TarjetaModuloNoche key={m.k} m={m} />)}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function QueIncluyeClaro() {
   const [todos, setTodos] = useState(false);
   /* Dos módulos se llaman "Informes" (uno mira márgenes, el otro
      ocupación). Para el que lee de afuera es uno solo: se muestra una vez. */

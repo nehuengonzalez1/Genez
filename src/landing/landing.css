@@ -444,3 +444,85 @@ html {
   .qr-panel li { font-size: 16px; line-height: 1.3; padding: 12px 0; gap: 14px; }
   .qr-panel-icono { width: 44px; height: 44px; }
 }
+
+/* ------------------------------------------------------------
+   "Qué incluye" en oscuro (01/10), copiada de la maqueta
+   ------------------------------------------------------------
+   La maqueta mide 1958 x 803. El fondo es la maqueta misma con la zona
+   del texto y de las tarjetas pintada (public/landing/incluye/fondo.jpg),
+   así que todo lo que va encima tiene que caer donde estaba: se mide en
+   --u, que es 1 px de la maqueta. */
+.qi-seccion {
+  --u: min(1px, calc(100vw / 1958));
+  --hn-naranja: 250 107 21;
+  --hn-texto: 250 248 246;
+  --hn-boton-arriba: 254 134 43;
+  --hn-boton-abajo: 244 100 14;
+  --hn-sobre-boton: 26 11 2;
+  --qi-suave: 200 198 194;
+  background: rgb(12 9 6);
+  color: rgb(var(--hn-texto));
+}
+.qi-lienzo { position: relative; width: calc(1958 * var(--u)); height: calc(803 * var(--u)); margin: 0 auto; }
+.qi-fondo { position: absolute; inset: 0; width: 100%; height: 100%; }
+.qi-texto { position: absolute; left: calc(104 * var(--u)); top: calc(117 * var(--u)); width: calc(500 * var(--u)); }
+.qi-seccion .qi-rotulo { font-size: calc(17 * var(--u)); letter-spacing: 0.02em; font-weight: 700; gap: calc(16 * var(--u)); }
+/* La raya del rótulo de la maqueta termina en una punta hacia la izquierda. */
+.qi-raya { position: relative; display: inline-block; width: calc(56 * var(--u)); height: 1px; background: rgb(var(--hn-naranja)); }
+.qi-raya::before { content: ""; position: absolute; left: 0; top: 50%; width: calc(6 * var(--u)); height: calc(6 * var(--u)); border-left: 1px solid rgb(var(--hn-naranja)); border-bottom: 1px solid rgb(var(--hn-naranja)); transform: translate(0, -50%) rotate(45deg); }
+.qi-titulo { margin-top: calc(28 * var(--u)); font-size: calc(55 * var(--u)); font-weight: 800; line-height: 1.03; letter-spacing: -0.03em; white-space: nowrap; }
+.qi-parrafo { margin-top: calc(22 * var(--u)); font-size: calc(23 * var(--u)); line-height: calc(37 * var(--u)); color: rgb(var(--qi-suave)); white-space: nowrap; }
+.qi-seccion .qi-boton { margin-top: calc(30 * var(--u)); height: calc(72 * var(--u)); padding: 0 calc(30 * var(--u)); font-size: calc(23 * var(--u)); border-radius: calc(12 * var(--u)); box-shadow: 0 0 calc(30 * var(--u)) rgb(var(--hn-naranja) / 0.35); }
+.qi-datos { margin-top: calc(42 * var(--u)); display: flex; gap: calc(30 * var(--u)); font-size: calc(13.5 * var(--u)); line-height: calc(20 * var(--u)); color: rgb(var(--qi-suave)); white-space: nowrap; }
+.qi-datos li { display: flex; align-items: center; gap: calc(12 * var(--u)); }
+.qi-dato-icono { width: calc(28 * var(--u)); height: calc(28 * var(--u)); color: rgb(var(--hn-naranja)); flex-shrink: 0; }
+.qi-grilla {
+  position: absolute; left: calc(613 * var(--u)); top: calc(130 * var(--u));
+  display: grid; grid-template-columns: calc(298 * var(--u)) calc(295 * var(--u)) calc(313 * var(--u));
+  grid-auto-rows: calc(116 * var(--u)); column-gap: calc(11.5 * var(--u)); row-gap: calc(13 * var(--u));
+}
+.qi-tarjeta {
+  position: relative; display: flex; gap: calc(16 * var(--u)); padding: calc(13 * var(--u));
+  border-radius: calc(10 * var(--u)); background: rgb(22 19 17 / 0.94); border: 1px solid rgb(255 255 255 / 0.08);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.qi-tarjeta:hover, .qi-tarjeta-activa {
+  border-color: rgb(var(--hn-naranja) / 0.85);
+  box-shadow: 0 0 calc(22 * var(--u)) rgb(var(--hn-naranja) / 0.3);
+  background: rgb(30 20 14 / 0.96);
+}
+.qi-icono {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: calc(54 * var(--u)); height: calc(54 * var(--u)); border-radius: calc(10 * var(--u));
+  background: linear-gradient(180deg, rgb(78 38 12), rgb(52 26 10)); color: rgb(255 150 80);
+}
+.qi-icono svg { width: 52%; height: 52%; }
+.qi-cuerpo { min-width: 0; padding-top: calc(8 * var(--u)); }
+.qi-nombre { display: flex; align-items: center; gap: calc(14 * var(--u)); font-size: calc(21 * var(--u)); font-weight: 600; letter-spacing: -0.01em; }
+.qi-base { font-size: calc(13 * var(--u)); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: calc(3 * var(--u)) calc(8 * var(--u)); border-radius: calc(4 * var(--u)); background: rgb(84 36 8); color: rgb(var(--hn-naranja)); }
+.qi-descripcion { margin-top: calc(8 * var(--u)); font-size: calc(15 * var(--u)); line-height: calc(21.5 * var(--u)); color: rgb(var(--qi-suave)); white-space: nowrap; }
+.qi-ir {
+  position: absolute; right: calc(15 * var(--u)); bottom: calc(14 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  width: calc(32 * var(--u)); height: calc(32 * var(--u)); border-radius: 9999px; border: 1.5px solid rgb(var(--hn-naranja)); color: rgb(var(--hn-naranja));
+}
+.qi-ir svg { width: 58%; height: 58%; }
+/* Los que suma "Ver todos los módulos", abajo del lienzo. */
+.qi-resto-caja { width: calc(1958 * var(--u)); margin: 0 auto; padding: 0 0 calc(60 * var(--u)) calc(613 * var(--u)); }
+.qi-resto { position: static; }
+.qi-resto .qi-descripcion { white-space: normal; }
+
+@media (max-width: 1023px) {
+  .qi-seccion { --u: 1px; padding: 48px 20px 40px; }
+  .qi-lienzo, .qi-texto, .qi-grilla { position: static; width: auto; height: auto; }
+  .qi-fondo { display: none; }
+  .qi-seccion .qi-rotulo { font-size: 12px; }
+  .qi-titulo { font-size: 34px; white-space: normal; }
+  .qi-parrafo { white-space: normal; font-size: 16px; line-height: 1.45; }
+  .qi-seccion .qi-boton { height: 52px; font-size: 16px; }
+  .qi-datos { flex-wrap: wrap; white-space: normal; row-gap: 12px; font-size: 13px; }
+  .qi-grilla { margin-top: 28px; grid-template-columns: 1fr; grid-auto-rows: auto; row-gap: 10px; }
+  .qi-tarjeta { padding: 12px 52px 12px 12px; }
+  .qi-descripcion { white-space: normal; font-size: 14px; line-height: 1.35; }
+  .qi-resto-caja { width: auto; padding: 10px 0 0; }
+}
