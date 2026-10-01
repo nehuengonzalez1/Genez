@@ -80,7 +80,10 @@ function founder(usuario) {
     interno_miembros: [{ perfil_id: usuario.id, rol: "fundador", areas: ["*"], activo: true, creado_en: hace(30), perfiles: { nombre: "Persona de prueba", email: usuario.email } }],
     interno_etapas: etapas,
     interno_listas: LISTAS.map(([tipo, nombre, clave, datos], i) => ({ id: id(), tipo, clave: clave || nombre.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_"), nombre, orden: i, activo: true, datos: datos || {} })),
-    interno_historial: [], solicitudes: [],
+    interno_historial: [],
+    /* Un pedido de la landing, para la pestaña del Prospector (0123). */
+    solicitudes: [{ id: id(), creado_en: hace(1), estado: "nueva", negocio: "Almacén Web de Prueba", rubro: "minimercado", escala: null, respuestas: [], modulos: ["cobro", "stock"],
+      mensual: 45000, puesta_en_marcha: 0, nombre: "Lucía Prueba", telefono: "1100000084", email: "lucia@prueba.test", mensaje: "Quiero ver una demo", origen: "landing", notas: null, prospecto_id: null }],
     interno_prospectos: prospectos, interno_oportunidades: oportunidades, interno_contactos: [],
     interno_actividades: [{ id: id(), prospecto_id: prospectos[1].id, tipo: "visita", fecha: hace(1), resultado: "Le interesa, pidió una demo", datos: {} }],
     interno_tareas: [{ id: id(), titulo: "Llamar al almacén de prueba", prospecto_id: prospectos[0].id, estado: "pendiente", prioridad: "alta", vence: hoyA(18), archivado_en: null, checklist: [] },

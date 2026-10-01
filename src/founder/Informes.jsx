@@ -18,6 +18,8 @@ import { money } from "../utils/helpers.js";
 import { cargarProspectos, cargarOportunidadesAbiertas, actividadesDesde } from "../datos/internoCrm.js";
 import { cargarContenidos } from "../datos/internoMarketing.js";
 import { useConfig, hoyAR } from "./util.js";
+import { InformeWhatsapp, InformeDescubrimiento } from "./InformesMensajes.jsx";
+import { puedeArea } from "../datos/interno.js";
 
 const CONTACTO = new Set(["llamada", "whatsapp", "email", "visita", "reunion", "demo", "propuesta"]);
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : "—");
@@ -37,9 +39,14 @@ function rango(periodo) {
   return [new Date("2020-01-01T00:00:00-03:00"), null];
 }
 
-export function Informes() {
+export function Informes({ interno }) {
   const { cfg, nombre } = useConfig();
   const [periodo, setPeriodo] = useState("30");
+  const [vista, setVista] = useState("embudo");
+  /* Para los informes que cuenta la base: el período cerrado, y "hasta
+     ahora" como mañana, así entra todo lo de hoy. */
+  const [desdeP, hastaP] = useMemo(() => { const [a, b] = rango(periodo); return [a, b || new Date(Date.now() + 86400000)]; }, [periodo]);
+  const vistas = [{ k: "embudo", n: "Embudo" }, ...(puedeArea(interno, "mensajes") ? [{ k: "whatsapp", n: "WhatsApp y asistente" }] : []), { k: "descubrimiento", n: "Descubrimiento y demos" }];
   const [d, setD] = useState(null);
   const [error, setError] = useState("");
   const leer = () => Promise.all([
@@ -122,8 +129,11 @@ export function Informes() {
         </div>
         <Tabs value={periodo} onChange={setPeriodo} items={[{ k: "30", n: "30 días" }, { k: "mes", n: "Este mes" }, { k: "mes_pasado", n: "Mes pasado" }, { k: "90", n: "90 días" }, { k: "todo", n: "Todo" }]} />
       </header>
+      <Tabs value={vista} onChange={setVista} items={vistas} />
+      {vista === "whatsapp" && <InformeWhatsapp desde={desdeP} hasta={hastaP} />}
+      {vista === "descubrimiento" && <InformeDescubrimiento desde={desdeP} hasta={hastaP} />}
 
-      {r.embudo[0][1] === 0 && r.ganadas === 0 && r.perdidas === 0 ? <Card><Vacio>No hay movimiento en este período.</Vacio></Card> : (
+      {vista === "embudo" && (r.embudo[0][1] === 0 && r.ganadas === 0 && r.perdidas === 0 ? <Card><Vacio>No hay movimiento en este período.</Vacio></Card> : (
         <>
           <Card className="p-5">
             <h2 className="f-d text-lg mb-3">El embudo</h2>
@@ -186,7 +196,7 @@ export function Informes() {
             </Card>
           )}
         </>
-      )}
+      ))}
     </div>
   );
 }
