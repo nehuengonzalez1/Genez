@@ -300,11 +300,11 @@ function HeroNoche({ onEmpezar, claro = false }) {
 /* En oscuro, "¿Qué negocio tenés?" es la maqueta del 01/10 copiada tal
    cual. Las fotos (de cada negocio, del fondo de cada rubro y de los
    costados) son recortes de la maqueta; los textos, los filtros y las
-   tarjetas son de verdad, porque llevan al alta. El claro sigue con la
-   de antes. */
+   tarjetas son de verdad, porque llevan al alta. El claro (01/10) es la
+   misma maqueta con otra luz: el mismo componente, con sus recortes en
+   empecemos-claro y la clase en-dia para los colores. */
 function Empecemos(props) {
-  if (useOscuro()) return <EmpecemosNoche {...props} />;
-  return <EmpecemosClaro {...props} />;
+  return <EmpecemosNoche {...props} claro={!useOscuro()} />;
 }
 
 /* Las fotos recortadas de la maqueta, por negocio. Uno que la maqueta no
@@ -312,17 +312,18 @@ function Empecemos(props) {
 const FOTOS_NOCHE = new Set(["almacen", "minimercado", "kiosco", "dietetica", "verduleria", "panaderia", "ferreteria", "bar", "cafe", "restaurante",
   "cerveceria", "rotiseria", "take-away", "estetica", "peluqueria", "barberia", "pilates", "gimnasio", "consultorio", "spa"]);
 const slug = (t) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const fotoNoche = (nombre) => (FOTOS_NOCHE.has(slug(nombre)) ? `/landing/empecemos/${slug(nombre)}.jpg` : foto(nombre));
+const fotoNoche = (nombre, dir) => (FOTOS_NOCHE.has(slug(nombre)) ? `${dir}/${slug(nombre)}.jpg` : foto(nombre));
 const PANEL_NOCHE = { minimercado: "comercio", gastronomia: "gastronomia", servicios: "servicios" };
 const PILDORA_NOCHE = { todos: LayoutGrid, minimercado: Store, gastronomia: UtensilsCrossed, servicios: CalendarDays };
 
-function EmpecemosNoche({ rubros, onElegir }) {
+function EmpecemosNoche({ rubros, onElegir, claro = false }) {
+  const dir = claro ? "/landing/empecemos-claro" : "/landing/empecemos";
   const [filtro, setFiltro] = useState("todos");
   const visibles = rubros.filter((r) => filtro === "todos" || r.clave === filtro);
   return (
-    <section id="empecemos" className="en-seccion scroll-mt-20 relative overflow-hidden">
-      <img src="/landing/empecemos/costado-izquierdo.jpg" alt="" aria-hidden="true" className="en-costado en-costado-izq" />
-      <img src="/landing/empecemos/costado-derecho.jpg" alt="" aria-hidden="true" className="en-costado en-costado-der" />
+    <section id="empecemos" className={`en-seccion ${claro ? "en-dia" : ""} scroll-mt-20 relative overflow-hidden`}>
+      <img src={`${dir}/costado-izquierdo.jpg`} alt="" aria-hidden="true" className="en-costado en-costado-izq" />
+      <img src={`${dir}/costado-derecho.jpg`} alt="" aria-hidden="true" className="en-costado en-costado-der" />
       <div className="en-contenido relative">
         <div className="en-cabeza">
           <div>
@@ -348,7 +349,7 @@ function EmpecemosNoche({ rubros, onElegir }) {
         </div>
 
         <div className="en-filas">
-          {visibles.map((r) => <FilaNoche key={r.clave} rubro={r} onElegir={onElegir} />)}
+          {visibles.map((r) => <FilaNoche key={r.clave} rubro={r} onElegir={onElegir} dir={dir} />)}
         </div>
 
         <p className="en-pie">
@@ -363,7 +364,7 @@ function EmpecemosNoche({ rubros, onElegir }) {
   );
 }
 
-function FilaNoche({ rubro, onElegir }) {
+function FilaNoche({ rubro, onElegir, dir }) {
   const p = rubro.presentacion;
   const Icono = ICONOS[p.icono] || Store;
   const negocios = p.negocios || [p.titulo];
@@ -371,7 +372,7 @@ function FilaNoche({ rubro, onElegir }) {
   return (
     <div className="en-fila">
       <div className="en-panel">
-        {panel && <img src={`/landing/empecemos/panel-${panel}.jpg`} alt="" aria-hidden="true" className="en-panel-foto" />}
+        {panel && <img src={`${dir}/panel-${panel}.jpg`} alt="" aria-hidden="true" className="en-panel-foto" />}
         <div className="relative">
           <span className="en-circulo"><Icono className="en-circulo-icono" strokeWidth={2} /></span>
           <div className="en-panel-nombre">{rubro.nombre}</div>
@@ -384,98 +385,13 @@ function FilaNoche({ rubro, onElegir }) {
       <div className="en-negocios fila-negocios">
         {negocios.map((n) => (
           <button key={n} type="button" onClick={() => onElegir(rubro.clave, n)} disabled={!ALTA_ABIERTA} className="en-tarjeta">
-            <span className="en-tarjeta-foto">{fotoNoche(n) ? <img src={fotoNoche(n)} alt="" loading="lazy" /> : <Icono size={22} />}</span>
+            <span className="en-tarjeta-foto">{fotoNoche(n, dir) ? <img src={fotoNoche(n, dir)} alt="" loading="lazy" /> : <Icono size={22} />}</span>
             <span className="en-tarjeta-nombre"><Icono className="en-tarjeta-icono" strokeWidth={2} />{n}</span>
             <span className="en-tarjeta-ir"><ArrowRight strokeWidth={2.25} /></span>
           </button>
         ))}
       </div>
     </div>
-  );
-}
-
-function EmpecemosClaro({ rubros, onElegir }) {
-  const [filtro, setFiltro] = useState("todos");
-  const visibles = rubros.filter((r) => filtro === "todos" || r.clave === filtro);
-
-  return (
-    <section id="empecemos" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-6">
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <div className={ROTULO_ACENTO}>Empecemos</div>
-          <h2 className="f-d text-4xl sm:text-5xl leading-tight mt-3">¿Qué <span className="text-acento">negocio</span> tenés?</h2>
-          <p className="text-texto-suave mt-3 text-[17px]">Elegí el tuyo y armamos Genez con los módulos que necesitás.</p>
-        </div>
-        <div className="flex items-end gap-5">
-          <div className="manuscrita hidden md:block text-[18px] leading-[1.05] text-texto-suave -rotate-6 text-right">
-            Seleccioná tu rubro<br />y visualizá tu sistema
-            <Flecha className="w-10 ml-auto mt-1" />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[{ clave: "todos", nombre: "Todos" }, ...rubros].map((r) => (
-              <button key={r.clave} type="button" onClick={() => setFiltro(r.clave)}
-                className={`text-sm font-semibold rounded-full border px-4 py-2 transition-colors ${
-                  filtro === r.clave ? "pildora-activa" : "border-borde-fuerte bg-superficie text-texto-suave hover:text-texto"}`}>
-                {r.nombre}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 space-y-4">
-        {visibles.map((r) => <FilaRubro key={r.clave} rubro={r} onElegir={onElegir} />)}
-      </div>
-
-      <p className="text-sm text-texto-tenue mt-5">
-        ¿No ves el tuyo?{" "}
-        <button type="button" onClick={() => onElegir("otro", "Otro negocio")} disabled={!ALTA_ABIERTA} className="text-acento font-semibold hover:text-acento-vivo">
-          Contanos qué hacés →
-        </button>
-      </p>
-    </section>
-  );
-}
-
-function FilaRubro({ rubro, onElegir }) {
-  const p = rubro.presentacion;
-  const Icono = ICONOS[p.icono] || Store;
-  const negocios = p.negocios || [p.titulo];
-  return (
-    <div className="bg-superficie border border-borde rounded-xl p-3 sm:p-4 grid md:grid-cols-[190px_minmax(0,1fr)] gap-4 items-center">
-      <div className="flex md:block items-center gap-3 md:pl-1">
-        <span className="w-11 h-11 rounded-full bg-acento text-sobre-acento flex items-center justify-center shrink-0"><Icono size={20} /></span>
-        <div className="md:mt-3 min-w-0">
-          <div className="font-bold text-[17px] leading-tight">{rubro.nombre}</div>
-          <div className="text-[13px] text-texto-suave mt-1 leading-snug">{FRASE_RUBRO[rubro.clave] || p.bajada}</div>
-          <button type="button" onClick={() => onElegir(rubro.clave, null)} disabled={!ALTA_ABIERTA}
-            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-acento border border-acento/60 rounded-md px-3 py-1.5 hover:bg-acento-suave/40 disabled:opacity-50 disabled:cursor-default disabled:hover:bg-transparent">
-            Elegir este rubro <ArrowRight size={13} />
-          </button>
-        </div>
-      </div>
-
-      <div className="fila-negocios flex gap-3 overflow-x-auto pb-1">
-        {negocios.map((n) => <TarjetaNegocio key={n} nombre={n} rubro={rubro} onElegir={() => onElegir(rubro.clave, n)} />)}
-      </div>
-    </div>
-  );
-}
-
-function TarjetaNegocio({ nombre, rubro, onElegir }) {
-  const Icono = ICONOS[rubro.presentacion.icono] || Store;
-  const src = foto(nombre);
-  return (
-    <button type="button" onClick={onElegir} disabled={!ALTA_ABIERTA}
-      className="shrink-0 w-[124px] text-left bg-superficie border border-borde rounded-xl p-2 hover:border-acento transition-colors disabled:opacity-60 disabled:cursor-default disabled:hover:border-borde">
-      <div className="h-[66px] rounded-lg overflow-hidden bg-superficie-2 flex items-center justify-center text-texto-tenue">
-        {src ? <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" /> : <Icono size={22} />}
-      </div>
-      <div className="mt-2 flex items-start gap-1.5 text-[13px] font-semibold leading-tight min-h-[32px]">
-        <Icono size={12} className="text-acento shrink-0 mt-[2px]" /><span>{nombre}</span>
-      </div>
-      <ArrowRight size={14} className="text-acento mt-0.5" />
-    </button>
   );
 }
 
