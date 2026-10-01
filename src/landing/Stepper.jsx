@@ -144,7 +144,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 5) {
-    return angosto(
+    return (
       <Plan opciones={opciones} tarifas={tarifas} todos={opciones[opciones.length - 1].armado.elegidos}
         onElegir={(k) => { setOpcion(k); ir(6); }} onVolver={() => ir(4)} />
     );
@@ -789,8 +789,7 @@ function ModulosClaro({ armado, recomendada, sacados, sumados, onSacar, onSumar,
    Tu presupuesto · Start, Pro y Empresa
    ------------------------------------------------------------ */
 function Plan(props) {
-  if (estaOscuro()) return <PlanNoche {...props} />;
-  return <PlanClaro {...props} />;
+  return <PlanNoche {...props} claro={!estaOscuro()} />;
 }
 
 /* En oscuro es la maqueta del 01/10 copiada tal cual: cada plan con su
@@ -798,13 +797,15 @@ function Plan(props) {
    la maqueta. "Recomendado" y el botón lleno no son de Empresa sino del
    plan que `planes()` recomienda; el precio sale de las tarifas como
    siempre, y sin tarifas dice "Consultar". "Ver mi presupuesto" sigue con
-   el recomendado. */
-function PlanNoche({ opciones, tarifas, todos, onElegir, onVolver }) {
+   el recomendado. El claro (01/10) es el mismo, con sus recortes en
+   alta-claro y an-dia: tarjetas claras teñidas del color de cada plan. */
+function PlanNoche({ opciones, tarifas, todos, onElegir, onVolver, claro = false }) {
   const recomendado = opciones.find((o) => o.recomendado) || opciones[opciones.length - 1];
+  const dir = claro ? "/landing/alta-claro" : "/landing/alta";
   return (
-    <section className="an-seccion pl-seccion relative overflow-hidden">
-      <img src="/landing/alta/plan-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado pl-costado-izq" />
-      <img src="/landing/alta/plan-derecho.jpg" alt="" aria-hidden="true" className="an-costado pl-costado-der" />
+    <section className={`an-seccion pl-seccion ${claro ? "an-dia" : ""} relative overflow-hidden`}>
+      <img src={`${dir}/plan-izquierdo.jpg`} alt="" aria-hidden="true" className="an-costado pl-costado-izq" />
+      <img src={`${dir}/plan-derecho.jpg`} alt="" aria-hidden="true" className="an-costado pl-costado-der" />
       <div className="an-contenido pl-contenido relative">
         <div className="an-arriba pl-arriba">
           <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
@@ -822,7 +823,7 @@ function PlanNoche({ opciones, tarifas, todos, onElegir, onVolver }) {
         <p className="an-bajada pl-bajada">Con los módulos que seleccionaste, te recomendamos estos planes.<br className="qr-br" /> Si en el futuro necesitás más, podés cambiar de plan o sumar módulos.</p>
 
         <div className="pl-grilla">
-          {opciones.map((o) => <TarjetaPlanNoche key={o.k} opcion={o} tarifas={tarifas} todos={todos} onElegir={() => onElegir(o.k)} />)}
+          {opciones.map((o) => <TarjetaPlanNoche key={o.k} opcion={o} tarifas={tarifas} todos={todos} dir={dir} onElegir={() => onElegir(o.k)} />)}
         </div>
 
         <ul className="pl-confianza">
@@ -850,7 +851,7 @@ const CORTE_LEMA = {
   "Todo lo que tu negocio necesita.": ["Todo lo que tu", "negocio necesita."],
 };
 
-function TarjetaPlanNoche({ opcion, tarifas, todos, onElegir }) {
+function TarjetaPlanNoche({ opcion, tarifas, todos, dir, onElegir }) {
   const pre = presupuestar(tarifas || TARIFAS_VACIAS, opcion.armado.elegidos);
   const calculando = tarifas === null;
   const incluye = (k) => opcion.armado.elegidos.includes(k);
@@ -858,7 +859,7 @@ function TarjetaPlanNoche({ opcion, tarifas, todos, onElegir }) {
     <div className={`pl-tarjeta pl-${opcion.k} ${opcion.recomendado ? "pl-recomendado" : ""}`}>
       {opcion.recomendado && <span className="pl-sello">Recomendado</span>}
       <div className="pl-cabeza">
-        <img src={`/landing/alta/plan-${opcion.k}.jpg`} alt="" aria-hidden="true" className="pl-dibujo" />
+        <img src={`${dir}/plan-${opcion.k}.jpg`} alt="" aria-hidden="true" className="pl-dibujo" />
         <div>
           <div className="pl-nombre">{opcion.n}</div>
           <div className="pl-lema-corto">{CORTE_LEMA[opcion.d] ? <>{CORTE_LEMA[opcion.d][0]}<br />{CORTE_LEMA[opcion.d][1]}</> : opcion.d}</div>
@@ -886,68 +887,6 @@ function TarjetaPlanNoche({ opcion, tarifas, todos, onElegir }) {
         <p className="pl-faltan">No incluye lo que marcaste: {opcion.faltan.map(nombreDe).join(", ")}.</p>
       )}
       <p className="pl-pie">{opcion.lema}</p>
-    </div>
-  );
-}
-
-function PlanClaro({ opciones, tarifas, todos, onElegir, onVolver }) {
-  return (
-    <Marco indicador={4} etiqueta="Tu presupuesto" titulo={<>Elegí el plan que <span className="text-acento">mejor se adapta</span></>}
-      sub="Con los módulos que seleccionaste, te recomendamos estos planes. Si en el futuro necesitás más, podés cambiar de plan o sumar módulos."
-      anotacion="Mismo sistema. Más posibilidades." ancho="max-w-5xl" onVolver={onVolver}>
-      <div className="grid md:grid-cols-3 gap-4 pt-3">
-        {opciones.map((o) => <TarjetaPlan key={o.k} opcion={o} tarifas={tarifas} todos={todos} onElegir={() => onElegir(o.k)} />)}
-      </div>
-      <Confianza className="mt-8" />
-    </Marco>
-  );
-}
-
-function TarjetaPlan({ opcion, tarifas, todos, onElegir }) {
-  const pre = presupuestar(tarifas || TARIFAS_VACIAS, opcion.armado.elegidos);
-  const calculando = tarifas === null;
-  const I = ICONO_PLAN[opcion.k] || Sparkles;
-  const incluye = (k) => opcion.armado.elegidos.includes(k);
-  return (
-    <div className={`relative bg-superficie rounded-xl p-5 border flex flex-col ${opcion.recomendado ? "border-acento ring-1 ring-acento" : "border-borde"}`}>
-      {opcion.recomendado && (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-wider font-bold bg-acento text-sobre-acento rounded px-2.5 py-1 whitespace-nowrap">Recomendado</span>
-      )}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="f-d text-xl leading-tight">{opcion.n}</div>
-          <div className="text-xs text-texto-suave mt-0.5">{opcion.d}</div>
-        </div>
-        <span className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${FONDO_NIVEL[opcion.k] || FONDO_NIVEL.pro}`}><I size={20} /></span>
-      </div>
-      <div className="mt-4">
-        {calculando && <div className="text-texto-suave text-sm">Calculando…</div>}
-        {!calculando && pre.mensual != null && (
-          <div className="f-d f-m text-3xl">{pesos(pre.mensual)} <span className="text-sm text-texto-suave font-normal">/mes</span></div>
-        )}
-        {!calculando && pre.mensual == null && <div className="f-d text-xl">Consultar</div>}
-        <div className="text-[11px] text-texto-tenue mt-0.5">{pre.cantidad} módulos · cobro, caja y ajustes incluidos</div>
-      </div>
-      <button type="button" onClick={onElegir} className={`${opcion.recomendado ? SOLIDO : LINEA} mt-4 w-full !py-2.5 text-sm`}>
-        {opcion.recomendado ? "Plan recomendado" : "Seleccionar plan"}
-      </button>
-      <ul className="mt-4 pt-4 border-t border-borde space-y-1.5 flex-1">
-        {todos.map((k) => {
-          const si = incluye(k);
-          return (
-            <li key={k} className={`flex items-center gap-2 text-sm ${si ? "text-texto font-semibold" : "text-texto-tenue"}`}>
-              {si
-                ? <span className="w-4 h-4 rounded-full bg-acento text-sobre-acento flex items-center justify-center shrink-0"><Check size={11} strokeWidth={3} /></span>
-                : <span className="w-4 h-4 rounded-full border border-borde-fuerte shrink-0" />}
-              {nombreDe(k)}
-            </li>
-          );
-        })}
-      </ul>
-      {opcion.faltan && opcion.faltan.length > 0 && (
-        <p className="text-xs text-ojo mt-3">No incluye lo que marcaste: {opcion.faltan.map(nombreDe).join(", ")}.</p>
-      )}
-      <p className="text-xs text-texto-suave mt-4 pt-3 border-t border-borde">{opcion.lema}</p>
     </div>
   );
 }

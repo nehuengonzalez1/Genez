@@ -1539,3 +1539,37 @@ html:not(.tema-noche) footer { border-top-color: transparent; }
 .an-dia .pn-volver-boton { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.15); }
 .an-dia .pn-volver-boton:hover { border-color: rgb(0 0 0 / 0.35); }
 .an-dia .pn-otro textarea { background: rgb(255 255 255); }
+
+/* El plan en claro (01/10): la maqueta clara va de 268 a 1310 y no de
+   264 a 1340, y las tarjetas son claras, teñidas del color de su plan. */
+.an-dia .pl-contenido { width: calc(1042 * var(--u)); margin-left: calc(50% - 500 * var(--u)); }
+.an-dia .pl-costado-izq { width: calc(262 * var(--u)); }
+.an-dia .pl-costado-der { width: calc(218 * var(--u)); }
+.an-dia .pl-grilla, .an-dia .pl-confianza { gap: calc(16 * var(--u)); margin-right: 0; }
+.an-dia .pl-start { --pl-claro: 236 252 240; }
+.an-dia .pl-pro { --pl-claro: 255 244 232; }
+.an-dia .pl-empresa { --pl-claro: 232 246 254; }
+.an-dia .pl-tarjeta {
+  background: linear-gradient(180deg, rgb(var(--pl-claro)), rgb(255 255 255) 45%, rgb(var(--pl-claro) / 0.6));
+  border-color: rgb(var(--pl) / 0.45); box-shadow: 0 calc(8 * var(--u)) calc(26 * var(--u)) rgb(90 60 30 / 0.06);
+}
+.an-dia .pl-recomendado { border-color: rgb(var(--pl)); box-shadow: 0 0 calc(22 * var(--u)) rgb(var(--pl) / 0.25); }
+.an-dia .pl-sello { color: rgb(3 14 26); }
+.an-dia .pl-cabeza { border-bottom-color: rgb(0 0 0 / 0.08); }
+.an-dia .pl-dibujo { -webkit-mask-image: radial-gradient(closest-side, #000 82%, transparent); mask-image: radial-gradient(closest-side, #000 82%, transparent); }
+.an-dia .pl-lema-corto, .an-dia .pl-cuantos, .an-dia .pl-pie { color: rgb(var(--an-texto) / 0.8); }
+.an-dia .pl-boton { background: rgb(255 255 255 / 0.7); color: rgb(var(--an-texto)); }
+.an-dia .pl-start .pl-boton { background: rgb(var(--pl-claro)); }
+.an-dia .pl-pro .pl-boton { color: rgb(var(--pl)); }
+.an-dia .pl-recomendado .pl-boton { background: rgb(var(--pl)); color: rgb(3 14 26); }
+.an-dia .pl-lista li { color: rgb(var(--an-suave) / 0.9); }
+.an-dia .pl-lista li.pl-si { color: rgb(var(--an-texto)); }
+.an-dia .pl-tilde { border-color: rgb(0 0 0 / 0.25); }
+.an-dia .pl-si .pl-tilde { color: rgb(255 255 255); }
+.an-dia .pl-pie { border-top-color: rgb(0 0 0 / 0.08); }
+.an-dia .pl-confianza li { background: rgb(255 255 255 / 0.85); border-color: rgb(0 0 0 / 0.07); }
+.an-dia .pl-confianza-icono { background: rgb(253 228 206); }
+.an-dia .pl-volver-boton { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.15); }
+@media (max-width: 1023px) {
+  .an-dia .pl-contenido { width: auto; margin-left: 0; }
+}
