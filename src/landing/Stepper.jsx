@@ -34,7 +34,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, Lock, Search, Lightbulb, Sparkles, User, Users, Building2, Store, Laptop, Layers,
   Sprout, Crown, BarChart3, CreditCard, Headphones, RefreshCw, LayoutGrid, MessageCircle, Copy, Printer, Pencil,
-  ShoppingCart, ShoppingBasket, Archive, FileText, Truck, Leaf, Cherry, Croissant, Hammer, Bath, Martini, Coffee, ConciergeBell, Beer, Drumstick, ShoppingBag,
+  ShoppingCart, ShoppingBasket, Archive, FileText, Truck, Coins, Leaf, Cherry, Croissant, Hammer, Bath, Martini, Coffee, ConciergeBell, Beer, Drumstick, ShoppingBag,
   Flower2, Scissors, Slice, PersonStanding, Dumbbell, Stethoscope, Flower, Ellipsis, UtensilsCrossed, CalendarDays,
 } from "lucide-react";
 import { estaOscuro } from "./tema.js";
@@ -138,7 +138,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 4) {
-    return angosto(
+    return (
       <Modulos armado={necesidad} recomendada={recomendada} sacados={sacados} sumados={sumados}
         onSacar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
         onSumar={(k) => setSumados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
@@ -743,7 +743,96 @@ function ComoTrabajasClaro({ preguntas, respuestas, onTildar, escala, onEscala, 
 /* ------------------------------------------------------------
    3 · Tus módulos
    ------------------------------------------------------------ */
-function Modulos({ armado, recomendada, sacados, sumados, onSacar, onSumar, onVolver, onSeguir }) {
+function Modulos(props) {
+  if (estaOscuro()) return <ModulosNoche {...props} />;
+  return <ModulosClaro {...props} />;
+}
+
+/* En oscuro es la maqueta del 01/10 copiada tal cual. Las fotos de la
+   derecha de cada tarjeta son recortes de la maqueta, con el sello y el
+   texto que tenían encima pintados; los módulos que la maqueta no
+   muestra (los de gastronomía y servicios) van sin foto. */
+const FOTOS_MODULO = new Set(["cobro", "caja", "ajustes", "productos", "reportes", "permisos", "stock", "compras", "pedidos", "clientes", "cuentas", "asistente"]);
+
+/* Los dos íconos que la maqueta dibuja distinto. */
+const ICONO_MODULO_NOCHE = { cobro: Coins, permisos: FileText };
+
+/* "Porque marcaste" en un renglón y lo que marcó, entre comillas, en el
+   otro: así lo corta la maqueta. */
+function cortarMotivo(t) {
+  const m = /^(.*?)\s(".*")$/.exec(t);
+  return m ? <>{m[1]}<br />{m[2]}</> : t;
+}
+
+function ModulosNoche({ armado, recomendada, sumados, onSacar, onSumar, onVolver, onSeguir }) {
+  const { elegidos, motivos, propuestos, sumables } = armado;
+  const principales = [...propuestos, ...sumados.filter((k) => elegidos.includes(k) && !propuestos.includes(k)), ...sumables];
+  return (
+    <section className="an-seccion mo-seccion relative overflow-hidden">
+      <img src="/landing/alta/modulos-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado mo-costado-izq" />
+      <img src="/landing/alta/modulos-derecho.jpg" alt="" aria-hidden="true" className="an-costado mo-costado-der" />
+      <div className="an-contenido mo-contenido relative">
+        <div className="an-arriba mo-arriba">
+          <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
+          <PasosNoche actual={3} className="mo-pasos" />
+        </div>
+        <div className="manuscrita mo-nota" aria-hidden="true">
+          Sumá solo lo que necesitás.<br />Sacá o agregá.
+          <svg viewBox="0 0 50 44" className="mo-nota-flecha" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M44 4 C 42 22, 28 34, 6 38" /><path d="M14 30 L 5 38 L 15 43" />
+          </svg>
+        </div>
+
+        <div className="an-etiqueta pn-etiqueta mo-etiqueta">Paso 3 de 3</div>
+        <h1 className="an-titulo mo-titulo">Tus <span className="an-naranja">módulos</span></h1>
+        <div className="mo-fila-bajada">
+          <p className="an-bajada mo-bajada">Estos son los módulos recomendados para tu negocio. Podés sumar o quitar los que necesites.</p>
+          <span className="mo-pildora"><Sparkles strokeWidth={1.75} /> Según tus respuestas</span>
+        </div>
+
+        <div className="mo-rotulo">Módulos principales · {elegidos.length} elegidos</div>
+        {/* Cada módulo dice en qué plan entra: así nadie se lleva una
+            sorpresa al elegir el plan, ni puede armarse Empresa pagando Pro. */}
+        {recomendada && (
+          <p className="mo-plan">Cada módulo dice en qué plan entra. Con lo que elegiste te corresponde el plan <strong className="an-naranja">{recomendada.n}.</strong></p>
+        )}
+
+        <div className="mo-grilla">
+          {principales.map((k) => {
+            const m = moduloPorClave(k) || { n: k, d: "" };
+            const base = MODULOS_BASE.includes(k);
+            const activa = elegidos.includes(k);
+            const I = ICONO_MODULO_NOCHE[k] || ICONO_MODULO[k] || LayoutGrid;
+            const nivel = nivelDe(k);
+            const motivo = activa ? (motivos[k] || (base ? "Siempre incluido" : "")) : null;
+            return (
+              <button key={k} type="button" disabled={base} aria-pressed={activa}
+                onClick={() => { if (base) return; if (propuestos.includes(k)) onSacar(k); else onSumar(k); }}
+                className={`mo-tarjeta ${activa ? "mo-activa" : ""} ${base ? "mo-fija" : ""}`}>
+                {FOTOS_MODULO.has(k) && <img src={`/landing/alta/modulos/${k}.jpg`} alt="" aria-hidden="true" className="mo-foto" loading="lazy" />}
+                <span className="mo-casilla">{activa && <Check strokeWidth={3} />}</span>
+                <span className="mo-icono"><I strokeWidth={1.5} /></span>
+                <span className="mo-textos">
+                  <span className="mo-nombre">{m.n}</span>
+                  <span className="mo-detalle">{m.d}{m.d && !/[.!?]$/.test(m.d) ? "." : ""}</span>
+                  {motivo && <span className="mo-motivo">{cortarMotivo(motivo)}</span>}
+                </span>
+                <span className={`mo-sello mo-sello-${nivel.k}`}>{nivel.n}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="pn-botones mo-botones">
+          <button type="button" onClick={onVolver} className="pn-volver-boton mo-volver-boton"><ArrowLeft strokeWidth={2} /> Volver</button>
+          <button type="button" onClick={onSeguir} className="an-continuar mo-ver">Ver mi presupuesto <ArrowRight strokeWidth={2.25} /></button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ModulosClaro({ armado, recomendada, sacados, sumados, onSacar, onSumar, onVolver, onSeguir }) {
   const { elegidos, motivos, propuestos, sumables } = armado;
   const principales = [...propuestos, ...sumados.filter((k) => elegidos.includes(k) && !propuestos.includes(k)), ...sumables];
   return (
