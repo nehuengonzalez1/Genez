@@ -254,34 +254,17 @@ function Portada({ rubros, onElegir, onEmpezar }) {
    los aparatos son la imagen de la maqueta (recortada, sin el texto) y
    el texto va en HTML, para que se lea, se traduzca y se adapte al
    teléfono. El claro sigue con la de antes hasta que se haga el suyo. */
+/* El claro (01/10) es la misma maqueta con otra luz: mismo texto, mismo
+   lugar, otros colores y otra foto. Detrás va la maqueta entera con el
+   texto borrado, porque en claro el fondo de la izquierda no es liso
+   (el degradado, los haces naranjas, los hexágonos). */
 function Hero({ onEmpezar }) {
-  if (useOscuro()) return <HeroNoche onEmpezar={onEmpezar} />;
-  return (
-    <section className="max-w-6xl mx-auto px-5 pt-10 sm:pt-14 pb-10 sm:pb-14 grid lg:grid-cols-[0.8fr_1.2fr] gap-10 lg:gap-8 items-center">
-      <div>
-        <div className={ROTULO_ACENTO}>Tu negocio, en orden</div>
-        <h1 className="f-d text-[44px] sm:text-6xl lg:text-[64px] leading-[1.0] mt-4">
-          Un sistema<br />que se adapta<br /><span className="text-acento">a vos.</span>
-        </h1>
-        <p className="text-texto-suave mt-5 text-[17px] leading-relaxed max-w-md">
-          Ventas, stock, turnos, clientes, finanzas y más. Solo los módulos que necesitás, con un precio claro desde el primer día.
-        </p>
-        <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className={`${SOLIDO} mt-7`}>{CTA} <ArrowRight size={16} /></button>
-        <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-texto-suave">
-          {[[MapPin, "Hecho en Argentina"], [CreditCard, "Sin tarjeta"], [Unlock, "Cancelás cuando quieras"]].map(([I, t]) => (
-            <li key={t} className="inline-flex items-center gap-1.5"><I size={14} className="text-texto-tenue" /> {t}</li>
-          ))}
-        </ul>
-      </div>
-
-      <Aparatos />
-    </section>
-  );
+  return <HeroNoche onEmpezar={onEmpezar} claro={!useOscuro()} />;
 }
 
-function HeroNoche({ onEmpezar }) {
+function HeroNoche({ onEmpezar, claro = false }) {
   return (
-    <section className="hero-noche relative overflow-hidden">
+    <section className={`hero-noche ${claro ? "hero-dia" : ""} relative overflow-hidden`}>
       <div className="hn-marco lg:flex lg:items-stretch">
         <div className="relative z-10 px-5 pt-10 pb-8 lg:p-0 lg:pl-[calc(106*var(--u))] lg:w-[38%] lg:shrink-0 flex flex-col justify-center">
           <div className="hn-rotulo">Tu negocio, en orden <span className="hn-raya" aria-hidden="true" /></div>
@@ -303,135 +286,11 @@ function HeroNoche({ onEmpezar }) {
           </ul>
         </div>
         <div className="hn-arte lg:w-[62%]">
-          <img src="/landing/hero-oscuro.jpg" width="1214" height="803" className="block w-full h-auto"
+          <img src={claro ? "/landing/hero-claro.jpg" : "/landing/hero-oscuro.jpg"} width="1214" height="803" className="block w-full h-auto"
             alt="El sistema Genez en una computadora y la app del cliente en un teléfono" />
         </div>
       </div>
     </section>
-  );
-}
-
-/* La laptop con el sistema y el teléfono con la app del cliente, con las
-   anotaciones a mano de la maqueta. */
-function Aparatos() {
-  return (
-    <div className="relative select-none pt-6 lg:pt-16 pb-4" aria-hidden="true">
-      <div className="absolute inset-x-6 inset-y-10 rounded-[40px] bg-acento-suave/60 blur-2xl" />
-
-      {/* Las dos anotaciones van fuera del camino de los aparatos: la de la
-          izquierda a media altura, la de la derecha arriba del teléfono. */}
-      <div className="manuscrita hidden lg:block absolute left-0 top-[58%] w-32 text-[19px] leading-[1.05] text-texto -rotate-6">
-        Todo tu negocio en un solo lugar
-        <Flecha className="w-14 mt-1 ml-14 text-texto-suave" />
-      </div>
-
-      <div className="manuscrita hidden lg:block absolute right-0 top-0 w-44 text-[19px] leading-[1.05] text-texto rotate-3 text-right">
-        Tu negocio también puede tener su propia app
-        <Flecha className="w-10 mt-0.5 ml-auto mr-6 text-texto-suave -scale-x-100 rotate-12" />
-      </div>
-
-      <div className="relative lg:ml-24 lg:mr-28">
-        <Laptop />
-      </div>
-      <div className="absolute right-0 lg:right-2 bottom-0 w-[32%] max-w-[150px]">
-        <Telefono />
-      </div>
-    </div>
-  );
-}
-
-function Kpi({ t, v, d, ojo }) {
-  return (
-    <div className="bg-superficie border border-borde rounded p-1.5 min-w-0">
-      <div className="text-[6px] text-texto-tenue uppercase tracking-wider font-bold truncate">{t}</div>
-      <div className="f-d f-m text-[11px] leading-tight mt-0.5">{v}</div>
-      <div className={`text-[6px] font-semibold mt-0.5 ${ojo ? "text-acento" : "text-bien"}`}>{d}</div>
-    </div>
-  );
-}
-
-function Laptop() {
-  const menu = ["Inicio", "Ventas", "Caja", "Productos", "Clientes", "Equipo", "Finanzas", "Informes", "Ajustes"];
-  const barras = [38, 55, 47, 70, 62, 88, 76];
-  const dias = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
-  const oscuro = useOscuro();
-  return (
-    <div>
-      <div className="laptop-pantalla">
-        <div className="rounded-lg overflow-hidden bg-fondo text-texto flex" style={{ aspectRatio: "16 / 10" }}>
-          <aside className="w-[24%] bg-superficie border-r border-borde p-2 min-w-0">
-            <div className="scale-75 origin-top-left"><LogoGenez size={18} conNombre claro={oscuro} /></div>
-            <ul className="mt-2 space-y-[2px] text-[7px] font-semibold text-texto-suave">
-              {menu.map((n, i) => (
-                <li key={n} className={`px-1.5 py-[3px] rounded ${i === 0 ? "bg-superficie-2 text-texto" : ""}`}>{n}</li>
-              ))}
-            </ul>
-          </aside>
-          <div className="flex-1 p-2 min-w-0">
-            <div className="flex justify-between items-start gap-2">
-              <div>
-                <div className="text-[10px] font-bold leading-tight">Hola, Nehuen</div>
-                <div className="text-[6px] text-texto-tenue">Acá tenés un resumen de tu negocio.</div>
-              </div>
-              <div className="text-[6px] text-texto-tenue whitespace-nowrap">Hoy, 13 de septiembre</div>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5 mt-2">
-              <Kpi t="Ventas hoy" v="$ 284.500" d="▲ 12%" />
-              <Kpi t="Turnos hoy" v="24" d="▲ 3%" />
-              <Kpi t="Stock bajo" v="7" d="Ver productos" ojo />
-            </div>
-            <div className="grid grid-cols-[1fr_1.7fr] gap-1.5 mt-1.5">
-              <Kpi t="Clientes" v="156" d="▲ 8%" />
-              <div className="bg-superficie border border-borde rounded p-1.5 min-w-0">
-                <div className="text-[6px] text-texto-tenue uppercase tracking-wider font-bold">Ventas de la semana</div>
-                <div className="flex items-end gap-[3px] h-7 mt-1">
-                  {barras.map((h, i) => <div key={i} className={`flex-1 rounded-[1px] ${i === 5 ? "bg-acento" : "bg-superficie-3"}`} style={{ height: `${h}%` }} />)}
-                </div>
-                <div className="flex text-[5px] text-texto-tenue mt-0.5">{dias.map((d) => <span key={d} className="flex-1 text-center">{d}</span>)}</div>
-              </div>
-            </div>
-            <div className="text-[6px] text-texto-tenue uppercase tracking-wider font-bold mt-2">Accesos rápidos</div>
-            <div className="grid grid-cols-4 gap-1.5 mt-1">
-              {[[ShoppingCart, "Nueva venta"], [CalendarDays, "Nuevo turno"], [Package, "Producto"], [User, "Cliente"]].map(([I, t]) => (
-                <div key={t} className="bg-superficie border border-borde rounded p-1 flex flex-col items-center gap-0.5">
-                  <I size={9} className="text-acento" /><span className="text-[5px] font-semibold text-texto-suave">{t}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="laptop-base" />
-    </div>
-  );
-}
-
-/* La app del cliente de un comercio real (Almha): siempre en su propio
-   oscuro cálido, sea cual sea el tema de la página, porque es otra app. */
-function Telefono() {
-  return (
-    <div className="telefono">
-      <div className="telefono-pantalla relative bg-[#1a1715] text-[#f7f3ed]" style={{ aspectRatio: "9 / 19" }}>
-        <div className="pt-5 text-center">
-          <div className="f-d text-[17px] leading-none">almha</div>
-          <div className="text-[5px] tracking-[0.25em] uppercase text-[#b7afa5] mt-1">by Genez</div>
-        </div>
-        <div className="px-2.5 mt-3">
-          <div className="rounded-lg bg-[#2a2320] p-2">
-            <div className="text-[8px] font-bold leading-snug">Tu espacio.<br />Tu bienestar.<br />Tu tiempo.</div>
-            <div className="mt-2 h-10 rounded-md bg-gradient-to-br from-[#3a2f28] to-[#221b18] flex items-end justify-end p-1">
-              <Leaf size={12} className="text-[#8fbf85]" />
-            </div>
-          </div>
-          <div className="mt-2 rounded-md bg-acento text-sobre-acento text-center text-[7px] font-bold py-1.5">Reservá tu turno</div>
-        </div>
-        <div className="absolute bottom-0 inset-x-0 flex justify-around text-[4.5px] text-[#87786f] py-1.5 border-t border-[#38322d]">
-          {[[Home, "Inicio"], [Calendar, "Turnos"], [Ticket, "Mi plan"], [Gift, "Beneficios"], [User, "Cuenta"]].map(([I, t], i) => (
-            <span key={t} className={`flex flex-col items-center gap-0.5 ${i === 0 ? "text-acento" : ""}`}><I size={7} />{t}</span>
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }
 

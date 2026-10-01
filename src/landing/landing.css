@@ -1275,3 +1275,31 @@ html {
    en oscuro arranca del fondo de las secciones y se aclara de a poco,
    sin la raya de arriba. */
 .tema-noche footer { border-top-color: transparent; background: linear-gradient(to bottom, rgb(var(--fondo-noche)), transparent); }
+
+/* ------------------------------------------------------------
+   La portada en claro (01/10), copiada de la maqueta
+   ------------------------------------------------------------
+   Los mismos tamaños que la oscura; cambian los colores, medidos en la
+   maqueta, y detrás del texto va la maqueta entera sin el texto. */
+:root { --fondo-dia: 250 247 242; }
+.hero-dia {
+  --hn-fondo: var(--fondo-dia);
+  --hn-texto: 19 21 23;
+  --hn-suave: 66 62 58;
+  --hn-sobre-boton: 26 11 2;
+}
+:root .hero-dia { background: rgb(var(--fondo-dia)); }
+.hero-dia .hn-boton { box-shadow: 0 0 34px rgb(var(--hn-naranja) / 0.3), 0 10px 24px rgb(var(--hn-naranja) / 0.22); }
+.hero-dia .hn-datos li { border-right-color: rgb(var(--hn-texto) / 0.18); }
+@media (min-width: 1024px) {
+  .hero-dia .hn-marco { position: relative; }
+  .hero-dia .hn-marco::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: url("/landing/hero-claro-fondo.jpg") center / 100% 100% no-repeat;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 92%, transparent), linear-gradient(to bottom, transparent, #000 7%, #000 90%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, transparent, #000 6%, #000 92%, transparent), linear-gradient(to bottom, transparent, #000 7%, #000 90%, transparent);
+    mask-composite: intersect;
+  }
+  .hero-dia .hn-arte { position: relative; }
+}
