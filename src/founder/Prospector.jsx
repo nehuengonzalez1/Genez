@@ -19,6 +19,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Map as Mapa, List, ExternalLink, X } from "lucide-react";
 import { Card, Boton, Tabs, Cargando, ErrorEstado, Vacio, Modal } from "../ui/Base.jsx";
+import { PedidosWeb } from "./PedidosWeb.jsx";
 import { inputCls } from "../ui/Campos.jsx";
 import { cargarBusquedas, buscarEnProveedor, cargarHallazgos, incorporarHallazgo, descartarHallazgo, recuperarHallazgo, cargarProveedores } from "../datos/internoProspector.js";
 import { cargarProspectos } from "../datos/internoCrm.js";
@@ -53,7 +54,7 @@ export function Prospector({ abrir, toast }) {
         <h1 className="f-d text-3xl">Prospector</h1>
         <p className="text-sm text-texto-suave mt-1">Comercios de fuentes que permiten usar sus datos. Encontrar un teléfono no es permiso para escribir con fines comerciales: es para saber a quién visitar.</p>
       </header>
-      <Tabs value={pestana} onChange={setPestana} items={[{ k: "buscar", n: "Buscar" }, { k: "historial", n: "Búsquedas", badge: busquedas.filter((b) => b.error).length ? "!" : null }, { k: "fuentes", n: "Fuentes" }]} />
+      <Tabs value={pestana} onChange={setPestana} items={[{ k: "buscar", n: "Buscar" }, { k: "historial", n: "Búsquedas", badge: busquedas.filter((b) => b.error).length ? "!" : null }, { k: "web", n: "Pedidos de la web" }, { k: "fuentes", n: "Fuentes" }]} />
       {pestana === "buscar" && (
         <>
           <Buscador de={de} activo={!!(osmProv && osmProv.activo)} toast={toast} onListo={(id) => { setDeBusqueda(id); leer(); }} />
@@ -62,6 +63,7 @@ export function Prospector({ abrir, toast }) {
         </>
       )}
       {pestana === "historial" && <Historial busquedas={busquedas} nombre={nombre} ver={(id) => { setDeBusqueda(id); setPestana("buscar"); }} />}
+      {pestana === "web" && <PedidosWeb abrir={abrir} toast={toast} />}
       {pestana === "fuentes" && <Fuentes proveedores={proveedores} />}
       <p className="text-[11px] text-texto-tenue">Datos de mapas: {ATRIBUCION}.</p>
     </div>

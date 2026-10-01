@@ -164,7 +164,7 @@ export default function Founder({ sesion, onComercios, onSalir }) {
           {actual && actual.k === "agenda" && <Agenda key={nuevoQue || "a"} abrir={abrir} toast={toast} nuevoAlAbrir={nuevoQue === "evento"} />}
           {actual && actual.k === "clientes" && <Clientes abrirCliente={abrirCliente} toast={toast} />}
           {actual && actual.k === "objetivos" && <Objetivos toast={toast} />}
-          {actual && actual.k === "informes" && <Informes />}
+          {actual && actual.k === "informes" && <Informes interno={interno} />}
           {actual && actual.k === "finanzas" && <Finanzas toast={toast} />}
           {actual && actual.k === "marketing" && <Marketing abrirContenido={abrirContenido} toast={toast} />}
           {actual && actual.k === "producto" && <Producto abrirElemento={abrirElemento} abrirProyecto={abrirProyecto} toast={toast} />}

@@ -81,6 +81,7 @@ node scripts/probar-founder-bot.mjs  # 0121: un borrador pendiente por conversac
 node scripts/probar-bot.mjs  # sin base ni red: lo que se le manda al modelo, cómo se lee, pedir una persona, los errores en castellano
 node scripts/probar-founder-auto.mjs  # 0122: la cola sin duplicar, lo omitido con motivo, los frenos al mandar, las llaves del reloj, y que la API no exponga net
 node scripts/probar-automatizaciones.mjs  # sin base ni red: el pedido de aprobación a Meta, el envío de plantilla, qué se reintenta
+node scripts/probar-founder-metricas.mjs  # 0123: enviado/entregado/leído por origen, cada uno ve lo de sus áreas, descubrimiento y demos, pedidos de la web al CRM sin duplicar
 node scripts/probar-corregir-medio.mjs  # corregir el medio de un cobro: las dos filas, y lo que no se deja
 node scripts/probar-cambio-titular.mjs  # cambio de titular fiscal: emisor guardado, notas sobre facturas de otro CUIT, el pase
 node scripts/probar-numeracion.mjs  # números de ticket por bloques: no se pisan entre cajas
@@ -1761,6 +1762,38 @@ expuestos rompería eso.
 **Alertas internas** (`interno_alertas`): oportunidades abiertas sin contacto y
 conversaciones que esperan (sin leer o derivadas por el asistente). Se ven en el Inicio
 de todo el equipo y se descartan; no le mandan nada a nadie.
+
+### Métricas y pedidos de la web (0123)
+
+`src/founder/InformesMensajes.jsx` (las pestañas "WhatsApp y asistente" y
+"Descubrimiento y demos" de Informes), `src/datos/internoMetricas.js`,
+`src/utils/costosModelos.js`, la pestaña "Pedidos de la web" del Prospector, y
+`scripts/probar-founder-metricas.mjs`. Es la etapa 6.
+
+**Los cuenta la base, con los permisos de quien pregunta.** `interno_informe_whatsapp`
+e `interno_informe_descubrimiento` son security invoker: sin el área `mensajes`, los
+números de WhatsApp dan cero, no un error ni los de otro.
+
+**Enviado no es entregado ni leído.** Como un estado no retrocede (0120), cada columna
+cuenta "llegó al menos hasta acá" e incluye a la siguiente. Leído es un piso: depende
+de las confirmaciones de lectura de cada persona. Los mensajes se separan por origen:
+del equipo, del asistente y automáticos (plantillas).
+
+**Definiciones que la pantalla dice:** calificada es una conversación vinculada a un
+prospecto; respuesta a un automático, que la persona escribió en las 72 horas
+siguientes; demos agendadas son las cargadas en el período, y realizadas, las que eran
+para el período (no es la misma cohorte).
+
+**Costos solo con datos reales.** El asistente guarda los tokens de cada pedido; el
+costo se estima con el precio de lista de `costosModelos.js` (con su fecha) y se rotula
+como estimado. Lo de Meta se cuenta por categoría de plantilla, sin precio: la factura
+está en el Administrador de WhatsApp.
+
+**Los pedidos de la landing son una fuente propia.** `solicitudes` (0074) ahora la ve
+también quien tiene el área `crm`, y `interno_solicitud_a_prospecto` arma el prospecto
+(fuente `landing`) con su contacto y la oportunidad con los módulos y el monto que
+eligió, o lo vincula al que ya existía si coincide el teléfono o el correo. El estado
+del pedido no cambia: pasarlo al CRM no es haberle escrito.
 
 ## La cuenta corriente
 

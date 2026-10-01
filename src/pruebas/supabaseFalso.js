@@ -469,6 +469,41 @@ const palabras = (t) => [...new Set(String(t || "").toLowerCase().normalize("NFD
 
 const FUNCIONES = {
   interno_convertir_en_cliente: convertir,
+  /* 0123, en chico: los informes cuentan lo que hay en las tablas de
+     mentira, sin mirar fechas (la prueba de verdad es la de la base). */
+  interno_informe_whatsapp: () => {
+    const ms = tablaDe("interno_wa_mensajes");
+    const sal = (o) => ms.filter((m) => m.direccion === "saliente" && (o === "automatico" ? m.tipo === "template" : o === "asistente" ? m.del_bot : m.tipo !== "template" && !m.del_bot));
+    const cuenta = (l) => ({ enviados: l.filter((m) => ["enviado", "entregado", "leido"].includes(m.estado)).length, entregados: l.filter((m) => ["entregado", "leido"].includes(m.estado)).length,
+      leidos: l.filter((m) => m.estado === "leido").length, fallidos: l.filter((m) => m.estado === "fallido").length, enviando: 0 });
+    const cs = tablaDe("interno_wa_conversaciones");
+    const bs = tablaDe("interno_wa_borradores");
+    return {
+      salientes: { equipo: cuenta(sal("equipo")), asistente: cuenta(sal("asistente")), automatico: cuenta(sal("automatico")) },
+      entrantes: ms.filter((m) => m.direccion === "entrante").length, conversaciones_nuevas: cs.length, conversaciones_con_respuesta: cs.length,
+      calificadas: cs.filter((c) => c.prospecto_id).length, calificadas_ganadas: 0, bajas: cs.filter((c) => c.consentimiento === "baja").length,
+      consentimientos: cs.filter((c) => c.consentimiento === "dado").length, errores: {},
+      automatizaciones: { enviados: tablaDe("interno_envios").filter((e) => e.estado === "enviado").length, respondidos: 1, fallidos: 0, omitidos: 1, cancelados: 0, utilidad: 1, marketing: 0 },
+      asistente: { respuestas: bs.filter((b) => b.accion === "responder").length, usados: bs.filter((b) => b.estado === "enviado").length, derivadas: 1, descartados: 0, errores: 0 },
+      uso_modelos: [{ modelo: "claude-opus-5-5", pedidos: 12, entrada: 14000, salida: 1100, cache_leido: 30000, cache_escrito: 4000 }],
+    };
+  },
+  interno_informe_descubrimiento: () => ({
+    por_proveedor: [{ proveedor: "osm", descubiertos: tablaDe("interno_hallazgos").length, con_telefono: 1, al_crm: 0, descartados: 0 }],
+    busquedas: tablaDe("interno_busquedas").length, busquedas_con_error: 0,
+    pedidos_web: tablaDe("solicitudes").length, pedidos_web_al_crm: tablaDe("solicitudes").filter((s) => s.prospecto_id).length,
+    demos_agendadas: 1, demos_realizadas: 0, demos_canceladas: 0, demos_vencidas: 0,
+  }),
+  interno_solicitud_a_prospecto: ({ p_solicitud }) => {
+    const s = tablaDe("solicitudes").find((x) => x.id === p_solicitud);
+    if (!s) throw new Error("No existe ese pedido.");
+    if (s.prospecto_id) throw new Error("Ese pedido ya está en el CRM.");
+    const p = { id: uuid(), nombre: s.negocio || s.nombre, telefono: s.telefono, whatsapp: s.telefono, email: s.email, fuente: "landing",
+      modulos: s.modulos || [], etiquetas: [], campos_extra: {}, archivado_en: null, creado_en: new Date().toISOString() };
+    tablaDe("interno_prospectos").push(p);
+    s.prospecto_id = p.id;
+    return p.id;
+  },
   /* 0119, en chico: guardar sin duplicar por proveedor e id, y pasar al CRM. */
   interno_guardar_hallazgos: ({ p_busqueda, p_items }) => {
     const b = tablaDe("interno_busquedas").find((x) => x.id === p_busqueda);
