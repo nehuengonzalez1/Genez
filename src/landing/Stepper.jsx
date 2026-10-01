@@ -34,7 +34,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, Lock, Search, Lightbulb, Sparkles, User, Users, Building2, Store, Laptop, Layers,
   Sprout, Crown, BarChart3, CreditCard, Headphones, RefreshCw, LayoutGrid, MessageCircle, Copy, Printer, Pencil,
+  ShoppingCart, ShoppingBasket, Leaf, Cherry, Croissant, Hammer, Bath, Martini, Coffee, ConciergeBell, Beer, Drumstick, ShoppingBag,
+  Flower2, Scissors, Slice, PersonStanding, Dumbbell, Stethoscope, Flower, Ellipsis, UtensilsCrossed, CalendarDays,
 } from "lucide-react";
+import { estaOscuro } from "./tema.js";
 import { MODULOS_BASE, moduloPorClave, nivelDe } from "../datos/modulos.js";
 import { ESCALAS, DOLORES, GENERALES, conDolores, armarModulos, planes, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
 import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
@@ -290,7 +293,118 @@ function OpcionGrande({ activa, onClick, icono: I, titulo, detalle }) {
 /* ------------------------------------------------------------
    1 · ¿Qué negocio tenés?
    ------------------------------------------------------------ */
-function ElegiNegocio({ rubros, onElegir, onVolver }) {
+/* En oscuro, el paso 1 es la maqueta del 01/10 copiada tal cual: las
+   fotos de cada negocio y los costados son recortes de la maqueta, y el
+   resto (buscador, filtros, tarjetas, "Continuar") anda igual que antes.
+   El claro sigue con la de antes. */
+function ElegiNegocio(props) {
+  if (estaOscuro()) return <ElegiNegocioNoche {...props} />;
+  return <ElegiNegocioClaro {...props} />;
+}
+
+const slugAlta = (t) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const FOTOS_ALTA = new Set(["almacen", "minimercado", "kiosco", "dietetica", "verduleria", "panaderia", "ferreteria", "casa-de-sanitarios", "bar", "cafe",
+  "restaurante", "cerveceria", "rotiseria", "take-away", "estetica", "peluqueria", "barberia", "pilates", "gimnasio", "consultorio", "spa"]);
+/* El ícono de cada negocio en la maqueta. Uno nuevo usa el de su rubro. */
+const ICONO_NEGOCIO = {
+  "Almacén": ShoppingCart, "Minimercado": ShoppingBasket, "Kiosco": Store, "Dietética": Leaf, "Verdulería": Cherry, "Panadería": Croissant,
+  "Ferretería": Hammer, "Casa de sanitarios": Bath, "Bar": Martini, "Café": Coffee, "Restaurante": ConciergeBell, "Cervecería": Beer,
+  "Rotisería": Drumstick, "Take away": ShoppingBag, "Estética": Flower2, "Peluquería": Scissors, "Barbería": Slice, "Pilates": PersonStanding,
+  "Gimnasio": Dumbbell, "Consultorio": Stethoscope, "Spa": Flower,
+};
+const PILDORA_ALTA = { todos: LayoutGrid, minimercado: Store, gastronomia: UtensilsCrossed, servicios: CalendarDays };
+
+function ElegiNegocioNoche({ rubros, onElegir, onVolver }) {
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState("todos");
+  const [sel, setSel] = useState(null);
+  const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const negocios = rubros
+    .flatMap((r) => (r.presentacion.negocios || [r.presentacion.titulo]).map((n) => ({ n, rubro: r })))
+    .filter(({ n, rubro }) => (filtro === "todos" || rubro.clave === filtro)
+      && (!busca || norm(n).includes(norm(busca)) || norm(rubro.nombre).includes(norm(busca)) || norm(rubro.presentacion.para).includes(norm(busca))));
+  const filtros = [{ clave: "todos", nombre: "Todos" }, ...rubros.filter((r) => r.clave !== "otro")];
+
+  return (
+    <section className="an-seccion relative overflow-hidden">
+      <img src="/landing/alta/costado-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado an-costado-izq" />
+      <img src="/landing/alta/costado-derecho.jpg" alt="" aria-hidden="true" className="an-costado an-costado-der" />
+      <div className="an-contenido relative">
+        <div className="an-arriba">
+          <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver a la portada</button>
+          <ol className="an-pasos">
+            {ETAPAS.map((n, i) => (
+              <li key={n} className={i === 0 ? "an-paso-activo" : ""}>
+                {i > 0 && <span className="an-linea" aria-hidden="true" />}
+                <span className="an-paso"><span className="an-numero">{i + 1}</span><span className="an-paso-nombre">{n}</span></span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="an-cabeza">
+          <div>
+            <div className="an-etiqueta">Paso 1 de 3</div>
+            <h1 className="an-titulo">¿Qué <span className="an-naranja">negocio</span> tenés?</h1>
+            <p className="an-bajada">Elegí tu rubro y empezamos a armar Genez para vos.</p>
+          </div>
+          <div className="manuscrita an-nota" aria-hidden="true">
+            Tu negocio, en las<br />mejores manos.
+            <svg viewBox="0 0 60 40" className="an-nota-flecha" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M52 4 C 48 20, 34 32, 10 34" /><path d="M18 27 L 9 34 L 19 38" />
+            </svg>
+          </div>
+        </div>
+
+        <label className="an-buscador">
+          <Search strokeWidth={1.75} className="an-buscador-icono" />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscá tu rubro... (ej. almacén, restaurante, estética)" />
+        </label>
+
+        <div className="an-pildoras">
+          {filtros.map((r) => {
+            const I = PILDORA_ALTA[r.clave] || Store;
+            return (
+              <button key={r.clave} type="button" onClick={() => setFiltro(r.clave)} className={`an-pildora ${filtro === r.clave ? "an-pildora-activa" : ""}`}>
+                <I strokeWidth={1.75} className="an-pildora-icono" /> {r.nombre}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="an-grilla">
+          {negocios.map(({ n, rubro }) => {
+            const otro = rubro.clave === "otro";
+            const activa = !!sel && sel.clave === rubro.clave && sel.nombre === n;
+            const I = otro ? Ellipsis : (ICONO_NEGOCIO[n] || ICONO_RUBRO[rubro.presentacion.icono] || Store);
+            const src = otro ? null : FOTOS_ALTA.has(slugAlta(n)) ? `/landing/alta/${slugAlta(n)}.jpg` : foto(n);
+            return (
+              <button key={`${rubro.clave}:${n}`} type="button" aria-pressed={activa} onClick={() => setSel({ clave: rubro.clave, nombre: n })}
+                className={`an-tarjeta ${activa ? "an-tarjeta-activa" : ""}`}>
+                <span className="an-foto">{src ? <img src={src} alt="" loading="lazy" /> : <Ellipsis strokeWidth={2.5} className="an-otro" />}</span>
+                <span className="an-barra">
+                  <I strokeWidth={1.75} className="an-icono" />
+                  <span className="an-nombre">{otro ? "Otro" : n}</span>
+                  <span className="an-ir"><ArrowRight strokeWidth={2.25} /></span>
+                </span>
+              </button>
+            );
+          })}
+          {negocios.length === 0 && <p className="an-vacio">No encontramos ese rubro. Elegí «Otro» y contanos qué hacés.</p>}
+        </div>
+
+        <div className="an-pie">
+          <div className="an-aviso"><Lightbulb strokeWidth={1.75} className="an-aviso-icono" /> ¿No encontrás tu rubro? También podemos armar un sistema a medida para tu negocio.</div>
+          <button type="button" onClick={() => sel && onElegir(sel.clave, sel.nombre)} disabled={!sel} className="an-continuar">
+            Continuar <ArrowRight strokeWidth={2.25} />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ElegiNegocioClaro({ rubros, onElegir, onVolver }) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const [sel, setSel] = useState(null);   // { clave, nombre }

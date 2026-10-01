@@ -183,7 +183,9 @@ export default function Landing() {
           {paso === "cards" ? (
             <Portada rubros={rubros} onElegir={elegir} onEmpezar={empezar} />
           ) : (
-            <div className="max-w-5xl mx-auto px-5 pb-20">
+            /* El paso 1 en oscuro ocupa todo el ancho, como su maqueta: va sin
+               el contenedor angosto de los otros pasos. */
+            <div className={oscuro && !rubro ? "" : "max-w-5xl mx-auto px-5 pb-20"}>
               <Stepper key={rubro ? `${rubro.clave}:${negocio || ""}` : "ninguno"} rubro={rubro} rubros={todos} negocio={negocio}
                 onElegirNegocio={elegir} onVolver={volver} />
             </div>
