@@ -163,3 +163,96 @@ html {
 .brillo {
   background: radial-gradient(circle, rgb(var(--acento) / 0.35) 0%, rgb(var(--acento) / 0.08) 55%, transparent 72%);
 }
+
+/* ------------------------------------------------------------
+   La portada en oscuro (01/10), copiada de la maqueta
+   ------------------------------------------------------------
+   Los colores salen de la maqueta, medidos en la imagen: el negro del
+   fondo tiene que ser el mismo que el de la foto de los aparatos, o se
+   ve el borde. Los tamaños escalan con el ancho (la maqueta mide 1959
+   px), con un mínimo para el teléfono. */
+.hero-noche {
+  --hn-fondo: 7 7 7;
+  --hn-texto: 250 248 246;
+  --hn-suave: 181 181 181;
+  --hn-naranja: 250 107 21;
+  --hn-boton-arriba: 254 134 43;
+  --hn-boton-abajo: 244 100 14;
+  --hn-sobre-boton: 26 11 2;
+  background: rgb(var(--hn-fondo));
+  color: rgb(var(--hn-texto));
+}
+.hn-rotulo {
+  display: flex; align-items: center; gap: 0.9em;
+  font-size: clamp(11px, 0.78vw, 15px);
+  font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
+  color: rgb(var(--hn-naranja));
+}
+.hn-raya { display: inline-block; width: 1.4em; height: 1px; background: rgb(var(--hn-naranja)); }
+.hn-titulo {
+  margin-top: clamp(14px, 1.6vw, 32px);
+  font-size: clamp(44px, 4.65vw, 96px);
+  font-weight: 800; line-height: 0.98; letter-spacing: -0.035em;
+}
+/* Cada renglón de la maqueta es uno: en pantalla ancha no se parten. */
+@media (min-width: 1024px) { .hn-titulo { white-space: nowrap; } }
+.hn-naranja { color: rgb(var(--hn-naranja)); }
+.hn-parrafo {
+  margin-top: clamp(16px, 1.7vw, 34px);
+  max-width: 31em;
+  font-size: clamp(16px, 1.22vw, 24px);
+  line-height: 1.4; color: rgb(var(--hn-suave));
+}
+.hn-boton {
+  margin-top: clamp(22px, 2.3vw, 46px);
+  display: inline-flex; align-items: center; gap: 0.7em;
+  padding: clamp(14px, 1.3vw, 26px) clamp(22px, 1.8vw, 36px);
+  border-radius: clamp(10px, 0.7vw, 14px);
+  font-size: clamp(16px, 1.22vw, 24px); font-weight: 600;
+  color: rgb(var(--hn-sobre-boton));
+  background: linear-gradient(180deg, rgb(var(--hn-boton-arriba)), rgb(var(--hn-boton-abajo)));
+  box-shadow: 0 0 34px rgb(var(--hn-naranja) / 0.45), 0 10px 28px rgb(var(--hn-naranja) / 0.25);
+  transition: filter 0.15s;
+}
+.hn-boton:hover { filter: brightness(1.06); }
+.hn-boton:disabled { opacity: 0.5; cursor: default; filter: none; }
+.hn-flecha { width: 1.15em; height: 1.15em; }
+.hn-datos {
+  margin-top: clamp(26px, 2.6vw, 52px);
+  display: flex; flex-wrap: wrap; align-items: center; row-gap: 14px;
+  font-size: clamp(12px, 0.87vw, 17px); line-height: 1.25;
+  color: rgb(var(--hn-texto));
+}
+.hn-datos li { display: flex; align-items: center; gap: 0.9em; padding-right: 1.6em; margin-right: 1.6em; border-right: 1px solid rgb(var(--hn-texto) / 0.14); }
+.hn-datos li:last-child { border-right: 0; padding-right: 0; margin-right: 0; }
+.hn-icono { width: 1.8em; height: 1.8em; flex-shrink: 0; color: rgb(var(--hn-naranja)); }
+/* La bandera: tres franjas y el sol, en un círculo. */
+.hn-bandera {
+  position: relative; flex-shrink: 0; width: 1.8em; height: 1.8em; border-radius: 9999px; overflow: hidden;
+  background: linear-gradient(180deg, #74acdf 0 33.3%, #ffffff 33.3% 66.6%, #74acdf 66.6% 100%);
+}
+.hn-bandera::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 0.36em; height: 0.36em; border-radius: 9999px;
+  transform: translate(-50%, -50%); background: #f6b40e;
+}
+/* La foto de los aparatos se funde con el fondo por la izquierda: su
+   borde no tiene que verse. */
+.hn-arte img {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 9%);
+  mask-image: linear-gradient(to right, transparent 0, #000 9%);
+}
+@media (max-width: 1023px) {
+  .hn-arte img { -webkit-mask-image: none; mask-image: none; }
+}
+/* En la maqueta los tres datos van en una fila y llegan un poco más
+   allá de la columna del texto, sobre el borde ya fundido de la foto. */
+@media (min-width: 1024px) {
+  .hn-datos { flex-wrap: nowrap; white-space: nowrap; }
+  .hn-datos li { padding-right: 1.3em; margin-right: 1.3em; }
+}
+/* En el teléfono los datos bajan de renglón, y un separador al final de
+   una fila queda colgado: ahí van sin rayas. */
+@media (max-width: 1023px) {
+  .hn-datos { column-gap: 1.6em; }
+  .hn-datos li { border-right: 0; padding-right: 0; margin-right: 0; }
+}

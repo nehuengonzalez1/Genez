@@ -42,7 +42,7 @@ import {
   ShoppingCart, UtensilsCrossed, CalendarDays, Store, ArrowRight, Plus, Minus, Sun, Moon,
   ScanBarcode, Wallet, Settings, Package, Boxes, Truck, ClipboardList, FileText, Users,
   Ticket, Landmark, LayoutGrid, BarChart3, MessageCircle, Bell, ShieldCheck, Sparkles,
-  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Leaf, Home, Calendar, Gift, User,
+  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Lock, Leaf, Home, Calendar, Gift, User,
 } from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
 import { MODULOS } from "../datos/modulos.js";
@@ -248,7 +248,12 @@ function Portada({ rubros, onElegir, onEmpezar }) {
   );
 }
 
+/* En oscuro, la portada es la de la maqueta del 01/10, copiada tal cual:
+   los aparatos son la imagen de la maqueta (recortada, sin el texto) y
+   el texto va en HTML, para que se lea, se traduzca y se adapte al
+   teléfono. El claro sigue con la de antes hasta que se haga el suyo. */
 function Hero({ onEmpezar }) {
+  if (useOscuro()) return <HeroNoche onEmpezar={onEmpezar} />;
   return (
     <section className="max-w-6xl mx-auto px-5 pt-10 sm:pt-14 pb-10 sm:pb-14 grid lg:grid-cols-[0.8fr_1.2fr] gap-10 lg:gap-8 items-center">
       <div>
@@ -268,6 +273,38 @@ function Hero({ onEmpezar }) {
       </div>
 
       <Aparatos />
+    </section>
+  );
+}
+
+function HeroNoche({ onEmpezar }) {
+  return (
+    <section className="hero-noche relative overflow-hidden">
+      <div className="lg:flex lg:items-stretch">
+        <div className="relative z-10 px-5 pt-10 pb-8 lg:p-0 lg:pl-[5.4vw] lg:w-[38%] lg:shrink-0 flex flex-col justify-center">
+          <div className="hn-rotulo">Tu negocio, en orden <span className="hn-raya" aria-hidden="true" /></div>
+          <h1 className="hn-titulo">
+            Un sistema<br />que se adapta<br /><span className="hn-naranja">a vos.</span>
+          </h1>
+          <p className="hn-parrafo">
+            Ventas, stock, turnos, clientes, finanzas y más. Solo los módulos que necesitás, con un precio claro desde el primer día.
+          </p>
+          <div>
+            <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className="hn-boton">
+              {CTA} <ArrowRight className="hn-flecha" strokeWidth={2.25} />
+            </button>
+          </div>
+          <ul className="hn-datos">
+            <li><span className="hn-bandera" aria-hidden="true" /><span>Hecho en Argentina</span></li>
+            <li><CreditCard className="hn-icono" strokeWidth={1.75} aria-hidden="true" /><span>Precio claro<br />desde el inicio</span></li>
+            <li><Lock className="hn-icono" strokeWidth={1.75} aria-hidden="true" /><span>Cancelás<br />cuando quieras</span></li>
+          </ul>
+        </div>
+        <div className="hn-arte lg:w-[62%]">
+          <img src="/landing/hero-oscuro.jpg" width="1214" height="803" className="block w-full h-auto"
+            alt="El sistema Genez en una computadora y la app del cliente en un teléfono" />
+        </div>
+      </div>
     </section>
   );
 }
