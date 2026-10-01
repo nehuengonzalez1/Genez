@@ -602,9 +602,10 @@ function ComoFunciona({ onEmpezar }) {
    pregunta muestra la respuesta corta de la maqueta y se abre con la
    larga de siempre. Las seis están a la vista, así que "Ver todas las
    preguntas" las abre todas. El claro sigue con la de antes. */
+/* El claro (01/10) es la misma maqueta con otra luz: su fondo pintado
+   (pf-claro-fondo, con el globo del signo de pregunta) y la clase pf-dia. */
 function Preguntas() {
-  if (useOscuro()) return <PreguntasNoche />;
-  return <PreguntasClaro />;
+  return <PreguntasNoche claro={!useOscuro()} />;
 }
 
 const PREGUNTAS = [
@@ -621,13 +622,13 @@ const DATOS_PREGUNTAS = [
   [CircleCheck, <>Te acompañamos<br />en todo el proceso</>],
 ];
 
-function PreguntasNoche() {
+function PreguntasNoche({ claro = false }) {
   const [abiertas, setAbiertas] = useState(() => new Set());
   const todas = abiertas.size === PREGUNTAS.length;
   const alternar = (i) => setAbiertas((a) => { const n = new Set(a); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   return (
-    <section id="preguntas" className="pf-seccion scroll-mt-20 relative overflow-hidden">
-      <img src="/landing/preguntas/fondo.jpg" width="1958" height="803" className="pf-fondo" alt="" aria-hidden="true" />
+    <section id="preguntas" className={`pf-seccion ${claro ? "pf-dia" : ""} scroll-mt-20 relative overflow-hidden`}>
+      <img src={claro ? "/landing/preguntas/pf-claro-fondo.jpg" : "/landing/preguntas/fondo.jpg"} width="1958" height="803" className="pf-fondo" alt="" aria-hidden="true" />
       <div className="pf-lienzo">
         <div className="pf-texto">
           <div className="hn-rotulo pf-rotulo">Preguntas frecuentes</div>
@@ -658,39 +659,6 @@ function PreguntasNoche() {
             );
           })}
         </ul>
-      </div>
-    </section>
-  );
-}
-
-function PreguntasClaro() {
-  const preguntas = [
-    ["¿Cuánto cuesta?", "Una base por mes que incluye cobro, caja y ajustes, más cada módulo que sumes. El número exacto lo ves al final de los tres pasos, antes de hablar con nadie. La puesta en marcha —cargar tu catálogo y capacitarte— se cobra una sola vez."],
-    ["¿Necesito comprar equipos?", "Con un celular, una tablet o una computadora ya funciona. Para cobrar en mostrador conviene una impresora térmica y un lector de códigos (o la cámara del celular); para vender por peso, una balanza que imprima etiquetas. El presupuesto te dice exactamente qué te hace falta según lo que marcaste."],
-    ["¿Qué pasa si se corta internet?", "Seguís cobrando. La venta se guarda en el equipo y se manda sola cuando vuelve la conexión."],
-    ["¿Puedo facturar?", "Sí: el módulo Clientes emite facturas A, B y C. Necesitás tu CUIT y tu condición frente al IVA."],
-    ["¿Y si después necesito otro módulo?", "Se suma cuando quieras, y también se puede sacar. Pagás por los que usás."],
-    ["¿Cómo empiezo?", "Tocá tu negocio, contestá unas tildes y mirá tu presupuesto. Si te cierra, lo pedís y nos ponemos en contacto con vos por WhatsApp con los pasos para arrancar."],
-  ];
-  return (
-    <section id="preguntas" className="scroll-mt-20 max-w-6xl mx-auto px-5 pt-14 sm:pt-20 pb-16 sm:pb-20">
-      <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-8 lg:gap-16">
-        <div>
-          <div className={ROTULO_ACENTO}>Preguntas frecuentes</div>
-          <h2 className="f-d text-3xl sm:text-4xl leading-tight mt-3">Lo que preguntan antes de empezar.</h2>
-        </div>
-        <div className="border-t border-borde">
-          {preguntas.map(([q, a]) => (
-            <details key={q} className="group border-b border-borde py-4">
-              <summary className="flex items-center justify-between gap-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden font-semibold text-[16px]">
-                {q}
-                <Plus size={18} className="text-texto-tenue shrink-0 group-open:hidden" />
-                <Minus size={18} className="text-texto-tenue shrink-0 hidden group-open:block" />
-              </summary>
-              <p className="text-texto-suave mt-3 leading-relaxed text-[15px]">{a}</p>
-            </details>
-          ))}
-        </div>
       </div>
     </section>
   );

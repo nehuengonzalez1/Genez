@@ -1456,3 +1456,41 @@ html {
 @media (max-width: 1023px) {
   .cf-dia .cf-paso { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.06); box-shadow: 0 6px 20px rgb(120 70 30 / 0.07); }
 }
+
+/* ------------------------------------------------------------
+   Las preguntas en claro (01/10), copiadas de la maqueta
+   ------------------------------------------------------------ */
+.pf-dia {
+  --hn-texto: 8 10 12;
+  --pf-suave: 70 70 72;
+}
+:root .pf-dia { background: rgb(var(--fondo-dia)); }
+.pf-dia .pf-fila { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.05); box-shadow: 0 calc(6 * var(--u)) calc(22 * var(--u)) rgb(120 70 30 / 0.07); }
+.pf-dia .pf-fila:hover, .pf-dia .pf-fila-activa { background: rgb(255 246 236); border-color: rgb(var(--hn-naranja) / 0.75); box-shadow: 0 calc(6 * var(--u)) calc(24 * var(--u)) rgb(var(--hn-naranja) / 0.14); }
+.pf-dia .pf-icono { background: rgb(253 228 206); color: rgb(var(--hn-naranja)); }
+.pf-dia .pf-pregunta { color: rgb(var(--hn-texto)); }
+.pf-dia .pf-mas { color: rgb(80 80 82); }
+.pf-dia .pf-fila-activa .pf-mas { color: rgb(var(--hn-naranja)); }
+.pf-dia .pf-dato-icono { background: rgb(253 228 206); }
+.pf-dia .pf-datos { color: rgb(var(--hn-texto)); }
+.pf-dia .pf-datos li + li { border-left: 1px solid rgb(0 0 0 / 0.1); padding-left: calc(24 * var(--u)); }
+@media (min-width: 1024px) {
+  .pf-dia .pf-texto { left: calc(141 * var(--u)); top: calc(128 * var(--u)); }
+  .pf-seccion.pf-dia .pf-rotulo { font-size: calc(18.1 * var(--u)); }
+  .pf-dia .pf-titulo { margin-top: calc(18 * var(--u)); font-size: calc(74 * var(--u)); line-height: 0.9; }
+  .pf-dia .pf-parrafo { margin-top: calc(26 * var(--u)); font-size: calc(27 * var(--u)); line-height: calc(36 * var(--u)); }
+  .pf-seccion.pf-dia .pf-boton { margin-top: calc(32 * var(--u)); height: calc(74 * var(--u)); padding: 0 calc(33 * var(--u)); font-size: calc(24 * var(--u)); }
+  .pf-dia .pf-datos { margin-top: calc(70 * var(--u)); margin-left: calc(-3 * var(--u)); font-size: calc(18 * var(--u)); line-height: calc(26 * var(--u)); }
+  .pf-dia .pf-dato-icono { width: calc(58 * var(--u)); height: calc(58 * var(--u)); }
+  .pf-dia .pf-lista { width: calc(787 * var(--u)); margin-left: calc(1066 * var(--u)); padding-top: calc(88 * var(--u)); gap: calc(8.5 * var(--u)); }
+  .pf-dia .pf-cabeza { min-height: calc(100 * var(--u)); }
+  .pf-dia .pf-icono { width: calc(75 * var(--u)); height: calc(75 * var(--u)); border-radius: calc(14 * var(--u)); }
+  .pf-dia .pf-textos { margin-left: calc(40 * var(--u)); }
+  .pf-dia .pf-pregunta { font-size: calc(23.5 * var(--u)); }
+  .pf-dia .pf-corta { font-size: calc(19.5 * var(--u)); }
+}
+@media (max-width: 1023px) {
+  .pf-dia .pf-datos li + li { border-left: 0; padding-left: 0; }
+}
+/* En claro el pie ya tiene el fondo de la página: solo se va la raya. */
+html:not(.tema-noche) footer { border-top-color: transparent; }
