@@ -42,7 +42,7 @@ import {
   ShoppingCart, UtensilsCrossed, CalendarDays, Store, ArrowRight, Plus, Minus, Sun, Moon,
   ScanBarcode, Wallet, Settings, Package, Boxes, Truck, ClipboardList, FileText, Users,
   Ticket, Landmark, LayoutGrid, BarChart3, MessageCircle, Bell, ShieldCheck, Sparkles,
-  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Lock, Leaf, Home, Calendar, Gift, User,
+  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Lock, Leaf, Home, Calendar, Gift, User, Coins, Timer, Monitor,
 } from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
 import { MODULOS } from "../datos/modulos.js";
@@ -621,7 +621,62 @@ function TarjetaNegocio({ nombre, rubro, onElegir }) {
 /* ------------------------------------------------------------
    Qué resuelve · el ticket en claro, el papel de preguntas en oscuro
    ------------------------------------------------------------ */
+/* En oscuro, "Qué resuelve" es la maqueta del 01/10 copiada tal cual: la
+   tablet con el papel "Sin Genez" y la luz de la derecha (con el "Simple.
+   Rápido. Sin vueltas." escrito a mano) son recortes de la maqueta; el
+   texto, el botón y la lista van en HTML. El claro sigue con la de antes. */
 function QueResuelve() {
+  if (useOscuro()) return <QueResuelveNoche />;
+  return <QueResuelveClaro />;
+}
+
+const PUNTOS_NOCHE = [
+  [Package, <>Controlá tu stock en<br />tiempo real</>],
+  [BarChart3, <>Sabé qué productos<br />dan más ganancia</>],
+  [Bell, <>Evitá faltantes<br />y vencimientos</>],
+  [Coins, <>Tené tus números<br />siempre claros</>],
+  [Smartphone, <>Todo desde el celu,<br />la compu o la tablet.</>],
+];
+const DATOS_RESUELVE = [
+  [Timer, <>Implementación<br />rápida</>],
+  [Monitor, <>Funciona en celu,<br />compu y tablet</>],
+  [Settings, <>Sin vueltas<br />ni configuraciones complejas</>],
+];
+
+function QueResuelveNoche() {
+  return (
+    <section id="resuelve" className="qr-seccion scroll-mt-20 relative overflow-hidden">
+      <div className="qr-lienzo">
+        <div className="qr-texto">
+          <div className="hn-rotulo">Qué resuelve <span className="hn-raya" aria-hidden="true" /></div>
+          <h2 className="qr-titulo">Si vendés todos los<br />días, <span className="hn-naranja">cada uno<br />cuesta plata.</span></h2>
+          {/* Los cortes de renglón son los de la maqueta; en el teléfono no van. */}
+          <p className="qr-parrafo">
+            Llevar el negocio a mano hace que se te escape el stock,<br className="qr-br" /> que no sepas qué te deja más ganancia y que a fin de mes<br className="qr-br" />{" "}
+            la caja no cierre. Genez ordena ventas, stock, compras y<br className="qr-br" /> caja en un solo lugar, y te lo muestra en números, sin que<br className="qr-br" />{" "}
+            tengas que entender de computación.
+          </p>
+          <a href="#como-funciona" className="hn-boton qr-boton">Conocé cómo funciona <ArrowRight className="hn-flecha" strokeWidth={2.25} /></a>
+          <ul className="qr-datos">
+            {DATOS_RESUELVE.map(([I, t], i) => (
+              <li key={i}><span className="qr-dato-icono"><I strokeWidth={1.75} /></span><span>{t}</span></li>
+            ))}
+          </ul>
+        </div>
+        <img src="/landing/resuelve/centro.jpg" width="745" height="803" className="qr-centro"
+          alt="El inicio de Genez en una tablet, y al lado un papel &quot;Sin Genez&quot; lleno de signos de pregunta" />
+        <img src="/landing/resuelve/derecha-arriba.jpg" width="418" height="215" className="qr-derecha" alt="" aria-hidden="true" />
+        <ul className="qr-panel">
+          {PUNTOS_NOCHE.map(([I, t], i) => (
+            <li key={i}><span className="qr-panel-icono"><I strokeWidth={2} /></span><span>{t}</span></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function QueResuelveClaro() {
   const puntos = [
     [Boxes, "Controlá tu stock en tiempo real"],
     [TrendingUp, "Sabé qué productos dan más ganancia"],
