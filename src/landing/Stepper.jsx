@@ -116,6 +116,11 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
 
   if (!rubro) return <ElegiNegocio rubros={rubros} onElegir={onElegirNegocio} onVolver={onVolver} />;
 
+  /* En oscuro, los pasos ya copiados de su maqueta (1 y 2) van a todo el
+     ancho y la landing no los encierra; los que todavía no, siguen en el
+     contenedor angosto de siempre. */
+  const angosto = (contenido) => (estaOscuro() ? <div className="max-w-5xl mx-auto px-5 pb-20">{contenido}</div> : contenido);
+
   const p = rubroArmado.presentacion;
   const preguntasRubro = rubro.presentacion.preguntas || [];
 
@@ -126,14 +131,14 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 3) {
-    return (
+    return angosto(
       <ComoTrabajas preguntas={preguntasRubro} respuestas={respuestas} onTildar={tildar}
         escala={escala} onEscala={setEscala} canal={canal} onCanal={setCanal} sucursales={sucursales} onSucursales={setSucursales}
         onVolver={() => ir(2)} onSeguir={() => ir(4)} />
     );
   }
   if (paso === 4) {
-    return (
+    return angosto(
       <Modulos armado={necesidad} recomendada={recomendada} sacados={sacados} sumados={sumados}
         onSacar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
         onSumar={(k) => setSumados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
@@ -141,12 +146,12 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 5) {
-    return (
+    return angosto(
       <Plan opciones={opciones} tarifas={tarifas} todos={opciones[opciones.length - 1].armado.elegidos}
         onElegir={(k) => { setOpcion(k); ir(6); }} onVolver={() => ir(4)} />
     );
   }
-  return (
+  return angosto(
     <Listo rubro={rubroArmado} negocio={negocio} escala={escala} canal={canal} sucursales={sucursales}
       respuestas={respuestasTotales} mensaje={mensaje} elegida={elegida} presupuesto={presupuesto} tarifas={tarifas}
       onVolver={() => ir(5)} onCambiarNegocio={onVolver} onEditarProblemas={() => ir(2)} onEditarTrabajo={() => ir(3)}
@@ -314,6 +319,29 @@ const ICONO_NEGOCIO = {
 };
 const PILDORA_ALTA = { todos: LayoutGrid, minimercado: Store, gastronomia: UtensilsCrossed, servicios: CalendarDays };
 
+/* Los tres pasos de arriba, como en las maquetas: el actual en naranja
+   con su número, los hechos en naranja con tilde, y la línea naranja
+   hasta el actual. */
+function PasosNoche({ actual, className = "" }) {
+  return (
+    <ol className={`an-pasos ${className}`}>
+      {ETAPAS.map((n, i) => {
+        const num = i + 1;
+        const estado = num === actual ? "an-paso-activo" : num < actual ? "an-paso-hecho" : "";
+        return (
+          <li key={n} className={estado}>
+            {i > 0 && <span className={`an-linea ${num <= actual ? "an-linea-hecha" : ""}`} aria-hidden="true" />}
+            <span className="an-paso">
+              <span className="an-numero">{num < actual ? <Check strokeWidth={3} /> : num}</span>
+              <span className="an-paso-nombre">{n}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function ElegiNegocioNoche({ rubros, onElegir, onVolver }) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("todos");
@@ -332,14 +360,7 @@ function ElegiNegocioNoche({ rubros, onElegir, onVolver }) {
       <div className="an-contenido relative">
         <div className="an-arriba">
           <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver a la portada</button>
-          <ol className="an-pasos">
-            {ETAPAS.map((n, i) => (
-              <li key={n} className={i === 0 ? "an-paso-activo" : ""}>
-                {i > 0 && <span className="an-linea" aria-hidden="true" />}
-                <span className="an-paso"><span className="an-numero">{i + 1}</span><span className="an-paso-nombre">{n}</span></span>
-              </li>
-            ))}
-          </ol>
+          <PasosNoche actual={1} />
         </div>
 
         <div className="an-cabeza">
@@ -468,7 +489,82 @@ function NegocioFoto({ nombre, rubro, activa, onElegir }) {
 /* ------------------------------------------------------------
    2 · Contanos sobre tu negocio (los dolores)
    ------------------------------------------------------------ */
-function Problemas({ respuestas, onTildar, mensaje, onMensaje, onVolver, onSeguir }) {
+/* En oscuro, el paso 2 es la maqueta del 01/10 tal cual: los costados (la
+   laptop con el logo, el portapapeles con las tildes) son recortes de la
+   maqueta y el resto anda como siempre. El claro sigue con el de antes. */
+function Problemas(props) {
+  if (estaOscuro()) return <ProblemasNoche {...props} />;
+  return <ProblemasClaro {...props} />;
+}
+
+function ProblemasNoche({ respuestas, onTildar, mensaje, onMensaje, onVolver, onSeguir }) {
+  const otro = DOLORES.find((d) => d.otro);
+  return (
+    <section className="an-seccion pn-seccion relative overflow-hidden">
+      <img src="/landing/alta/paso2-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado pn-costado-izq" />
+      <img src="/landing/alta/paso2-derecho.jpg" alt="" aria-hidden="true" className="an-costado pn-costado-der" />
+      <div className="an-contenido pn-contenido relative">
+        <div className="an-arriba pn-arriba">
+          <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
+          <PasosNoche actual={2} className="pn-pasos" />
+        </div>
+
+        <div className="an-cabeza">
+          <div>
+            <div className="an-etiqueta pn-etiqueta">Paso 2 de 3</div>
+            <h1 className="an-titulo pn-titulo">Contanos sobre <span className="an-naranja">tu negocio</span></h1>
+            <p className="an-bajada pn-bajada">Seleccioná los principales problemas que tenés en el día a día.<br />Nos ayuda a recomendarte la mejor configuración.</p>
+          </div>
+          <div className="manuscrita pn-nota" aria-hidden="true">
+            Contanos lo que te pasa.<br />Es el primer paso para<br />mejorar.
+            <svg viewBox="0 0 80 30" className="pn-nota-flecha" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 10 C 20 26, 50 26, 72 18" /><path d="M62 12 L 73 18 L 63 25" />
+            </svg>
+          </div>
+        </div>
+
+        <div className="pn-grilla">
+          {DOLORES.map((d) => {
+            /* La maqueta muestra un gráfico en "cuánto gano", no el chanchito. */
+            const I = (d.k === "d_ganancia" ? BarChart3 : ICONO_DOLOR[d.k]) || MessageCircle;
+            const activa = !!respuestas[d.k];
+            return (
+              <button key={d.k} type="button" onClick={() => onTildar(d.k)} aria-pressed={activa} className={`pn-tarjeta ${activa ? "pn-tarjeta-activa" : ""}`}>
+                <span className="pn-casilla">{activa && <Check strokeWidth={3} />}</span>
+                <span className="pn-icono"><I strokeWidth={1.75} /></span>
+                <span className="pn-textos">
+                  <span className="pn-titulo-tarjeta">{d.n}</span>
+                  <span className="pn-detalle">{d.d}</span>
+                </span>
+                <span className="pn-ir" aria-hidden="true"><ArrowRight strokeWidth={2} /></span>
+              </button>
+            );
+          })}
+        </div>
+
+        {otro && respuestas[otro.k] && (
+          <label className="pn-otro">
+            <span>Contanos cuál</span>
+            <textarea value={mensaje} onChange={(e) => onMensaje(e.target.value)} rows={3} autoFocus
+              placeholder="Ej.: tengo dos cajas y a fin de mes nunca sé cuánto gané" />
+          </label>
+        )}
+
+        <div className="an-aviso pn-aviso">
+          <span className="pn-aviso-icono"><Lightbulb strokeWidth={1.75} /></span>
+          Con esta información te vamos a recomendar los módulos que realmente necesitás.
+        </div>
+
+        <div className="pn-botones">
+          <button type="button" onClick={onVolver} className="pn-volver-boton"><ArrowLeft strokeWidth={2} /> Volver</button>
+          <button type="button" onClick={onSeguir} className="an-continuar pn-continuar">Continuar <ArrowRight strokeWidth={2.25} /></button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProblemasClaro({ respuestas, onTildar, mensaje, onMensaje, onVolver, onSeguir }) {
   const otro = DOLORES.find((d) => d.otro);
   return (
     <Marco indicador={2} etiqueta="Paso 2 de 3" titulo={<>Contanos sobre <span className="text-acento">tu negocio</span></>}

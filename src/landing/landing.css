@@ -694,3 +694,78 @@ html {
   .an-aviso { height: auto; padding: 14px 16px; font-size: 14px; }
   .an-continuar { width: 100%; height: 52px; }
 }
+
+/* El indicador de pasos: los hechos, con tilde y la línea naranja. */
+.an-paso-hecho .an-numero { border-color: transparent; background: rgb(var(--an-naranja)); color: rgb(28 12 2); }
+.an-paso-hecho .an-numero svg { width: 55%; height: 55%; }
+.an-linea-hecha { background: rgb(var(--an-naranja)); height: 2px; }
+
+/* ------------------------------------------------------------
+   El paso 2 del alta en oscuro (01/10), copiado de la maqueta
+   ------------------------------------------------------------
+   Misma unidad que el paso 1 (la maqueta también mide 1536). El
+   contenido va de 209 a 1327, los pasos más separados y las tarjetas en
+   dos columnas. */
+.pn-contenido { width: calc(1118 * var(--u)); }
+.pn-costado-izq { left: 0; width: calc(204 * var(--u)); -webkit-mask-image: linear-gradient(to right, #000 80%, transparent); mask-image: linear-gradient(to right, #000 80%, transparent); }
+.pn-costado-der { right: 0; width: calc(204 * var(--u)); -webkit-mask-image: linear-gradient(to left, #000 85%, transparent); mask-image: linear-gradient(to left, #000 85%, transparent); }
+.pn-arriba { height: calc(104 * var(--u)); }
+.pn-arriba .an-volver { top: calc(26 * var(--u)); font-size: calc(17 * var(--u)); }
+.pn-pasos { left: calc(274 * var(--u)); top: calc(15 * var(--u)); }
+.pn-pasos .an-paso { width: calc(104 * var(--u)); }
+.pn-pasos .an-numero { width: calc(40 * var(--u)); height: calc(40 * var(--u)); }
+.pn-pasos .an-linea { width: calc(127 * var(--u)); margin-top: calc(19 * var(--u)); }
+.pn-pasos .an-paso-nombre { font-size: calc(15 * var(--u)); }
+.pn-etiqueta { letter-spacing: 0.14em; font-size: calc(15 * var(--u)); }
+.pn-titulo { font-size: calc(52 * var(--u)); }
+.pn-bajada { font-size: calc(21 * var(--u)); line-height: calc(29 * var(--u)); }
+.pn-nota { margin-top: calc(18 * var(--u)); margin-right: calc(85 * var(--u)); font-size: calc(22 * var(--u)); line-height: 1.4; text-align: center; transform: rotate(-5deg); color: rgb(var(--an-texto)); }
+.pn-nota-flecha { display: block; width: calc(78 * var(--u)); margin: 0 calc(-10 * var(--u)) 0 auto; }
+.pn-grilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: calc(19 * var(--u)); row-gap: calc(12 * var(--u)); margin-top: calc(26 * var(--u)); }
+.pn-tarjeta {
+  display: flex; align-items: center; gap: calc(18 * var(--u)); min-height: calc(84 * var(--u)); padding: 0 calc(14 * var(--u)) 0 calc(21 * var(--u)); text-align: left;
+  border-radius: calc(10 * var(--u)); background: rgb(23 19 16 / 0.94); border: 1px solid rgb(255 255 255 / 0.1); transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pn-tarjeta:hover { border-color: rgb(var(--an-naranja) / 0.55); }
+.pn-tarjeta-activa { border-color: rgb(var(--an-naranja)); box-shadow: 0 0 calc(18 * var(--u)) rgb(var(--an-naranja) / 0.3); background: rgb(34 22 14 / 0.96); }
+.pn-casilla { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(24 * var(--u)); height: calc(24 * var(--u)); border-radius: calc(4 * var(--u)); border: 1.5px solid rgb(255 255 255 / 0.32); }
+.pn-tarjeta-activa .pn-casilla { background: rgb(var(--an-naranja)); border-color: rgb(var(--an-naranja)); color: rgb(28 12 2); }
+.pn-casilla svg { width: 75%; height: 75%; }
+.pn-icono { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(56 * var(--u)); height: calc(56 * var(--u)); border-radius: calc(10 * var(--u)); background: rgb(48 28 12); color: rgb(var(--an-naranja)); }
+.pn-icono svg { width: 52%; height: 52%; }
+.pn-textos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(4 * var(--u)); }
+.pn-titulo-tarjeta { font-size: calc(18 * var(--u)); font-weight: 600; letter-spacing: -0.01em; }
+.pn-detalle { font-size: calc(15 * var(--u)); color: rgb(var(--an-suave)); }
+.pn-ir { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(32 * var(--u)); height: calc(32 * var(--u)); border-radius: 9999px; border: 1.5px solid rgb(var(--an-naranja)); color: rgb(var(--an-naranja)); }
+.pn-ir svg { width: 55%; height: 55%; }
+.pn-otro { display: block; margin-top: calc(14 * var(--u)); }
+.pn-otro span { font-size: calc(14 * var(--u)); font-weight: 600; color: rgb(var(--an-suave)); }
+.pn-otro textarea { display: block; width: 100%; margin-top: calc(6 * var(--u)); padding: calc(12 * var(--u)) calc(14 * var(--u)); border-radius: calc(10 * var(--u)); background: rgb(var(--an-tarjeta)); border: 1px solid rgb(var(--an-naranja) / 0.45); color: rgb(var(--an-texto)); font-size: calc(16 * var(--u)); outline: none; }
+.pn-aviso { margin-top: calc(28 * var(--u)); height: calc(68 * var(--u)); gap: calc(16 * var(--u)); padding: 0 calc(20 * var(--u)); font-size: calc(19 * var(--u)); background: rgb(26 20 15 / 0.95); }
+.pn-aviso-icono { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(46 * var(--u)); height: calc(46 * var(--u)); border-radius: 9999px; background: rgb(62 27 3); color: rgb(var(--an-naranja)); }
+.pn-aviso-icono svg { width: 55%; height: 55%; }
+.pn-botones { display: flex; justify-content: space-between; margin-top: calc(28 * var(--u)); }
+.pn-volver-boton { display: inline-flex; align-items: center; gap: calc(20 * var(--u)); height: calc(58 * var(--u)); padding: 0 calc(32 * var(--u)); border-radius: calc(6 * var(--u)); border: 1.5px solid rgb(255 255 255 / 0.35); font-size: calc(20 * var(--u)); font-weight: 600; color: rgb(var(--an-texto)); }
+.pn-volver-boton:hover { border-color: rgb(255 255 255 / 0.6); }
+.pn-volver-boton svg { width: calc(22 * var(--u)); height: calc(22 * var(--u)); }
+.pn-continuar { width: calc(175 * var(--u)); height: calc(60 * var(--u)); font-size: calc(20 * var(--u)); border-radius: calc(6 * var(--u)); }
+
+@media (max-width: 1023px) {
+  .pn-contenido { width: auto; }
+  .pn-arriba { height: auto; }
+  .pn-nota { display: none; }
+  .pn-pasos .an-paso { width: 84px; }
+  .pn-pasos .an-linea { width: 28px; }
+  .pn-titulo { font-size: 30px; }
+  .pn-bajada { font-size: 15px; line-height: 1.45; }
+  .pn-grilla { grid-template-columns: 1fr; }
+  .pn-tarjeta { padding: 12px; gap: 12px; }
+  .pn-icono { width: 42px; height: 42px; }
+  .pn-titulo-tarjeta { font-size: 15px; }
+  .pn-detalle { font-size: 13px; }
+  .pn-ir { display: none; }
+  .pn-aviso { height: auto; padding: 12px 14px; font-size: 14px; }
+  .pn-aviso-icono { width: 36px; height: 36px; }
+  .pn-botones { flex-direction: column-reverse; gap: 10px; }
+  .pn-volver-boton, .pn-continuar { width: 100%; justify-content: center; height: 50px; font-size: 16px; }
+}
