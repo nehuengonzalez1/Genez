@@ -920,7 +920,51 @@ function TelefonoModulos() {
 /* ------------------------------------------------------------
    Cómo funciona · la banda con los tres pasos
    ------------------------------------------------------------ */
+/* En oscuro es la maqueta del 01/10 copiada tal cual: el fondo (la
+   tablet, el presupuesto, los números y los íconos de cada paso) es la
+   maqueta con el texto pintado del color de lo que tiene atrás, y encima
+   va el texto en HTML, con los cortes de renglón de la maqueta. En el
+   teléfono el fondo no entra, así que los números se dibujan aparte. */
+const PASOS_NOCHE = [
+  { t: "Tocá tu negocio.", d: <>Con eso ya sabemos con qué arranca<br className="qr-br" /> un comercio como el tuyo.</> },
+  { t: "Contanos cómo trabajás.", d: <>Cuántos puestos tenés y unas tildes:<br className="qr-br" /> stock, factura, delivery, equipo.<br className="qr-br" /> Cada una suma solo lo que hace falta.</> },
+  { t: "Mirá tu presupuesto.", d: <>Base más cada módulo, con su precio.<br className="qr-br" /> Si te cierra, lo pedís y nos ponemos<br className="qr-br" /> en contacto por WhatsApp.</> },
+];
+
+function ComoFuncionaNoche({ onEmpezar }) {
+  return (
+    <section id="como-funciona" className="cf-seccion scroll-mt-20 relative overflow-hidden">
+      <div className="cf-lienzo">
+        <img src="/landing/como-funciona/fondo.jpg" width="1958" height="803" className="cf-fondo"
+          alt="El inicio de Genez en una tablet y una tarjeta con el presupuesto" />
+        <div className="cf-texto">
+          <div className="hn-rotulo cf-rotulo">Cómo funciona <span className="cf-raya" aria-hidden="true" /></div>
+          <h2 className="cf-titulo">Tres pasos y<br />sabés <span className="hn-naranja">qué pagás.</span></h2>
+          <p className="cf-parrafo">Sin llamados de venta ni presupuestos por mail.<br className="qr-br" /> Lo ves vos, en el momento, y hasta ahí no te<br className="qr-br" /> pedimos tarjeta.</p>
+          <button type="button" onClick={onEmpezar} disabled={!ALTA_ABIERTA} className="hn-boton cf-boton">{CTA} <ArrowRight className="hn-flecha" strokeWidth={2.25} /></button>
+        </div>
+        <ol className="cf-pasos">
+          {PASOS_NOCHE.map((p, i) => (
+            <li key={i} className={`cf-paso cf-paso-${i + 1}`}>
+              <span className="cf-numero" aria-hidden="true">{i + 1}</span>
+              <div>
+                <div className="cf-paso-titulo">{p.t}</div>
+                <div className="cf-paso-texto">{p.d}</div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
 function ComoFunciona({ onEmpezar }) {
+  if (useOscuro()) return <ComoFuncionaNoche onEmpezar={onEmpezar} />;
+  return <ComoFuncionaClaro onEmpezar={onEmpezar} />;
+}
+
+function ComoFuncionaClaro({ onEmpezar }) {
   const pasos = [
     { n: "1", t: "Tocá tu negocio.", d: "Con eso ya sabemos con qué arranca un comercio como el tuyo." },
     { n: "2", t: "Contanos cómo trabajás.", d: "Cuántos puestos tenés y unas tildes: stock, factura, delivery, equipo. Cada una suma solo lo que hace falta." },
