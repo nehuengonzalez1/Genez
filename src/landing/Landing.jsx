@@ -42,7 +42,7 @@ import {
   ShoppingCart, UtensilsCrossed, CalendarDays, Store, ArrowRight, Plus, Minus, Sun, Moon,
   ScanBarcode, Wallet, Settings, Package, Boxes, Truck, ClipboardList, FileText, Users,
   Ticket, Landmark, LayoutGrid, BarChart3, MessageCircle, Bell, ShieldCheck, Sparkles,
-  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Lock, Leaf, Home, Calendar, Gift, User, Coins, Timer, Monitor, CircleCheck,
+  Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Lock, Leaf, Home, Calendar, Gift, User, Coins, Timer, Monitor, CircleCheck, Database, Wifi, Puzzle, Play, MessageSquare,
 } from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
 import { MODULOS } from "../datos/modulos.js";
@@ -954,7 +954,74 @@ function ComoFunciona({ onEmpezar }) {
 /* Las preguntas que hace un dueño antes de tocar nada. Las respuestas
    dicen lo que el sistema hace hoy, no lo que va a hacer. `<details>`
    nativo: se abre sin JavaScript y el lector de pantalla lo entiende. */
+/* En oscuro, las preguntas son la maqueta del 01/10 copiada tal cual: el
+   fondo (los globos de pregunta y las curvas) es la maqueta con el texto
+   y la lista pintados del color del fondo, y encima va todo en HTML. Cada
+   pregunta muestra la respuesta corta de la maqueta y se abre con la
+   larga de siempre. Las seis están a la vista, así que "Ver todas las
+   preguntas" las abre todas. El claro sigue con la de antes. */
 function Preguntas() {
+  if (useOscuro()) return <PreguntasNoche />;
+  return <PreguntasClaro />;
+}
+
+const PREGUNTAS = [
+  [Database, "¿Cuánto cuesta?", "Planes claros y sin costos ocultos.", "Una base por mes que incluye cobro, caja y ajustes, más cada módulo que sumes. El número exacto lo ves al final de los tres pasos, antes de hablar con nadie. La puesta en marcha —cargar tu catálogo y capacitarte— se cobra una sola vez."],
+  [ShoppingCart, "¿Necesito comprar equipos?", "Funciona en tus dispositivos actuales.", "Con un celular, una tablet o una computadora ya funciona. Para cobrar en mostrador conviene una impresora térmica y un lector de códigos (o la cámara del celular); para vender por peso, una balanza que imprima etiquetas. El presupuesto te dice exactamente qué te hace falta según lo que marcaste."],
+  [Wifi, "¿Qué pasa si se corta internet?", "Podés seguir trabajando sin problemas.", "Seguís cobrando. La venta se guarda en el equipo y se manda sola cuando vuelve la conexión."],
+  [FileText, "¿Puedo facturar?", "Sí. Emitís comprobantes de forma simple.", "Sí: el módulo Clientes emite facturas A, B y C. Necesitás tu CUIT y tu condición frente al IVA."],
+  [Puzzle, "¿Y si después necesito otro módulo?", "Podés sumar módulos cuando quieras.", "Se suma cuando quieras, y también se puede sacar. Pagás por los que usás."],
+  [Play, "¿Cómo empiezo?", "Te ayudamos paso a paso en la implementación.", "Tocá tu negocio, contestá unas tildes y mirá tu presupuesto. Si te cierra, lo pedís y nos ponemos en contacto con vos por WhatsApp con los pasos para arrancar."],
+];
+const DATOS_PREGUNTAS = [
+  [MessageSquare, <>Respuesta<br />rápida</>],
+  [Settings, <>Sin vueltas<br />ni tecnicismos</>],
+  [CircleCheck, <>Te acompañamos<br />en todo el proceso</>],
+];
+
+function PreguntasNoche() {
+  const [abiertas, setAbiertas] = useState(() => new Set());
+  const todas = abiertas.size === PREGUNTAS.length;
+  const alternar = (i) => setAbiertas((a) => { const n = new Set(a); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  return (
+    <section id="preguntas" className="pf-seccion scroll-mt-20 relative overflow-hidden">
+      <img src="/landing/preguntas/fondo.jpg" width="1958" height="803" className="pf-fondo" alt="" aria-hidden="true" />
+      <div className="pf-lienzo">
+        <div className="pf-texto">
+          <div className="hn-rotulo pf-rotulo">Preguntas frecuentes</div>
+          <h2 className="pf-titulo">Lo que preguntan<br /><span className="hn-naranja">antes de empezar.</span></h2>
+          <p className="pf-parrafo">Acá respondemos las dudas más comunes<br className="qr-br" /> para que tengas toda la información<br className="qr-br" /> antes de dar el primer paso.</p>
+          <button type="button" onClick={() => setAbiertas(todas ? new Set() : new Set(PREGUNTAS.map((_, i) => i)))} className="hn-boton pf-boton">
+            {todas ? "Cerrar las respuestas" : "Ver todas las preguntas"} <ArrowRight className="hn-flecha" strokeWidth={2.25} />
+          </button>
+          <ul className="pf-datos">
+            {DATOS_PREGUNTAS.map(([I, t], i) => <li key={i}><span className="pf-dato-icono"><I strokeWidth={2} /></span><span>{t}</span></li>)}
+          </ul>
+        </div>
+        <ul className="pf-lista">
+          {PREGUNTAS.map(([I, q, corta, larga], i) => {
+            const abierta = abiertas.has(i);
+            return (
+              <li key={q} className={`pf-fila ${i === 0 || abierta ? "pf-fila-activa" : ""}`}>
+                <button type="button" className="pf-cabeza" onClick={() => alternar(i)} aria-expanded={abierta}>
+                  <span className="pf-icono"><I strokeWidth={2} /></span>
+                  <span className="pf-textos">
+                    <span className="pf-pregunta">{q}</span>
+                    <span className="pf-corta">{corta}</span>
+                  </span>
+                  {abierta ? <Minus className="pf-mas" strokeWidth={1.75} /> : <Plus className="pf-mas" strokeWidth={1.75} />}
+                </button>
+                {abierta && <p className="pf-larga">{larga}</p>}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function PreguntasClaro() {
   const preguntas = [
     ["¿Cuánto cuesta?", "Una base por mes que incluye cobro, caja y ajustes, más cada módulo que sumes. El número exacto lo ves al final de los tres pasos, antes de hablar con nadie. La puesta en marcha —cargar tu catálogo y capacitarte— se cobra una sola vez."],
     ["¿Necesito comprar equipos?", "Con un celular, una tablet o una computadora ya funciona. Para cobrar en mostrador conviene una impresora térmica y un lector de códigos (o la cámara del celular); para vender por peso, una balanza que imprima etiquetas. El presupuesto te dice exactamente qué te hace falta según lo que marcaste."],

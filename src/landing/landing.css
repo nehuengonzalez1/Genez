@@ -526,3 +526,65 @@ html {
   .qi-descripcion { white-space: normal; font-size: 14px; line-height: 1.35; }
   .qi-resto-caja { width: auto; padding: 10px 0 0; }
 }
+
+/* ------------------------------------------------------------
+   Preguntas frecuentes en oscuro (01/10), copiada de la maqueta
+   ------------------------------------------------------------
+   Como "Qué incluye": el fondo es la maqueta con el texto y la lista
+   pintados, y lo que va encima cae donde estaba, medido en --u. La
+   diferencia es que la lista se abre: va en el flujo y empuja la
+   sección hacia abajo, y el fondo queda arriba, del tamaño de la
+   maqueta. */
+.pf-seccion {
+  --u: min(1px, calc(100vw / 1958));
+  --hn-naranja: 250 107 21;
+  --hn-texto: 250 248 246;
+  --hn-boton-arriba: 254 134 43;
+  --hn-boton-abajo: 244 100 14;
+  --hn-sobre-boton: 26 11 2;
+  --pf-suave: 196 192 186;
+  background: rgb(13 10 8);
+  color: rgb(var(--hn-texto));
+}
+.pf-fondo { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: calc(1958 * var(--u)); height: calc(803 * var(--u)); pointer-events: none; }
+.pf-lienzo { position: relative; width: calc(1958 * var(--u)); min-height: calc(803 * var(--u)); margin: 0 auto; }
+.pf-texto { position: absolute; left: calc(162 * var(--u)); top: calc(133 * var(--u)); }
+.pf-seccion .pf-rotulo { font-size: calc(16 * var(--u)); letter-spacing: 0.24em; font-weight: 700; }
+.pf-titulo { margin-top: calc(22 * var(--u)); font-size: calc(64 * var(--u)); font-weight: 800; line-height: 1; letter-spacing: -0.03em; white-space: nowrap; }
+.pf-parrafo { margin-top: calc(28 * var(--u)); font-size: calc(25 * var(--u)); line-height: calc(32.5 * var(--u)); color: rgb(var(--pf-suave)); white-space: nowrap; }
+.pf-seccion .pf-boton { margin-top: calc(38 * var(--u)); height: calc(68 * var(--u)); padding: 0 calc(30 * var(--u)); font-size: calc(21 * var(--u)); border-radius: calc(10 * var(--u)); box-shadow: 0 0 calc(30 * var(--u)) rgb(var(--hn-naranja) / 0.35); }
+.pf-datos { margin-top: calc(56 * var(--u)); margin-left: calc(-7 * var(--u)); display: flex; gap: calc(28 * var(--u)); font-size: calc(15.5 * var(--u)); line-height: calc(22 * var(--u)); color: rgb(var(--pf-suave)); white-space: nowrap; }
+.pf-datos li { display: flex; align-items: center; gap: calc(12 * var(--u)); }
+.pf-dato-icono { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(56 * var(--u)); height: calc(56 * var(--u)); border-radius: calc(12 * var(--u)); background: rgb(30 20 12); color: rgb(var(--hn-naranja)); }
+.pf-dato-icono svg { width: 50%; height: 50%; }
+.pf-lista { width: calc(818 * var(--u)); margin-left: calc(1015 * var(--u)); padding: calc(82 * var(--u)) 0 calc(66 * var(--u)); display: flex; flex-direction: column; gap: calc(7.4 * var(--u)); }
+.pf-fila { border-radius: calc(14 * var(--u)); background: rgb(20 16 13); border: 1px solid rgb(255 255 255 / 0.07); transition: border-color 0.15s, box-shadow 0.15s; }
+.pf-fila:hover, .pf-fila-activa { border-color: rgb(var(--hn-naranja) / 0.9); box-shadow: 0 0 calc(22 * var(--u)) rgb(var(--hn-naranja) / 0.3); }
+.pf-cabeza { display: flex; align-items: center; width: 100%; min-height: calc(101 * var(--u)); padding: 0 calc(30 * var(--u)) 0 calc(24 * var(--u)); text-align: left; }
+.pf-icono { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(62 * var(--u)); height: calc(62 * var(--u)); border-radius: calc(12 * var(--u)); background: linear-gradient(180deg, rgb(60 32 12), rgb(44 24 10)); color: rgb(var(--hn-naranja)); }
+.pf-icono svg { width: 50%; height: 50%; }
+.pf-textos { flex: 1; min-width: 0; margin-left: calc(37 * var(--u)); display: flex; flex-direction: column; gap: calc(5 * var(--u)); }
+.pf-pregunta { font-size: calc(23 * var(--u)); font-weight: 600; letter-spacing: -0.01em; }
+.pf-corta { font-size: calc(18.5 * var(--u)); color: rgb(var(--pf-suave)); }
+.pf-mas { flex-shrink: 0; width: calc(28 * var(--u)); height: calc(28 * var(--u)); color: rgb(var(--pf-suave)); }
+.pf-larga { padding: 0 calc(60 * var(--u)) calc(24 * var(--u)) calc(123 * var(--u)); font-size: calc(17 * var(--u)); line-height: 1.5; color: rgb(var(--pf-suave)); }
+
+@media (max-width: 1023px) {
+  .pf-seccion { --u: 1px; padding: 48px 20px 40px; }
+  .pf-fondo { display: none; }
+  .pf-lienzo, .pf-texto { position: static; width: auto; min-height: 0; }
+  .pf-seccion .pf-rotulo { font-size: 12px; }
+  .pf-titulo { font-size: 34px; white-space: normal; }
+  .pf-parrafo { white-space: normal; font-size: 16px; line-height: 1.45; }
+  .pf-seccion .pf-boton { height: 52px; font-size: 16px; }
+  .pf-datos { margin-top: 28px; margin-left: 0; flex-wrap: wrap; white-space: normal; row-gap: 12px; font-size: 13px; line-height: 1.3; }
+  .pf-dato-icono { width: 42px; height: 42px; }
+  .pf-lista { width: auto; margin: 28px 0 0; padding: 0; gap: 8px; }
+  .pf-cabeza { min-height: 76px; padding: 12px 16px 12px 12px; }
+  .pf-icono { width: 44px; height: 44px; }
+  .pf-textos { margin-left: 14px; }
+  .pf-pregunta { font-size: 16px; }
+  .pf-corta { font-size: 13px; }
+  .pf-mas { width: 22px; height: 22px; margin-left: 8px; }
+  .pf-larga { padding: 0 16px 16px 70px; font-size: 14px; }
+}
