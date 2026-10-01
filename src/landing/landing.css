@@ -1573,3 +1573,33 @@ html:not(.tema-noche) footer { border-top-color: transparent; }
 @media (max-width: 1023px) {
   .an-dia .pl-contenido { width: auto; margin-left: 0; }
 }
+
+/* "Tus módulos" en claro (01/10): la maqueta clara va de 221 a 1316, con
+   el título corrido a la derecha, y las tarjetas blancas; las tildadas
+   con borde naranja y el ícono en durazno. */
+.an-dia .mo-contenido { width: calc(1095 * var(--u)); }
+.an-dia .mo-costado-izq { width: calc(215 * var(--u)); }
+.an-dia .mo-costado-der { width: calc(184 * var(--u)); }
+@media (min-width: 1024px) {
+  .an-dia .mo-arriba .an-volver { left: calc(19 * var(--u)); }
+  .an-dia .mo-pasos { left: calc(304 * var(--u)); }
+  .an-dia .mo-pasos .an-paso { width: calc(89 * var(--u)); }
+  .an-dia .mo-pasos .an-linea { width: calc(112 * var(--u)); }
+  .an-dia .mo-etiqueta, .an-dia .mo-titulo, .an-dia .mo-bajada { margin-left: calc(36 * var(--u)); }
+  .an-dia .mo-nota { left: calc(880 * var(--u)); }
+}
+.an-dia .mo-tarjeta { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.07); box-shadow: 0 calc(4 * var(--u)) calc(16 * var(--u)) rgb(90 60 30 / 0.06); }
+.an-dia .mo-tarjeta:not(.mo-fija):hover { border-color: rgb(var(--an-naranja) / 0.55); }
+.an-dia .mo-activa { background: rgb(255 250 245); border-color: rgb(var(--an-naranja)); box-shadow: 0 calc(4 * var(--u)) calc(18 * var(--u)) rgb(var(--an-naranja) / 0.12); }
+.an-dia .mo-casilla { border-color: rgb(0 0 0 / 0.3); }
+.an-dia .mo-icono { background: rgb(240 238 236); color: rgb(var(--an-texto)); }
+.an-dia .mo-activa .mo-icono { background: rgb(253 230 210); color: rgb(var(--an-naranja)); }
+.an-dia .mo-sello { background: rgb(255 255 255 / 0.9); }
+.an-dia .mo-sello-start { color: rgb(30 170 70); }
+.an-dia .mo-pildora { background: rgb(255 255 255); }
+.an-dia .mo-volver-boton { background: rgb(255 255 255); border-color: rgb(0 0 0 / 0.15); }
+@media (max-width: 1023px) {
+  .an-dia .mo-contenido { width: auto; }
+}
+/* En la maqueta clara el motivo pasa por encima de la foto: se le deja ese ancho. */
+@media (min-width: 1024px) { .an-dia .mo-motivo { width: calc(250 * var(--u)); max-width: none; font-size: calc(13.2 * var(--u)); } }

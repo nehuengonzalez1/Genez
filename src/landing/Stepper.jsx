@@ -136,7 +136,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     );
   }
   if (paso === 4) {
-    return angosto(
+    return (
       <Modulos armado={necesidad} recomendada={recomendada} sacados={sacados} sumados={sumados}
         onSacar={(k) => setSacados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
         onSumar={(k) => setSumados((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
@@ -661,8 +661,7 @@ function ComoTrabajasClaro({ preguntas, respuestas, onTildar, escala, onEscala, 
    3 · Tus módulos
    ------------------------------------------------------------ */
 function Modulos(props) {
-  if (estaOscuro()) return <ModulosNoche {...props} />;
-  return <ModulosClaro {...props} />;
+  return <ModulosNoche {...props} claro={!estaOscuro()} />;
 }
 
 /* En oscuro es la maqueta del 01/10 copiada tal cual. Las fotos de la
@@ -681,13 +680,15 @@ function cortarMotivo(t) {
   return m ? <>{m[1]}<br />{m[2]}</> : t;
 }
 
-function ModulosNoche({ armado, recomendada, sumados, onSacar, onSumar, onVolver, onSeguir }) {
+function ModulosNoche({ armado, recomendada, sumados, onSacar, onSumar, onVolver, onSeguir, claro = false }) {
   const { elegidos, motivos, propuestos, sumables } = armado;
   const principales = [...propuestos, ...sumados.filter((k) => elegidos.includes(k) && !propuestos.includes(k)), ...sumables];
+  /* El claro (01/10) es el mismo paso con sus recortes en alta-claro. */
+  const dir = claro ? "/landing/alta-claro" : "/landing/alta";
   return (
-    <section className="an-seccion mo-seccion relative overflow-hidden">
-      <img src="/landing/alta/modulos-izquierdo.jpg" alt="" aria-hidden="true" className="an-costado mo-costado-izq" />
-      <img src="/landing/alta/modulos-derecho.jpg" alt="" aria-hidden="true" className="an-costado mo-costado-der" />
+    <section className={`an-seccion mo-seccion ${claro ? "an-dia" : ""} relative overflow-hidden`}>
+      <img src={`${dir}/modulos-izquierdo.jpg`} alt="" aria-hidden="true" className="an-costado mo-costado-izq" />
+      <img src={`${dir}/modulos-derecho.jpg`} alt="" aria-hidden="true" className="an-costado mo-costado-der" />
       <div className="an-contenido mo-contenido relative">
         <div className="an-arriba mo-arriba">
           <button type="button" onClick={onVolver} className="an-volver"><ArrowLeft strokeWidth={1.75} /> Volver</button>
@@ -726,7 +727,7 @@ function ModulosNoche({ armado, recomendada, sumados, onSacar, onSumar, onVolver
               <button key={k} type="button" disabled={base} aria-pressed={activa}
                 onClick={() => { if (base) return; if (propuestos.includes(k)) onSacar(k); else onSumar(k); }}
                 className={`mo-tarjeta ${activa ? "mo-activa" : ""} ${base ? "mo-fija" : ""}`}>
-                {FOTOS_MODULO.has(k) && <img src={`/landing/alta/modulos/${k}.jpg`} alt="" aria-hidden="true" className="mo-foto" loading="lazy" />}
+                {FOTOS_MODULO.has(k) && <img src={`${dir}/modulos/${k}.jpg`} alt="" aria-hidden="true" className="mo-foto" loading="lazy" />}
                 <span className="mo-casilla">{activa && <Check strokeWidth={3} />}</span>
                 <span className="mo-icono"><I strokeWidth={1.5} /></span>
                 <span className="mo-textos">
@@ -746,42 +747,6 @@ function ModulosNoche({ armado, recomendada, sumados, onSacar, onSumar, onVolver
         </div>
       </div>
     </section>
-  );
-}
-
-function ModulosClaro({ armado, recomendada, sacados, sumados, onSacar, onSumar, onVolver, onSeguir }) {
-  const { elegidos, motivos, propuestos, sumables } = armado;
-  const principales = [...propuestos, ...sumados.filter((k) => elegidos.includes(k) && !propuestos.includes(k)), ...sumables];
-  return (
-    <Marco indicador={3} etiqueta="Paso 3 de 3" titulo={<>Tus <span className="text-acento">módulos</span></>}
-      sub="Estos son los módulos recomendados para tu negocio. Podés sumar o quitar los que necesites."
-      anotacion="Sumá solo lo que necesitás. Sacá o agregá." ancho="max-w-5xl" onVolver={onVolver} onSeguir={onSeguir} seguirTexto="Ver mi presupuesto">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className={ROTULO}>Módulos principales · {elegidos.length} elegidos</div>
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-acento border border-acento/60 rounded-full px-3 py-1">
-          <Sparkles size={13} /> Según tus respuestas
-        </span>
-      </div>
-      {/* Cada módulo dice en qué plan entra: así nadie se lleva una
-          sorpresa al elegir el plan, ni puede armarse Empresa pagando Pro. */}
-      {recomendada && (
-        <p className="text-sm text-texto-suave mt-2">
-          Cada módulo dice en qué plan entra. Con lo que elegiste te corresponde el plan <strong className="text-acento">{recomendada.n}</strong>.
-        </p>
-      )}
-      <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {principales.map((k) => {
-          const m = moduloPorClave(k) || { n: k, d: "" };
-          const base = MODULOS_BASE.includes(k);
-          const activa = elegidos.includes(k);
-          return (
-            <TarjetaCasilla key={k} compacta activa={activa} fija={base} icono={ICONO_MODULO[k] || LayoutGrid} titulo={m.n} detalle={m.d}
-              etiqueta={nivelDe(k)} motivo={activa ? (motivos[k] || (base ? "Siempre incluido" : "")) : null}
-              onClick={() => { if (base) return; if (propuestos.includes(k)) onSacar(k); else onSumar(k); }} />
-          );
-        })}
-      </div>
-    </Marco>
   );
 }
 
