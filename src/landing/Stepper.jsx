@@ -493,9 +493,14 @@ function Modulos(props) {
 
 /* En oscuro es la maqueta del 01/10 copiada tal cual. Las fotos de la
    derecha de cada tarjeta son recortes de la maqueta, con el sello y el
-   texto que tenían encima pintados; los módulos que la maqueta no
-   muestra (los de gastronomía y servicios) van sin foto. */
-const FOTOS_MODULO = new Set(["cobro", "caja", "ajustes", "productos", "reportes", "permisos", "stock", "compras", "pedidos", "clientes", "cuentas", "asistente"]);
+   texto que tenían encima pintados. Los que la maqueta no muestra (los
+   de gastronomía y servicios) quedaban solo con el ícono, y desde que
+   Empresa suma Equipo se notaba al lado de los otros: el 02/10 se
+   dibujaron en el mismo estilo (agenda, avisos, seguimiento, equipo,
+   finanzas, ventas), Salón y Servicios toman la foto de su rubro y los
+   dos Informes comparten la misma, que nunca se ven juntos. */
+const FOTOS_MODULO = new Set(["cobro", "caja", "ajustes", "productos", "reportes", "permisos", "stock", "compras", "pedidos", "clientes", "cuentas", "asistente",
+  "comandas", "equipo", "agenda", "servicios", "ventas", "finanzas", "informes", "crm", "comunicaciones"]);
 
 /* Los dos íconos que la maqueta dibuja distinto. */
 const ICONO_MODULO_NOCHE = { cobro: Coins, permisos: FileText };
