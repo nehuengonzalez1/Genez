@@ -1,5 +1,5 @@
 {
-  "copiado": "2026-09-29",
+  "copiado": "2026-10-02",
   "rubros": [
     {
       "clave": "minimercado",
@@ -300,17 +300,19 @@
         "clientes": "Clientes"
       },
       "modulos": [
-        "cobro",
-        "caja",
         "ajustes",
-        "comandas",
-        "cocina",
-        "productos",
-        "stock",
-        "compras",
+        "asistente",
+        "caja",
         "clientes",
+        "cobro",
+        "cocina",
+        "comandas",
+        "compras",
+        "cuentas",
+        "equipo",
+        "productos",
         "reportes",
-        "cuentas"
+        "stock"
       ],
       "orden": 20,
       "activo": true,
@@ -571,10 +573,14 @@
         "profesionales": "Profesionales"
       },
       "modulos": [
-        "cobro",
-        "caja",
         "ajustes",
+        "caja",
         "clientes",
+        "cobro",
+        "crm",
+        "equipo",
+        "finanzas",
+        "permisos",
         "reportes"
       ],
       "orden": 30,
