@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { estaOscuro } from "./tema.js";
 import { MODULOS_BASE, moduloPorClave, nivelDe } from "../datos/modulos.js";
-import { ESCALAS, DOLORES, GENERALES, conDolores, armarModulos, planes, presupuestar, textoDelPresupuesto } from "../datos/presupuesto.js";
+import { ESCALAS, DOLORES, GENERALES, conDolores, armarModulos, planes, presupuestar, textoDelPresupuesto, textoDescuento } from "../datos/presupuesto.js";
 import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
 import { pedirPresupuesto, validarPedido } from "../datos/solicitudes.js";
 import { Tarjeta, Boton } from "../cliente/ui.jsx";
@@ -653,7 +653,15 @@ function TarjetaPlanNoche({ opcion, tarifas, todos, dir, onElegir }) {
       </div>
       <div className="pl-precio">
         {calculando && <div className="pl-monto">Calculando…</div>}
-        {!calculando && pre.mensual != null && <div className="pl-monto f-m">{pesos(pre.mensual)} <span className="pl-mes">/mes</span></div>}
+        {!calculando && pre.mensual != null && pre.conDescuento == null && <div className="pl-monto f-m">{pesos(pre.mensual)} <span className="pl-mes">/mes</span></div>}
+        {/* Con descuento de lanzamiento: la lista tachada, lo que se paga los
+            primeros meses y por cuánto tiempo, como lo publican los demás. */}
+        {!calculando && pre.conDescuento != null && (
+          <>
+            <div className="pl-monto f-m"><s className="pl-tachado">{pesos(pre.mensual)}</s> {pesos(pre.conDescuento)} <span className="pl-mes">/mes</span></div>
+            <div className="pl-oferta">−{textoDescuento(pre.descuento)}</div>
+          </>
+        )}
         {!calculando && pre.mensual == null && <div className="pl-monto">Consultar</div>}
         <div className="pl-cuantos">{pre.cantidad} módulos: cobro, caja y ajustes incluidos</div>
       </div>
@@ -692,7 +700,7 @@ function Listo({ rubro, negocio, escala, canal, sucursales, respuestas, mensaje,
   onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan }) {
   const p = rubro.presentacion;
   const armado = elegida.armado;
-  const { lineas, base, mensual, puestaEnMarcha, faltan, cantidad } = presupuesto;
+  const { lineas, base, mensual, conDescuento, descuento, puestaEnMarcha, faltan, cantidad } = presupuesto;
   const calculando = tarifas === null;
   /* HASTA QUE HAYA PRECIOS, CADA RENGLON DICE "CONSULTAR"
 
@@ -725,14 +733,17 @@ function Listo({ rubro, negocio, escala, canal, sucursales, respuestas, mensaje,
     negocio: negocio || p.titulo,
     rubro: rubro.clave,
     escala,
-    respuestas: [...marcadas.map((q) => ({ k: q.k, n: q.n })), { k: "presupuesto", n: `Plan ${elegida.n}` }],
+    /* `mensual` es la lista; si vio un descuento, queda escrito al lado,
+       para que la plataforma sepa qué precio le mostraron. */
+    respuestas: [...marcadas.map((q) => ({ k: q.k, n: q.n })), { k: "presupuesto", n: `Plan ${elegida.n}` },
+      ...(conDescuento != null ? [{ k: "descuento", n: `${pesos(conDescuento)} por mes, ${textoDescuento(descuento)}` }] : [])],
     modulos: armado.elegidos,
     mensual,
     puesta_en_marcha: puestaEnMarcha,
   };
 
   return (
-    <ListoNoche {...{ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, base, opcionales, nombresBase,
+    <ListoNoche {...{ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, conDescuento, descuento, puestaEnMarcha, faltan, base, opcionales, nombresBase,
       dolores, tildes, puestos, canalNombre, sucursales, texto, whatsapp, pedido, mensaje,
       onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan }} claro={!estaOscuro()} />
   );
@@ -750,7 +761,7 @@ const PASOS_DESPUES = [
   ["Una capacitación corta y arrancás", "La primera venta la hacés con nosotros al lado."],
 ];
 
-function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, base, opcionales, nombresBase,
+function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios, mensual, conDescuento, descuento, puestaEnMarcha, faltan, base, opcionales, nombresBase,
   dolores, tildes, puestos, canalNombre, sucursales, texto, whatsapp, pedido, mensaje,
   onVolver, onCambiarNegocio, onEditarProblemas, onEditarTrabajo, onAjustar, onCambiarPlan, claro = false }) {
   const [abierto, setAbierto] = useState(false);
@@ -779,7 +790,8 @@ function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios,
           <h1 className="li-titulo">Tu Genez está <span className="an-naranja">casi listo.</span></h1>
           <p className="li-bajada">
             Plan <strong>{elegida.n}</strong> para <strong>{titulo}</strong> · {cantidad} módulos
-            {!calculando && mensual != null ? <> · <strong>{pesos(mensual)} por mes</strong></> : null}.
+            {!calculando && mensual != null && conDescuento == null ? <> · <strong>{pesos(mensual)} por mes</strong></> : null}
+            {!calculando && conDescuento != null ? <> · <strong>{pesos(conDescuento)} por mes</strong> los primeros {descuento.meses ? `${descuento.meses} meses` : "meses"}</> : null}.
             {" "}<br />Dejanos tu WhatsApp y nos ponemos en contacto para dejarlo andando.
           </p>
         </div>
@@ -824,7 +836,7 @@ function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios,
                     <LineaNoche icono={Rocket} nombre="Puesta en marcha" detalle="Una sola vez, al arrancar: cargamos tu catálogo y dejamos todo configurado" precio={pesos(puestaEnMarcha)} />
                   )}
                   {!sinPrecios && !calculando && mensual != null && (
-                    <li className="li-total"><span>Total por mes</span><span className="f-m">{pesos(mensual)}</span></li>
+                    <li className="li-total"><span>Total por mes</span><span className="f-m">{conDescuento != null ? `${pesos(conDescuento)} (${textoDescuento(descuento)}; después ${pesos(mensual)})` : pesos(mensual)}</span></li>
                   )}
                 </ul>
                 {sinPrecios && (
@@ -839,7 +851,7 @@ function ListoNoche({ elegida, armado, titulo, cantidad, calculando, sinPrecios,
           </div>
 
           <div className="li-derecha no-imprimir">
-            <Resumen noche key={elegida.k} calculando={calculando} sinPrecios={sinPrecios} mensual={mensual} puestaEnMarcha={puestaEnMarcha}
+            <Resumen noche key={elegida.k} calculando={calculando} sinPrecios={sinPrecios} mensual={mensual} conDescuento={conDescuento} descuento={descuento} puestaEnMarcha={puestaEnMarcha}
               faltan={faltan} cantidad={cantidad} texto={texto} whatsapp={whatsapp} pedido={pedido} mensajeInicial={mensaje} plan={elegida.n} />
           </div>
 
@@ -912,7 +924,7 @@ const ACCION = "inline-flex items-center justify-center gap-1.5 rounded-md borde
 
 /* El resumen con la acción. Tres estados: ver, pedir (el formulario en
    el mismo lugar, sin ventana encima) y listo. */
-function Resumen({ noche = false, calculando, sinPrecios, mensual, puestaEnMarcha, faltan, cantidad, texto, whatsapp, pedido, mensajeInicial, plan }) {
+function Resumen({ noche = false, calculando, sinPrecios, mensual, conDescuento = null, descuento = null, puestaEnMarcha, faltan, cantidad, texto, whatsapp, pedido, mensajeInicial, plan }) {
   const [modo, setModo] = useState("ver");     // ver | pedir | listo
   const [hecho, setHecho] = useState(null);     // { nombre, telefono }
   const [copiado, setCopiado] = useState(false);
@@ -957,7 +969,13 @@ function Resumen({ noche = false, calculando, sinPrecios, mensual, puestaEnMarch
       <div className="li-resumen">
         <div className="li-rotulo li-resumen-rotulo">Plan {plan} · por mes</div>
         {calculando && <p className="li-resumen-texto">Calculando…</p>}
-        {!calculando && mensual != null && <div className="li-resumen-monto f-m">{pesos(mensual)} <span>por mes</span></div>}
+        {!calculando && mensual != null && conDescuento == null && <div className="li-resumen-monto f-m">{pesos(mensual)} <span>por mes</span></div>}
+        {!calculando && conDescuento != null && (
+          <>
+            <div className="li-resumen-monto f-m"><s className="li-tachado">{pesos(mensual)}</s> {pesos(conDescuento)} <span>por mes</span></div>
+            <p className="li-oferta">−{textoDescuento(descuento)}. Después, {pesos(mensual)} por mes.</p>
+          </>
+        )}
         {!calculando && mensual == null && (
           <>
             <div className="li-resumen-monto">Consultar</div>

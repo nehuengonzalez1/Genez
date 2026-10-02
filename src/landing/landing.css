@@ -1655,3 +1655,10 @@ html:not(.tema-noche) footer { border-top-color: transparent; }
 @media (max-width: 1023px) {
   .an-dia .ct-contenido { width: auto; }
 }
+
+/* El descuento de lanzamiento (02/10): la lista tachada, más chica y
+   apagada, y lo que se paga en grande; debajo, por cuánto tiempo. */
+.pl-tachado, .li-tachado { font-size: 0.62em; font-weight: 500; color: rgb(var(--an-suave)); text-decoration-thickness: 1.5px; }
+.pl-oferta { margin-top: calc(2 * var(--u)); font-size: calc(13 * var(--u)); font-weight: 700; color: rgb(var(--an-naranja)); }
+.li-oferta { margin-top: calc(4 * var(--v)); font-size: calc(9.5 * var(--v)); font-weight: 600; color: rgb(var(--an-naranja)); }
+@media (max-width: 1023px) { .pl-oferta { font-size: 13px; } }

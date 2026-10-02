@@ -224,6 +224,10 @@ export function armarDatos(rubro, sesion = "comercio") {
       empresas: [empresa],
       rubros: plataforma.rubros,
       roles_base: plataforma.roles_base,
+      /* Tarifas de ejemplo para ver el presupuesto con precio y el descuento
+         de lanzamiento: la lista al doble del esquema del 27/09 y 50% los
+         primeros 6 meses. No son las de producción. */
+      tarifas: [{ clave: "base", monto: 52000, texto: null }, { clave: "puesta_en_marcha", monto: null, texto: null }, { clave: "descuento", monto: 50, texto: null }, { clave: "descuento_meses", monto: 6, texto: null }, { clave: "modulo:productos", monto: 12000, texto: null }, { clave: "modulo:reportes", monto: 4000, texto: null }, { clave: "modulo:informes", monto: 4000, texto: null }, { clave: "modulo:agenda", monto: 6000, texto: null }, { clave: "modulo:servicios", monto: 2000, texto: null }, { clave: "modulo:stock", monto: 18000, texto: null }, { clave: "modulo:compras", monto: 16000, texto: null }, { clave: "modulo:clientes", monto: 12000, texto: null }, { clave: "modulo:cuentas", monto: 12000, texto: null }, { clave: "modulo:comandas", monto: 10000, texto: null }, { clave: "modulo:pedidos", monto: 10000, texto: null }, { clave: "modulo:ventas", monto: 32000, texto: null }, { clave: "modulo:comunicaciones", monto: 24000, texto: null }, { clave: "modulo:equipo", monto: 14000, texto: null }, { clave: "modulo:finanzas", monto: 14000, texto: null }, { clave: "modulo:crm", monto: 12000, texto: null }, { clave: "modulo:asistente", monto: 12000, texto: null }, { clave: "modulo:permisos", monto: 10000, texto: null }, { clave: "whatsapp", monto: null, texto: "5491100000000" }],
       roles: [],
       sucursales: [{ id: SUCURSAL, empresa_id: EMPRESA, nombre: "Principal", domicilio: "Calle de prueba 123", activa: true, creada_en: hace(90) }],
       cajas: [{ id: CAJA, empresa_id: EMPRESA, sucursal_id: SUCURSAL, nombre: "Caja 1", orden: 0, activa: true, mp_caja: null, creada_en: hace(90) }],

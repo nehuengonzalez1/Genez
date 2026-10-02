@@ -206,10 +206,20 @@ export function presupuestar(tarifas, elegidos) {
     ? null
     : Number(t.base) + lineas.reduce((s, l) => s + (l.base ? 0 : l.monto), 0);
 
+  /* El descuento de lanzamiento: `mensual` sigue siendo el precio de
+     lista, que es lo que se paga después; `conDescuento` es lo que se
+     paga los primeros meses. Sin total no hay descuento que mostrar. */
+  const d = t.descuento || {};
+  const porcentaje = Number(d.porcentaje) > 0 && Number(d.porcentaje) < 100 ? Number(d.porcentaje) : null;
+  const descuento = porcentaje ? { porcentaje, meses: Number(d.meses) > 0 ? Number(d.meses) : null } : null;
+  const conDescuento = descuento && mensual != null ? Math.round(mensual * (1 - porcentaje / 100)) : null;
+
   return {
     lineas,
     base: t.base == null ? null : Number(t.base),
     mensual,
+    descuento,
+    conDescuento,
     puestaEnMarcha: t.puestaEnMarcha == null ? 0 : Number(t.puestaEnMarcha),
     faltan,
     cantidad: elegidos.length,
@@ -219,14 +229,25 @@ export function presupuestar(tarifas, elegidos) {
 /* El texto que viaja por WhatsApp cuando la persona toca "Quiero
    empezar": lo que eligió, con números si los hay. Es texto plano a
    propósito: se lee en un teléfono y se contesta a mano. */
+/* "50% los primeros 6 meses", o "50% de lanzamiento" si no tiene fin. */
+export function textoDescuento(descuento) {
+  if (!descuento) return "";
+  const { porcentaje, meses } = descuento;
+  if (!meses) return `${porcentaje}% de lanzamiento`;
+  return meses === 1 ? `${porcentaje}% el primer mes` : `${porcentaje}% los primeros ${meses} meses`;
+}
+
 export function textoDelPresupuesto({ rubro, negocio, escala, opcion, presupuesto, pesos }) {
   const titulo = (rubro && rubro.presentacion && rubro.presentacion.titulo) || (rubro && rubro.nombre) || "";
   const que = negocio && negocio !== titulo ? `${negocio} (${titulo})` : titulo;
   const puestos = (ESCALAS.find((e) => e.k === escala) || {}).n;
   const modulos = presupuesto.lineas.map((l) => l.n).join(", ");
+  const puesta = presupuesto.puestaEnMarcha > 0 ? ` + ${pesos(presupuesto.puestaEnMarcha)} de puesta en marcha` : "";
   const precio = presupuesto.mensual == null
     ? "Precio: a confirmar"
-    : `Precio: ${pesos(presupuesto.mensual)} por mes${presupuesto.puestaEnMarcha > 0 ? ` + ${pesos(presupuesto.puestaEnMarcha)} de puesta en marcha` : ""}`;
+    : presupuesto.conDescuento != null
+      ? `Precio: ${pesos(presupuesto.conDescuento)} por mes (${textoDescuento(presupuesto.descuento)}; después ${pesos(presupuesto.mensual)})${puesta}`
+      : `Precio: ${pesos(presupuesto.mensual)} por mes${puesta}`;
   return [
     "Hola, quiero empezar con Genez.",
     `Negocio: ${que}`,

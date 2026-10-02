@@ -7,10 +7,17 @@
    una fila por concepto (0073); acá se traduce a un objeto con forma,
    que es lo que el resto de la aplicación quiere usar:
 
-     { base, puestaEnMarcha, modulos: { [clave]: monto }, whatsapp }
+     { base, puestaEnMarcha, modulos: { [clave]: monto }, whatsapp,
+       descuento: { porcentaje, meses } }
 
    Un monto en null es "a confirmar". Sin filas, todo es null y el
    presupuesto lo dice; nunca se inventa un número.
+
+   El descuento (02/10) es el de lanzamiento: un porcentaje sobre el
+   precio de lista durante los primeros meses de cada cliente. Son dos
+   filas más (`descuento` y `descuento_meses`), no una migración: la
+   tabla ya es un concepto por fila. Sin porcentaje, no hay descuento;
+   sin meses, el descuento no tiene fin.
    ============================================================ */
 
 /* El WhatsApp al que llega el presupuesto mientras la plataforma no cargue
@@ -24,16 +31,19 @@ export const TARIFAS_VACIAS = Object.freeze({
   puestaEnMarcha: null,
   modulos: {},
   whatsapp: CONTACTO_DE_FABRICA.whatsapp,
+  descuento: Object.freeze({ porcentaje: null, meses: null }),
 });
 
 const numero = (v) => (v == null || v === "" ? null : Number(v));
 
 export function armarTarifas(filas) {
-  const t = { ...TARIFAS_VACIAS, modulos: {} };
+  const t = { ...TARIFAS_VACIAS, modulos: {}, descuento: { porcentaje: null, meses: null } };
   for (const f of filas || []) {
     if (f.clave === "base") t.base = numero(f.monto);
     else if (f.clave === "puesta_en_marcha") t.puestaEnMarcha = numero(f.monto);
     else if (f.clave === "whatsapp") t.whatsapp = (f.texto || "").trim() || CONTACTO_DE_FABRICA.whatsapp;
+    else if (f.clave === "descuento") t.descuento.porcentaje = numero(f.monto);
+    else if (f.clave === "descuento_meses") t.descuento.meses = numero(f.monto);
     else if (f.clave.startsWith("modulo:")) t.modulos[f.clave.slice("modulo:".length)] = numero(f.monto);
   }
   return t;
@@ -48,6 +58,8 @@ export function filasDeTarifas(t) {
     { clave: "base", monto: numero(t.base), texto: null },
     { clave: "puesta_en_marcha", monto: numero(t.puestaEnMarcha), texto: null },
     { clave: "whatsapp", monto: null, texto: (t.whatsapp || "").trim() || null },
+    { clave: "descuento", monto: numero((t.descuento || {}).porcentaje), texto: null },
+    { clave: "descuento_meses", monto: numero((t.descuento || {}).meses), texto: null },
   ];
   for (const [k, monto] of Object.entries(t.modulos || {})) {
     filas.push({ clave: `modulo:${k}`, monto: numero(monto), texto: null });
