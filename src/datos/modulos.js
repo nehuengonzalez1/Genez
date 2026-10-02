@@ -39,7 +39,7 @@ export const MODULOS = [
      margen por producto y el del negocio de turnos mira ocupación, que no
      comparten ni una métrica. Misma decisión que Finanzas en 0038. */
   { k: "informes", n: "Informes", d: "Ingresos, ocupación, asistencia y clientes", nivel: "start", necesita: [] },
-  { k: "crm", n: "Seguimiento de clientes", d: "A quién conviene escribirle, y por qué", nivel: "empresa", necesita: ["WhatsApp en el teléfono del local"] },
+  { k: "crm", n: "Seguimiento", d: "A quién conviene escribirle, y por qué", nivel: "empresa", necesita: ["WhatsApp en el teléfono del local"] },
   { k: "comunicaciones", n: "Avisos", d: "Recordatorios de turno, plantillas e historial", nivel: "pro", necesita: ["WhatsApp en el teléfono del local"] },
   { k: "permisos", n: "Permisos", d: "Qué puede hacer cada rol, y quién cambió qué", nivel: "empresa", necesita: [] },
   { k: "asistente", n: "Asistente con IA", d: "Diagnóstico y consultas", nivel: "empresa", necesita: [] },
