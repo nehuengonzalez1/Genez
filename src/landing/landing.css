@@ -1662,3 +1662,25 @@ html:not(.tema-noche) footer { border-top-color: transparent; }
 .pl-oferta { margin-top: calc(2 * var(--u)); font-size: calc(13 * var(--u)); font-weight: 700; color: rgb(var(--an-naranja)); }
 .li-oferta { margin-top: calc(4 * var(--v)); font-size: calc(9.5 * var(--v)); font-weight: 600; color: rgb(var(--an-naranja)); }
 @media (max-width: 1023px) { .pl-oferta { font-size: 13px; } }
+
+/* A medida (02/10): una franja debajo de los tres planes, del ancho de
+   la grilla, para el que prefiere quedarse solo con lo que eligió. */
+.pl-medida {
+  display: flex; align-items: center; gap: calc(24 * var(--u)); margin-top: calc(16 * var(--u)); margin-right: calc(6 * var(--u));
+  padding: calc(16 * var(--u)) calc(24 * var(--u)); border-radius: calc(8 * var(--u));
+  border: 1.5px dashed rgb(var(--an-texto) / 0.25); background: rgb(var(--an-tarjeta) / 0.6);
+}
+.pl-medida-texto { flex: 1; min-width: 0; }
+.pl-medida-nombre { font-size: calc(20 * var(--u)); font-weight: 700; }
+.pl-medida-detalle { margin-top: calc(2 * var(--u)); font-size: calc(14.5 * var(--u)); color: rgb(var(--an-suave)); }
+.pl-medida-precio { display: flex; flex-direction: column; align-items: flex-end; }
+.pl-medida .pl-boton { --pl: var(--an-naranja); --pl-texto-boton: var(--an-texto); margin-top: 0; padding: 0 calc(22 * var(--u)); white-space: nowrap; }
+.an-dia .pl-medida { margin-right: 0; background: rgb(255 255 255 / 0.8); border-color: rgb(0 0 0 / 0.18); }
+.an-dia .pl-medida .pl-boton { background: rgb(255 255 255); color: rgb(var(--an-naranja)); }
+@media (max-width: 1023px) {
+  .pl-medida { flex-direction: column; align-items: stretch; gap: 12px; margin-right: 0; padding: 16px; }
+  .pl-medida-nombre { font-size: 18px; }
+  .pl-medida-detalle { font-size: 14px; }
+  .pl-medida-precio { align-items: flex-start; }
+  .pl-medida .pl-boton { height: 44px; }
+}
