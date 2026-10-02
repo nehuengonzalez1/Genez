@@ -45,6 +45,8 @@ import {
   Smartphone, TrendingUp, MapPin, CreditCard, Unlock, Lock, Leaf, Home, Calendar, Gift, User, Coins, Timer, Monitor, CircleCheck, Database, Wifi, Puzzle, Play, MessageSquare,
 } from "lucide-react";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
+import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
+import { presupuestar } from "../datos/presupuesto.js";
 import { MODULOS } from "../datos/modulos.js";
 import { ROTULO } from "../cliente/ui.jsx";
 import { LogoGenez } from "../ui/Logo.jsx";
@@ -609,7 +611,7 @@ function Preguntas() {
 }
 
 const PREGUNTAS = [
-  [Database, "¿Cuánto cuesta?", "Planes claros y sin costos ocultos.", "Una base por mes que incluye cobro, caja y ajustes, más cada módulo que sumes. El número exacto lo ves al final de los tres pasos, antes de hablar con nadie. La puesta en marcha —cargar tu catálogo y capacitarte— se cobra una sola vez."],
+  [Database, "¿Cuánto cuesta?", "Planes claros y sin costos ocultos.", null],
   [ShoppingCart, "¿Necesito comprar equipos?", "Funciona en tus dispositivos actuales.", "Con un celular, una tablet o una computadora ya funciona. Para cobrar en mostrador conviene una impresora térmica y un lector de códigos (o la cámara del celular); para vender por peso, una balanza que imprima etiquetas. El presupuesto te dice exactamente qué te hace falta según lo que marcaste."],
   [Wifi, "¿Qué pasa si se corta internet?", "Podés seguir trabajando sin problemas.", "Seguís cobrando. La venta se guarda en el equipo y se manda sola cuando vuelve la conexión."],
   [FileText, "¿Puedo facturar?", "Sí. Emitís comprobantes de forma simple.", "Sí: el módulo Clientes emite facturas A, B y C. Necesitás tu CUIT y tu condición frente al IVA."],
@@ -622,8 +624,29 @@ const DATOS_PREGUNTAS = [
   [CircleCheck, <>Te acompañamos<br />en todo el proceso</>],
 ];
 
+/* La respuesta del precio sale de las tarifas, como el alta. Decía que la
+   puesta en marcha se cobraba aparte cuando no tenía precio, y no decía
+   nada del descuento de lanzamiento: escrita a mano, quedaba vieja cada
+   vez que la plataforma cambiaba algo en Precios. Mientras las tarifas
+   no llegan, va la parte que no depende de ellas. */
+function respuestaDelPrecio(tarifas) {
+  const { descuento, puestaEnMarcha } = presupuestar(tarifas || TARIFAS_VACIAS, []);
+  const cuando = !descuento ? "" : !descuento.meses ? "" : descuento.meses === 1 ? "el primer mes " : `los primeros ${descuento.meses} meses `;
+  return [
+    "Una base por mes que incluye cobro, caja y ajustes, más cada módulo que sumes. El número exacto lo ves al final de los tres pasos, antes de hablar con nadie.",
+    descuento ? `Por el lanzamiento, ${cuando}pagás un ${descuento.porcentaje}% menos.` : "",
+    puestaEnMarcha > 0 ? "La puesta en marcha —cargar tu catálogo y capacitarte— se cobra una sola vez." : "",
+  ].filter(Boolean).join(" ");
+}
+
 function PreguntasNoche({ claro = false }) {
   const [abiertas, setAbiertas] = useState(() => new Set());
+  const [tarifas, setTarifas] = useState(null);
+  useEffect(() => {
+    let vigente = true;
+    cargarTarifasPublicas().then((t) => { if (vigente) setTarifas(t); }).catch(() => {});
+    return () => { vigente = false; };
+  }, []);
   const todas = abiertas.size === PREGUNTAS.length;
   const alternar = (i) => setAbiertas((a) => { const n = new Set(a); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   return (
@@ -654,7 +677,7 @@ function PreguntasNoche({ claro = false }) {
                   </span>
                   {abierta ? <Minus className="pf-mas" strokeWidth={1.75} /> : <Plus className="pf-mas" strokeWidth={1.75} />}
                 </button>
-                {abierta && <p className="pf-larga">{larga}</p>}
+                {abierta && <p className="pf-larga">{larga ?? respuestaDelPrecio(tarifas)}</p>}
               </li>
             );
           })}
