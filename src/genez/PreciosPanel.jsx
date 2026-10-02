@@ -87,6 +87,12 @@ export function PreciosPanel() {
               <Campo label="Puesta en marcha (una sola vez, vacío = no se cobra)">
                 <input value={t.puestaEnMarcha ?? ""} onChange={(e) => tocar({ puestaEnMarcha: aMonto(e.target.value) })} inputMode="numeric" placeholder="0" className={`${inputCls} f-m text-right`} />
               </Campo>
+              <Campo label="Descuento de lanzamiento (%, vacío = sin descuento)">
+                <input value={t.descuento?.porcentaje ?? ""} onChange={(e) => tocar({ descuento: { ...t.descuento, porcentaje: aMonto(e.target.value) } })} inputMode="numeric" placeholder="sin descuento" className={`${inputCls} f-m text-right`} />
+              </Campo>
+              <Campo label="Durante los primeros (meses, vacío = sin fin)">
+                <input value={t.descuento?.meses ?? ""} onChange={(e) => tocar({ descuento: { ...t.descuento, meses: aMonto(e.target.value) } })} inputMode="numeric" placeholder="sin fin" className={`${inputCls} f-m text-right`} />
+              </Campo>
               <Campo label="WhatsApp al que llega el presupuesto (con 549…)">
                 <input value={t.whatsapp || ""} onChange={(e) => tocar({ whatsapp: soloNumero(e.target.value) })} inputMode="tel" placeholder="5491112345678" className={`${inputCls} f-m`} />
               </Campo>
@@ -115,6 +121,9 @@ export function PreciosPanel() {
               {t.base == null
                 ? "Sin la base no hay presupuesto: el alta guiada dice \"a confirmar\" hasta que la cargues."
                 : `Un comercio con solo los módulos base paga ${money(t.base)} por mes${t.puestaEnMarcha ? ` más ${money(t.puestaEnMarcha)} por única vez` : ""}.`}
+              {t.base != null && t.descuento?.porcentaje > 0 && t.descuento.porcentaje < 100 && (
+                <span className="block mt-1">Con el descuento, {money(Math.round(t.base * (1 - t.descuento.porcentaje / 100)))} por mes{t.descuento.meses ? ` los primeros ${t.descuento.meses} meses` : ""}. El alta guiada muestra la lista tachada.</span>
+              )}
               {aviso && <span className={`block mt-1 ${aviso.tipo === "ok" ? "text-bien" : "text-mal"}`}>{aviso.texto}</span>}
             </div>
           </>

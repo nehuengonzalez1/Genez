@@ -602,6 +602,7 @@ const FUNCIONES = {
       .sort((a, b) => b.coincidencias - a.coincidencias).slice(0, 5);
   },
   permiso: () => true,
+  tarifas_publicas: () => T.tarifas || [],
   interno_posibles_duplicados: ({ p_nombre, p_telefono, p_excluir }) => {
     const n = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
     const tel = normTel;

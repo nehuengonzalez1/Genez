@@ -19,7 +19,8 @@
      node scripts/probar-presupuesto.mjs
    ============================================================ */
 
-import { armarModulos, presupuestar, textoDelPresupuesto, DOLORES, GENERALES, conDolores, planes } from "../src/datos/presupuesto.js";
+import { armarModulos, presupuestar, textoDelPresupuesto, textoDescuento, DOLORES, GENERALES, conDolores, planes } from "../src/datos/presupuesto.js";
+import { armarTarifas, filasDeTarifas } from "../src/datos/tarifas.js";
 import { RUBROS_DE_FABRICA } from "../src/datos/landing.js";
 import { MODULOS_BASE } from "../src/datos/modulos.js";
 import { validarPedido, armarPedido, normalizarTelefono } from "../src/datos/solicitudes.js";
@@ -144,6 +145,28 @@ const tarifas = { base: 20000, puestaEnMarcha: 50000, modulos: { productos: 5000
 {
   const p = presupuestar(null, ["cobro", "caja", "ajustes"]);
   decir(p.mensual === null && p.cantidad === 3, "sin tarifas (base sin contestar) no explota");
+}
+
+console.log("\nEl descuento de lanzamiento\n");
+
+{
+  const conDesc = { ...tarifas, descuento: { porcentaje: 50, meses: 6 } };
+  const { elegidos } = armarModulos({ rubro: mini, respuestas: { factura: true } });
+  const p = presupuestar(conDesc, elegidos);
+  decir(p.mensual === 37000 && p.conDescuento === 18500, `la lista queda igual y el descuento se calcula aparte: ${p.mensual} → ${p.conDescuento}`);
+  decir(igual(p.descuento, { porcentaje: 50, meses: 6 }), "el presupuesto dice cuánto y por cuánto tiempo");
+  const texto = textoDelPresupuesto({ rubro: mini, negocio: "Almacén", escala: "1", presupuesto: p, pesos: (n) => `$${n}` });
+  decir(/\$18500 por mes \(50% los primeros 6 meses; después \$37000\)/.test(texto), "el WhatsApp dice lo que se paga ahora y lo que se paga después");
+  const sinTotal = presupuestar(conDesc, [...elegidos, "pedidos"]);
+  decir(sinTotal.mensual === null && sinTotal.conDescuento === null, "sin total no hay descuento que mostrar");
+  decir(presupuestar(tarifas, elegidos).descuento === null, "sin descuento cargado, no hay descuento");
+  decir(presupuestar({ ...tarifas, descuento: { porcentaje: 100, meses: 6 } }, elegidos).descuento === null, "un 100% no es un descuento, es un error de carga: se ignora");
+  decir(textoDescuento({ porcentaje: 50, meses: null }) === "50% de lanzamiento" && textoDescuento({ porcentaje: 30, meses: 1 }) === "30% el primer mes", "el texto del descuento sin fin y de un solo mes");
+  const t = armarTarifas([{ clave: "base", monto: 52000 }, { clave: "descuento", monto: 50 }, { clave: "descuento_meses", monto: 6 }]);
+  decir(t.descuento.porcentaje === 50 && t.descuento.meses === 6, "las tarifas leen el descuento de sus dos filas");
+  const filas = filasDeTarifas(t);
+  decir(filas.some((f) => f.clave === "descuento" && f.monto === 50) && filas.some((f) => f.clave === "descuento_meses" && f.monto === 6), "y lo guardan en las mismas dos filas");
+  decir(armarTarifas([]).descuento.porcentaje === null, "sin filas, sin descuento");
 }
 
 console.log("\nEl pedido\n");
