@@ -20,7 +20,7 @@
    ============================================================ */
 
 import { armarModulos, presupuestar, textoDelPresupuesto, textoDescuento, DOLORES, GENERALES, conDolores, planes } from "../src/datos/presupuesto.js";
-import { armarTarifas, filasDeTarifas } from "../src/datos/tarifas.js";
+import { armarTarifas, filasDeTarifas, tarifasAMedida, hayAMedida } from "../src/datos/tarifas.js";
 import { RUBROS_DE_FABRICA } from "../src/datos/landing.js";
 import { MODULOS_BASE } from "../src/datos/modulos.js";
 import { validarPedido, armarPedido, normalizarTelefono } from "../src/datos/solicitudes.js";
@@ -167,6 +167,24 @@ console.log("\nEl descuento de lanzamiento\n");
   const filas = filasDeTarifas(t);
   decir(filas.some((f) => f.clave === "descuento" && f.monto === 50) && filas.some((f) => f.clave === "descuento_meses" && f.monto === 6), "y lo guardan en las mismas dos filas");
   decir(armarTarifas([]).descuento.porcentaje === null, "sin filas, sin descuento");
+}
+
+console.log("\nA medida\n");
+
+{
+  const t = armarTarifas([
+    { clave: "base", monto: 52000 }, { clave: "modulo:stock", monto: 18000 },
+    { clave: "medida:base", monto: 60000 }, { clave: "medida:stock", monto: 22000 },
+    { clave: "descuento", monto: 50 }, { clave: "descuento_meses", monto: 6 },
+  ]);
+  decir(t.medida.base === 60000 && t.medida.modulos.stock === 22000 && t.modulos.stock === 18000, "la lista a medida se lee aparte de la de los planes");
+  decir(hayAMedida(t) && !hayAMedida(armarTarifas([{ clave: "base", monto: 52000 }])), "a medida se ofrece solo con su base cargada");
+  const p = presupuestar(tarifasAMedida(t), ["cobro", "caja", "ajustes", "stock"]);
+  decir(p.mensual === 82000 && p.conDescuento === 41000, `a medida suma su propia lista y lleva el mismo descuento: ${p.mensual} → ${p.conDescuento}`);
+  const sinPrecio = presupuestar(tarifasAMedida(t), ["cobro", "caja", "ajustes", "compras"]);
+  decir(sinPrecio.mensual === null && igual(sinPrecio.faltan, ["compras"]), "un módulo sin precio a medida deja el total a confirmar");
+  const filas = filasDeTarifas(t);
+  decir(filas.some((f) => f.clave === "medida:base" && f.monto === 60000) && filas.some((f) => f.clave === "medida:stock" && f.monto === 22000), "y se guarda en sus propias filas");
 }
 
 console.log("\nEl pedido\n");

@@ -40,7 +40,7 @@ import {
 import { estaOscuro } from "./tema.js";
 import { MODULOS_BASE, moduloPorClave, nivelDe } from "../datos/modulos.js";
 import { ESCALAS, DOLORES, GENERALES, conDolores, armarModulos, planes, presupuestar, textoDelPresupuesto, textoDescuento } from "../datos/presupuesto.js";
-import { cargarTarifasPublicas, TARIFAS_VACIAS } from "../datos/tarifas.js";
+import { cargarTarifasPublicas, TARIFAS_VACIAS, tarifasAMedida, hayAMedida } from "../datos/tarifas.js";
 import { pedirPresupuesto, validarPedido } from "../datos/solicitudes.js";
 import { Tarjeta, Boton } from "../cliente/ui.jsx";
 import { ICONO_RUBRO, ICONO_MODULO, ICONO_DOLOR, foto } from "./comun.jsx";
@@ -99,9 +99,15 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
     [rubroArmado, respuestasTotales, sacados, sumados, escala],
   );
   const recomendada = opciones.find((o) => o.recomendado);
-  const elegida = opciones.find((o) => o.k === opcion) || recomendada;
+  /* A medida: exactamente lo que dejó elegido en "Tus módulos", con la
+     otra lista de precios. Se ofrece solo si esa lista tiene base. */
+  const aMedida = useMemo(
+    () => (necesidad ? { k: "medida", n: "A medida", d: "Solo los módulos que elegiste.", lema: "Pagás exactamente lo que elegiste.", armado: necesidad, faltan: [] } : null),
+    [necesidad],
+  );
+  const elegida = (opcion === "medida" && aMedida) || opciones.find((o) => o.k === opcion) || recomendada;
   const presupuesto = useMemo(
-    () => (elegida ? presupuestar(tarifas || TARIFAS_VACIAS, elegida.armado.elegidos) : null),
+    () => (elegida ? presupuestar(elegida.k === "medida" ? tarifasAMedida(tarifas) : (tarifas || TARIFAS_VACIAS), elegida.armado.elegidos) : null),
     [tarifas, elegida],
   );
 
@@ -137,7 +143,7 @@ export default function Stepper({ rubro, rubros = [], negocio, onElegirNegocio, 
   }
   if (paso === 5) {
     return (
-      <Plan opciones={opciones} tarifas={tarifas} todos={opciones[opciones.length - 1].armado.elegidos}
+      <Plan opciones={opciones} tarifas={tarifas} todos={opciones[opciones.length - 1].armado.elegidos} aMedida={aMedida}
         onElegir={(k) => { setOpcion(k); ir(6); }} onVolver={() => ir(4)} />
     );
   }
@@ -585,7 +591,8 @@ function Plan(props) {
    siempre, y sin tarifas dice "Consultar". "Ver mi presupuesto" sigue con
    el recomendado. El claro (01/10) es el mismo, con sus recortes en
    alta-claro y an-dia: tarjetas claras teñidas del color de cada plan. */
-function PlanNoche({ opciones, tarifas, todos, onElegir, onVolver, claro = false }) {
+function PlanNoche({ opciones, tarifas, todos, aMedida, onElegir, onVolver, claro = false }) {
+  const preMedida = aMedida && hayAMedida(tarifas) ? presupuestar(tarifasAMedida(tarifas), aMedida.armado.elegidos) : null;
   const recomendado = opciones.find((o) => o.recomendado) || opciones[opciones.length - 1];
   const dir = claro ? "/landing/alta-claro" : "/landing/alta";
   return (
@@ -611,6 +618,29 @@ function PlanNoche({ opciones, tarifas, todos, onElegir, onVolver, claro = false
         <div className="pl-grilla">
           {opciones.map((o) => <TarjetaPlanNoche key={o.k} opcion={o} tarifas={tarifas} todos={todos} dir={dir} onElegir={() => onElegir(o.k)} />)}
         </div>
+
+        {/* Los planes son lo que trae cada negocio; el que prefiere quedarse
+            solo con lo que eligió en "Tus módulos" lo tiene acá, con su
+            propia lista de precios. */}
+        {preMedida && (
+          <div className="pl-medida">
+            <div className="pl-medida-texto">
+              <div className="pl-medida-nombre">A medida</div>
+              <div className="pl-medida-detalle">Solo los {preMedida.cantidad} módulos que elegiste en el paso anterior.</div>
+            </div>
+            <div className="pl-medida-precio">
+              {preMedida.mensual == null && <span className="pl-monto">Consultar</span>}
+              {preMedida.mensual != null && preMedida.conDescuento == null && <span className="pl-monto f-m">{pesos(preMedida.mensual)} <span className="pl-mes">/mes</span></span>}
+              {preMedida.conDescuento != null && (
+                <>
+                  <span className="pl-monto f-m"><s className="pl-tachado">{pesos(preMedida.mensual)}</s> {pesos(preMedida.conDescuento)} <span className="pl-mes">/mes</span></span>
+                  <span className="pl-oferta">−{textoDescuento(preMedida.descuento)}</span>
+                </>
+              )}
+            </div>
+            <button type="button" onClick={() => onElegir("medida")} className="pl-boton pl-medida-boton">Elegir a medida</button>
+          </div>
+        )}
 
         <ul className="pl-confianza">
           {CONFIANZA.slice(0, 3).map(([I, t, d]) => (

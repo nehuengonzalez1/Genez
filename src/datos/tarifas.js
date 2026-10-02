@@ -18,6 +18,10 @@
    filas más (`descuento` y `descuento_meses`), no una migración: la
    tabla ya es un concepto por fila. Sin porcentaje, no hay descuento;
    sin meses, el descuento no tiene fin.
+
+   A medida (02/10): el que no toma el plan de su negocio y se queda solo
+   con los módulos que eligió paga con otra lista, `medida:base` y
+   `medida:<clave>`. Sin la base a medida, esa opción no se ofrece.
    ============================================================ */
 
 /* El WhatsApp al que llega el presupuesto mientras la plataforma no cargue
@@ -32,12 +36,13 @@ export const TARIFAS_VACIAS = Object.freeze({
   modulos: {},
   whatsapp: CONTACTO_DE_FABRICA.whatsapp,
   descuento: Object.freeze({ porcentaje: null, meses: null }),
+  medida: Object.freeze({ base: null, modulos: Object.freeze({}) }),
 });
 
 const numero = (v) => (v == null || v === "" ? null : Number(v));
 
 export function armarTarifas(filas) {
-  const t = { ...TARIFAS_VACIAS, modulos: {}, descuento: { porcentaje: null, meses: null } };
+  const t = { ...TARIFAS_VACIAS, modulos: {}, descuento: { porcentaje: null, meses: null }, medida: { base: null, modulos: {} } };
   for (const f of filas || []) {
     if (f.clave === "base") t.base = numero(f.monto);
     else if (f.clave === "puesta_en_marcha") t.puestaEnMarcha = numero(f.monto);
@@ -45,6 +50,8 @@ export function armarTarifas(filas) {
     else if (f.clave === "descuento") t.descuento.porcentaje = numero(f.monto);
     else if (f.clave === "descuento_meses") t.descuento.meses = numero(f.monto);
     else if (f.clave.startsWith("modulo:")) t.modulos[f.clave.slice("modulo:".length)] = numero(f.monto);
+    else if (f.clave === "medida:base") t.medida.base = numero(f.monto);
+    else if (f.clave.startsWith("medida:")) t.medida.modulos[f.clave.slice("medida:".length)] = numero(f.monto);
   }
   return t;
 }
@@ -64,9 +71,25 @@ export function filasDeTarifas(t) {
   for (const [k, monto] of Object.entries(t.modulos || {})) {
     filas.push({ clave: `modulo:${k}`, monto: numero(monto), texto: null });
   }
+  const medida = t.medida || {};
+  filas.push({ clave: "medida:base", monto: numero(medida.base), texto: null });
+  for (const [k, monto] of Object.entries(medida.modulos || {})) {
+    filas.push({ clave: `medida:${k}`, monto: numero(monto), texto: null });
+  }
   const ahora = new Date().toISOString();
   return filas.map((f) => ({ ...f, actualizado_en: ahora }));
 }
+
+/* Las tarifas con la lista a medida en lugar de la de los planes, para
+   pasárselas a presupuestar(). El descuento y la puesta en marcha son los
+   mismos. */
+export function tarifasAMedida(t) {
+  const m = (t && t.medida) || {};
+  return { ...(t || TARIFAS_VACIAS), base: m.base ?? null, modulos: m.modulos || {} };
+}
+
+/* Se ofrece "a medida" solo si la plataforma cargó su base. */
+export const hayAMedida = (t) => !!(t && t.medida && t.medida.base != null);
 
 /* Con sesión: lo que edita la plataforma. */
 export async function cargarTarifas() {

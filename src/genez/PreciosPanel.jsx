@@ -41,6 +41,9 @@ export function PreciosPanel() {
 
   const tocar = (cambio) => { setT((x) => ({ ...x, ...cambio })); setSucio(true); setAviso(null); };
   const tocarModulo = (k, v) => tocar({ modulos: { ...t.modulos, [k]: aMonto(v) } });
+  const medida = t.medida || { base: null, modulos: {} };
+  const tocarMedida = (cambio) => tocar({ medida: { ...medida, ...cambio } });
+  const tocarModuloMedida = (k, v) => tocarMedida({ modulos: { ...medida.modulos, [k]: aMonto(v) } });
 
   const guardar = async () => {
     setGuardando(true); setAviso(null);
@@ -93,13 +96,16 @@ export function PreciosPanel() {
               <Campo label="Durante los primeros (meses, vacío = sin fin)">
                 <input value={t.descuento?.meses ?? ""} onChange={(e) => tocar({ descuento: { ...t.descuento, meses: aMonto(e.target.value) } })} inputMode="numeric" placeholder="sin fin" className={`${inputCls} f-m text-right`} />
               </Campo>
+              <Campo label="Base a medida (vacío = no se ofrece a medida)">
+                <input value={medida.base ?? ""} onChange={(e) => tocarMedida({ base: aMonto(e.target.value) })} inputMode="numeric" placeholder="no se ofrece" className={`${inputCls} f-m text-right`} />
+              </Campo>
               <Campo label="WhatsApp al que llega el presupuesto (con 549…)">
                 <input value={t.whatsapp || ""} onChange={(e) => tocar({ whatsapp: soloNumero(e.target.value) })} inputMode="tel" placeholder="5491112345678" className={`${inputCls} f-m`} />
               </Campo>
             </div>
 
             <div className="border-t border-borde-fuerte px-4 py-3 flex items-baseline justify-between gap-3">
-              <span className={ROTULO}>Por módulo, por mes</span>
+              <span className={ROTULO}>Por módulo, por mes · en el plan / a medida</span>
               <span className="text-[11px] text-texto-tenue">{conPrecio} de {opcionales.length} con precio</span>
             </div>
             <div className="divide-y divide-borde-fuerte">
@@ -112,7 +118,9 @@ export function PreciosPanel() {
                   </span>
                   <span className="text-xs text-texto-tenue">$</span>
                   <input value={t.modulos[m.k] ?? ""} onChange={(e) => tocarModulo(m.k, e.target.value)} inputMode="numeric" placeholder="a confirmar"
-                    className={`${inputCls} f-m text-right !mt-0 w-32`} />
+                    aria-label={`${m.n} en el plan`} className={`${inputCls} f-m text-right !mt-0 w-28`} />
+                  <input value={medida.modulos[m.k] ?? ""} onChange={(e) => tocarModuloMedida(m.k, e.target.value)} inputMode="numeric" placeholder="a medida"
+                    aria-label={`${m.n} a medida`} className={`${inputCls} f-m text-right !mt-0 w-28`} />
                 </label>
               ))}
             </div>
