@@ -411,3 +411,61 @@
   .ln-negocios-resto { margin-top: calc(24 * var(--u)); gap: calc(10 * var(--u)); font-size: calc(16 * var(--u)); max-width: calc(1685 * var(--u)); }
   .ln-negocios-chip { padding: calc(6 * var(--u)) calc(14 * var(--u)); font-size: calc(15.5 * var(--u)); }
 }
+
+/* ------------------------------------------------------------
+   4 · Costos + rentabilidad (maqueta: 1960 × 802)
+   ------------------------------------------------------------ */
+.ln-renta {
+  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1960));
+  padding: 48px 20px 40px;
+}
+.ln-renta-rotulo { letter-spacing: 0.1em; }
+.ln-renta-titulo { margin-top: 12px; font-size: 40px; font-weight: 800; line-height: 0.98; letter-spacing: -0.05em; }
+.ln-renta-parrafo { margin-top: 16px; font-size: 16px; line-height: 1.45; color: rgb(var(--ln-suave)); }
+.ln-renta-arte {
+  display: block; width: 100%; height: auto; margin-top: 20px;
+  /* El fondo de la maqueta no es exactamente el de la página (en oscuro se
+     veía el recuadro): los cuatro bordes se funden. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent), linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent), linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+  mask-composite: intersect;
+}
+.ln-renta-puntos { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px 12px; }
+.ln-renta-puntos li { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.ln-renta-icono {
+  display: flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 14px;
+  background: rgb(var(--ln-icono-fondo)); color: rgb(var(--ln-naranja));
+}
+.ln-renta-icono svg { width: 28px; height: 28px; }
+.ln-renta-punto-titulo { margin-top: 10px; font-size: 15px; font-weight: 800; }
+.ln-renta-punto-texto { margin-top: 2px; font-size: 13.5px; color: rgb(var(--ln-suave)); }
+
+@media (max-width: 1023px) {
+  .ln-renta-titulo br { display: none; }
+  .ln-renta-titulo .ln-naranja { display: block; }
+}
+
+@media (min-width: 1024px) {
+  .ln-renta { padding: 0; }
+  .ln-renta-lienzo { position: relative; width: calc(1960 * var(--u)); height: calc(802 * var(--u)); margin: 0 auto; }
+  .ln-renta-texto { position: absolute; left: calc(166 * var(--u)); top: calc(104 * var(--u)); }
+  .ln-renta-rotulo { font-size: calc(18.5 * var(--u)); }
+  .ln-renta-titulo { margin-top: calc(22 * var(--u)); font-size: calc(88 * var(--u)); line-height: 0.98; white-space: nowrap; }
+  .ln-renta-parrafo { margin-top: calc(14 * var(--u)); font-size: calc(22 * var(--u)); line-height: 1.6; }
+  /* Las tarjetas quedan a 12 px del borde del recorte: el fundido, corto. */
+  .ln-renta-arte {
+    position: absolute; left: calc(840 * var(--u)); top: calc(55 * var(--u)); width: calc(1030 * var(--u)); margin: 0;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 1%, #000 99%, transparent), linear-gradient(to bottom, transparent, #000 3%, #000 97%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 1%, #000 99%, transparent), linear-gradient(to bottom, transparent, #000 3%, #000 97%, transparent);
+  }
+  .ln-renta-puntos {
+    position: absolute; left: calc(797 * var(--u)); top: calc(548 * var(--u)); margin: 0;
+    grid-template-columns: repeat(4, calc(270 * var(--u))); column-gap: calc(9 * var(--u));
+  }
+  .ln-renta-icono { width: calc(85 * var(--u)); height: calc(85 * var(--u)); border-radius: calc(18 * var(--u)); }
+  .ln-renta-icono svg { width: calc(40 * var(--u)); height: calc(40 * var(--u)); }
+  .ln-renta-punto-titulo { margin-top: calc(14 * var(--u)); font-size: calc(19.5 * var(--u)); }
+  .ln-renta-punto-texto { margin-top: calc(4 * var(--u)); font-size: calc(17 * var(--u)); }
+}

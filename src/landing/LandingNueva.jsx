@@ -27,6 +27,7 @@ import {
   ArrowRight, Sun, Moon, ShoppingCart, Box, BarChart3, FileText, AlertTriangle, TrendingDown, Truck, ChevronDown,
   Store, UtensilsCrossed, Shirt, Scissors, Laptop, Coffee, Beer, Croissant, Apple, Leaf, Wrench, ShowerHead, Candy,
   ChefHat, ShoppingBag, Sparkles, PersonStanding, Dumbbell, Stethoscope, Flower2,
+  Coins, Percent, Tag, BellRing,
 } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
@@ -97,6 +98,7 @@ export default function LandingNueva() {
           <Inicio />
           <QueHace />
           <Negocios rubros={rubros} onElegir={elegirNegocio} />
+          <Rentabilidad />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -395,6 +397,53 @@ function Negocios({ rubros, onElegir }) {
             ))}
           </div>
         )}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   4 · Costos + rentabilidad
+   ------------------------------------------------------------
+   La hamburguesa, la bolsa y las tres tarjetas son el recorte de la
+   maqueta. La tarjeta "Costos" decía "ingredientes, mano de obra, gastos
+   fijos y variables", y el costo de una receta suma solo sus insumos (al
+   costo promedio de las compras, 0076): se repintó. Por lo mismo cambian
+   dos de los cuatro puntos de abajo: "Impuestos y gastos" no existe por
+   producto, y lo que sí existe es el aviso cuando sube un costo; los
+   "precios inteligentes" son el precio sugerido de la lista del
+   proveedor. */
+const PUNTOS_RENTABILIDAD = [
+  { icono: Coins, titulo: "Costos reales", texto: "Desde cada insumo de la receta." },
+  { icono: Percent, titulo: "Margen por producto", texto: "Sabé qué te deja ganancia." },
+  { icono: Tag, titulo: "Precio sugerido", texto: "Según el margen que querés." },
+  { icono: BellRing, titulo: "Alertas de margen", texto: "Te avisa si un costo sube." },
+];
+
+function Rentabilidad() {
+  const oscuro = useOscuro();
+  return (
+    <section id={ANCLAS.rentabilidad} className="ln-renta">
+      <div className="ln-renta-lienzo">
+        <div className="ln-renta-texto">
+          <div className="ln-rotulo ln-renta-rotulo">Costos + rentabilidad</div>
+          <h2 className="ln-renta-titulo">No alcanza{" "}<br />con saber{" "}<br />cuánto vendés.{" "}<br /><span className="ln-naranja">Tenés que saber{" "}<br />cuánto ganás.</span></h2>
+          <p className="ln-renta-parrafo">Armá el costo desde la receta, seguí cada suba del proveedor<br className="ln-solo-ancho" /> y conocé tu margen real en cada producto.</p>
+        </div>
+        <img src={oscuro ? "/landing/nueva/costos-oscuro.jpg" : "/landing/nueva/costos-claro.jpg"} width="1030" height="455" className="ln-renta-arte"
+          alt="Una hamburguesa con su costo total, su precio de venta y su margen, 65,8%" />
+        <ul className="ln-renta-puntos">
+          {PUNTOS_RENTABILIDAD.map((p) => {
+            const I = p.icono;
+            return (
+              <li key={p.titulo}>
+                <span className="ln-renta-icono"><I strokeWidth={1.9} /></span>
+                <span className="ln-renta-punto-titulo">{p.titulo}</span>
+                <span className="ln-renta-punto-texto">{p.texto}</span>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );
