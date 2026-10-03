@@ -669,7 +669,7 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
   return (
     <MarcoEntrada>
       <CabezaEntrada />
-      <h2 className="f-d text-xl text-center mt-7">
+      <h2 className="f-d text-lg text-center mt-5">
         {forzado ? "Elegí tu contraseña" : "Elegí una contraseña nueva"}
       </h2>
       <p className="text-texto-suave mt-2 text-sm text-center">
@@ -684,7 +684,7 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
             : "La que te dieron la sabe otra persona. Poné una tuya para seguir. Mínimo 8 caracteres."}
       </p>
 
-      <div className="mt-6 space-y-3.5">
+      <div className="mt-5 space-y-3">
         <CampoEntrada icono={Lock} type={ver ? "text" : "password"} value={clave} autoFocus
           placeholder="Contraseña nueva" aria-label="Contraseña nueva"
           onChange={(e) => { setClave(e.target.value); setError(""); }}
@@ -693,7 +693,7 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
             <button type="button" onClick={() => setVer((v) => !v)} tabIndex={-1}
               aria-label={ver ? "Ocultar la contraseña" : "Mostrar la contraseña"}
               className="p-1 text-texto-suave hover:text-texto transition-colors">
-              {ver ? <EyeOff size={19} /> : <Eye size={19} />}
+              {ver ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           } />
         <CampoEntrada icono={Lock} type={ver ? "text" : "password"} value={repetir}
@@ -709,9 +709,9 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
         )}
 
         <button onClick={guardar} disabled={guardando || !clave || !repetir}
-          className="relative w-full h-[52px] rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-[17px] transition-colors">
+          className="relative w-full h-11 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-[15px] transition-colors">
           {guardando ? "Guardando…" : "Guardar y entrar"}
-          <ArrowRight size={20} className="absolute right-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
+          <ArrowRight size={18} className="absolute right-4 top-1/2 -translate-y-1/2" aria-hidden="true" />
         </button>
 
         <button type="button" onClick={onCancelar}
@@ -767,7 +767,7 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
     <MarcoEntrada>
       <CabezaEntrada />
 
-      <div className="mt-8 space-y-3.5">
+      <div className="mt-6 space-y-3">
         <CampoEntrada icono={Mail} type="email" value={usuario} placeholder="Correo electrónico" aria-label="Correo electrónico"
           onChange={(e) => { setUsuario(e.target.value); setError(""); }}
           onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
@@ -780,7 +780,7 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
             <button type="button" onClick={() => setVerClave((v) => !v)} tabIndex={-1}
               aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
               className="p-1 text-texto-suave hover:text-texto transition-colors">
-              {verClave ? <EyeOff size={19} /> : <Eye size={19} />}
+              {verClave ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           } />
 
@@ -797,9 +797,9 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
         )}
 
         <button onClick={entrar} disabled={cargando}
-          className="relative w-full h-[52px] rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-[17px] transition-colors">
+          className="relative w-full h-11 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-[15px] transition-colors">
           {cargando ? "Entrando…" : "Entrar"}
-          <ArrowRight size={20} className="absolute right-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
+          <ArrowRight size={18} className="absolute right-4 top-1/2 -translate-y-1/2" aria-hidden="true" />
         </button>
 
         <button type="button" onClick={recuperar} disabled={enviando}
