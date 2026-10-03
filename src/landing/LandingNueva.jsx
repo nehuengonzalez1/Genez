@@ -1137,7 +1137,20 @@ function Preguntas({ tarifas }) {
    el comercio lo arma la base cuando la persona confirma y entra (ver
    src/datos/autoservicio.js). Antes deja una solicitud con origen
    "registro-prueba": quien no confirma el mail igual queda anotado y se
-   le puede escribir. Si la solicitud falla, la cuenta se crea igual. */
+   le puede escribir. Si la solicitud falla, la cuenta se crea igual.
+
+   MIENTRAS LAS ALTAS ESTÉN CERRADAS
+   ---------------------------------
+   Sin VITE_ALTAS_ABIERTAS=1 no se crea ninguna cuenta: queda la solicitud
+   (origen "registro-landing") y Genez activa la prueba a mano, como antes
+   del autoservicio. Tampoco se pide contraseña: pedirla sin crear la
+   cuenta sería mentirle. Se abren cuando el mail de confirmación le llegue
+   al público (Resend como SMTP de Supabase Auth) y estén los términos;
+   hasta entonces quien se registraba esperaba un mail que no llegaba.
+   En desarrollo, ?altas=abiertas prueba el otro camino. */
+const ALTAS_ABIERTAS = import.meta.env.VITE_ALTAS_ABIERTAS === "1"
+  || (import.meta.env.DEV && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("altas") === "abiertas");
+
 const PROVINCIAS = [
   "Buenos Aires", "Ciudad de Buenos Aires", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos",
   "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan",
@@ -1196,8 +1209,8 @@ function Registro({ rubros, tarifas, eleccion }) {
     const problema = validarPedido({ nombre: d.nombre, telefono: d.telefono, email: d.email });
     if (problema) return setError(problema);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())) return setError("Escribí tu email: ahí te llega el acceso.");
-    if (d.clave.length < 8) return setError("La contraseña tiene que tener al menos 8 caracteres.");
-    if (!d.acepta) return setError("Para crear la cuenta tenés que aceptar la política de privacidad.");
+    if (ALTAS_ABIERTAS && d.clave.length < 8) return setError("La contraseña tiene que tener al menos 8 caracteres.");
+    if (!d.acepta) return setError("Para seguir tenés que aceptar la política de privacidad.");
     setError(null); setEnviando(true);
     try {
       await pedirPresupuesto({
@@ -1214,8 +1227,14 @@ function Registro({ rubros, tarifas, eleccion }) {
         mensual: pre.mensual,
         nombre: d.nombre, telefono: d.telefono, email: d.email,
         mensaje: d.problema,
-        origen: "registro-prueba",
-      }).catch(() => {});
+        origen: ALTAS_ABIERTAS ? "registro-prueba" : "registro-landing",
+      }).catch((err) => {
+        /* Con las altas cerradas la solicitud es lo único que queda: si
+           falla, tiene que saberlo la persona. Abiertas, la cuenta igual
+           se crea. */
+        if (!ALTAS_ABIERTAS) throw err;
+      });
+      if (!ALTAS_ABIERTAS) { setPaso(3); return; }
       /* Se carga recién acá: supabase.js lanza si faltan las variables de
          entorno, y la landing no puede morirse por eso al abrir. */
       const { registrarse } = await import("../datos/autoservicio.js");
@@ -1318,9 +1337,11 @@ function Registro({ rubros, tarifas, eleccion }) {
                 <label className="ln-campo"><span>Email <b>*</b></span>
                   <input value={d.email} onChange={cambiar("email")} type="email" autoComplete="email" />
                 </label>
-                <label className="ln-campo"><span>Contraseña <b>*</b></span>
-                  <input value={d.clave} onChange={cambiar("clave")} type="password" autoComplete="new-password" placeholder="Al menos 8 caracteres" />
-                </label>
+                {ALTAS_ABIERTAS && (
+                  <label className="ln-campo"><span>Contraseña <b>*</b></span>
+                    <input value={d.clave} onChange={cambiar("clave")} type="password" autoComplete="new-password" placeholder="Al menos 8 caracteres" />
+                  </label>
+                )}
                 <label className="ln-campo"><span>Plan</span>
                   <select value={d.plan} onChange={cambiar("plan")}>
                     {["start", "pro", "empresa"].map((k) => <option key={k} value={k}>{NOMBRE_PLAN[k]}</option>)}
@@ -1340,7 +1361,7 @@ function Registro({ rubros, tarifas, eleccion }) {
               <div className="ln-reg-botones">
                 <button type="button" onClick={() => { setError(null); setPaso(1); }} className="ln-boton ln-boton-linea ln-reg-volver">Volver</button>
                 <button type="submit" disabled={enviando} className="ln-boton ln-boton-lleno ln-reg-boton">
-                  {enviando ? "Creando tu cuenta…" : "Empezar mi prueba gratis"} <ArrowRight className="ln-flecha" strokeWidth={2} />
+                  {enviando ? (ALTAS_ABIERTAS ? "Creando tu cuenta…" : "Enviando…") : (ALTAS_ABIERTAS ? "Empezar mi prueba gratis" : "Pedir mi prueba gratis")} <ArrowRight className="ln-flecha" strokeWidth={2} />
                 </button>
               </div>
               <label className="ln-reg-legal ln-reg-acepta">
@@ -1354,11 +1375,25 @@ function Registro({ rubros, tarifas, eleccion }) {
             <div className="ln-mas-listo ln-reg-listo">
               <span className="ln-mas-listo-icono"><Check strokeWidth={3} /></span>
               <div className="ln-mas-listo-titulo">¡Listo, {d.nombre.trim().split(" ")[0]}!</div>
-              <p className="ln-mas-listo-texto">
-                Te mandamos un mail a <b>{d.email.trim()}</b>. Confirmalo y entrás a probar {d.comercio.trim()} 10 días, con ejemplos para ver cómo funciona.
-              </p>
-              <p className="ln-mas-listo-texto ln-reg-listo-nota">¿No llegó? Fijate en correo no deseado. Si ya tenías cuenta con ese mail, entrá con tu contraseña.</p>
-              <a className="ln-boton ln-boton-linea ln-mas-enviar" href="/login">Ir a entrar <ArrowRight className="ln-flecha" strokeWidth={2} /></a>
+              {ALTAS_ABIERTAS ? (
+                <>
+                  <p className="ln-mas-listo-texto">
+                    Te mandamos un mail a <b>{d.email.trim()}</b>. Confirmalo y entrás a probar {d.comercio.trim()} 10 días, con ejemplos para ver cómo funciona.
+                  </p>
+                  <p className="ln-mas-listo-texto ln-reg-listo-nota">¿No llegó? Fijate en correo no deseado. Si ya tenías cuenta con ese mail, entrá con tu contraseña.</p>
+                  <a className="ln-boton ln-boton-linea ln-mas-enviar" href="/login">Ir a entrar <ArrowRight className="ln-flecha" strokeWidth={2} /></a>
+                </>
+              ) : (
+                <>
+                  <p className="ln-mas-listo-texto">Te escribimos por WhatsApp para activar tu prueba de 10 días de {d.comercio.trim()}.</p>
+                  {tarifas && tarifas.whatsapp && (
+                    <a className="ln-boton ln-boton-lleno ln-mas-enviar" target="_blank" rel="noreferrer"
+                      href={`https://wa.me/${tarifas.whatsapp}?text=${encodeURIComponent(`Hola, soy ${d.nombre.trim()} de ${d.comercio.trim()}. Pedí la prueba de Genez (plan ${NOMBRE_PLAN[d.plan]}).`)}`}>
+                      Escribirnos ahora por WhatsApp <ArrowRight className="ln-flecha" strokeWidth={2} />
+                    </a>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
