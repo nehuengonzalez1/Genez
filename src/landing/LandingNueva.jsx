@@ -23,7 +23,7 @@
    ============================================================ */
 
 import React, { createContext, useContext, useState } from "react";
-import { ArrowRight, Sun, Moon } from "lucide-react";
+import { ArrowRight, Sun, Moon, ShoppingCart, Box, BarChart3, FileText, AlertTriangle, TrendingDown, Truck, ChevronDown } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { estaOscuro, fijarTema } from "./tema.js";
 
@@ -57,6 +57,7 @@ export default function LandingNueva() {
         <Cabecera onAlternarTema={alternarTema} />
         <main>
           <Inicio />
+          <QueHace />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -130,5 +131,94 @@ function Inicio() {
           className="ln-inicio-arte" alt="Genez en una computadora y en un teléfono: ventas del día, margen, stock y alertas" />
       </div>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   2 · Vender es una parte
+   ------------------------------------------------------------
+   El resumen de todo lo que sigue, en cuatro verbos. La tablet y las
+   cajas son recortes de la maqueta; el gráfico y las alertas se dibujan
+   acá: en la maqueta el título "Conocé tu margen." quedaba encima del
+   gráfico, y dibujados se acomodan solos a cada tema. */
+const PASOS = [
+  { k: "operar", n: "01", verbo: "Operar", icono: ShoppingCart, titulo: "Vendé y cobrá.", texto: "POS, facturación, caja, pedidos y operación diaria." },
+  { k: "controlar", n: "02", verbo: "Controlar", icono: Box, titulo: "Sabé qué pasa.", texto: "Stock, compras, proveedores, clientes y equipo." },
+  { k: "ganar", n: "03", verbo: "Ganar", icono: BarChart3, titulo: "Conocé tu margen.", texto: "Costos, recetas, precios, markup y rentabilidad." },
+  { k: "decidir", n: "04", verbo: "Decidir", icono: FileText, titulo: "Miralo claro.", texto: "Informes, alertas e inteligencia." },
+];
+
+function QueHace() {
+  const oscuro = useOscuro();
+  const tema = oscuro ? "oscuro" : "claro";
+  return (
+    <section id={ANCLAS.queHace} className="ln-hace">
+      <div className="ln-hace-lienzo">
+        <div className="ln-rotulo ln-hace-rotulo">No es solo una caja</div>
+        <h2 className="ln-hace-titulo">Vender es una parte.<br /><span className="ln-naranja">Entender tu negocio</span><br />es otra.</h2>
+        <p className="ln-hace-parrafo">Genez conecta la operación con la rentabilidad y la información que necesitás para decidir.</p>
+
+        <ol className="ln-hace-pasos">
+          {PASOS.map((p, i) => {
+            const I = p.icono;
+            return (
+              <li key={p.k} className={`ln-paso ln-paso-${p.k}`}>
+                <span className="ln-paso-icono"><I strokeWidth={1.75} /></span>
+                <div className="ln-paso-numero">{p.n} · {p.verbo}</div>
+                <div className="ln-paso-titulo">{p.titulo}</div>
+                <p className="ln-paso-texto">{p.texto}</p>
+                {p.k === "operar" && <img src={`/landing/nueva/vender-pos-${tema}.jpg`} width="270" height="186" alt="" aria-hidden="true" className="ln-paso-foto" />}
+                {p.k === "controlar" && <img src={`/landing/nueva/vender-cajas-${tema}.jpg`} width="190" height="165" alt="" aria-hidden="true" className="ln-paso-foto" />}
+                {p.k === "ganar" && <GraficoRentabilidad />}
+                {p.k === "decidir" && <Alertas />}
+                {i < PASOS.length - 1 && <span className="ln-paso-flecha" aria-hidden="true"><ArrowRight strokeWidth={2.25} /></span>}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* Un gráfico de ejemplo: barras del mes con su línea y el +12% del mejor
+   tramo. Los valores son de muestra. */
+function GraficoRentabilidad() {
+  const barras = [26, 38, 34, 48, 44, 66, 72];
+  return (
+    <div className="ln-widget ln-grafico" aria-hidden="true">
+      <div className="ln-widget-cabeza">
+        <span className="ln-widget-titulo">Rentabilidad</span>
+        <span className="ln-grafico-filtro">Este mes <ChevronDown /></span>
+      </div>
+      <svg viewBox="0 0 210 74" className="ln-grafico-dibujo" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="ln-barra" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="rgb(253 82 4)" stopOpacity="0.85" />
+            <stop offset="1" stopColor="rgb(253 82 4)" stopOpacity="0.15" />
+          </linearGradient>
+        </defs>
+        {barras.map((h, i) => <rect key={i} x={6 + i * 29} y={74 - h} width="22" height={h} rx="2" fill="url(#ln-barra)" />)}
+        <polyline points={barras.map((h, i) => `${17 + i * 29},${70 - h}`).join(" ")} fill="none" stroke="rgb(253 82 4)" strokeWidth="1.4" />
+        {barras.map((h, i) => <circle key={i} cx={17 + i * 29} cy={70 - h} r="2" fill="rgb(253 82 4)" />)}
+      </svg>
+      <span className="ln-grafico-globo">+12%</span>
+    </div>
+  );
+}
+
+function Alertas() {
+  return (
+    <div className="ln-widget ln-alertas" aria-hidden="true">
+      <div className="ln-widget-cabeza">
+        <span className="ln-widget-titulo">Alertas</span>
+        <span className="ln-alertas-todas">Ver todas <ArrowRight /></span>
+      </div>
+      <ul>
+        <li><span className="ln-alerta-icono"><AlertTriangle /></span>7 productos en stock crítico</li>
+        <li><span className="ln-alerta-icono"><TrendingDown /></span>Ventas 12% abajo del promedio</li>
+        <li><span className="ln-alerta-icono ln-alerta-azul"><Truck /></span>3 pagos de proveedores pendientes</li>
+      </ul>
+    </div>
   );
 }

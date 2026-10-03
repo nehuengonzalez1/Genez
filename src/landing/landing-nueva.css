@@ -146,3 +146,144 @@
   .ln-boton-grande { height: calc(49 * var(--u)); padding: 0 calc(21 * var(--u)); font-size: calc(17.5 * var(--u)); }
   .ln-inicio-datos { margin-top: calc(39 * var(--u)); font-size: calc(16.5 * var(--u)); }
 }
+
+/* ------------------------------------------------------------
+   2 · Vender es una parte (maqueta: 1964 × 801)
+   ------------------------------------------------------------ */
+.ln {
+  --ln-tarjeta: 25 27 29;
+  --ln-tarjeta-borde: 255 255 255 / 0.07;
+  --ln-icono-fondo: 44 29 23;
+  --ln-widget: 31 33 35;
+  --ln-widget-borde: 255 255 255 / 0.08;
+}
+.ln-claro {
+  --ln-tarjeta: 251 249 245;
+  --ln-tarjeta-borde: 0 0 0 / 0.04;
+  --ln-icono-fondo: 250 234 223;
+  --ln-widget: 255 255 255;
+  --ln-widget-borde: 0 0 0 / 0.06;
+}
+
+.ln-hace {
+  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1964));
+  padding: 56px 20px 40px;
+}
+.ln-hace-rotulo { letter-spacing: 0.02em; }
+.ln-hace-titulo { margin-top: 12px; font-size: 40px; font-weight: 800; line-height: 0.98; letter-spacing: -0.05em; }
+.ln-hace-parrafo { margin-top: 16px; font-size: 16px; line-height: 1.45; color: rgb(var(--ln-suave)); }
+.ln-hace-pasos { margin-top: 28px; display: grid; gap: 14px; }
+
+.ln-paso {
+  position: relative; overflow: visible;
+  min-height: 190px; padding: 20px 20px 22px;
+  border-radius: 20px;
+  background: rgb(var(--ln-tarjeta));
+  border: 1px solid rgb(var(--ln-tarjeta-borde));
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.06);
+}
+.ln-paso-icono {
+  display: flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border-radius: 13px;
+  background: rgb(var(--ln-icono-fondo)); color: rgb(var(--ln-naranja));
+}
+.ln-paso-icono svg { width: 26px; height: 26px; }
+.ln-paso-numero { margin-top: 26px; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: rgb(var(--ln-naranja)); }
+.ln-paso-titulo { margin-top: 6px; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+.ln-paso-texto { margin-top: 10px; font-size: 15px; line-height: 1.45; color: rgb(var(--ln-suave)); max-width: 20em; }
+.ln-paso-foto, .ln-widget { position: absolute; right: 14px; top: 14px; }
+.ln-paso-foto {
+  width: 46%; height: auto; border-radius: 12px;
+  -webkit-mask-image: radial-gradient(ellipse 72% 72% at 55% 50%, #000 62%, transparent 100%);
+  mask-image: radial-gradient(ellipse 72% 72% at 55% 50%, #000 62%, transparent 100%);
+}
+.ln-paso-flecha { display: none; }
+
+/* Las pantallitas de ejemplo (gráfico y alertas). */
+.ln-widget {
+  width: 52%; padding: 10px 12px;
+  border-radius: 10px;
+  background: rgb(var(--ln-widget)); border: 1px solid rgb(var(--ln-widget-borde));
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.08);
+  font-size: 11px;
+}
+.ln-widget-cabeza { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ln-widget-titulo { font-weight: 700; font-size: 1.15em; }
+.ln-grafico-filtro {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px 6px;
+  border-radius: 5px; border: 1px solid rgb(var(--ln-widget-borde)); font-size: 0.85em;
+}
+.ln-grafico-filtro svg { width: 1em; height: 1em; }
+.ln-grafico-dibujo { display: block; width: 100%; height: 5.6em; margin-top: 0.6em; }
+.ln-grafico-globo {
+  position: absolute; right: 14%; top: 3.6em;
+  padding: 2px 6px; border-radius: 5px; font-size: 0.9em; font-weight: 700;
+  background: rgb(18 18 18); color: white;
+}
+.ln-alertas-todas { display: inline-flex; align-items: center; gap: 3px; color: rgb(var(--ln-naranja)); font-weight: 600; font-size: 0.9em; }
+.ln-alertas-todas svg { width: 1em; height: 1em; }
+.ln-alertas ul { margin-top: 0.7em; display: grid; gap: 0.45em; }
+.ln-alertas li {
+  display: flex; align-items: center; gap: 0.7em;
+  padding: 0.35em 0.4em; border-radius: 6px;
+  background: rgb(var(--ln-tarjeta)); white-space: nowrap;
+}
+.ln-alerta-icono { display: flex; color: rgb(var(--ln-naranja)); }
+.ln-alerta-icono svg { width: 1.3em; height: 1.3em; }
+.ln-alerta-azul { color: rgb(37 130 235); }
+
+/* En el teléfono la ilustración va debajo del texto de su tarjeta: a la
+   derecha pisaba el título. */
+@media (max-width: 1023px) {
+  .ln-hace-titulo br { display: none; }
+  .ln-paso-foto, .ln-widget { position: relative; right: auto; top: auto; margin-top: 16px; }
+  .ln-paso-foto { display: block; width: 72%; max-width: 280px; margin-left: auto; margin-right: auto; }
+  .ln-widget { width: 100%; font-size: 12.5px; }
+  .ln-alertas li { white-space: normal; }
+  .ln-grafico-globo { top: 3.4em; }
+}
+
+@media (min-width: 1024px) {
+  .ln-hace { padding: 0; }
+  .ln-hace-lienzo { position: relative; width: calc(1964 * var(--u)); height: calc(801 * var(--u)); margin: 0 auto; }
+  .ln-hace-rotulo { position: absolute; left: calc(95 * var(--u)); top: calc(37 * var(--u)); font-size: calc(19 * var(--u)); }
+  .ln-hace-titulo {
+    position: absolute; left: calc(95 * var(--u)); top: calc(64 * var(--u)); margin: 0;
+    font-size: calc(92 * var(--u)); line-height: 0.94; white-space: nowrap;
+  }
+  .ln-hace-parrafo { position: absolute; left: calc(95 * var(--u)); top: calc(347 * var(--u)); margin: 0; font-size: calc(23 * var(--u)); white-space: nowrap; }
+  .ln-hace-pasos { margin: 0; display: block; }
+  .ln-paso {
+    position: absolute; top: calc(430 * var(--u)); height: calc(267 * var(--u)); min-height: 0;
+    padding: calc(25 * var(--u)) calc(22 * var(--u));
+    border-radius: calc(28 * var(--u));
+    box-shadow: 0 calc(14 * var(--u)) calc(40 * var(--u)) rgb(0 0 0 / 0.06);
+  }
+  .ln-paso-operar { left: calc(88 * var(--u)); width: calc(448 * var(--u)); }
+  .ln-paso-controlar { left: calc(595 * var(--u)); width: calc(370 * var(--u)); }
+  .ln-paso-ganar { left: calc(1018 * var(--u)); width: calc(392 * var(--u)); }
+  .ln-paso-decidir { left: calc(1464 * var(--u)); width: calc(434 * var(--u)); }
+  .ln-paso-icono { width: calc(66 * var(--u)); height: calc(66 * var(--u)); border-radius: calc(15 * var(--u)); }
+  .ln-paso-icono svg { width: calc(32 * var(--u)); height: calc(32 * var(--u)); }
+  .ln-paso-numero { margin-top: calc(33 * var(--u)); font-size: calc(17.5 * var(--u)); }
+  .ln-paso-titulo { margin-top: calc(6 * var(--u)); font-size: calc(22.5 * var(--u)); }
+  .ln-paso-texto { margin-top: calc(14 * var(--u)); font-size: calc(17 * var(--u)); line-height: 1.4; max-width: none; }
+  .ln-paso-foto { right: auto; top: auto; border-radius: 0; }
+  .ln-paso-operar .ln-paso-foto { left: calc(170 * var(--u)); top: calc(10 * var(--u)); width: calc(270 * var(--u)); }
+  .ln-paso-controlar .ln-paso-foto { left: calc(181 * var(--u)); top: calc(25 * var(--u)); width: calc(190 * var(--u)); }
+  .ln-widget { right: auto; top: calc(25 * var(--u)); padding: calc(13 * var(--u)) calc(16 * var(--u)); border-radius: calc(12 * var(--u)); font-size: calc(12.5 * var(--u)); }
+  .ln-grafico { left: calc(127 * var(--u)); width: calc(250 * var(--u)); }
+  .ln-grafico-dibujo { height: calc(64 * var(--u)); }
+  .ln-alertas { left: calc(172 * var(--u)); width: calc(246 * var(--u)); font-size: calc(11.3 * var(--u)); }
+  .ln-paso-operar .ln-paso-texto { max-width: calc(335 * var(--u)); }
+  .ln-paso-flecha {
+    display: flex; align-items: center; justify-content: center;
+    position: absolute; z-index: 2; top: calc(110 * var(--u)); right: calc(-43 * var(--u));
+    width: calc(32 * var(--u)); height: calc(32 * var(--u)); border-radius: 9999px;
+    background: rgb(var(--ln-naranja)); color: white;
+    box-shadow: 0 0 0 calc(5 * var(--u)) rgb(var(--ln-naranja) / 0.15);
+  }
+  .ln-paso-controlar .ln-paso-flecha { right: calc(-42 * var(--u)); }
+  .ln-paso-ganar .ln-paso-flecha { right: calc(-42 * var(--u)); }
+  .ln-paso-flecha svg { width: calc(17 * var(--u)); height: calc(17 * var(--u)); }
+}
