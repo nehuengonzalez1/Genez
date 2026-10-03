@@ -30,13 +30,14 @@ import {
   Coins, Percent, Tag, BellRing, PieChart, Search,
   Wallet, Smartphone, QrCode, WifiOff, MessageCircle, Printer,
   ScanBarcode, Boxes, BookOpen, Users, CalendarDays, Settings, ClipboardList, UserCog, Ticket, Landmark,
-  LayoutGrid, HeartHandshake, ShieldCheck, ChevronUp, Check, Headphones,
+  LayoutGrid, HeartHandshake, ShieldCheck, ChevronUp, Check, Headphones, Zap, Globe,
 } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
 import { cargarTarifasPublicas, TARIFAS_VACIAS, tarifasAMedida, hayAMedida } from "../datos/tarifas.js";
 import { planes, presupuestar, textoDescuento } from "../datos/presupuesto.js";
 import { MODULOS_BASE, moduloPorClave } from "../datos/modulos.js";
+import { pedirPresupuesto, validarPedido } from "../datos/solicitudes.js";
 import { estaOscuro, fijarTema } from "./tema.js";
 import { FOTOS, Flecha, ICONO_MODULO } from "./comun.jsx";
 
@@ -126,6 +127,7 @@ export default function LandingNueva() {
           <Modulos />
           <ComoFunciona />
           <Precios rubros={rubros} tarifas={tarifas} rubroElegido={eleccion.rubro} onElegir={elegirPlan} />
+          <HacemosMas tarifas={tarifas} />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -885,6 +887,123 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
             )}
           </div>
         )}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   10 · Hacemos más
+   ------------------------------------------------------------
+   Sin maqueta: la pidió Nehuen el 03/10 para contar que, además del
+   sistema, Genez automatiza y hace apps y webs. Se diseñó con el estilo
+   de las demás. La consulta queda en `solicitudes` (la misma función que
+   usaba el alta, con origen "hacemos-mas") y se ve en el panel de
+   plataforma; después, un botón abre el WhatsApp de Genez con el pedido
+   armado. El WhatsApp es el de Precios, en el panel. */
+const SERVICIOS_EXTRA = [
+  { k: "automatizar", icono: Zap, titulo: "Automatizaciones", texto: "Que el sistema haga solo lo que hoy hacés a mano: avisos, reportes, pedidos a proveedores." },
+  { k: "app", icono: Smartphone, titulo: "App para tus clientes", texto: "Tu marca en el celular de tus clientes: reservas, su plan, sus puntos." },
+  { k: "web", icono: Globe, titulo: "Página web", texto: "Tu negocio en internet, conectado con Genez." },
+];
+
+function HacemosMas({ tarifas }) {
+  const [marcados, setMarcados] = useState([]);
+  const [datos, setDatos] = useState({ nombre: "", telefono: "", mensaje: "" });
+  const [estado, setEstado] = useState({ enviando: false, error: null, listo: false });
+  const alternar = (k) => setMarcados((m) => (m.includes(k) ? m.filter((x) => x !== k) : [...m, k]));
+  const cambiar = (campo) => (e) => setDatos((d) => ({ ...d, [campo]: e.target.value }));
+
+  const elegidos = SERVICIOS_EXTRA.filter((s) => marcados.includes(s.k));
+  const whatsapp = tarifas && tarifas.whatsapp;
+  const textoWhatsapp = [
+    `Hola, soy ${datos.nombre.trim() || "…"}. Me interesa: ${elegidos.map((s) => s.titulo).join(", ") || "algo a medida"}.`,
+    datos.mensaje.trim(),
+  ].filter(Boolean).join("\n");
+
+  const enviar = async (e) => {
+    e.preventDefault();
+    if (!elegidos.length && !datos.mensaje.trim()) { setEstado({ enviando: false, error: "Tildá qué te interesa o contanos qué necesitás.", listo: false }); return; }
+    const problema = validarPedido({ nombre: datos.nombre, telefono: datos.telefono });
+    if (problema) { setEstado({ enviando: false, error: problema, listo: false }); return; }
+    setEstado({ enviando: true, error: null, listo: false });
+    try {
+      await pedirPresupuesto({
+        negocio: "Hacemos más",
+        respuestas: elegidos.map((s) => ({ k: s.k, n: s.titulo })),
+        nombre: datos.nombre, telefono: datos.telefono, mensaje: datos.mensaje,
+        origen: "hacemos-mas",
+      });
+      setEstado({ enviando: false, error: null, listo: true });
+    } catch (err) {
+      setEstado({ enviando: false, error: (err && err.message) || "No se pudo enviar. Probá de nuevo.", listo: false });
+    }
+  };
+
+  return (
+    <section className="ln-mas">
+      <div className="ln-mas-lienzo">
+        <div className="ln-mas-texto">
+          <div className="ln-rotulo">Hacemos más</div>
+          <h2 className="ln-mas-titulo">Lo que tu negocio{" "}<br />necesite,{" "}<br /><span className="ln-naranja">lo armamos.</span></h2>
+          <p className="ln-mas-parrafo">Además del sistema, automatizamos tareas y hacemos{" "}<br className="ln-solo-ancho" />apps y páginas web a medida para tu comercio.</p>
+        </div>
+
+        <form className="ln-mas-tarjeta" onSubmit={enviar} noValidate>
+          {estado.listo ? (
+            <div className="ln-mas-listo">
+              <span className="ln-mas-listo-icono"><Check strokeWidth={3} /></span>
+              <div className="ln-mas-listo-titulo">¡Recibimos tu consulta!</div>
+              <p className="ln-mas-listo-texto">Te escribimos por WhatsApp para contarte cómo lo armamos.</p>
+              {whatsapp && (
+                <a className="ln-boton ln-boton-lleno ln-mas-enviar" target="_blank" rel="noreferrer"
+                  href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(textoWhatsapp)}`}>
+                  Escribirnos ahora por WhatsApp <ArrowRight className="ln-flecha" strokeWidth={2} />
+                </a>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="ln-mas-pregunta">¿Qué te interesa?</div>
+              <ul className="ln-mas-opciones">
+                {SERVICIOS_EXTRA.map((s) => {
+                  const I = s.icono;
+                  const activo = marcados.includes(s.k);
+                  return (
+                    <li key={s.k}>
+                      <button type="button" onClick={() => alternar(s.k)} aria-pressed={activo} className={`ln-mas-opcion ${activo ? "ln-mas-activa" : ""}`}>
+                        <span className="ln-mas-icono"><I strokeWidth={1.9} /></span>
+                        <span className="ln-mas-opcion-textos">
+                          <span className="ln-mas-opcion-titulo">{s.titulo}</span>
+                          <span className="ln-mas-opcion-texto">{s.texto}</span>
+                        </span>
+                        <span className="ln-medida-casilla">{activo && <Check strokeWidth={3} />}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="ln-mas-campos">
+                <label className="ln-campo">
+                  <span>Tu nombre</span>
+                  <input value={datos.nombre} onChange={cambiar("nombre")} autoComplete="name" />
+                </label>
+                <label className="ln-campo">
+                  <span>WhatsApp</span>
+                  <input value={datos.telefono} onChange={cambiar("telefono")} inputMode="tel" autoComplete="tel" placeholder="Con código de área" />
+                </label>
+                <label className="ln-campo ln-campo-ancho">
+                  <span>Contanos qué necesitás (opcional)</span>
+                  <textarea value={datos.mensaje} onChange={cambiar("mensaje")} rows={3} maxLength={1000} />
+                </label>
+              </div>
+              {estado.error && <p className="ln-mas-error" role="alert">{estado.error}</p>}
+              <button type="submit" disabled={estado.enviando} className="ln-boton ln-boton-lleno ln-mas-enviar">
+                {estado.enviando ? "Enviando…" : "Enviar consulta"} <ArrowRight className="ln-flecha" strokeWidth={2} />
+              </button>
+            </>
+          )}
+        </form>
       </div>
     </section>
   );

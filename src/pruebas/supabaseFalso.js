@@ -603,6 +603,13 @@ const FUNCIONES = {
   },
   permiso: () => true,
   tarifas_publicas: () => T.tarifas || [],
+  /* El pedido de la landing (alta, "Hacemos más"): queda en la tabla de
+     mentira para que el formulario se pueda probar entero. */
+  pedir_presupuesto: ({ p }) => {
+    const id = `sol-${Date.now()}`;
+    (T.solicitudes = T.solicitudes || []).unshift({ id, creado_en: new Date().toISOString(), estado: "nueva", ...p });
+    return id;
+  },
   interno_posibles_duplicados: ({ p_nombre, p_telefono, p_excluir }) => {
     const n = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
     const tel = normTel;
