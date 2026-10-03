@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
+import { PantallaSinAcceso } from "./genez/Prueba.jsx";
 import { cargarSesion, cargarComercios, salir, alRecuperarClave, vinoDeRecuperacion, leerLoComercial } from "./datos/sesion.js";
 import { cargarRubro } from "./datos/rubros.js";
 import { cargarRoles } from "./datos/permisos.js";
@@ -128,7 +129,14 @@ export default function App() {
     const mirar = async () => {
       let c;
       try { c = await leerLoComercial(comercioPropio); } catch { return; }   // sin conexión: la próxima
-      if (!vivo || !c) return;
+      if (!vivo) return;
+      /* Desde 0127 la base deja de devolver el comercio cuando vence la
+         prueba o Genez lo suspende: se relee la sesión, que lleva a la
+         pantalla de contratar. */
+      if (!c) {
+        try { const s = await cargarSesion(); if (vivo) setSesion(s); } catch { /* la próxima */ }
+        return;
+      }
       if (c.activo === false) {
         await salir();
         if (!vivo) return;
@@ -139,7 +147,8 @@ export default function App() {
       setSesion((s) => {
         if (!s || s.tipo !== "comercio") return s;
         const antes = (s.comercio.modulos || []).join(",");
-        return antes === c.modulos.join(",") ? s : { ...s, comercio: { ...s.comercio, modulos: c.modulos } };
+        if (antes === c.modulos.join(",") && s.comercio.pruebaHasta === c.pruebaHasta) return s;
+        return { ...s, comercio: { ...s.comercio, modulos: c.modulos, pruebaHasta: c.pruebaHasta } };
       });
     };
     const id = setInterval(mirar, 60000);
@@ -263,6 +272,12 @@ export default function App() {
         onCancelar={cerrarSesion}
       />
     );
+  }
+
+  /* Prueba vencida o cuenta suspendida (0127): la base ya no le da datos,
+     así que no se monta nada del sistema. */
+  if (sesion.tipo === "sinAcceso") {
+    return envolver(<PantallaSinAcceso sesion={sesion} onSalir={cerrarSesion} />);
   }
 
   if (sesion.tipo === "plataforma" && !sesion.viendo && enFounder && sesion.interno && sesion.interno.activo) {

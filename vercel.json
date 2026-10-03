@@ -8,6 +8,7 @@
     { "source": "/empezar", "destination": "/landing.html" }
   ],
   "crons": [
-    { "path": "/api/arca/caea", "schedule": "0 11 * * *" }
+    { "path": "/api/arca/caea", "schedule": "0 11 * * *" },
+    { "path": "/api/founder?tarea=pruebas", "schedule": "0 12 * * *" }
   ]
 }

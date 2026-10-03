@@ -22,6 +22,35 @@ import { normTel } from "../utils/importarProspectos.js";
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 const datos = armarDatos(params.get("rubro") || "minimercado", params.get("sesion") || "comercio");
 const T = datos.tablas;
+
+/* ?prueba=… (0127): el comercio en prueba gratis. Un número son los días
+   que le quedan; "vencida" y "suspendida" muestran la pantalla de
+   contratar, y como en la base, el comercio deja de leerse. Con
+   ?sesion=plataforma, el panel trae tres pruebas inventadas. */
+const prueba = params.get("prueba");
+const hoyFalso = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
+const aHoyMas = (n) => { const [a, m, d] = hoyFalso().split("-").map(Number); return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10); };
+const estadoPrueba = { pago: null, borrados: false };
+if (prueba && datos.perfil.empresa_id) {
+  datos.empresa.plan = "pro";
+  datos.empresa.prueba_hasta = prueba === "vencida" ? aHoyMas(-1) : prueba === "suspendida" ? null : aHoyMas((Number(prueba) || 10) - 1);
+  if (prueba === "suspendida") datos.empresa.activa = false;
+  if (prueba === "vencida" || prueba === "suspendida") T.empresas = [];
+}
+if (!datos.perfil.empresa_id) {
+  const alta = (dias) => new Date(Date.now() - dias * 86400000).toISOString();
+  const otras = [
+    { id: crypto.randomUUID(), nombre: "Almacén La Esquina", rubro: "minimercado", plan: "pro", modulos: ["cobro", "caja", "ajustes", "stock"], activa: true, prueba_hasta: aHoyMas(6), creada_en: alta(4), config: {} },
+    { id: crypto.randomUUID(), nombre: "Bodegón del Puerto", rubro: "gastronomia", plan: "start", modulos: ["cobro", "caja", "ajustes"], activa: true, prueba_hasta: aHoyMas(-2), creada_en: alta(12), config: {} },
+    { id: crypto.randomUUID(), nombre: "Estudio Pilates Sur", rubro: "servicios", plan: "empresa", modulos: ["cobro", "caja", "ajustes", "agenda"], activa: true, prueba_hasta: aHoyMas(1), creada_en: alta(9), config: {} },
+  ];
+  T.empresas.push(...otras);
+  T.pruebas = [
+    { empresa_id: otras[0].id, creada_en: alta(4), email: "laesquina@genez.test", nombre: "Marta Gómez", telefono: "5491155550001", plan: "pro", negocio: "Almacén", provincia: "Buenos Aires", sucursales: "1", problema: "No sé cuánto stock tengo.", aviso_por_vencer_en: null, aviso_vencida_en: null, pago_avisado_en: null, ejemplos_borrados_en: alta(3) },
+    { empresa_id: otras[1].id, creada_en: alta(12), email: "bodegon@genez.test", nombre: "Julián Pérez", telefono: "5491155550002", plan: "start", negocio: "Restaurante", provincia: "Santa Fe", sucursales: "1", problema: "Las comandas se pierden.", aviso_por_vencer_en: alta(5), aviso_vencida_en: alta(1), pago_avisado_en: alta(0), ejemplos_borrados_en: null },
+    { empresa_id: otras[2].id, creada_en: alta(9), email: "pilates@genez.test", nombre: "Sofía Ruiz", telefono: "5491155550003", plan: "empresa", negocio: "Estudio", provincia: "Córdoba", sucursales: "2", problema: "Los turnos los llevo en un cuaderno.", aviso_por_vencer_en: alta(1), aviso_vencida_en: null, pago_avisado_en: null, ejemplos_borrados_en: null },
+  ];
+}
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 /* Lo que se llamó, para mirarlo desde la consola: window.__genezPruebas */
@@ -603,6 +632,15 @@ const FUNCIONES = {
   },
   permiso: () => true,
   tarifas_publicas: () => T.tarifas || [],
+  /* El autoservicio (0127). */
+  mi_cuenta: () => {
+    const e = datos.empresa;
+    return { id: e.id, nombre: e.nombre, rubro: e.rubro, plan: e.plan, modulos: e.modulos, activa: e.activa !== false,
+      prueba_hasta: e.prueba_hasta || null, hoy: hoyFalso(), pago_avisado_en: estadoPrueba.pago, ejemplos: !estadoPrueba.borrados };
+  },
+  crear_comercio_de_prueba: ({ p }) => { T.altaDePrueba = p; return datos.empresa.id; },
+  borrar_ejemplos: () => { estadoPrueba.borrados = true; return null; },
+  avisar_pago: () => { estadoPrueba.pago = new Date().toISOString(); return null; },
   /* El pedido de la landing (alta, "Hacemos más"): queda en la tabla de
      mentira para que el formulario se pueda probar entero. */
   pedir_presupuesto: ({ p }) => {
@@ -662,6 +700,11 @@ export const supabase = {
     getSession: async () => ({ data: { session: sesion }, error: null }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     signInWithPassword: async () => ({ data: { session: sesion }, error: null }),
+    /* El registro de la landing: no crea nada, deja anotado qué se mandó. */
+    signUp: async ({ email, options }) => {
+      registro.push({ signUp: email, registro: options && options.data && options.data.registro });
+      return { data: { user: { id: uuid(), email, identities: [{}] }, session: null }, error: null };
+    },
     signOut: async () => ({ error: null }),
     resetPasswordForEmail: async () => ({ error: null }),
     updateUser: async () => ({ data: { user: USUARIO }, error: null }),

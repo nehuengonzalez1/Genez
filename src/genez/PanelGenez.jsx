@@ -36,6 +36,8 @@ import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
 import { PreciosPanel } from "./PreciosPanel.jsx";
 import { SolicitudesPanel } from "./SolicitudesPanel.jsx";
+import { PruebasPanel } from "./PruebasPanel.jsx";
+import { AvisoDePrueba } from "./Prueba.jsx";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
@@ -418,6 +420,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
               ))}
             </div>
 
+            <PruebasPanel />
             <SolicitudesPanel />
             <PreciosPanel />
 
@@ -2047,6 +2050,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           </header>
 
           <main className="flex-1 p-3 md:p-5">
+            <AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} compacto />
             {/* El POS ni se monta con la caja cerrada: la base rechaza toda
                 venta sin sesión, así que dejar armar el carrito termina en un
                 ticket impreso de una venta que el servidor nunca aceptó. */}
@@ -2120,6 +2124,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 <Sesion sesion={sesion} onSalir={onSalir} oscuro />
               </div>
             </div>
+            {/* Va en el encabezado y no en <main>: acá la altura es fija y un
+                renglón de más empujaba la pantalla fuera de la ventana. */}
+            <div className="px-3 md:px-4 empty:hidden"><AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} compacto /></div>
           </header>
 
           <main className="flex-1 min-h-0 p-3 md:p-4">
@@ -2252,6 +2259,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         </div>
 
         <main className="flex-1 min-w-0 p-4 md:p-6 pb-24 md:pb-8">
+          <AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} />
           <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div className="min-w-0">
               <h1 className="f-d text-xl md:text-2xl">{titulo}</h1>

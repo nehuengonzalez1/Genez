@@ -1171,6 +1171,9 @@
 .ln-reg-resumen-precio b { font-weight: 800; }
 .ln-reg-legal { margin-top: 12px; font-size: 12.5px; color: rgb(var(--ln-tenue)); text-align: center; }
 .ln-reg-legal a { text-decoration: underline; }
+.ln-reg-acepta { display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.ln-reg-acepta input { width: 16px; height: 16px; accent-color: rgb(var(--ln-naranja)); flex-shrink: 0; }
+.ln-reg-listo-nota { font-size: 13px; opacity: .8; }
 .ln-reg-listo { padding: 40px 8px 24px; }
 
 .ln-pie { border-top: 1px solid rgb(var(--ln-borde)); }

@@ -1082,14 +1082,13 @@ function Preguntas({ tarifas }) {
    tus datos, y una confirmación. Trae cargado lo que se eligió más arriba
    (negocio, rubro, plan o módulos a medida).
 
-   TODAVÍA NO CREA LA CUENTA
-   -------------------------
-   El autoservicio (crear el comercio, la prueba de 10 días, los mails,
-   la suspensión) es la etapa que sigue (docs/landing-nueva.md). Mientras
-   tanto el formulario deja una solicitud, como el alta anterior, con
-   origen "registro-landing", y la confirmación dice lo que pasa de
-   verdad: que escribimos por WhatsApp para activar la prueba. Por eso no
-   pide contraseña: pedirla sin crear la cuenta sería mentirle. */
+   CREA LA CUENTA, NO EL COMERCIO
+   ------------------------------
+   Al enviar se crea el usuario y Supabase manda el mail de confirmación;
+   el comercio lo arma la base cuando la persona confirma y entra (ver
+   src/datos/autoservicio.js). Antes deja una solicitud con origen
+   "registro-prueba": quien no confirma el mail igual queda anotado y se
+   le puede escribir. Si la solicitud falla, la cuenta se crea igual. */
 const PROVINCIAS = [
   "Buenos Aires", "Ciudad de Buenos Aires", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos",
   "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan",
@@ -1107,7 +1106,7 @@ function Registro({ rubros, tarifas, eleccion }) {
   const [paso, setPaso] = useState(1);
   const [d, setD] = useState({
     comercio: "", negocio: "", sucursales: "1", provincia: "", problema: "",
-    nombre: "", email: "", telefono: "", plan: "pro",
+    nombre: "", email: "", telefono: "", plan: "pro", clave: "", acepta: false,
   });
   const [error, setError] = useState(null);
   const [enviando, setEnviando] = useState(false);
@@ -1147,7 +1146,9 @@ function Registro({ rubros, tarifas, eleccion }) {
     e.preventDefault();
     const problema = validarPedido({ nombre: d.nombre, telefono: d.telefono, email: d.email });
     if (problema) return setError(problema);
-    if (!d.email.trim()) return setError("Escribí tu email: ahí te llega el acceso.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())) return setError("Escribí tu email: ahí te llega el acceso.");
+    if (d.clave.length < 8) return setError("La contraseña tiene que tener al menos 8 caracteres.");
+    if (!d.acepta) return setError("Para crear la cuenta tenés que aceptar la política de privacidad.");
     setError(null); setEnviando(true);
     try {
       await pedirPresupuesto({
@@ -1164,7 +1165,19 @@ function Registro({ rubros, tarifas, eleccion }) {
         mensual: pre.mensual,
         nombre: d.nombre, telefono: d.telefono, email: d.email,
         mensaje: d.problema,
-        origen: "registro-landing",
+        origen: "registro-prueba",
+      }).catch(() => {});
+      /* Se carga recién acá: supabase.js lanza si faltan las variables de
+         entorno, y la landing no puede morirse por eso al abrir. */
+      const { registrarse } = await import("../datos/autoservicio.js");
+      await registrarse({
+        email: d.email,
+        clave: d.clave,
+        registro: {
+          comercio: d.comercio.trim(), rubro: rubroClave, negocio: negocioNombre || null,
+          sucursales: d.sucursales, provincia: d.provincia || null, problema: d.problema.trim(),
+          nombre: d.nombre.trim(), telefono: d.telefono, plan: d.plan, modulos,
+        },
       });
       setPaso(3);
     } catch (err) {
@@ -1256,6 +1269,9 @@ function Registro({ rubros, tarifas, eleccion }) {
                 <label className="ln-campo"><span>Email <b>*</b></span>
                   <input value={d.email} onChange={cambiar("email")} type="email" autoComplete="email" />
                 </label>
+                <label className="ln-campo"><span>Contraseña <b>*</b></span>
+                  <input value={d.clave} onChange={cambiar("clave")} type="password" autoComplete="new-password" placeholder="Al menos 8 caracteres" />
+                </label>
                 <label className="ln-campo"><span>Plan</span>
                   <select value={d.plan} onChange={cambiar("plan")}>
                     {["start", "pro", "empresa"].map((k) => <option key={k} value={k}>{NOMBRE_PLAN[k]}</option>)}
@@ -1275,10 +1291,13 @@ function Registro({ rubros, tarifas, eleccion }) {
               <div className="ln-reg-botones">
                 <button type="button" onClick={() => { setError(null); setPaso(1); }} className="ln-boton ln-boton-linea ln-reg-volver">Volver</button>
                 <button type="submit" disabled={enviando} className="ln-boton ln-boton-lleno ln-reg-boton">
-                  {enviando ? "Enviando…" : "Pedir mi prueba gratis"} <ArrowRight className="ln-flecha" strokeWidth={2} />
+                  {enviando ? "Creando tu cuenta…" : "Empezar mi prueba gratis"} <ArrowRight className="ln-flecha" strokeWidth={2} />
                 </button>
               </div>
-              <p className="ln-reg-legal">Al enviar aceptás la <a href="/privacidad">política de privacidad</a>.</p>
+              <label className="ln-reg-legal ln-reg-acepta">
+                <input type="checkbox" checked={d.acepta} onChange={(e) => setD((x) => ({ ...x, acepta: e.target.checked }))} />
+                <span>Leí y acepto la <a href="/privacidad" target="_blank" rel="noreferrer">política de privacidad</a>.</span>
+              </label>
             </form>
           )}
 
@@ -1286,13 +1305,11 @@ function Registro({ rubros, tarifas, eleccion }) {
             <div className="ln-mas-listo ln-reg-listo">
               <span className="ln-mas-listo-icono"><Check strokeWidth={3} /></span>
               <div className="ln-mas-listo-titulo">¡Listo, {d.nombre.trim().split(" ")[0]}!</div>
-              <p className="ln-mas-listo-texto">Te escribimos por WhatsApp para activar tu prueba de 10 días de {d.comercio.trim()}.</p>
-              {tarifas && tarifas.whatsapp && (
-                <a className="ln-boton ln-boton-lleno ln-mas-enviar" target="_blank" rel="noreferrer"
-                  href={`https://wa.me/${tarifas.whatsapp}?text=${encodeURIComponent(`Hola, soy ${d.nombre.trim()} de ${d.comercio.trim()}. Pedí la prueba de Genez (plan ${NOMBRE_PLAN[d.plan]}).`)}`}>
-                  Escribirnos ahora por WhatsApp <ArrowRight className="ln-flecha" strokeWidth={2} />
-                </a>
-              )}
+              <p className="ln-mas-listo-texto">
+                Te mandamos un mail a <b>{d.email.trim()}</b>. Confirmalo y entrás a probar {d.comercio.trim()} 10 días, con ejemplos para ver cómo funciona.
+              </p>
+              <p className="ln-mas-listo-texto ln-reg-listo-nota">¿No llegó? Fijate en correo no deseado. Si ya tenías cuenta con ese mail, entrá con tu contraseña.</p>
+              <a className="ln-boton ln-boton-linea ln-mas-enviar" href="/login">Ir a entrar <ArrowRight className="ln-flecha" strokeWidth={2} /></a>
             </div>
           )}
         </div>

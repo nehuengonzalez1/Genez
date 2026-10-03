@@ -1878,6 +1878,55 @@ Una pantalla con estado que se pierde al recargar y que no vive en un
 cuadro tiene que llamar a `useOcupado`. Una venta cobrada nunca se pierde:
 la cola la escribe en el equipo antes de mandarla.
 
+## El autoservicio y la prueba gratis (0127)
+
+`src/datos/autoservicio.js`, `src/genez/Prueba.jsx`, `src/genez/PruebasPanel.jsx`,
+`api/_pruebas.js` y la migración 0127. Lo acordado está en `docs/landing-nueva.md`.
+
+**El orden.** La landing llama a `signUp` con lo del formulario en los
+metadatos del usuario (`registro`); Supabase manda el mail de confirmación.
+Al confirmar y entrar, `cargarSesion` encuentra un usuario sin perfil que trae
+`registro` y llama a `crear_comercio_de_prueba`, que arma el comercio (rubro,
+módulos del plan recortados a los del rubro, sucursal y caja por los
+disparadores de siempre, el perfil de dueño, la fila de `pruebas`, ejemplos)
+con `prueba_hasta` = hoy + 10. **No se crea al registrarse** porque un mail sin
+confirmar no es de nadie, y la función rechaza a quien no lo confirmó.
+
+**El estado es una columna.** `prueba_hasta` con fecha es prueba (hasta ese
+día inclusive); null es contratado, que es lo que tienen todos los comercios
+anteriores; `activa = false` sigue siendo suspendido. No hay columna `estado`:
+hubiera dicho lo mismo que esas dos, y terminado diciendo otra cosa.
+
+**La suspensión la hace la base, en `empresa_actual()`.** Vencido o
+suspendido, el usuario deja de tener comercio para RLS: no lee ni escribe
+nada, porque `puede_ver`, `permiso` y las políticas de `empresas` cuelgan de
+esa función. Hasta 0127 `activa = false` solo frenaba la pantalla. Lo único
+que contesta a quien quedó afuera es `mi_cuenta()`, para la pantalla de
+contratar, y `avisar_pago()` ("Ya pagué"). El comercio no se extiende la
+prueba: `proteger_lo_comercial` cuida también `prueba_hasta`.
+
+**Los ejemplos** van marcados con `campos_extra.ejemplo` (productos, clientes,
+ventas). Las ventas se insertan sin caja ni pagos: son historia para el inicio
+y los informes, no plata que tenga que estar en un cajón. `borrar_ejemplos()`
+se lleva eso con sus movimientos de stock; una línea de una venta de verdad que
+usó un producto de ejemplo queda con su descripción.
+
+**Los mails.** La confirmación la manda Supabase Auth, que necesita Resend como
+SMTP (el de fábrica solo manda al equipo del proyecto y unos pocos por hora).
+Los de vencimiento salen de `api/_pruebas.js`, una vez por día, desde el cron
+de Vercel que entra por `founder.js?tarea=pruebas`: el plan Hobby deja 12
+funciones y ya están todas. Cada aviso se anota en `pruebas` recién después de
+que Resend lo aceptó; sin `RESEND_API_KEY` no se manda ni se anota nada.
+
+**Contratar** es a mano mientras dure el lanzamiento: la persona pide el link
+por WhatsApp, toca "Ya pagué", y la plataforma activa desde "Pruebas gratis"
+(sacarle el plazo), extiende siete días o suspende.
+
+`node scripts/probar-autoservicio.mjs [0127]` lo prueba entero contra la base
+en una transacción que siempre se deshace. En la pantalla de pruebas:
+`?prueba=8`, `?prueba=vencida`, `?prueba=suspendida`, y `?sesion=plataforma`
+para el panel.
+
 ## Lo que ya funciona y no hay que rehacer
 
 Comandas de salón y mostrador, centro de pedidos con estados reales y
