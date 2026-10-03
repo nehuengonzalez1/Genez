@@ -49,6 +49,7 @@ const ANCLAS = {
   precios: "precios",
   registro: "registro",
   queHace: "que-hace",
+  como: "como-funciona",
 };
 
 const irA = (id) => (e) => {
@@ -105,6 +106,7 @@ export default function LandingNueva() {
           <GenezIA />
           <Ecosistema />
           <Modulos />
+          <ComoFunciona />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -642,6 +644,64 @@ function Modulos() {
         <button type="button" onClick={() => setTodos(!todos)} aria-expanded={todos} className="ln-boton ln-eco-boton ln-mod-boton">
           {todos ? "Ver menos" : "Conocé todos los módulos"} {todos ? <ChevronUp className="ln-flecha" strokeWidth={2} /> : <ArrowRight className="ln-flecha" strokeWidth={2} />}
         </button>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   8 · Cómo funciona
+   ------------------------------------------------------------
+   Los tres pasos de la maqueta contaban el alta anterior (rubro, cómo
+   trabajás, presupuesto). Con el registro solo, son otros: crear la
+   cuenta, elegir rubro y plan, y empezar a vender con los 10 días
+   gratis. Los íconos 3D son recortes de la maqueta y siguen sirviendo
+   (el local, la lista, el gráfico que sube). La franja de abajo, "Después,
+   te acompañamos", queda como en la maqueta. */
+const PASOS_COMO = [
+  { n: "01", foto: "paso1", ancho: 160, alto: 150, titulo: "Creá tu cuenta.", texto: "Tu comercio y tus datos, en dos pasos." },
+  { n: "02", foto: "paso2", ancho: 180, alto: 150, titulo: "Elegí tu rubro y tu plan.", texto: "Los módulos vienen armados para tu negocio." },
+  { n: "03", foto: "paso3", ancho: 210, alto: 172, titulo: "Empezá a vender.", texto: "10 días gratis, sin tarjeta." },
+];
+const ACOMPANAMOS = [
+  "Configuramos el sistema",
+  "Te capacitamos a vos y a tu equipo",
+  "Revisamos y ajustamos",
+  "Seguimos optimizando",
+];
+
+function ComoFunciona() {
+  const oscuro = useOscuro();
+  const tema = oscuro ? "oscuro" : "claro";
+  return (
+    <section id={ANCLAS.como} className="ln-como">
+      <div className="ln-como-lienzo">
+        <div className="ln-rotulo ln-como-rotulo">Cómo funciona</div>
+        <h2 className="ln-como-titulo">Tres pasos.{" "}<br /><span className="ln-naranja">Y tu Genez está listo.</span></h2>
+        <p className="ln-como-parrafo">Te armamos el sistema según tu rubro, en lugar de darte{" "}<br className="ln-solo-ancho" />una lista interminable. Probalo 10 días gratis.</p>
+
+        <ol className="ln-como-pasos">
+          {PASOS_COMO.map((p, i) => (
+            <li key={p.n} className={`ln-como-paso ln-como-paso-${i + 1}`}>
+              <span className="ln-como-numero">{p.n}</span>
+              <img src={`/landing/nueva/como-${p.foto}-${tema}.jpg`} width={p.ancho} height={p.alto} alt="" aria-hidden="true" className="ln-como-foto" />
+              <span className="ln-como-paso-titulo">{p.titulo}</span>
+              <span className="ln-como-paso-texto">{p.texto}</span>
+              {i < PASOS_COMO.length - 1 && <ArrowRight className="ln-como-flecha" strokeWidth={2} aria-hidden="true" />}
+            </li>
+          ))}
+        </ol>
+
+        <div className="ln-como-despues">
+          <span className="ln-como-despues-icono"><Settings strokeWidth={2} /></span>
+          <div className="ln-como-despues-texto">
+            <span className="ln-como-despues-titulo">Después, te acompañamos.</span>
+            <span className="ln-como-despues-sub">Configuración · capacitación · revisión · optimización</span>
+          </div>
+          <ol className="ln-como-linea">
+            {ACOMPANAMOS.map((a) => <li key={a}><span className="ln-como-punto" aria-hidden="true" />{a}</li>)}
+          </ol>
+        </div>
       </div>
     </section>
   );

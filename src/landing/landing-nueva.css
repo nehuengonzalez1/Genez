@@ -684,3 +684,120 @@
   .ln-mod-texto { margin-top: calc(3 * var(--u)); font-size: calc(15 * var(--u)); }
   .ln-mod-boton { margin-top: calc(28 * var(--u)); height: calc(53 * var(--u)); padding: 0 calc(26 * var(--u)); font-size: calc(18 * var(--u)); border-radius: calc(10 * var(--u)); }
 }
+
+/* ------------------------------------------------------------
+   8 · Cómo funciona (maqueta: 1859 × 846)
+   ------------------------------------------------------------ */
+.ln {
+  --ln-franja: 31 21 15;
+  --ln-franja-borde: 253 82 4 / 0.18;
+}
+.ln-claro {
+  --ln-franja: 253 238 230;
+  --ln-franja-borde: 253 82 4 / 0.12;
+}
+.ln-como {
+  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1859));
+  padding: 48px 20px 40px;
+}
+.ln-como-titulo { margin-top: 12px; font-size: 40px; font-weight: 800; line-height: 1; letter-spacing: -0.05em; }
+.ln-como-parrafo { margin-top: 16px; font-size: 16px; line-height: 1.5; color: rgb(var(--ln-suave)); }
+.ln-como-pasos { margin-top: 24px; display: grid; gap: 12px; }
+.ln-como-paso {
+  position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 14px; align-items: center;
+  padding: 16px; border-radius: 18px;
+  background: rgb(var(--ln-tarjeta)); border: 1px solid rgb(var(--ln-tarjeta-borde));
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.05);
+}
+.ln-como-numero {
+  grid-row: 1 / span 2; display: flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; border-radius: 9999px; font-size: 16px; font-weight: 800;
+  background: rgb(var(--ln-icono-fondo)); color: rgb(var(--ln-naranja));
+}
+.ln-como-foto { display: none; }
+.ln-como-paso-titulo { font-size: 17px; font-weight: 800; }
+.ln-como-paso-texto { font-size: 14px; color: rgb(var(--ln-suave)); }
+.ln-como-flecha { display: none; }
+
+.ln-como-despues {
+  margin-top: 16px; padding: 16px; border-radius: 18px;
+  background: rgb(var(--ln-franja)); border: 1px solid rgb(var(--ln-franja-borde));
+  display: grid; grid-template-columns: auto 1fr; gap: 12px 14px; align-items: center;
+}
+.ln-como-despues-icono {
+  display: flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; border-radius: 12px;
+  background: rgb(var(--ln-nodo)); color: rgb(var(--ln-naranja));
+}
+.ln-como-despues-icono svg { width: 24px; height: 24px; }
+.ln-como-despues-titulo { display: block; font-size: 16px; font-weight: 800; }
+.ln-como-despues-sub { display: block; margin-top: 2px; font-size: 13px; color: rgb(var(--ln-suave)); }
+.ln-como-linea { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; color: rgb(var(--ln-suave)); }
+.ln-como-linea li { display: flex; align-items: center; gap: 8px; }
+.ln-como-punto { flex-shrink: 0; width: 9px; height: 9px; border-radius: 9999px; background: rgb(var(--ln-naranja)); }
+
+@media (max-width: 1023px) {
+  .ln-como-titulo br { display: none; }
+  .ln-como-titulo .ln-naranja { display: block; }
+}
+
+@media (min-width: 1024px) {
+  .ln-como { padding: 0; }
+  .ln-como-lienzo { position: relative; width: calc(1859 * var(--u)); height: calc(846 * var(--u)); margin: 0 auto; }
+  .ln-como-rotulo { position: absolute; left: calc(162 * var(--u)); top: calc(56 * var(--u)); font-size: calc(15.5 * var(--u)); }
+  .ln-como-titulo {
+    position: absolute; left: calc(162 * var(--u)); top: calc(103 * var(--u)); margin: 0;
+    font-size: calc(92 * var(--u)); line-height: 1.02; white-space: nowrap;
+  }
+  .ln-como-parrafo { position: absolute; left: calc(1150 * var(--u)); top: calc(199 * var(--u)); margin: 0; font-size: calc(20.5 * var(--u)); line-height: 1.55; }
+  .ln-como-pasos { margin: 0; display: block; }
+  .ln-como-paso {
+    position: absolute; top: calc(332 * var(--u)); height: calc(282 * var(--u));
+    display: block; padding: 0; border-radius: calc(26 * var(--u));
+    box-shadow: 0 calc(14 * var(--u)) calc(40 * var(--u)) rgb(0 0 0 / 0.05);
+  }
+  .ln-como-paso-1 { left: calc(164 * var(--u)); width: calc(462 * var(--u)); }
+  .ln-como-paso-2 { left: calc(718 * var(--u)); width: calc(440 * var(--u)); }
+  .ln-como-paso-3 { left: calc(1248 * var(--u)); width: calc(452 * var(--u)); }
+  .ln-como-numero { position: absolute; left: calc(20 * var(--u)); top: calc(17 * var(--u)); width: calc(66 * var(--u)); height: calc(66 * var(--u)); font-size: calc(22 * var(--u)); }
+  .ln-como-foto { display: block; position: absolute; left: 50%; transform: translateX(-50%); top: calc(13 * var(--u)); height: auto; }
+  .ln-como-paso-1 .ln-como-foto { width: calc(160 * var(--u)); }
+  .ln-como-paso-2 .ln-como-foto { width: calc(180 * var(--u)); }
+  .ln-como-paso-3 .ln-como-foto { width: calc(210 * var(--u)); top: calc(-14 * var(--u)); }
+  .ln-como-foto {
+    -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, #000 70%, transparent 100%);
+    mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, #000 70%, transparent 100%);
+  }
+  .ln-como-paso-titulo { position: absolute; left: calc(62 * var(--u)); top: calc(162 * var(--u)); font-size: calc(25 * var(--u)); white-space: nowrap; }
+  .ln-como-paso-texto { position: absolute; left: calc(62 * var(--u)); top: calc(202 * var(--u)); right: calc(30 * var(--u)); font-size: calc(21 * var(--u)); line-height: 1.43; }
+  .ln-como-flecha {
+    display: block; position: absolute; top: calc(108 * var(--u)); right: calc(-69 * var(--u));
+    width: calc(42 * var(--u)); height: calc(42 * var(--u)); color: rgb(var(--ln-naranja));
+  }
+  .ln-como-paso-2 .ln-como-flecha { right: calc(-68 * var(--u)); }
+
+  .ln-como-despues {
+    position: absolute; left: calc(164 * var(--u)); top: calc(656 * var(--u)); width: calc(1536 * var(--u)); height: calc(134 * var(--u));
+    margin: 0; padding: 0; display: block; border-radius: calc(22 * var(--u));
+  }
+  .ln-como-despues-icono { position: absolute; left: calc(40 * var(--u)); top: calc(25 * var(--u)); width: calc(84 * var(--u)); height: calc(84 * var(--u)); border-radius: calc(18 * var(--u)); }
+  .ln-como-despues-icono svg { width: calc(40 * var(--u)); height: calc(40 * var(--u)); }
+  .ln-como-despues-texto { position: absolute; left: calc(154 * var(--u)); top: calc(34 * var(--u)); }
+  .ln-como-despues-titulo { font-size: calc(23 * var(--u)); }
+  .ln-como-despues-sub { margin-top: calc(10 * var(--u)); font-size: calc(20 * var(--u)); }
+  .ln-como-despues::after {
+    content: ""; position: absolute; left: calc(744 * var(--u)); top: calc(28 * var(--u)); bottom: calc(28 * var(--u));
+    width: 1px; background: rgb(var(--ln-borde));
+  }
+  .ln-como-linea {
+    position: absolute; left: calc(781 * var(--u)); top: calc(29 * var(--u)); width: calc(728 * var(--u));
+    grid-template-columns: repeat(4, 1fr); gap: 0; font-size: calc(16 * var(--u)); text-align: center;
+  }
+  .ln-como-linea li { flex-direction: column; gap: calc(14 * var(--u)); position: relative; padding: 0 calc(10 * var(--u)); line-height: 1.4; }
+  .ln-como-punto { width: calc(17 * var(--u)); height: calc(17 * var(--u)); position: relative; z-index: 1; }
+  /* La línea que une los puntos. */
+  .ln-como-linea li:not(:last-child)::after {
+    content: ""; position: absolute; left: 50%; right: -50%; top: calc(8 * var(--u)); height: 1px;
+    background: rgb(var(--ln-naranja) / 0.35);
+  }
+}
