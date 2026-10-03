@@ -688,6 +688,11 @@ function rpc(nombre, params = {}) {
 }
 
 const sesion = { access_token: "falso", user: USUARIO };
+
+/* ?sesion=ninguna: arranca sin sesión, para ver el login. Cualquier correo
+   y contraseña entran (al comercio de siempre), y Salir vuelve al login. */
+const sinSesion = params.get("sesion") === "ninguna";
+let conectado = !sinSesion;
 const canal = () => { const c = { on: () => c, subscribe: () => c, unsubscribe: () => {} }; return c; };
 
 export const supabase = {
@@ -696,16 +701,16 @@ export const supabase = {
   channel: canal,
   removeChannel: () => {},
   auth: {
-    getUser: async () => ({ data: { user: USUARIO }, error: null }),
-    getSession: async () => ({ data: { session: sesion }, error: null }),
+    getUser: async () => ({ data: { user: conectado ? USUARIO : null }, error: null }),
+    getSession: async () => ({ data: { session: conectado ? sesion : null }, error: null }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-    signInWithPassword: async () => ({ data: { session: sesion }, error: null }),
+    signInWithPassword: async () => { conectado = true; return { data: { session: sesion }, error: null }; },
     /* El registro de la landing: no crea nada, deja anotado qué se mandó. */
     signUp: async ({ email, options }) => {
       registro.push({ signUp: email, registro: options && options.data && options.data.registro });
       return { data: { user: { id: uuid(), email, identities: [{}] }, session: null }, error: null };
     },
-    signOut: async () => ({ error: null }),
+    signOut: async () => { if (sinSesion) conectado = false; return { error: null }; },
     resetPasswordForEmail: async () => ({ error: null }),
     updateUser: async () => ({ data: { user: USUARIO }, error: null }),
   },
