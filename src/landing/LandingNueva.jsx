@@ -30,12 +30,15 @@ import {
   Coins, Percent, Tag, BellRing, PieChart, Search,
   Wallet, Smartphone, QrCode, WifiOff, MessageCircle, Printer,
   ScanBarcode, Boxes, BookOpen, Users, CalendarDays, Settings, ClipboardList, UserCog, Ticket, Landmark,
-  LayoutGrid, HeartHandshake, ShieldCheck, ChevronUp,
+  LayoutGrid, HeartHandshake, ShieldCheck, ChevronUp, Check, Headphones,
 } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
+import { cargarTarifasPublicas, TARIFAS_VACIAS, tarifasAMedida, hayAMedida } from "../datos/tarifas.js";
+import { planes, presupuestar, textoDescuento } from "../datos/presupuesto.js";
+import { MODULOS_BASE, moduloPorClave } from "../datos/modulos.js";
 import { estaOscuro, fijarTema } from "./tema.js";
-import { FOTOS, Flecha } from "./comun.jsx";
+import { FOTOS, Flecha, ICONO_MODULO } from "./comun.jsx";
 
 const TemaCtx = createContext(true);
 const useOscuro = () => useContext(TemaCtx);
@@ -85,9 +88,24 @@ export default function LandingNueva() {
     return () => { vigente = false; };
   }, []);
 
+  /* Los precios: los mismos que usaba el alta, desde la base. null mientras
+     no llegan, para no mostrar un precio que después cambia. */
+  const [tarifas, setTarifas] = useState(null);
+  useEffect(() => {
+    let vigente = true;
+    cargarTarifasPublicas()
+      .then((t) => { if (vigente) setTarifas(t); })
+      .catch(() => { if (vigente) setTarifas(TARIFAS_VACIAS); });
+    return () => { vigente = false; };
+  }, []);
+
   /* Lo que el visitante eligió en la página (negocio y plan), para que el
      registro lo traiga cargado. */
   const [eleccion, setEleccion] = useState({ rubro: deLaDireccion("rubro"), negocio: deLaDireccion("negocio"), plan: null });
+  const elegirPlan = (rubro, plan, modulos = null) => {
+    setEleccion((e) => ({ ...e, rubro: rubro || e.rubro, plan, modulos }));
+    irA(ANCLAS.registro)();
+  };
   const elegirNegocio = (rubro, negocio) => {
     setEleccion((e) => ({ ...e, rubro, negocio }));
     escribirEnLaDireccion(rubro, negocio);
@@ -107,6 +125,7 @@ export default function LandingNueva() {
           <Ecosistema />
           <Modulos />
           <ComoFunciona />
+          <Precios rubros={rubros} tarifas={tarifas} rubroElegido={eleccion.rubro} onElegir={elegirPlan} />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -702,6 +721,170 @@ function ComoFunciona() {
             {ACOMPANAMOS.map((a) => <li key={a}><span className="ln-como-punto" aria-hidden="true" />{a}</li>)}
           </ol>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   9 · Precios
+   ------------------------------------------------------------
+   Los planes salen de `planes()` y los precios de `presupuestar()`, lo
+   mismo que usaba el alta: cambiar un precio en el panel de Precios lo
+   cambia acá. Por rubro, porque cada rubro arma sus planes con sus
+   módulos. Start muestra lo que trae; Pro y Empresa, solo lo que suman
+   (docs/landing-nueva.md).
+
+   Diferencias con la maqueta: sin "+ IVA" (el titular no está inscripto)
+   y sin el selector de períodos mientras dura el lanzamiento (solo
+   mensual); el texto de la derecha, que era de prototipo, dice el
+   descuento. La etiqueta de Empresa decía "Para varias sucursales", y
+   la multisucursal todavía no está terminada. */
+const pesos = (n) => "$" + new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(Math.round(n));
+const NOMBRE_RUBRO_PRECIOS = { minimercado: "Comercio", gastronomia: "Gastronomía", servicios: "Servicios" };
+const ESTILO_PLAN = {
+  start: { tono: "verde", etiqueta: "Ideal para empezar", subtitulo: "Lo esencial para tener tu negocio en orden desde el primer día.", boton: "Empezar con Start" },
+  pro: { tono: "naranja", etiqueta: "Más elegido", subtitulo: "Más herramientas para hacer crecer tu negocio.", boton: "Empezar con Pro" },
+  empresa: { tono: "azul", etiqueta: "Para equipos", subtitulo: "Toda la potencia de Genez para operar en grande.", boton: "Empezar con Empresa" },
+};
+
+function Precio({ pre, calculando }) {
+  if (calculando) return <div className="ln-plan-precio"><span className="ln-plan-monto ln-plan-calculando">…</span></div>;
+  if (pre.mensual == null) return <div className="ln-plan-precio"><span className="ln-plan-monto">Consultar</span></div>;
+  return (
+    <div className="ln-plan-precio">
+      {pre.conDescuento != null && <s className="ln-plan-tachado">{pesos(pre.mensual)}</s>}
+      <span className="ln-plan-monto">{pesos(pre.conDescuento != null ? pre.conDescuento : pre.mensual)}</span>
+      <span className="ln-plan-mes">/ mes</span>
+      {pre.descuento && <span className="ln-plan-oferta">−{textoDescuento(pre.descuento)}</span>}
+    </div>
+  );
+}
+
+function ItemModulo({ k, tono }) {
+  const m = moduloPorClave(k) || { n: k, d: "" };
+  const I = ICONO_MODULO[k] || LayoutGrid;
+  return (
+    <li className="ln-plan-item">
+      <span className={`ln-plan-item-icono ln-tono-${tono}`}><I strokeWidth={2} /></span>
+      <span><span className="ln-plan-item-nombre">{m.n}</span><span className="ln-plan-item-texto">{m.d}</span></span>
+    </li>
+  );
+}
+
+function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
+  const oscuro = useOscuro();
+  const tema = oscuro ? "oscuro" : "claro";
+  const conPlanes = rubros.filter((r) => NOMBRE_RUBRO_PRECIOS[r.clave]);
+  const [clave, setClave] = useState(null);
+  const rubro = conPlanes.find((r) => r.clave === (clave || rubroElegido)) || conPlanes[0];
+  const calculando = tarifas === null;
+  const t = tarifas || TARIFAS_VACIAS;
+
+  const lista = rubro ? planes({ rubro }) : [];
+  const [medidaAbierta, setMedidaAbierta] = useState(false);
+  const universo = lista.length ? lista[lista.length - 1].armado.elegidos : [];
+  const [medida, setMedida] = useState(null);
+  const elegidosMedida = medida && medida.rubro === (rubro && rubro.clave) ? medida.modulos : (lista[0] ? lista[0].armado.elegidos : []);
+  const alternar = (k) => {
+    if (MODULOS_BASE.includes(k)) return;
+    const actual = new Set(elegidosMedida);
+    if (actual.has(k)) actual.delete(k); else actual.add(k);
+    setMedida({ rubro: rubro.clave, modulos: universo.filter((x) => actual.has(x)) });
+  };
+  const preMedida = presupuestar(tarifasAMedida(t), elegidosMedida);
+  const descuento = presupuestar(t, []).descuento;
+
+  return (
+    <section id={ANCLAS.precios} className="ln-precios">
+      <div className="ln-precios-lienzo">
+        <div className="ln-filtros ln-precios-rubros" role="tablist" aria-label="Rubro">
+          {conPlanes.map((r) => (
+            <button key={r.clave} type="button" role="tab" aria-selected={rubro && rubro.clave === r.clave}
+              onClick={() => setClave(r.clave)} className={`ln-filtro ${rubro && rubro.clave === r.clave ? "ln-filtro-activo" : ""}`}>
+              {NOMBRE_RUBRO_PRECIOS[r.clave]}
+            </button>
+          ))}
+        </div>
+        <div className="ln-rotulo ln-precios-rotulo">Precio claro</div>
+        <h2 className="ln-precios-titulo">Pagás por lo que{" "}<br /><span className="ln-naranja">necesitás.</span></h2>
+        <p className="ln-precios-parrafo">
+          {descuento ? <>Precio de lanzamiento: <strong>{textoDescuento(descuento)}</strong>.<br className="ln-solo-ancho" />{" "}</> : null}
+          Precio final por mes, sin permanencia:{" "}<br className="ln-solo-ancho" />cancelás cuando quieras.
+        </p>
+
+        <ul className="ln-planes">
+          {lista.map((p, i) => {
+            const e = ESTILO_PLAN[p.k];
+            const pre = presupuestar(t, p.armado.elegidos);
+            const anterior = i > 0 ? lista[i - 1].armado.elegidos : [];
+            const suma = p.armado.elegidos.filter((k) => !anterior.includes(k));
+            return (
+              <li key={p.k} className={`ln-plan ln-plan-${p.k}`}>
+                <div className="ln-plan-cabeza">
+                  <img src={`/landing/nueva/plan-${p.k}-${tema}.jpg`} alt="" aria-hidden="true" className="ln-plan-dibujo" />
+                  <span className={`ln-plan-etiqueta ln-tono-${e.tono}`}>{e.etiqueta}</span>
+                </div>
+                <h3 className="ln-plan-nombre">{p.n}</h3>
+                <p className="ln-plan-subtitulo">{e.subtitulo}</p>
+                <Precio pre={pre} calculando={calculando} />
+                {i > 0 && <div className="ln-plan-todo">Todo {lista[i - 1].n}, más:</div>}
+                <ul className="ln-plan-items">
+                  {suma.map((k) => <ItemModulo key={k} k={k} tono={e.tono} />)}
+                  {p.k === "empresa" && (
+                    <li className="ln-plan-item">
+                      <span className={`ln-plan-item-icono ln-tono-${e.tono}`}><Headphones strokeWidth={2} /></span>
+                      <span><span className="ln-plan-item-nombre">Soporte prioritario</span><span className="ln-plan-item-texto">Te atendemos primero.</span></span>
+                    </li>
+                  )}
+                </ul>
+                <button type="button" onClick={() => onElegir(rubro.clave, p.k)} className={`ln-boton ln-plan-boton ${p.k === "pro" ? "ln-boton-lleno" : "ln-plan-boton-gris"}`}>
+                  {e.boton} <ArrowRight className="ln-flecha" strokeWidth={2} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        {hayAMedida(t) && universo.length > 0 && (
+          <div className="ln-medida">
+            <div className="ln-medida-cabeza">
+              <div>
+                <div className="ln-medida-titulo">¿Preferís elegir vos los módulos?</div>
+                <div className="ln-medida-texto">Armalo a medida: tildás los que querés y ves el precio al momento.</div>
+              </div>
+              <button type="button" onClick={() => setMedidaAbierta(!medidaAbierta)} aria-expanded={medidaAbierta} className="ln-boton ln-boton-linea ln-medida-abrir">
+                {medidaAbierta ? "Cerrar" : "Armar a medida"} {medidaAbierta ? <ChevronUp className="ln-flecha" /> : <ArrowRight className="ln-flecha" />}
+              </button>
+            </div>
+            {medidaAbierta && (
+              <div className="ln-medida-cuerpo">
+                <ul className="ln-medida-modulos">
+                  {universo.map((k) => {
+                    const m = moduloPorClave(k) || { n: k };
+                    const base = MODULOS_BASE.includes(k);
+                    const activo = elegidosMedida.includes(k);
+                    return (
+                      <li key={k}>
+                        <button type="button" onClick={() => alternar(k)} disabled={base} aria-pressed={activo}
+                          className={`ln-medida-modulo ${activo ? "ln-medida-activo" : ""}`}>
+                          <span className="ln-medida-casilla">{activo && <Check strokeWidth={3} />}</span>
+                          {m.n}{base && <span className="ln-medida-base">incluido</span>}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="ln-medida-pie">
+                  <Precio pre={preMedida} calculando={calculando} />
+                  <button type="button" onClick={() => onElegir(rubro.clave, "medida", elegidosMedida)} className="ln-boton ln-boton-lleno ln-medida-boton">
+                    Empezar a medida <ArrowRight className="ln-flecha" strokeWidth={2} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
