@@ -22,10 +22,16 @@
    pantalla de ejemplo.
    ============================================================ */
 
-import React, { createContext, useContext, useState } from "react";
-import { ArrowRight, Sun, Moon, ShoppingCart, Box, BarChart3, FileText, AlertTriangle, TrendingDown, Truck, ChevronDown } from "lucide-react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import {
+  ArrowRight, Sun, Moon, ShoppingCart, Box, BarChart3, FileText, AlertTriangle, TrendingDown, Truck, ChevronDown,
+  Store, UtensilsCrossed, Shirt, Scissors, Laptop, Coffee, Beer, Croissant, Apple, Leaf, Wrench, ShowerHead, Candy,
+  ChefHat, ShoppingBag, Sparkles, PersonStanding, Dumbbell, Stethoscope, Flower2,
+} from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
+import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
 import { estaOscuro, fijarTema } from "./tema.js";
+import { FOTOS, Flecha } from "./comun.jsx";
 
 const TemaCtx = createContext(true);
 const useOscuro = () => useContext(TemaCtx);
@@ -47,9 +53,41 @@ const irA = (id) => (e) => {
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+/* `?rubro=` y `?negocio=` en la dirección: los links que ya circulan
+   (por WhatsApp, del alta anterior) llegan al registro con eso elegido. */
+function deLaDireccion(clave) {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(clave);
+}
+function escribirEnLaDireccion(rubro, negocio) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (rubro) url.searchParams.set("rubro", rubro); else url.searchParams.delete("rubro");
+  if (negocio) url.searchParams.set("negocio", negocio); else url.searchParams.delete("negocio");
+  window.history.replaceState(null, "", url);
+}
+
 export default function LandingNueva() {
   const [oscuro, setOscuro] = useState(estaOscuro());
   const alternarTema = () => { fijarTema(oscuro ? "claro" : "oscuro"); setOscuro(!oscuro); };
+
+  const [rubros, setRubros] = useState(RUBROS_DE_FABRICA);
+  useEffect(() => {
+    let vigente = true;
+    cargarRubrosPublicos()
+      .then((rs) => { if (vigente && rs.length) setRubros(rs); })
+      .catch(() => { /* quedan los de fábrica, que son los mismos */ });
+    return () => { vigente = false; };
+  }, []);
+
+  /* Lo que el visitante eligió en la página (negocio y plan), para que el
+     registro lo traiga cargado. */
+  const [eleccion, setEleccion] = useState({ rubro: deLaDireccion("rubro"), negocio: deLaDireccion("negocio"), plan: null });
+  const elegirNegocio = (rubro, negocio) => {
+    setEleccion((e) => ({ ...e, rubro, negocio }));
+    escribirEnLaDireccion(rubro, negocio);
+    irA(ANCLAS.registro)();
+  };
 
   return (
     <TemaCtx.Provider value={oscuro}>
@@ -58,6 +96,7 @@ export default function LandingNueva() {
         <main>
           <Inicio />
           <QueHace />
+          <Negocios rubros={rubros} onElegir={elegirNegocio} />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -155,7 +194,7 @@ function QueHace() {
     <section id={ANCLAS.queHace} className="ln-hace">
       <div className="ln-hace-lienzo">
         <div className="ln-rotulo ln-hace-rotulo">No es solo una caja</div>
-        <h2 className="ln-hace-titulo">Vender es una parte.<br /><span className="ln-naranja">Entender tu negocio</span><br />es otra.</h2>
+        <h2 className="ln-hace-titulo">Vender es una parte.{" "}<br /><span className="ln-naranja">Entender tu negocio</span>{" "}<br />es otra.</h2>
         <p className="ln-hace-parrafo">Genez conecta la operación con la rentabilidad y la información que necesitás para decidir.</p>
 
         <ol className="ln-hace-pasos">
@@ -220,5 +259,143 @@ function Alertas() {
         <li><span className="ln-alerta-icono ln-alerta-azul"><Truck /></span>3 pagos de proveedores pendientes</li>
       </ul>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   3 · Tu forma de trabajar (los negocios)
+   ------------------------------------------------------------
+   "Todos" muestra las seis tarjetas de la maqueta y, debajo, el resto de
+   los negocios en una línea: un filtro que muestra más que "Todos" no
+   tendría sentido. Cada rubro muestra todos sus negocios con lo que les
+   resolvemos (docs/landing-nueva.md). Indumentaria y Ecommerce van como
+   "Próximamente": el sistema todavía no tiene variantes ni tienda online.
+
+   Los negocios salen de la base (\`presentacion.negocios\`); lo que les
+   resolvemos es una decisión de la página y vive acá. Un negocio nuevo sin
+   texto muestra lo destacado de su rubro. */
+const SOLUCIONES = {
+  "Kiosco": "Venta rápida · caja y cierres · stock · fiado",
+  "Almacén": "Ventas · stock · compras · fiado",
+  "Minimercado": "Cobro con lector · stock y vencimientos · remitos",
+  "Dietética": "Vencimientos · lista del proveedor · margen",
+  "Verdulería": "Precios del día · caja · compras",
+  "Panadería": "Recetas · costo por receta · pedidos",
+  "Ferretería": "Catálogo grande · precio sugerido · presupuestos",
+  "Casa de sanitarios": "Presupuestos · cuenta corriente · factura A y B",
+  "Bar": "Mesas · comandas · promociones · cierre de caja",
+  "Café": "Mostrador rápido · carta QR · comandas",
+  "Restaurante": "Salón · comandas · cocina · delivery",
+  "Cervecería": "Mesas · comandas a la barra · promociones",
+  "Rotisería": "Pedidos y delivery · recetas · cobro rápido",
+  "Take away": "Centro de pedidos · canales · cobro rápido",
+  "Estética": "Turnos · recordatorios · comisiones",
+  "Peluquería": "Turnos · recordatorios · comisiones · app del cliente",
+  "Barbería": "Turnos · recordatorios · comisiones",
+  "Pilates": "Clases con cupo · abonos · asistencia",
+  "Gimnasio": "Abonos · asistencia · reservas desde el celular",
+  "Consultorio": "Turnos por profesional · recordatorios · factura",
+  "Spa": "Turnos por sala · packs · recordatorios",
+};
+const ICONO_NEGOCIO = {
+  "Kiosco": Candy, "Almacén": ShoppingCart, "Minimercado": Store, "Dietética": Leaf, "Verdulería": Apple,
+  "Panadería": Croissant, "Ferretería": Wrench, "Casa de sanitarios": ShowerHead,
+  "Bar": Beer, "Café": Coffee, "Restaurante": UtensilsCrossed, "Cervecería": Beer, "Rotisería": ChefHat, "Take away": ShoppingBag,
+  "Estética": Sparkles, "Peluquería": Scissors, "Barbería": Scissors, "Pilates": PersonStanding, "Gimnasio": Dumbbell,
+  "Consultorio": Stethoscope, "Spa": Flower2,
+};
+/* Las seis fotos de la maqueta. Los demás negocios usan la foto que ya
+   tenían en la landing anterior (Unsplash). */
+const FOTO_MAQUETA = { "Almacén": "almacen", "Minimercado": "minimercado", "Restaurante": "restaurante", "Indumentaria": "indumentaria", "Servicios": "servicios", "Ecommerce": "ecommerce" };
+function fotoNegocio(nombre, tema) {
+  if (FOTO_MAQUETA[nombre]) return `/landing/nueva/negocio-${FOTO_MAQUETA[nombre]}-${tema}.jpg`;
+  if (FOTOS[nombre]) return `https://images.unsplash.com/${FOTOS[nombre]}?auto=format&fit=crop&w=560&h=420&q=70`;
+  return null;
+}
+const PROXIMAMENTE = [
+  { nombre: "Indumentaria", texto: "Variantes · talles · stock · ventas", icono: Shirt, proximamente: true },
+  { nombre: "Ecommerce", texto: "Tienda online · stock · envíos", icono: Laptop, proximamente: true },
+];
+const NOMBRE_FILTRO = { minimercado: "Comercio", gastronomia: "Gastronomía", servicios: "Servicios" };
+
+function Negocios({ rubros, onElegir }) {
+  const oscuro = useOscuro();
+  const tema = oscuro ? "oscuro" : "claro";
+  const [filtro, setFiltro] = useState("todos");
+
+  const negociosDe = (r) => ((r.presentacion && r.presentacion.negocios) || []).map((n) => ({
+    nombre: n,
+    rubro: r.clave,
+    texto: SOLUCIONES[n] || ((r.presentacion && r.presentacion.destacados) || []).slice(0, 3).join(" · "),
+    icono: ICONO_NEGOCIO[n] || Store,
+  }));
+  const todos = rubros.flatMap(negociosDe);
+  const busca = (n) => todos.find((x) => x.nombre === n);
+  const servicios = rubros.find((r) => r.clave === "servicios");
+
+  const destacados = [
+    busca("Almacén"), busca("Minimercado"), busca("Restaurante"), PROXIMAMENTE[0],
+    servicios && { nombre: "Servicios", rubro: "servicios", negocioElegido: null, texto: "Turnos · clientes · historial · pagos", icono: Scissors },
+    PROXIMAMENTE[1],
+  ].filter(Boolean);
+  const nombresDestacados = new Set(destacados.map((d) => d.nombre));
+  const resto = todos.filter((n) => !nombresDestacados.has(n.nombre));
+
+  const rubroFiltrado = rubros.find((r) => r.clave === filtro);
+  const tarjetas = filtro === "todos" ? destacados
+    : [...negociosDe(rubroFiltrado), ...(filtro === "minimercado" ? PROXIMAMENTE : [])];
+
+  const elegir = (n) => { if (!n.proximamente) onElegir(n.rubro, n.negocioElegido === null ? null : n.nombre); };
+
+  return (
+    <section id={ANCLAS.negocio} className="ln-negocios">
+      <div className="ln-negocios-lienzo">
+        <div className="ln-rotulo ln-negocios-rotulo">Se adapta a tu negocio</div>
+        <h2 className="ln-negocios-titulo">Tu forma de trabajar.{" "}<br /><span className="ln-naranja">Tu Genez.</span></h2>
+        <p className="ln-negocios-parrafo">Un mismo motor, configurado para cada realidad.<br className="ln-solo-ancho" /> Elegí tu rubro y descubrí cómo Genez se adapta<br className="ln-solo-ancho" /> a tu negocio.</p>
+        <div className="ln-negocios-nota manuscrita" aria-hidden="true">
+          Mismo sistema,<br />distintas realidades.
+          <Flecha className="ln-negocios-flecha" />
+        </div>
+
+        <div className="ln-filtros" role="tablist" aria-label="Rubros">
+          {[["todos", "Todos"], ...rubros.filter((r) => NOMBRE_FILTRO[r.clave]).map((r) => [r.clave, NOMBRE_FILTRO[r.clave]])].map(([k, n]) => (
+            <button key={k} type="button" role="tab" aria-selected={filtro === k} onClick={() => setFiltro(k)}
+              className={`ln-filtro ${filtro === k ? "ln-filtro-activo" : ""}`}>{n}</button>
+          ))}
+        </div>
+
+        <ul className="ln-negocios-grilla">
+          {tarjetas.map((n) => {
+            const I = n.icono;
+            const foto = fotoNegocio(n.nombre, tema);
+            return (
+              <li key={n.nombre}>
+                <button type="button" onClick={() => elegir(n)} disabled={n.proximamente}
+                  className={`ln-negocio ${n.proximamente ? "ln-negocio-pronto" : ""}`}
+                  aria-label={n.proximamente ? `${n.nombre}, próximamente` : `${n.nombre}: armar mi sistema`}>
+                  {foto && <img src={foto} alt="" aria-hidden="true" loading="lazy" className="ln-negocio-foto" />}
+                  <span className="ln-negocio-icono"><I strokeWidth={1.75} /></span>
+                  <span className="ln-negocio-nombre">{n.nombre}</span>
+                  <span className="ln-negocio-texto">{n.texto}</span>
+                  {n.proximamente
+                    ? <span className="ln-negocio-pronto-sello">Próximamente</span>
+                    : <span className="ln-negocio-ir"><ArrowRight strokeWidth={2} /></span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        {filtro === "todos" && resto.length > 0 && (
+          <div className="ln-negocios-resto">
+            <span>También para</span>
+            {resto.map((n) => (
+              <button key={n.nombre} type="button" onClick={() => elegir(n)} className="ln-negocios-chip">{n.nombre}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
