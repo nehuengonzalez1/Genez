@@ -15,7 +15,7 @@
  * Resend configurado como SMTP en su panel.
  */
 
-const DESDE = () => process.env.RESEND_FROM || "Genez <hola@genez.com.ar>";
+const DESDE = () => process.env.RESEND_FROM || "Genez <no-responder@genez.com.ar>";
 const SITIO = () => process.env.SITIO_URL || "https://genez.com.ar";
 
 function hoyEnBuenosAires() {
