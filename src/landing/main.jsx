@@ -23,10 +23,16 @@ const esPrivacidad = location.pathname.startsWith("/privacidad")
   || (import.meta.env.DEV && new URLSearchParams(location.search).has("privacidad"));
 if (esPrivacidad) document.title = "Política de privacidad · Genez";
 
+/* /empezar es el registro, en una página aparte (lo mismo: en desarrollo,
+   landing.html?empezar). */
+const esRegistro = !esPrivacidad && (location.pathname.startsWith("/empezar")
+  || (import.meta.env.DEV && new URLSearchParams(location.search).has("empezar")));
+if (esRegistro) document.title = "Probalo gratis · Genez";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <div className="min-h-screen bg-fondo text-texto">
-      {esPrivacidad ? <Privacidad /> : <Landing />}
+      {esPrivacidad ? <Privacidad /> : <Landing pagina={esRegistro ? "registro" : "principal"} />}
     </div>
   </React.StrictMode>
 );

@@ -1222,9 +1222,12 @@
   .ln-reg-legal { font-size: calc(15 * var(--u)); }
 
   .ln-pie { --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1859)); }
+  /* Flex y no grilla: a 1024 px el marco mide 670 y en tres columnas los
+     enlaces quedaban con 67 px, uno debajo del otro. Así, si no entran,
+     bajan a otro renglón enteros. */
   .ln-pie-marco {
     width: calc(1438 * var(--u)); margin: 0 auto; padding: 32px 0;
-    grid-template-columns: auto 1fr auto; align-items: center; gap: 32px;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px;
   }
-  .ln-pie-enlaces { justify-content: center; }
+  .ln-pie-enlaces { justify-content: center; flex-wrap: nowrap; white-space: nowrap; }
 }

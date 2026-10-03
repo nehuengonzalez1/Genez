@@ -63,6 +63,25 @@ const irA = (id) => (e) => {
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+/* El registro vive en su propia página (/empezar), no al final de esta:
+   así lo pidió Nehuen el 03/10. Los botones llevan ahí lo que se eligió
+   en la página (negocio, plan, módulos a medida) en la dirección, que es
+   también como llegaban los links del alta anterior. En desarrollo Vite
+   no aplica los rewrites de vercel.json: ahí es /landing?empezar. */
+export function urlRegistro({ rubro, negocio, plan, modulos } = {}) {
+  const p = new URLSearchParams();
+  if (rubro) p.set("rubro", rubro);
+  if (negocio) p.set("negocio", negocio);
+  if (plan) p.set("plan", plan);
+  if (modulos && modulos.length) p.set("modulos", modulos.join(","));
+  const q = p.toString();
+  if (import.meta.env.DEV) return `/landing?empezar${q ? `&${q}` : ""}`;
+  return `/empezar${q ? `?${q}` : ""}`;
+}
+
+/* Desde el registro, el menú vuelve a la página principal. */
+const enLaPrincipal = (id) => `/landing#${id}`;
+
 /* `?rubro=` y `?negocio=` en la dirección: los links que ya circulan
    (por WhatsApp, del alta anterior) llegan al registro con eso elegido. */
 function deLaDireccion(clave) {
@@ -77,7 +96,8 @@ function escribirEnLaDireccion(rubro, negocio) {
   window.history.replaceState(null, "", url);
 }
 
-export default function LandingNueva() {
+export default function LandingNueva({ pagina = "principal" }) {
+  const esRegistro = pagina === "registro";
   const [oscuro, setOscuro] = useState(estaOscuro());
   const alternarTema = () => { fijarTema(oscuro ? "claro" : "oscuro"); setOscuro(!oscuro); };
 
@@ -103,16 +123,43 @@ export default function LandingNueva() {
 
   /* Lo que el visitante eligió en la página (negocio y plan), para que el
      registro lo traiga cargado. */
-  const [eleccion, setEleccion] = useState({ rubro: deLaDireccion("rubro"), negocio: deLaDireccion("negocio"), plan: null });
+  const [eleccion] = useState(() => {
+    const modulos = deLaDireccion("modulos");
+    return {
+      rubro: deLaDireccion("rubro"), negocio: deLaDireccion("negocio"), plan: deLaDireccion("plan"),
+      modulos: modulos ? modulos.split(",").filter(Boolean) : null,
+    };
+  });
   const elegirPlan = (rubro, plan, modulos = null) => {
-    setEleccion((e) => ({ ...e, rubro: rubro || e.rubro, plan, modulos }));
-    irA(ANCLAS.registro)();
+    window.location.href = urlRegistro({ rubro: rubro || eleccion.rubro, negocio: rubro === eleccion.rubro ? eleccion.negocio : null, plan, modulos });
   };
   const elegirNegocio = (rubro, negocio) => {
-    setEleccion((e) => ({ ...e, rubro, negocio }));
     escribirEnLaDireccion(rubro, negocio);
-    irA(ANCLAS.registro)();
+    window.location.href = urlRegistro({ rubro, negocio });
   };
+
+  /* Al volver desde el registro con /landing#precios: la sección existe
+     recién después del primer render, así que el navegador no llega solo. */
+  useEffect(() => {
+    if (esRegistro || !window.location.hash) return;
+    const id = window.location.hash.slice(1);
+    const t = setTimeout(() => irA(id)(), 150);
+    return () => clearTimeout(t);
+  }, [esRegistro]);
+
+  if (esRegistro) {
+    return (
+      <TemaCtx.Provider value={oscuro}>
+        <div className={`ln ${oscuro ? "" : "ln-claro"}`}>
+          <Cabecera onAlternarTema={alternarTema} fuera />
+          <main>
+            <Registro rubros={rubros} tarifas={tarifas} eleccion={eleccion} />
+          </main>
+          <Pie fuera />
+        </div>
+      </TemaCtx.Provider>
+    );
+  }
 
   return (
     <TemaCtx.Provider value={oscuro}>
@@ -130,7 +177,6 @@ export default function LandingNueva() {
           <Precios rubros={rubros} tarifas={tarifas} rubroElegido={eleccion.rubro} onElegir={elegirPlan} />
           <HacemosMas tarifas={tarifas} />
           <Preguntas tarifas={tarifas} />
-          <Registro rubros={rubros} tarifas={tarifas} eleccion={eleccion} />
         </main>
         <Pie />
       </div>
@@ -141,8 +187,11 @@ export default function LandingNueva() {
 /* ------------------------------------------------------------
    Cabecera · el menú de la maqueta, con anclas
    ------------------------------------------------------------ */
-function Cabecera({ onAlternarTema }) {
+function Cabecera({ onAlternarTema, fuera = false }) {
   const oscuro = useOscuro();
+  /* En la página del registro las secciones no están: el menú vuelve a la
+     principal. */
+  const ancla = (id) => (fuera ? { href: enLaPrincipal(id) } : { href: `#${id}`, onClick: irA(id) });
   return (
     <header className="ln-cabecera">
       <div className="ln-cabecera-marco">
@@ -150,16 +199,16 @@ function Cabecera({ onAlternarTema }) {
           <LogoGenez size={42} conNombre claro={oscuro} />
         </a>
         <nav className="ln-menu" aria-label="Secciones">
-          <a href={`#${ANCLAS.negocio}`} onClick={irA(ANCLAS.negocio)}>Tu negocio</a>
-          <a href={`#${ANCLAS.rentabilidad}`} onClick={irA(ANCLAS.rentabilidad)}>Rentabilidad</a>
-          <a href={`#${ANCLAS.ia}`} onClick={irA(ANCLAS.ia)}>Genez IA</a>
-          <a href={`#${ANCLAS.modulos}`} onClick={irA(ANCLAS.modulos)}>Módulos</a>
-          <a href={`#${ANCLAS.precios}`} onClick={irA(ANCLAS.precios)}>Precios</a>
+          <a {...ancla(ANCLAS.negocio)}>Tu negocio</a>
+          <a {...ancla(ANCLAS.rentabilidad)}>Rentabilidad</a>
+          <a {...ancla(ANCLAS.ia)}>Genez IA</a>
+          <a {...ancla(ANCLAS.modulos)}>Módulos</a>
+          <a {...ancla(ANCLAS.precios)}>Precios</a>
         </nav>
         <div className="ln-acciones">
           <a href="/login" className="ln-boton ln-boton-linea ln-entrar">Entrar</a>
-          <a href={`#${ANCLAS.registro}`} onClick={irA(ANCLAS.registro)} className="ln-boton ln-boton-lleno ln-armar">
-            Armar mi sistema <ArrowRight className="ln-flecha" strokeWidth={2.25} />
+          <a href={urlRegistro()} className="ln-boton ln-boton-lleno ln-armar">
+            Probalo gratis <ArrowRight className="ln-flecha" strokeWidth={2.25} />
           </a>
           <button type="button" onClick={onAlternarTema} className="ln-tema"
             aria-label={oscuro ? "Ver en claro" : "Ver en oscuro"} title={oscuro ? "Ver en claro" : "Ver en oscuro"}>
@@ -190,8 +239,8 @@ function Inicio() {
             Ventas, stock, caja, costos, clientes, equipo y decisiones.<br className="ln-solo-ancho" /> Todo conectado en un solo sistema.
           </p>
           <div className="ln-inicio-botones">
-            <a href={`#${ANCLAS.registro}`} onClick={irA(ANCLAS.registro)} className="ln-boton ln-boton-lleno ln-boton-grande">
-              Armar mi sistema <ArrowRight className="ln-flecha" strokeWidth={2.25} />
+            <a href={urlRegistro()} className="ln-boton ln-boton-lleno ln-boton-grande">
+              Probalo gratis <ArrowRight className="ln-flecha" strokeWidth={2.25} />
             </a>
             <a href={`#${ANCLAS.queHace}`} onClick={irA(ANCLAS.queHace)} className="ln-boton ln-boton-linea ln-boton-grande">
               Conocer Genez
@@ -408,7 +457,7 @@ function Negocios({ rubros, onElegir }) {
               <li key={n.nombre}>
                 <button type="button" onClick={() => elegir(n)} disabled={n.proximamente}
                   className={`ln-negocio ${n.proximamente ? "ln-negocio-pronto" : ""}`}
-                  aria-label={n.proximamente ? `${n.nombre}, próximamente` : `${n.nombre}: armar mi sistema`}>
+                  aria-label={n.proximamente ? `${n.nombre}, próximamente` : `${n.nombre}: probalo gratis`}>
                   {foto && <img src={foto} alt="" aria-hidden="true" loading="lazy" className="ln-negocio-foto" />}
                   <span className="ln-negocio-icono"><I strokeWidth={1.75} /></span>
                   <span className="ln-negocio-nombre">{n.nombre}</span>
@@ -519,7 +568,7 @@ function GenezIA() {
               );
             })}
           </ul>
-          <a href={`#${ANCLAS.registro}`} onClick={irA(ANCLAS.registro)} className="ln-boton ln-boton-linea ln-ia-boton">
+          <a href={urlRegistro()} className="ln-boton ln-boton-linea ln-ia-boton">
             Preguntarle a Genez <ArrowRight className="ln-flecha" strokeWidth={2} />
           </a>
         </div>
@@ -1321,8 +1370,9 @@ function Registro({ rubros, tarifas, eleccion }) {
 /* ------------------------------------------------------------
    Pie · el de la landing anterior, con los mismos datos
    ------------------------------------------------------------ */
-function Pie() {
+function Pie({ fuera = false }) {
   const oscuro = useOscuro();
+  const ancla = (id) => (fuera ? { href: enLaPrincipal(id) } : { href: `#${id}`, onClick: irA(id) });
   return (
     <footer className="ln-pie">
       <div className="ln-pie-marco">
@@ -1331,9 +1381,9 @@ function Pie() {
           <span>Sistema de gestión para comercios, armado según tu negocio.</span>
         </div>
         <nav className="ln-pie-enlaces" aria-label="Pie">
-          <a href={`#${ANCLAS.negocio}`} onClick={irA(ANCLAS.negocio)}>Tu negocio</a>
-          <a href={`#${ANCLAS.precios}`} onClick={irA(ANCLAS.precios)}>Precios</a>
-          <a href="#preguntas" onClick={irA("preguntas")}>Preguntas</a>
+          <a {...ancla(ANCLAS.negocio)}>Tu negocio</a>
+          <a {...ancla(ANCLAS.precios)}>Precios</a>
+          <a {...ancla("preguntas")}>Preguntas</a>
           <a href="/login">Entrar</a>
           <a href="/privacidad">Privacidad</a>
         </nav>
