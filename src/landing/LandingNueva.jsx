@@ -31,6 +31,7 @@ import {
   Wallet, Smartphone, QrCode, WifiOff, MessageCircle, Printer,
   ScanBarcode, Boxes, BookOpen, Users, CalendarDays, Settings, ClipboardList, UserCog, Ticket, Landmark,
   LayoutGrid, HeartHandshake, ShieldCheck, ChevronUp, Check, Headphones, Zap, Globe,
+  Network, Puzzle, UserRound, Plus, Minus,
 } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
@@ -128,6 +129,7 @@ export default function LandingNueva() {
           <ComoFunciona />
           <Precios rubros={rubros} tarifas={tarifas} rubroElegido={eleccion.rubro} onElegir={elegirPlan} />
           <HacemosMas tarifas={tarifas} />
+          <Preguntas tarifas={tarifas} />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -1004,6 +1006,68 @@ function HacemosMas({ tarifas }) {
             </>
           )}
         </form>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   11 · Preguntas frecuentes
+   ------------------------------------------------------------
+   Las cinco de la maqueta, con respuestas que dicen lo que el sistema
+   hace hoy, y dos más que el registro solo vuelve necesarias: cuánto
+   cuesta (sale de las tarifas, como en la landing anterior: si cambia el
+   descuento en Precios, cambia acá) y qué pasa al terminar la prueba.
+   "Varias sucursales" no se promete entera: cada local tiene sus cajas y
+   su stock, pero verlos juntos todavía está en camino. */
+function respuestaDelPrecio(tarifas) {
+  const { descuento, puestaEnMarcha } = presupuestar(tarifas || TARIFAS_VACIAS, []);
+  const cuando = !descuento || !descuento.meses ? "" : descuento.meses === 1 ? "el primer mes " : `los primeros ${descuento.meses} meses `;
+  return [
+    "Una base por mes que incluye cobro, caja y ajustes, más los módulos de tu plan. Lo ves arriba, por rubro, antes de registrarte.",
+    descuento ? `Por el lanzamiento, ${cuando}pagás un ${descuento.porcentaje}% menos.` : "",
+    puestaEnMarcha > 0 ? "La puesta en marcha —cargar tu catálogo y capacitarte— se cobra una sola vez." : "",
+    "No hay permanencia: cancelás cuando quieras.",
+  ].filter(Boolean).join(" ");
+}
+
+const PREGUNTAS_FRECUENTES = [
+  { icono: ShoppingCart, q: "¿Necesito comprar equipos?", a: "Con un celular, una tablet o una computadora ya funciona. Para cobrar en el mostrador conviene una impresora térmica y un lector de códigos (o la cámara del celular). Si tenés salón, una impresora en la cocina o la barra para las comandas." },
+  { icono: Network, q: "¿Puedo manejar varias sucursales?", a: "Cada local puede tener sus propias cajas, y cada venta queda registrada en su sucursal. Ver y manejar todas desde un solo lugar está en camino: si lo necesitás, contanos y te avisamos cuando esté." },
+  { icono: Puzzle, q: "¿Puedo sumar módulos después?", a: "Sí. Se suman o se sacan cuando quieras, y pagás solo por los que usás." },
+  { icono: UserRound, q: "¿Me ayudan a configurarlo?", a: "Sí. Configuramos el sistema, cargamos tu catálogo y te capacitamos a vos y a tu equipo. Después seguimos revisando y ajustando con vos." },
+  { icono: FileText, q: "¿Puedo facturar?", a: "Sí: factura A, B y C, directo con ARCA. Necesitás tu CUIT y un certificado, que te guiamos a sacar desde Ajustes, paso a paso." },
+  { icono: Coins, q: "¿Cuánto cuesta?", a: null },
+  { icono: CalendarDays, q: "¿Qué pasa cuando terminan los 10 días?", a: "Tres días antes te avisamos por mail. Si querés seguir, elegís tu plan y cómo pagar; si no, la cuenta se suspende y no se te cobra nada." },
+];
+
+function Preguntas({ tarifas }) {
+  const [abierta, setAbierta] = useState(null);
+  return (
+    <section id="preguntas" className="ln-faq">
+      <div className="ln-faq-fondo" aria-hidden="true" />
+      <div className="ln-faq-lienzo">
+        <div className="ln-faq-texto">
+          <div className="ln-rotulo">Preguntas frecuentes</div>
+          <h2 className="ln-faq-titulo">Lo que{" "}<br />preguntás{" "}<br />antes de{" "}<br /><span className="ln-naranja">empezar.</span></h2>
+          <p className="ln-faq-parrafo">Resolvemos las dudas más comunes{" "}<br className="ln-solo-ancho" />para que tengas todo claro.</p>
+        </div>
+        <ul className="ln-faq-lista">
+          {PREGUNTAS_FRECUENTES.map((p, i) => {
+            const I = p.icono;
+            const abiertaEsta = abierta === i;
+            return (
+              <li key={p.q} className={`ln-faq-item ${abiertaEsta ? "ln-faq-abierta" : ""}`}>
+                <button type="button" className="ln-faq-pregunta" onClick={() => setAbierta(abiertaEsta ? null : i)} aria-expanded={abiertaEsta}>
+                  <span className="ln-faq-icono"><I strokeWidth={2} /></span>
+                  <span className="ln-faq-q">{p.q}</span>
+                  {abiertaEsta ? <Minus className="ln-faq-mas" strokeWidth={1.75} /> : <Plus className="ln-faq-mas" strokeWidth={1.75} />}
+                </button>
+                {abiertaEsta && <p className="ln-faq-respuesta">{p.a || respuestaDelPrecio(tarifas)}</p>}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );

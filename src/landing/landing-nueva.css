@@ -1036,3 +1036,77 @@
   .ln-mas-error { font-size: calc(16 * var(--u)); }
   .ln-mas-enviar { margin-top: calc(20 * var(--u)); height: calc(58 * var(--u)); font-size: calc(18 * var(--u)); border-radius: calc(12 * var(--u)); }
 }
+
+/* ------------------------------------------------------------
+   11 · Preguntas frecuentes (maqueta: 1859 × 846)
+   ------------------------------------------------------------
+   Las preguntas van en flujo: al abrirse, crecen. Los círculos de abajo a
+   la izquierda son los de la maqueta, dibujados. */
+.ln {
+  --ln-circulo-1: 253 82 4 / 0.10;
+  --ln-circulo-2: 253 82 4 / 0.16;
+}
+.ln-claro {
+  --ln-circulo-1: 253 82 4 / 0.07;
+  --ln-circulo-2: 253 82 4 / 0.12;
+}
+.ln-faq {
+  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1859));
+  position: relative; overflow: hidden;
+  padding: 48px 20px 48px;
+}
+.ln-faq-fondo {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(circle at -4% 70%, rgb(var(--ln-circulo-1)) 0, rgb(var(--ln-circulo-1)) 24%, transparent 24.2%),
+    radial-gradient(circle at 12% 112%, rgb(var(--ln-circulo-2)) 0, rgb(var(--ln-circulo-2)) 22%, transparent 22.2%);
+}
+.ln-faq-lienzo { position: relative; }
+.ln-faq-titulo { margin-top: 12px; font-size: 40px; font-weight: 800; line-height: 0.98; letter-spacing: -0.05em; }
+.ln-faq-parrafo { margin-top: 16px; font-size: 16px; line-height: 1.5; color: rgb(var(--ln-suave)); }
+.ln-faq-lista { margin-top: 24px; display: grid; gap: 10px; }
+.ln-faq-item {
+  border-radius: 16px; background: rgb(var(--ln-nodo)); border: 1px solid rgb(var(--ln-tarjeta-borde));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.05);
+}
+.ln-faq-abierta { border-color: rgb(var(--ln-naranja) / 0.45); }
+.ln-faq-pregunta { width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px 14px; text-align: left; }
+.ln-faq-icono {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgb(var(--ln-icono-fondo)); color: rgb(var(--ln-naranja));
+}
+.ln-faq-icono svg { width: 22px; height: 22px; }
+.ln-faq-q { flex: 1; font-size: 15.5px; font-weight: 700; }
+.ln-faq-mas { flex-shrink: 0; width: 22px; height: 22px; color: rgb(var(--ln-texto)); }
+.ln-faq-respuesta { padding: 0 16px 16px 72px; font-size: 14.5px; line-height: 1.55; color: rgb(var(--ln-suave)); }
+
+@media (max-width: 1023px) {
+  .ln-faq-titulo br { display: none; }
+  .ln-faq-respuesta { padding-left: 16px; }
+}
+
+@media (min-width: 1024px) {
+  .ln-faq { padding: 0; }
+  .ln-faq-fondo {
+    background:
+      radial-gradient(circle calc(340 * var(--u)) at calc(-20 * var(--u)) calc(560 * var(--u)), rgb(var(--ln-circulo-1)) 99%, transparent 100%),
+      radial-gradient(circle calc(300 * var(--u)) at calc(250 * var(--u)) calc(930 * var(--u)), rgb(var(--ln-circulo-2)) 99%, transparent 100%);
+  }
+  .ln-faq-lienzo {
+    width: calc(1859 * var(--u)); min-height: calc(846 * var(--u)); margin: 0 auto;
+    padding: calc(124 * var(--u)) calc(153 * var(--u)) calc(110 * var(--u)) calc(828 * var(--u));
+  }
+  .ln-faq-texto { position: absolute; left: calc(173 * var(--u)); top: calc(114 * var(--u)); }
+  .ln-faq .ln-rotulo { font-size: calc(16 * var(--u)); }
+  .ln-faq-titulo { margin-top: calc(26 * var(--u)); font-size: calc(98 * var(--u)); line-height: 0.97; white-space: nowrap; }
+  .ln-faq-parrafo { margin-top: calc(40 * var(--u)); font-size: calc(25 * var(--u)); line-height: 1.45; }
+  .ln-faq-lista { margin: 0; gap: calc(20 * var(--u)); }
+  .ln-faq-item { border-radius: calc(20 * var(--u)); }
+  .ln-faq-pregunta { height: calc(100 * var(--u)); gap: calc(40 * var(--u)); padding: 0 calc(42 * var(--u)) 0 calc(17 * var(--u)); }
+  .ln-faq-icono { width: calc(72 * var(--u)); height: calc(72 * var(--u)); border-radius: calc(16 * var(--u)); }
+  .ln-faq-icono svg { width: calc(32 * var(--u)); height: calc(32 * var(--u)); }
+  .ln-faq-q { font-size: calc(22.5 * var(--u)); }
+  .ln-faq-mas { width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+  .ln-faq-respuesta { padding: 0 calc(42 * var(--u)) calc(26 * var(--u)) calc(129 * var(--u)); font-size: calc(19 * var(--u)); }
+}
