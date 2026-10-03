@@ -1,0 +1,148 @@
+/* ============================================================
+   La landing nueva (octubre 2026), copiada de sus maquetas
+   ============================================================
+   Los colores salen de las maquetas, medidos en la imagen: el fondo
+   tiene que ser el mismo que el de cada recorte o se ve el borde. El
+   oscuro es el de fábrica, como en el sistema; `.ln-claro` pasa al claro.
+
+   En pantalla ancha cada sección es un lienzo con las medidas de su
+   maqueta: `--u` es un píxel de la maqueta, escalado al ancho de la
+   pantalla y achicado un 15% (la página entera quedaba grande, 02/10).
+   En el teléfono los elementos bajan en columna con medidas en px.
+   ============================================================ */
+
+.ln {
+  --ln-escala: 0.85;
+  --ln-fondo: 22 24 25;
+  --ln-texto: 245 245 244;
+  --ln-suave: 160 162 165;
+  --ln-tenue: 138 140 142;
+  --ln-naranja: 253 82 4;
+  --ln-sobre-naranja: 255 255 255;
+  --ln-linea-fondo: 26 28 30;
+  --ln-linea-borde: 255 255 255 / 0.16;
+  --ln-borde: 255 255 255 / 0.08;
+  background: rgb(var(--ln-fondo));
+  color: rgb(var(--ln-texto));
+  min-height: 100vh;
+}
+.ln-claro {
+  --ln-fondo: 249 245 240;
+  --ln-texto: 12 11 10;
+  --ln-suave: 105 103 99;
+  --ln-tenue: 120 118 114;
+  --ln-linea-fondo: 254 253 249;
+  --ln-linea-borde: 0 0 0 / 0.12;
+  --ln-borde: 0 0 0 / 0.07;
+}
+
+.ln-naranja { color: rgb(var(--ln-naranja)); }
+
+.ln-rotulo {
+  font-size: max(11px, calc(15.5 * var(--u, 1px)));
+  font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+  color: rgb(var(--ln-naranja));
+}
+
+/* Los botones de la maqueta: naranja lleno y blanco (o gris oscuro) con
+   borde fino. */
+.ln-boton {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
+  border-radius: max(8px, calc(9 * var(--u, 1px)));
+  font-weight: 700; white-space: nowrap;
+  transition: filter 0.15s, border-color 0.15s;
+}
+.ln-boton-lleno { background: rgb(var(--ln-naranja)); color: rgb(var(--ln-sobre-naranja)); }
+.ln-boton-lleno:hover { filter: brightness(1.07); }
+.ln-boton-linea { background: rgb(var(--ln-linea-fondo)); color: rgb(var(--ln-texto)); border: 1px solid rgb(var(--ln-linea-borde)); }
+.ln-boton-linea:hover { border-color: rgb(var(--ln-naranja) / 0.6); }
+.ln-flecha { width: 1.05em; height: 1.05em; }
+
+/* ------------------------------------------------------------
+   Cabecera (maqueta: 1859 px de ancho, 86 de alto)
+   ------------------------------------------------------------ */
+.ln-cabecera {
+  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1859));
+  position: sticky; top: 0; z-index: 30;
+  background: rgb(var(--ln-fondo) / 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgb(var(--ln-borde));
+}
+.ln-cabecera-marco {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  height: max(64px, calc(86 * var(--u)));
+  padding: 0 20px;
+}
+.ln-logo { display: inline-flex; flex-shrink: 0; }
+/* El logo es el de la maqueta en pantalla ancha; en el teléfono, más
+   chico para que entren Entrar y el tema. */
+@media (max-width: 1023px) { .ln-logo { transform: scale(0.78); transform-origin: left center; } }
+.ln-menu { display: none; }
+.ln-acciones { display: flex; align-items: center; gap: 8px; }
+.ln-entrar, .ln-armar { padding: 9px 16px; font-size: 14px; }
+.ln-armar { display: none; }
+.ln-tema {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 9px;
+  background: rgb(var(--ln-linea-fondo)); border: 1px solid rgb(var(--ln-linea-borde));
+  color: rgb(var(--ln-texto));
+}
+.ln-tema svg { width: 18px; height: 18px; }
+
+@media (min-width: 1024px) {
+  .ln-cabecera-marco { width: calc(1438 * var(--u)); margin: 0 auto; padding: 0; }
+  .ln-menu {
+    display: flex; gap: calc(37 * var(--u));
+    font-size: calc(15.5 * var(--u)); font-weight: 600;
+    margin-left: calc(-62 * var(--u));
+  }
+  .ln-menu a { color: rgb(var(--ln-texto)); }
+  .ln-menu a:hover { color: rgb(var(--ln-naranja)); }
+  .ln-acciones { gap: calc(20 * var(--u)); }
+  .ln-entrar, .ln-armar {
+    height: calc(49 * var(--u)); padding: 0 calc(21 * var(--u));
+    font-size: calc(16 * var(--u));
+  }
+  .ln-armar { display: inline-flex; }
+  .ln-tema { width: calc(47 * var(--u)); height: calc(47 * var(--u)); border-radius: calc(9 * var(--u)); }
+  .ln-tema svg { width: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+}
+
+/* ------------------------------------------------------------
+   1 · Inicio (maqueta: 1859 × 759 debajo de la cabecera)
+   ------------------------------------------------------------ */
+.ln-inicio {
+  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1859));
+  overflow: hidden;
+}
+.ln-inicio-texto { padding: 36px 20px 8px; }
+.ln-inicio-titulo {
+  margin-top: 16px;
+  font-size: 46px; font-weight: 800; line-height: 0.98; letter-spacing: -0.045em;
+}
+.ln-inicio-parrafo { margin-top: 18px; font-size: 17px; line-height: 1.45; color: rgb(var(--ln-suave)); }
+.ln-solo-ancho { display: none; }
+.ln-inicio-botones { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 12px; }
+.ln-boton-grande { padding: 14px 20px; font-size: 16px; }
+.ln-inicio-datos { margin-top: 22px; font-size: 13.5px; color: rgb(var(--ln-tenue)); }
+.ln-inicio-arte { display: block; width: 100%; height: auto; margin-top: 20px; }
+
+@media (min-width: 1024px) {
+  .ln-inicio-lienzo { position: relative; width: calc(1859 * var(--u)); height: calc(759 * var(--u)); margin: 0 auto; }
+  .ln-inicio-arte {
+    position: absolute; left: calc(760 * var(--u)); top: 0; margin: 0;
+    width: calc(1099 * var(--u)); height: calc(759 * var(--u));
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 4%);
+    mask-image: linear-gradient(to right, transparent 0, #000 4%);
+  }
+  .ln-inicio-texto { position: absolute; left: calc(210 * var(--u)); top: calc(56 * var(--u)); padding: 0; z-index: 1; }
+  .ln-inicio-titulo {
+    margin-top: calc(19 * var(--u));
+    font-size: calc(95 * var(--u)); letter-spacing: -0.055em; white-space: nowrap;
+  }
+  .ln-inicio-parrafo { margin-top: calc(24 * var(--u)); font-size: calc(23.5 * var(--u)); line-height: 1.45; }
+  .ln-solo-ancho { display: inline; }
+  .ln-inicio-botones { margin-top: calc(36 * var(--u)); gap: calc(19 * var(--u)); flex-wrap: nowrap; }
+  .ln-boton-grande { height: calc(49 * var(--u)); padding: 0 calc(21 * var(--u)); font-size: calc(17.5 * var(--u)); }
+  .ln-inicio-datos { margin-top: calc(39 * var(--u)); font-size: calc(16.5 * var(--u)); }
+}

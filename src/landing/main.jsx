@@ -1,10 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import Landing from "./Landing.jsx";
+/* La landing nueva de una sola pantalla (docs/landing-nueva.md). La
+   anterior, con el alta en pasos, queda en Landing.jsx hasta publicar. */
+import Landing from "./LandingNueva.jsx";
 import Privacidad from "./Privacidad.jsx";
 import { iniciarTema } from "./tema.js";
 import "../index.css";
 import "./landing.css";
+import "./landing-nueva.css";
 
 /* Misma escala que la app del cliente y por la misma razón: esto se lee
    en un teléfono, donde no hay un 125% de Windows que compense el rem
