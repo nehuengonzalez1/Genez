@@ -28,6 +28,7 @@ import {
   Store, UtensilsCrossed, Shirt, Scissors, Laptop, Coffee, Beer, Croissant, Apple, Leaf, Wrench, ShowerHead, Candy,
   ChefHat, ShoppingBag, Sparkles, PersonStanding, Dumbbell, Stethoscope, Flower2,
   Coins, Percent, Tag, BellRing, PieChart, Search,
+  Wallet, Smartphone, QrCode, WifiOff, MessageCircle, Printer,
 } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
@@ -100,6 +101,7 @@ export default function LandingNueva() {
           <Negocios rubros={rubros} onElegir={elegirNegocio} />
           <Rentabilidad />
           <GenezIA />
+          <Ecosistema />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -493,6 +495,82 @@ function GenezIA() {
         </div>
         <img src={oscuro ? "/landing/nueva/ia-oscuro.jpg" : "/landing/nueva/ia-claro.jpg"} width="1124" height="846" className="ln-ia-arte"
           alt="Alertas y números de ejemplo: ventas en baja, productos por agotarse, ventas por canal y los más vendidos" />
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   6 · No termina en el mostrador
+   ------------------------------------------------------------
+   El diagrama de la maqueta, con otro contenido: sus siete nodos
+   repetían los módulos (que tienen su propia sección), y acá van las
+   cosas con las que Genez se conecta hacia afuera. Por eso los nodos van
+   en HTML y las líneas y el cuadro del centro se dibujan: no hay recorte
+   que sirva. Las coordenadas son las de la maqueta (1859 × 846). */
+const NODOS = [
+  { k: "arriba", icono: FileText, titulo: "Factura electrónica", texto: "A, B y C, directo con ARCA." },
+  { k: "izq1", icono: Wallet, titulo: "Mercado Pago", texto: "Te avisa cada cobro, en voz alta." },
+  { k: "der1", icono: Smartphone, titulo: "App para tus clientes", texto: "Reservan y ven su plan desde el celular." },
+  { k: "izq2", icono: QrCode, titulo: "Carta QR", texto: "En cada mesa, desde el celular." },
+  { k: "der2", icono: WifiOff, titulo: "Sin internet", texto: "Seguís cobrando y se manda cuando vuelve." },
+  { k: "abajo1", icono: MessageCircle, titulo: "WhatsApp", texto: "Recordatorios y avisos a tus clientes." },
+  { k: "abajo2", icono: Printer, titulo: "Lector e impresora", texto: "Código de barras, ticket y comanda." },
+];
+/* Las líneas: de cada nodo al cuadro del centro, con las esquinas
+   redondeadas de la maqueta. Las de la derecha llevan flecha hacia el
+   nodo, como en la maqueta. */
+const LINEAS = [
+  { d: "M1264 200 V323" },
+  { d: "M1094 285 H1123 Q1137 285 1137 299 V355 Q1137 369 1151 369 H1169" },
+  { d: "M1365 369 H1385 Q1399 369 1399 355 V299 Q1399 285 1413 285 H1468", flecha: true },
+  { d: "M1072 472 H1098 Q1112 472 1112 458 V439 Q1112 425 1126 425 H1169" },
+  { d: "M1365 425 H1411 Q1425 425 1425 439 V458 Q1425 472 1439 472 H1462", flecha: true },
+  { d: "M1125 600 V589 Q1125 575 1139 575 H1230 Q1244 575 1244 561 V518" },
+  { d: "M1431 600 V589 Q1431 575 1417 575 H1310 Q1296 575 1296 561 V518" },
+];
+
+function Ecosistema() {
+  return (
+    <section className="ln-eco">
+      <div className="ln-eco-lienzo">
+        <div className="ln-eco-texto">
+          <div className="ln-rotulo">Un ecosistema</div>
+          <h2 className="ln-eco-titulo">Genez no{" "}<br />termina en{" "}<br /><span className="ln-naranja">el mostrador.</span></h2>
+          <p className="ln-eco-parrafo">Se conecta con lo que ya usás: ARCA, Mercado Pago,{" "}<br className="ln-solo-ancho" />WhatsApp y el celular de tus clientes.{" "}<br className="ln-solo-ancho" />Sin herramientas separadas.</p>
+          <a href={`#${ANCLAS.modulos}`} onClick={irA(ANCLAS.modulos)} className="ln-boton ln-eco-boton">
+            Ver los módulos <ArrowRight className="ln-flecha" strokeWidth={2} />
+          </a>
+        </div>
+
+        <svg className="ln-eco-lineas" viewBox="0 0 1859 846" aria-hidden="true">
+          <defs>
+            <marker id="ln-eco-punta" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M1 1 L8 5 L1 9" fill="none" stroke="rgb(253 82 4)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </marker>
+          </defs>
+          {LINEAS.map((l, i) => <path key={i} d={l.d} markerEnd={l.flecha ? "url(#ln-eco-punta)" : undefined} />)}
+        </svg>
+
+        <div className="ln-eco-centro" aria-hidden="true">
+          <LogoGenez size={84} claro />
+          <span className="ln-eco-centro-nombre">GENEZ</span>
+        </div>
+
+        <ul className="ln-eco-nodos">
+          {NODOS.map((n) => {
+            const I = n.icono;
+            return (
+              <li key={n.k} className={`ln-eco-nodo ln-eco-${n.k}`}>
+                <span className="ln-eco-icono"><I strokeWidth={1.9} /></span>
+                <span>
+                  <span className="ln-eco-nodo-titulo">{n.titulo}</span>
+                  <span className="ln-eco-nodo-texto">{n.texto}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );
