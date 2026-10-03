@@ -130,7 +130,9 @@ export default function LandingNueva() {
           <Precios rubros={rubros} tarifas={tarifas} rubroElegido={eleccion.rubro} onElegir={elegirPlan} />
           <HacemosMas tarifas={tarifas} />
           <Preguntas tarifas={tarifas} />
+          <Registro rubros={rubros} tarifas={tarifas} eleccion={eleccion} />
         </main>
+        <Pie />
       </div>
     </TemaCtx.Provider>
   );
@@ -304,7 +306,7 @@ function Alertas() {
    resolvemos (docs/landing-nueva.md). Indumentaria y Ecommerce van como
    "Próximamente": el sistema todavía no tiene variantes ni tienda online.
 
-   Los negocios salen de la base (\`presentacion.negocios\`); lo que les
+   Los negocios salen de la base (`presentacion.negocios`); lo que les
    resolvemos es una decisión de la página y vive acá. Un negocio nuevo sin
    texto muestra lo destacado de su rubro. */
 const SOLUCIONES = {
@@ -1070,5 +1072,256 @@ function Preguntas({ tarifas }) {
         </ul>
       </div>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   12 · Registro
+   ------------------------------------------------------------
+   Dos pasos en la misma tarjeta (la maqueta tenía cuatro): tu comercio y
+   tus datos, y una confirmación. Trae cargado lo que se eligió más arriba
+   (negocio, rubro, plan o módulos a medida).
+
+   TODAVÍA NO CREA LA CUENTA
+   -------------------------
+   El autoservicio (crear el comercio, la prueba de 10 días, los mails,
+   la suspensión) es la etapa que sigue (docs/landing-nueva.md). Mientras
+   tanto el formulario deja una solicitud, como el alta anterior, con
+   origen "registro-landing", y la confirmación dice lo que pasa de
+   verdad: que escribimos por WhatsApp para activar la prueba. Por eso no
+   pide contraseña: pedirla sin crear la cuenta sería mentirle. */
+const PROVINCIAS = [
+  "Buenos Aires", "Ciudad de Buenos Aires", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos",
+  "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan",
+  "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
+];
+const SUCURSALES = [["1", "Una"], ["2", "Dos o tres"], ["4", "Cuatro o más"]];
+const NOMBRE_PLAN = { start: "Start", pro: "Pro", empresa: "Empresa", medida: "A medida" };
+const VENTAJAS_REGISTRO = [
+  { icono: BarChart3, texto: "Una configuración a tu medida." },
+  { icono: Puzzle, texto: "Soluciones para tus problemas reales." },
+  { icono: Zap, texto: "Todo en un solo lugar para hacer crecer tu negocio." },
+];
+
+function Registro({ rubros, tarifas, eleccion }) {
+  const [paso, setPaso] = useState(1);
+  const [d, setD] = useState({
+    comercio: "", negocio: "", sucursales: "1", provincia: "", problema: "",
+    nombre: "", email: "", telefono: "", plan: "pro",
+  });
+  const [error, setError] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+
+  /* Lo que se eligió más arriba en la página entra al formulario, sin
+     pisar lo que la persona ya escribió a mano. */
+  useEffect(() => {
+    setD((x) => ({
+      ...x,
+      negocio: eleccion.rubro ? `${eleccion.rubro}|${eleccion.negocio || ""}` : x.negocio,
+      plan: eleccion.plan || x.plan,
+    }));
+  }, [eleccion.rubro, eleccion.negocio, eleccion.plan]);
+
+  const cambiar = (campo) => (e) => setD((x) => ({ ...x, [campo]: e.target.value }));
+  const [rubroClave, negocioNombre] = (d.negocio || "|").split("|");
+  const rubro = rubros.find((r) => r.clave === rubroClave) || null;
+
+  /* Los módulos y el precio del plan elegido, con las mismas funciones que
+     la sección de precios. */
+  const t = tarifas || TARIFAS_VACIAS;
+  const lista = rubro ? planes({ rubro }) : [];
+  const modulos = d.plan === "medida"
+    ? (eleccion.plan === "medida" && eleccion.modulos ? eleccion.modulos : (lista[0] ? lista[0].armado.elegidos : []))
+    : ((lista.find((p) => p.k === d.plan) || {}).armado || {}).elegidos || [];
+  const pre = presupuestar(d.plan === "medida" ? tarifasAMedida(t) : t, modulos);
+
+  const seguir = (e) => {
+    e.preventDefault();
+    if (d.comercio.trim().length < 2) return setError("Escribí el nombre de tu comercio.");
+    if (!rubro) return setError("Elegí qué tipo de negocio es.");
+    if (d.problema.trim().length < 5) return setError("Contanos en una frase qué te complica hoy.");
+    setError(null); setPaso(2);
+  };
+
+  const enviar = async (e) => {
+    e.preventDefault();
+    const problema = validarPedido({ nombre: d.nombre, telefono: d.telefono, email: d.email });
+    if (problema) return setError(problema);
+    if (!d.email.trim()) return setError("Escribí tu email: ahí te llega el acceso.");
+    setError(null); setEnviando(true);
+    try {
+      await pedirPresupuesto({
+        negocio: negocioNombre || (rubro && rubro.nombre),
+        rubro: rubroClave,
+        escala: d.sucursales,
+        respuestas: [
+          { k: "comercio", n: d.comercio.trim() },
+          { k: "plan", n: `Plan ${NOMBRE_PLAN[d.plan] || d.plan}` },
+          ...(d.provincia ? [{ k: "provincia", n: d.provincia }] : []),
+          ...(pre.conDescuento != null ? [{ k: "descuento", n: `${pesos(pre.conDescuento)} por mes, ${textoDescuento(pre.descuento)}` }] : []),
+        ],
+        modulos,
+        mensual: pre.mensual,
+        nombre: d.nombre, telefono: d.telefono, email: d.email,
+        mensaje: d.problema,
+        origen: "registro-landing",
+      });
+      setPaso(3);
+    } catch (err) {
+      setError((err && err.message) || "No se pudo enviar. Probá de nuevo.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const PASOS_REGISTRO = ["Tu comercio", "Tus datos", "Listo"];
+
+  return (
+    <section id={ANCLAS.registro} className="ln-reg">
+      <div className="ln-faq-fondo ln-reg-fondo" aria-hidden="true" />
+      <div className="ln-reg-lienzo">
+        <div className="ln-reg-texto">
+          <span className="ln-reg-raya" aria-hidden="true" />
+          <h2 className="ln-reg-titulo">Contanos{" "}<br />sobre tu{" "}<br /><span className="ln-naranja">comercio.</span></h2>
+          <p className="ln-reg-parrafo">Queremos conocer tu negocio{" "}<br className="ln-solo-ancho" />para ofrecerte la mejor solución.</p>
+          <ul className="ln-reg-ventajas">
+            {VENTAJAS_REGISTRO.map((v) => {
+              const I = v.icono;
+              return <li key={v.texto}><span className="ln-reg-ventaja-icono"><I strokeWidth={2} /></span><span>{v.texto}</span></li>;
+            })}
+          </ul>
+        </div>
+
+        <div className="ln-reg-tarjeta">
+          <ol className="ln-reg-pasos" aria-label="Pasos">
+            {PASOS_REGISTRO.map((n, i) => (
+              <li key={n} className={`${paso === i + 1 ? "ln-reg-paso-actual" : ""} ${paso > i + 1 ? "ln-reg-paso-hecho" : ""}`}>
+                <span className="ln-reg-paso-numero">{paso > i + 1 ? <Check strokeWidth={3} /> : i + 1}</span>
+                <span className="ln-reg-paso-nombre">{n}</span>
+              </li>
+            ))}
+          </ol>
+
+          {paso === 1 && (
+            <form onSubmit={seguir} noValidate>
+              <h3 className="ln-reg-encabezado">Datos del comercio</h3>
+              <p className="ln-reg-sub">Contanos un poco sobre tu negocio.</p>
+              <div className="ln-reg-campos">
+                <label className="ln-campo"><span>Nombre del comercio <b>*</b></span>
+                  <input value={d.comercio} onChange={cambiar("comercio")} placeholder="Ej: Almacén Don José" maxLength={80} />
+                </label>
+                <label className="ln-campo"><span>Rubro <b>*</b></span>
+                  <select value={d.negocio} onChange={cambiar("negocio")}>
+                    <option value="">Seleccioná un rubro</option>
+                    {rubros.map((r) => (
+                      <optgroup key={r.clave} label={NOMBRE_RUBRO_PRECIOS[r.clave] || r.nombre}>
+                        {((r.presentacion && r.presentacion.negocios) || []).map((n) => <option key={n} value={`${r.clave}|${n}`}>{n}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+                <label className="ln-campo"><span>Cantidad de sucursales</span>
+                  <select value={d.sucursales} onChange={cambiar("sucursales")}>
+                    {SUCURSALES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                  </select>
+                </label>
+                <label className="ln-campo"><span>Provincia</span>
+                  <select value={d.provincia} onChange={cambiar("provincia")}>
+                    <option value="">Seleccioná</option>
+                    {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </label>
+                <label className="ln-campo ln-campo-ancho"><span>¿Cuál es la principal problemática de tu comercio? <b>*</b></span>
+                  <textarea value={d.problema} onChange={cambiar("problema")} rows={4} maxLength={500}
+                    placeholder="Ej: control de stock, problemas con la caja, falta de reportes claros, manejo de varias sucursales, etc." />
+                  <span className="ln-reg-contador">{d.problema.length}/500</span>
+                </label>
+              </div>
+              {error && <p className="ln-mas-error" role="alert">{error}</p>}
+              <button type="submit" className="ln-boton ln-boton-lleno ln-reg-boton">Continuar <ArrowRight className="ln-flecha" strokeWidth={2} /></button>
+            </form>
+          )}
+
+          {paso === 2 && (
+            <form onSubmit={enviar} noValidate>
+              <h3 className="ln-reg-encabezado">Tus datos</h3>
+              <p className="ln-reg-sub">Para activarte la prueba de 10 días, sin tarjeta.</p>
+              <div className="ln-reg-campos">
+                <label className="ln-campo"><span>Tu nombre <b>*</b></span>
+                  <input value={d.nombre} onChange={cambiar("nombre")} autoComplete="name" />
+                </label>
+                <label className="ln-campo"><span>WhatsApp <b>*</b></span>
+                  <input value={d.telefono} onChange={cambiar("telefono")} inputMode="tel" autoComplete="tel" placeholder="Con código de área" />
+                </label>
+                <label className="ln-campo"><span>Email <b>*</b></span>
+                  <input value={d.email} onChange={cambiar("email")} type="email" autoComplete="email" />
+                </label>
+                <label className="ln-campo"><span>Plan</span>
+                  <select value={d.plan} onChange={cambiar("plan")}>
+                    {["start", "pro", "empresa"].map((k) => <option key={k} value={k}>{NOMBRE_PLAN[k]}</option>)}
+                    {hayAMedida(t) && <option value="medida">A medida</option>}
+                  </select>
+                </label>
+              </div>
+              <div className="ln-reg-resumen">
+                <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[d.plan]} · {modulos.length} módulos</span>
+                {pre.mensual != null && (
+                  <span className="ln-reg-resumen-precio">
+                    {pre.conDescuento != null && <s>{pesos(pre.mensual)}</s>} <b>{pesos(pre.conDescuento != null ? pre.conDescuento : pre.mensual)}</b> / mes
+                  </span>
+                )}
+              </div>
+              {error && <p className="ln-mas-error" role="alert">{error}</p>}
+              <div className="ln-reg-botones">
+                <button type="button" onClick={() => { setError(null); setPaso(1); }} className="ln-boton ln-boton-linea ln-reg-volver">Volver</button>
+                <button type="submit" disabled={enviando} className="ln-boton ln-boton-lleno ln-reg-boton">
+                  {enviando ? "Enviando…" : "Pedir mi prueba gratis"} <ArrowRight className="ln-flecha" strokeWidth={2} />
+                </button>
+              </div>
+              <p className="ln-reg-legal">Al enviar aceptás la <a href="/privacidad">política de privacidad</a>.</p>
+            </form>
+          )}
+
+          {paso === 3 && (
+            <div className="ln-mas-listo ln-reg-listo">
+              <span className="ln-mas-listo-icono"><Check strokeWidth={3} /></span>
+              <div className="ln-mas-listo-titulo">¡Listo, {d.nombre.trim().split(" ")[0]}!</div>
+              <p className="ln-mas-listo-texto">Te escribimos por WhatsApp para activar tu prueba de 10 días de {d.comercio.trim()}.</p>
+              {tarifas && tarifas.whatsapp && (
+                <a className="ln-boton ln-boton-lleno ln-mas-enviar" target="_blank" rel="noreferrer"
+                  href={`https://wa.me/${tarifas.whatsapp}?text=${encodeURIComponent(`Hola, soy ${d.nombre.trim()} de ${d.comercio.trim()}. Pedí la prueba de Genez (plan ${NOMBRE_PLAN[d.plan]}).`)}`}>
+                  Escribirnos ahora por WhatsApp <ArrowRight className="ln-flecha" strokeWidth={2} />
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   Pie · el de la landing anterior, con los mismos datos
+   ------------------------------------------------------------ */
+function Pie() {
+  const oscuro = useOscuro();
+  return (
+    <footer className="ln-pie">
+      <div className="ln-pie-marco">
+        <div className="ln-pie-marca">
+          <LogoGenez size={30} conNombre claro={oscuro} />
+          <span>Sistema de gestión para comercios, armado según tu negocio.</span>
+        </div>
+        <nav className="ln-pie-enlaces" aria-label="Pie">
+          <a href={`#${ANCLAS.negocio}`} onClick={irA(ANCLAS.negocio)}>Tu negocio</a>
+          <a href={`#${ANCLAS.precios}`} onClick={irA(ANCLAS.precios)}>Precios</a>
+          <a href="#preguntas" onClick={irA("preguntas")}>Preguntas</a>
+          <a href="/login">Entrar</a>
+          <a href="/privacidad">Privacidad</a>
+        </nav>
+        <div className="ln-pie-copia">© {new Date().getFullYear()} Genez · Hecho en Argentina</div>
+      </div>
+    </footer>
   );
 }
