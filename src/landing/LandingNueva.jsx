@@ -27,7 +27,7 @@ import {
   ArrowRight, Sun, Moon, ShoppingCart, Box, BarChart3, FileText, AlertTriangle, TrendingDown, Truck, ChevronDown,
   Store, UtensilsCrossed, Shirt, Scissors, Laptop, Coffee, Beer, Croissant, Apple, Leaf, Wrench, ShowerHead, Candy,
   ChefHat, ShoppingBag, Sparkles, PersonStanding, Dumbbell, Stethoscope, Flower2,
-  Coins, Percent, Tag, BellRing,
+  Coins, Percent, Tag, BellRing, PieChart, Search,
 } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
@@ -99,6 +99,7 @@ export default function LandingNueva() {
           <QueHace />
           <Negocios rubros={rubros} onElegir={elegirNegocio} />
           <Rentabilidad />
+          <GenezIA />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -444,6 +445,54 @@ function Rentabilidad() {
             );
           })}
         </ul>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   5 · Genez IA
+   ------------------------------------------------------------
+   En la maqueta, "Genez Intelligence": todo el sistema está en
+   castellano. El gráfico con sus tarjetas es el recorte de la maqueta
+   (datos de ejemplo, sin nombres de nadie). "Filtros flexibles" decía
+   "por fecha, sucursal, producto, canal": por sucursal todavía no se
+   puede filtrar, así que no se promete. */
+const PUNTOS_IA = [
+  { icono: BarChart3, titulo: "Filtros flexibles", texto: "Por fecha, producto, canal y más." },
+  { icono: PieChart, titulo: "Comparativas claras", texto: "Hacé crecer tu negocio con información real." },
+  { icono: Search, titulo: "Detalle del origen", texto: "Llegá al ticket, la venta o el movimiento." },
+];
+
+function GenezIA() {
+  const oscuro = useOscuro();
+  return (
+    <section id={ANCLAS.ia} className="ln-ia">
+      <div className="ln-ia-lienzo">
+        <div className="ln-ia-texto">
+          <div className="ln-rotulo">Genez IA</div>
+          <h2 className="ln-ia-titulo">Tu sistema{" "}<br />también <span className="ln-naranja">piensa</span>{" "}<br /><span className="ln-naranja">con vos.</span></h2>
+          <p className="ln-ia-parrafo">No necesitás mirar todo. Genez detecta qué cambió{" "}<br className="ln-solo-ancho" />y qué conviene abrir.</p>
+          <ul className="ln-ia-puntos">
+            {PUNTOS_IA.map((p) => {
+              const I = p.icono;
+              return (
+                <li key={p.titulo}>
+                  <span className="ln-ia-icono"><I strokeWidth={2} /></span>
+                  <span>
+                    <span className="ln-ia-punto-titulo">{p.titulo}</span>
+                    <span className="ln-ia-punto-texto">{p.texto}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <a href={`#${ANCLAS.registro}`} onClick={irA(ANCLAS.registro)} className="ln-boton ln-boton-linea ln-ia-boton">
+            Preguntarle a Genez <ArrowRight className="ln-flecha" strokeWidth={2} />
+          </a>
+        </div>
+        <img src={oscuro ? "/landing/nueva/ia-oscuro.jpg" : "/landing/nueva/ia-claro.jpg"} width="1124" height="846" className="ln-ia-arte"
+          alt="Alertas y números de ejemplo: ventas en baja, productos por agotarse, ventas por canal y los más vendidos" />
       </div>
     </section>
   );

@@ -469,3 +469,56 @@
   .ln-renta-punto-titulo { margin-top: calc(14 * var(--u)); font-size: calc(19.5 * var(--u)); }
   .ln-renta-punto-texto { margin-top: calc(4 * var(--u)); font-size: calc(17 * var(--u)); }
 }
+
+/* ------------------------------------------------------------
+   5 · Genez IA (maqueta: 1859 × 846)
+   ------------------------------------------------------------ */
+.ln-ia {
+  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1859));
+  padding: 48px 20px 40px;
+}
+.ln-ia-titulo { margin-top: 12px; font-size: 40px; font-weight: 800; line-height: 0.98; letter-spacing: -0.05em; }
+.ln-ia-parrafo { margin-top: 16px; font-size: 16px; line-height: 1.45; color: rgb(var(--ln-suave)); }
+.ln-ia-puntos { margin-top: 20px; display: grid; gap: 14px; }
+.ln-ia-puntos li { display: flex; align-items: center; gap: 14px; }
+.ln-ia-icono {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 11px;
+  background: rgb(var(--ln-icono-fondo)); color: rgb(var(--ln-naranja));
+}
+.ln-ia-icono svg { width: 22px; height: 22px; }
+.ln-ia-punto-titulo { display: block; font-size: 15.5px; font-weight: 800; }
+.ln-ia-punto-texto { display: block; font-size: 14px; color: rgb(var(--ln-suave)); }
+.ln-ia-boton { margin-top: 24px; padding: 13px 20px; font-size: 15px; font-weight: 600; }
+.ln-ia-arte {
+  display: block; width: 100%; height: auto; margin-top: 24px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
+  mask-composite: intersect;
+}
+
+@media (max-width: 1023px) {
+  .ln-ia-titulo br { display: none; }
+}
+
+@media (min-width: 1024px) {
+  .ln-ia { padding: 0; }
+  .ln-ia-lienzo { position: relative; width: calc(1859 * var(--u)); height: calc(846 * var(--u)); margin: 0 auto; }
+  .ln-ia-texto { position: absolute; left: calc(133 * var(--u)); top: calc(116 * var(--u)); z-index: 1; }
+  .ln-ia .ln-rotulo { font-size: calc(15.5 * var(--u)); }
+  .ln-ia-titulo { margin-top: calc(31 * var(--u)); font-size: calc(90 * var(--u)); line-height: 0.96; white-space: nowrap; }
+  .ln-ia-parrafo { margin-top: calc(21 * var(--u)); font-size: calc(22 * var(--u)); }
+  .ln-ia-puntos { margin-top: calc(17 * var(--u)); gap: calc(14 * var(--u)); }
+  .ln-ia-puntos li { gap: calc(30 * var(--u)); }
+  .ln-ia-icono { width: calc(52 * var(--u)); height: calc(52 * var(--u)); border-radius: calc(12 * var(--u)); }
+  .ln-ia-icono svg { width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+  .ln-ia-punto-titulo { font-size: calc(19 * var(--u)); }
+  .ln-ia-punto-texto { font-size: calc(16 * var(--u)); }
+  .ln-ia-boton { margin-top: calc(42 * var(--u)); height: calc(53 * var(--u)); padding: 0 calc(22 * var(--u)); font-size: calc(18 * var(--u)); }
+  .ln-ia-arte {
+    position: absolute; left: calc(735 * var(--u)); top: 0; width: calc(1124 * var(--u)); margin: 0;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent), linear-gradient(to bottom, transparent, #000 2%, #000 97%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent), linear-gradient(to bottom, transparent, #000 2%, #000 97%, transparent);
+  }
+}
