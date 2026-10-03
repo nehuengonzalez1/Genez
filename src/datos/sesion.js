@@ -161,10 +161,9 @@ export async function crearComercio({ nombre, rubro, modulos }) {
     if (error.code === "23505") throw new Error(`Ya hay un comercio que se llama "${nombre.trim()}". Usá otro nombre.`);
     throw new Error(error.message || "No se pudo crear el comercio.");
   }
-  const { error: e2 } = await supabase.from("sucursales").insert({ empresa_id: data.id, nombre: "Principal" });
-  /* Sin sucursal el comercio anda igual (hoy nada la lee): se avisa en
-     la consola y se sigue, antes que dejar a medias un alta que ya está. */
-  if (e2) console.error("El comercio se creó, pero no su sucursal:", e2);
+  /* La sucursal "Principal" la crea la base junto con la primera caja
+     (0125): antes se creaba acá, después del comercio, y desde 0108 la
+     caja la necesitaba antes, así que el alta entera fallaba. */
   return aComercio(data);
 }
 
