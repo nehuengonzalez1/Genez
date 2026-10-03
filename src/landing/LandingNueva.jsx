@@ -29,6 +29,8 @@ import {
   ChefHat, ShoppingBag, Sparkles, PersonStanding, Dumbbell, Stethoscope, Flower2,
   Coins, Percent, Tag, BellRing, PieChart, Search,
   Wallet, Smartphone, QrCode, WifiOff, MessageCircle, Printer,
+  ScanBarcode, Boxes, BookOpen, Users, CalendarDays, Settings, ClipboardList, UserCog, Ticket, Landmark,
+  LayoutGrid, HeartHandshake, ShieldCheck, ChevronUp,
 } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
@@ -102,6 +104,7 @@ export default function LandingNueva() {
           <Rentabilidad />
           <GenezIA />
           <Ecosistema />
+          <Modulos />
         </main>
       </div>
     </TemaCtx.Provider>
@@ -571,6 +574,74 @@ function Ecosistema() {
             );
           })}
         </ul>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------
+   7 · Solo los módulos que necesitás
+   ------------------------------------------------------------
+   Las doce tarjetas de la maqueta, con módulos que existen: "Costos" no
+   es un módulo (el costo vive en Productos y en las recetas) y en su
+   lugar va Cuenta corriente; "WhatsApp" es Avisos, que es lo que hay;
+   "Configuración" se llama Ajustes en el sistema. "Conocé todos los
+   módulos" despliega el resto acá mismo: no hay segunda pantalla. Los
+   cubos de la derecha son el recorte de la maqueta. */
+const MODULOS_LANDING = [
+  { icono: ScanBarcode, n: "Cobro", d: "Punto de venta, tickets y vuelto." },
+  { icono: Wallet, n: "Caja", d: "Arqueo, gastos y cierre." },
+  { icono: Box, n: "Productos", d: "Catálogo, precios y listas." },
+  { icono: Boxes, n: "Stock", d: "Inventario, alertas y vencimientos." },
+  { icono: Truck, n: "Compras", d: "Remitos, costos y proveedores." },
+  { icono: BookOpen, n: "Cuenta corriente", d: "Fiado: quién debe y cuánto." },
+  { icono: Users, n: "Clientes", d: "Historial, factura y puntos." },
+  { icono: CalendarDays, n: "Agenda", d: "Turnos, clases y disponibilidad." },
+  { icono: BarChart3, n: "Informes", d: "Datos claros para decidir." },
+  { icono: MessageCircle, n: "Avisos", d: "Recordatorios por WhatsApp." },
+  { icono: Sparkles, n: "Asistente con IA", d: "Análisis y recomendaciones." },
+  { icono: Settings, n: "Ajustes", d: "Tu negocio, a tu medida." },
+];
+const MODULOS_MAS = [
+  { icono: UtensilsCrossed, n: "Salón", d: "Mesas, comandas y cocina." },
+  { icono: ClipboardList, n: "Pedidos", d: "Preparación y delivery." },
+  { icono: UserCog, n: "Equipo", d: "Horarios, comisiones y sueldos." },
+  { icono: Ticket, n: "Abonos y packs", d: "Planes, clases y sesiones." },
+  { icono: Landmark, n: "Finanzas", d: "Ingresos, egresos y sueldos." },
+  { icono: LayoutGrid, n: "Servicios", d: "Qué se ofrece y dónde." },
+  { icono: HeartHandshake, n: "Seguimiento", d: "A quién escribirle y por qué." },
+  { icono: ShieldCheck, n: "Permisos", d: "Qué puede hacer cada uno." },
+];
+
+function Modulos() {
+  const oscuro = useOscuro();
+  const [todos, setTodos] = useState(false);
+  const lista = todos ? [...MODULOS_LANDING, ...MODULOS_MAS] : MODULOS_LANDING;
+  return (
+    <section id={ANCLAS.modulos} className="ln-mod">
+      <div className={`ln-mod-lienzo ${todos ? "ln-mod-abierto" : ""}`}>
+        <div className="ln-rotulo ln-mod-rotulo">Todo lo que necesitás</div>
+        <h2 className="ln-mod-titulo">Solo los módulos{" "}<br /><span className="ln-naranja">que necesitás.</span></h2>
+        <p className="ln-mod-parrafo">Empezá simple. Sumá herramientas cuando tu negocio{" "}<br className="ln-solo-ancho" />las necesite.</p>
+        <img src={oscuro ? "/landing/nueva/modulos-oscuro.jpg" : "/landing/nueva/modulos-claro.jpg"} width="709" height="816" className="ln-mod-arte"
+          alt="" aria-hidden="true" />
+        <ul className="ln-mod-grilla">
+          {lista.map((m) => {
+            const I = m.icono;
+            return (
+              <li key={m.n} className="ln-mod-tarjeta">
+                <span className="ln-mod-icono"><I strokeWidth={2} /></span>
+                <span>
+                  <span className="ln-mod-nombre">{m.n}</span>
+                  <span className="ln-mod-texto">{m.d}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <button type="button" onClick={() => setTodos(!todos)} aria-expanded={todos} className="ln-boton ln-eco-boton ln-mod-boton">
+          {todos ? "Ver menos" : "Conocé todos los módulos"} {todos ? <ChevronUp className="ln-flecha" strokeWidth={2} /> : <ArrowRight className="ln-flecha" strokeWidth={2} />}
+        </button>
       </div>
     </section>
   );

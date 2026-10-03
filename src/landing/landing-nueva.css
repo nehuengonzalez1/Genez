@@ -614,3 +614,73 @@
   .ln-eco-nodo-titulo { font-size: calc(19.5 * var(--u)); }
   .ln-eco-nodo-texto { margin-top: calc(3 * var(--u)); font-size: calc(16 * var(--u)); line-height: 1.45; }
 }
+
+/* ------------------------------------------------------------
+   7 · Solo los módulos que necesitás (maqueta: 1859 × 846)
+   ------------------------------------------------------------
+   La grilla va en flujo: "Conocé todos los módulos" la hace crecer. */
+.ln-mod {
+  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1859));
+  padding: 48px 20px 40px;
+}
+.ln-mod-titulo { margin-top: 12px; font-size: 40px; font-weight: 800; line-height: 0.98; letter-spacing: -0.05em; }
+.ln-mod-parrafo { margin-top: 16px; font-size: 16px; line-height: 1.45; color: rgb(var(--ln-suave)); }
+.ln-mod-arte {
+  display: block; width: 78%; max-width: 360px; height: auto; margin: 18px auto 0;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent), linear-gradient(to bottom, transparent, #000 5%, #000 95%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent), linear-gradient(to bottom, transparent, #000 5%, #000 95%, transparent);
+  mask-composite: intersect;
+}
+.ln-mod-grilla { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ln-mod-tarjeta {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px;
+  border-radius: 14px; background: rgb(var(--ln-nodo)); border: 1px solid rgb(var(--ln-tarjeta-borde));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.05);
+}
+.ln-mod-icono {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgb(var(--ln-icono-fondo)); color: rgb(var(--ln-naranja));
+}
+.ln-mod-icono svg { width: 19px; height: 19px; }
+.ln-mod-nombre { display: block; font-size: 14px; font-weight: 800; line-height: 1.2; }
+.ln-mod-texto { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.35; color: rgb(var(--ln-suave)); }
+.ln-mod-boton { margin-top: 20px; }
+
+@media (max-width: 1023px) {
+  .ln-mod-titulo br { display: none; }
+}
+/* En el teléfono, dos columnas angostas: el ícono va arriba para que el
+   nombre no se parta. */
+@media (max-width: 639px) {
+  .ln-mod-tarjeta { flex-direction: column; gap: 8px; }
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .ln-mod-grilla { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .ln-mod { padding: 0; }
+  .ln-mod-lienzo {
+    position: relative; width: calc(1859 * var(--u)); min-height: calc(846 * var(--u)); margin: 0 auto;
+    padding: calc(400 * var(--u)) 0 calc(46 * var(--u)) calc(128 * var(--u));
+  }
+  .ln-mod-rotulo { position: absolute; left: calc(129 * var(--u)); top: calc(74 * var(--u)); font-size: calc(15.5 * var(--u)); }
+  .ln-mod-titulo {
+    position: absolute; left: calc(129 * var(--u)); top: calc(105 * var(--u)); margin: 0;
+    font-size: calc(99 * var(--u)); line-height: 0.89; white-space: nowrap;
+  }
+  .ln-mod-parrafo { position: absolute; left: calc(129 * var(--u)); top: calc(305 * var(--u)); margin: 0; font-size: calc(23 * var(--u)); line-height: 1.4; }
+  .ln-mod-arte { position: absolute; left: calc(1150 * var(--u)); top: calc(30 * var(--u)); width: calc(709 * var(--u)); max-width: none; margin: 0; }
+  .ln-mod-grilla { margin: 0; width: calc(998 * var(--u)); grid-template-columns: repeat(4, 1fr); column-gap: calc(18 * var(--u)); row-gap: calc(16 * var(--u)); }
+  .ln-mod-tarjeta {
+    height: calc(96 * var(--u)); align-items: center; gap: calc(14 * var(--u)); padding: 0 calc(12 * var(--u));
+    border-radius: calc(14 * var(--u));
+  }
+  .ln-mod-icono { width: calc(52 * var(--u)); height: calc(52 * var(--u)); border-radius: calc(12 * var(--u)); }
+  .ln-mod-icono svg { width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+  .ln-mod-nombre { font-size: calc(18 * var(--u)); }
+  .ln-mod-texto { margin-top: calc(3 * var(--u)); font-size: calc(15 * var(--u)); }
+  .ln-mod-boton { margin-top: calc(28 * var(--u)); height: calc(53 * var(--u)); padding: 0 calc(26 * var(--u)); font-size: calc(18 * var(--u)); border-radius: calc(10 * var(--u)); }
+}
