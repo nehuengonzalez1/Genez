@@ -20,8 +20,8 @@
      "Ya pagué" siguen andando.
    - El comercio no se extiende la prueba a sí mismo.
    - "Borrar ejemplos" deja el comercio vacío y lo que cargó la persona.
-   - Un comercio que ya existía sigue entrando (Super 25 Pruebas: con
-     Super 25 no se prueba).
+   - Cada usuario activo de los comercios que ya existían sigue teniendo
+     su comercio (solo empresa_actual(), sin leer sus datos).
 
    Pone `idle_in_transaction_session_timeout`: una prueba cortada dejó una
    vez una sesión abierta en producción, con bloqueos.
@@ -49,13 +49,27 @@ async function como(uid, hacer) {
   await c.query("set local role authenticated");
   await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: uid, role: "authenticated" })]);
   try { return await hacer(); }
-  finally { await c.query("reset role"); await c.query("release savepoint como"); }
+  /* La identidad se limpia al salir: set_config(..., true) dura hasta el fin
+     de la transacción, y lo que sigue tiene que correr como administrador. */
+  finally {
+    await c.query("reset role");
+    await c.query("select set_config('request.jwt.claims', '', true)");
+    await c.query("release savepoint como");
+  }
 }
 
 async function falla(sql, args = []) {
   await c.query("savepoint f");
   try { await c.query(sql, args); await c.query("release savepoint f"); return null; }
   catch (e) { await c.query("rollback to savepoint f"); return e.message; }
+}
+
+/* Lo que hace Genez desde su panel (vencer, suspender, activar) va como el
+   usuario de plataforma: proteger_lo_comercial no deja a nadie más, ni
+   siquiera al administrador de Postgres. */
+async function comoGenez(sql, args = []) {
+  const p = await una("select id from perfiles where es_plataforma and activo limit 1");
+  return como(p.id, () => c.query(sql, args));
 }
 
 const uid = randomUUID();
@@ -121,13 +135,15 @@ try {
   decir(vista.clientes === 3, `y sus clientes de ejemplo (${vista.clientes})`);
   decir(vista.empresas === 1, `y ningún otro comercio (${vista.empresas})`);
   decir(vista.tickets > 50 && Number(vista.ventas) > 0, `el inicio tiene dos semanas de ventas (${vista.tickets} tickets, $ ${Math.round(vista.ventas)})`);
-  decir(vista.reponer > 0, `algo para reponer (${vista.reponer})`);
+  decir(vista.reponer > 0 && vista.reponer < vista.items, `algo para reponer, no todo (${vista.reponer} de ${vista.items})`);
+  const negativos = await como(uid, () => una("select count(*)::int as n from items_vista where controla_stock and stock < 0"));
+  decir(negativos.n === 0, `ningún stock en negativo (${negativos.n})`);
 
   const extender = await como(uid, () => falla("update empresas set prueba_hasta = prueba_hasta + 30 where id = $1", [empresa]));
   decir(/los cambia Genez/.test(extender || ""), "no se extiende la prueba a sí mismo");
 
   console.log("\nVencida");
-  await c.query("update empresas set prueba_hasta = (now() at time zone 'America/Argentina/Buenos_Aires')::date - 1 where id = $1", [empresa]);
+  await comoGenez("update empresas set prueba_hasta = (now() at time zone 'America/Argentina/Buenos_Aires')::date - 1 where id = $1", [empresa]);
   const vencida = await como(uid, () => una(`select
       (select count(*) from items)::int as items,
       (select count(*) from empresas)::int as empresas,
@@ -144,12 +160,12 @@ try {
   decir(!!aviso.pago_avisado_en, "\"Ya pagué\" queda anotado");
 
   console.log("\nSuspendida por Genez");
-  await c.query("update empresas set prueba_hasta = null, activa = false where id = $1", [empresa]);
+  await comoGenez("update empresas set prueba_hasta = null, activa = false where id = $1", [empresa]);
   const suspendida = await como(uid, () => una("select (select count(*) from items)::int as items"));
   decir(suspendida.items === 0, "activa = false ahora también la frena la base");
 
   console.log("\nActivada, y borrando los ejemplos");
-  await c.query("update empresas set activa = true where id = $1", [empresa]);
+  await comoGenez("update empresas set activa = true where id = $1", [empresa]);
   const propio = await como(uid, () => una("insert into items (empresa_id, nombre, precio) values ($1, 'Producto propio', 1000) returning id", [empresa]));
   decir(!!propio.id, "activada, vuelve a escribir");
   await como(uid, () => c.query("select borrar_ejemplos()"));
@@ -162,9 +178,16 @@ try {
     `queda solo lo propio (${despues.items} producto, ${despues.ventas} ventas, ${despues.clientes} clientes, ${despues.movimientos} movimientos)`);
 
   console.log("\nLos demás comercios");
-  const s25 = await una(`select p.id from perfiles p join empresas e on e.id = p.empresa_id where e.nombre = 'Super 25 Pruebas' and p.activo limit 1`);
-  const ve = await como(s25.id, () => una("select empresa_actual() is not null as entra, (select count(*) from items)::int as items"));
-  decir(ve.entra, `Super 25 Pruebas sigue entrando (${ve.items} productos)`);
+  /* Cada usuario activo de cada comercio que ya existía sigue teniendo su
+     comercio. Solo se pregunta empresa_actual(): no se lee nada de ellos. */
+  const gente = (await c.query("select p.id, e.nombre from perfiles p join empresas e on e.id = p.empresa_id where p.activo and e.id <> $1", [empresa])).rows;
+  let sinComercio = [];
+  for (const p of gente) {
+    const r = await como(p.id, () => una("select empresa_actual() is not null as entra"));
+    if (!r.entra) sinComercio.push(p.nombre);
+  }
+  decir(gente.length > 0 && sinComercio.length === 0,
+    `los ${gente.length} usuarios activos de los comercios de antes siguen entrando${sinComercio.length ? ` (no: ${sinComercio.join(", ")})` : ""}`);
 } catch (e) {
   fallas++;
   console.log(`\nMAL  se cortó: ${e.message}`);

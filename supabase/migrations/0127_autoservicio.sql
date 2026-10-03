@@ -217,13 +217,6 @@ begin
          controla, minimo, duracion, '{"ejemplo": true}'::jsonb
   from _ejemplos;
 
-  insert into movimientos_stock (empresa_id, item_id, cantidad, tipo, usuario_id, motivo, vence)
-  select p_empresa, i.id, x.inicial, 'inicial', p_usuario, 'Ejemplo',
-         case when x.vence is not null then v_hoy + x.vence end
-  from _ejemplos x
-  join items i on i.empresa_id = p_empresa and i.nombre = x.nombre and i.campos_extra ? 'ejemplo'
-  where x.controla and x.inicial > 0;
-
   insert into clientes (empresa_id, razon_social, condicion, tel, campos_extra)
   values
     (p_empresa, 'Laura Méndez (ejemplo)',   'CF', '1155550101', '{"ejemplo": true}'),
@@ -277,6 +270,20 @@ begin
       where l.operacion_id = v_op and i.controla_stock;
     end loop;
   end loop;
+
+  /* El stock inicial va al final y cubre lo vendido: así lo que queda es
+     la columna "inicial" de arriba, y solo algunos productos quedan bajo
+     el mínimo. Cargado antes, las dos semanas de ventas dejaban todo en
+     negativo y "Para reponer" eran los doce. */
+  insert into movimientos_stock (empresa_id, item_id, cantidad, tipo, usuario_id, motivo, vence, fecha)
+  select p_empresa, i.id,
+         x.inicial + coalesce((select -sum(m.cantidad) from movimientos_stock m where m.item_id = i.id and m.tipo = 'venta'), 0),
+         'inicial', p_usuario, 'Ejemplo',
+         case when x.vence is not null then v_hoy + x.vence end,
+         ((v_hoy - 15) + time '08:00') at time zone v_zona
+  from _ejemplos x
+  join items i on i.empresa_id = p_empresa and i.nombre = x.nombre and i.campos_extra ? 'ejemplo'
+  where x.controla;
 end;
 $function$;
 
