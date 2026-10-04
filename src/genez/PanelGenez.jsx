@@ -724,11 +724,11 @@ function Login({ onEntrar, errorInicial }) {
       <CabezaEntrada />
 
       <div className="mt-8 space-y-3.5">
-        <CampoEntrada icono={Mail} type="email" value={usuario} placeholder="Correo electrónico" aria-label="Correo electrónico"
+        <CampoEntrada icono={Mail} etiqueta="Correo" type="email" value={usuario} placeholder="Correo electrónico"
           onChange={(e) => { setUsuario(e.target.value); setError(""); }}
           onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
           autoComplete="username" disabled={cargando} />
-        <CampoEntrada icono={Lock} type={verClave ? "text" : "password"} value={clave} placeholder="Contraseña" aria-label="Contraseña"
+        <CampoEntrada icono={Lock} etiqueta="Contraseña" type={verClave ? "text" : "password"} value={clave} placeholder="Contraseña"
           onChange={(e) => { setClave(e.target.value); setError(""); }}
           onKeyDown={(e) => e.key === "Enter" && entrar()}
           autoComplete="current-password" disabled={cargando}
