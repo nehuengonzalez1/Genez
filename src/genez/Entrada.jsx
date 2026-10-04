@@ -9,12 +9,14 @@
 
    - La foto es el WebP original de la maqueta, sin recomprimir: pasarla a
      JPG le sumaba pérdida a una imagen que ya venía comprimida.
-   - La foto no va de borde a borde: es un cuadro de hasta 1120 px, con
-     la misma foto desenfocada alrededor. A pantalla completa, en un
-     monitor de 1920 todo quedaba enorme y borroso (la foto mide 1672 y
-     se agrandaba). Más chica que su tamaño real, se ve nítida. El cuadro
-     también se achica con la altura de la ventana, para entrar siempre
-     entero.
+   - La foto ocupa el 85% del ancho y sus bordes se funden en la misma
+     foto desenfocada: se lee como pantalla completa, pero más chica. De
+     borde a borde, en un monitor de 1920 todo quedaba enorme y borroso
+     (la foto mide 1672 y se agrandaba); en un cuadro con esquinas, no
+     ocupaba la pantalla. Las dos cosas las pidió Nehuen el 03/10.
+   - Nunca menos del 95% del alto: en una pantalla más angosta la foto
+     crece hasta cubrirlo y se recorta por la derecha, nunca el texto. La
+     tarjeta se ubica contra lo que se ve de la foto, no contra la foto.
    - La tarjeta lleva `.tema-claro`: es blanca aunque el sistema esté en
      oscuro, y adentro los colores son los del tema claro sin escribir
      ninguno a mano.
@@ -27,6 +29,13 @@ import React from "react";
 import { BarChart3, Settings, Rocket } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 
+/* Poco a la izquierda: ahí está el texto, y el panel ya es oscuro. */
+const MASCARA = "linear-gradient(to right, transparent, #000 2%, #000 90%, transparent), linear-gradient(to bottom, transparent, #000 7%, #000 93%, transparent)";
+const BORDES_FUNDIDOS = {
+  maskImage: MASCARA, WebkitMaskImage: MASCARA,
+  maskComposite: "intersect", WebkitMaskComposite: "source-in",
+};
+
 const PUNTOS = [
   { icono: BarChart3, texto: "Más control" },
   { icono: Settings, texto: "Más tiempo" },
@@ -35,13 +44,15 @@ const PUNTOS = [
 
 export function MarcoEntrada({ children }) {
   return (
-    <div className="relative min-h-screen bg-fondo text-texto overflow-hidden">
-      {/* El fondo de la página: la misma foto, desenfocada y oscura. */}
+    <div className="relative min-h-screen bg-fondo text-texto overflow-hidden" style={{ "--w": "max(85vw, calc(95vh * 1.7768))" }}>
+      {/* Detrás, la misma foto desenfocada: es donde se funden los bordes. */}
       <img src="/login/fondo-oscuro.webp" alt="" aria-hidden="true"
-        className="hidden lg:block absolute inset-0 w-full h-full object-cover scale-110 blur-3xl opacity-50" />
-      <div className="hidden lg:block absolute inset-0 bg-fondo/75" aria-hidden="true" />
+        className="hidden lg:block absolute inset-0 w-full h-full object-cover scale-110 blur-3xl opacity-60" />
+      <div className="hidden lg:block absolute inset-0 bg-fondo/60" aria-hidden="true" />
+      <img src="/login/fondo-oscuro.webp" alt="" aria-hidden="true" style={BORDES_FUNDIDOS}
+        className="hidden lg:block absolute top-1/2 -translate-y-1/2 max-w-none w-[var(--w)] aspect-[1672/941] left-[max(0px,calc((100vw_-_var(--w))/2))]" />
 
-      <div className="relative z-10 min-h-screen flex flex-col lg:items-center lg:justify-center lg:p-8">
+      <div className="relative z-10 min-h-screen flex flex-col lg:block">
         {/* Lo que en la computadora ya está en la foto. */}
         <div className="lg:hidden px-6 pt-10 pb-6">
           <h1 className="f-d text-[28px] leading-[1.05] font-extrabold uppercase">
@@ -55,10 +66,8 @@ export function MarcoEntrada({ children }) {
           </ul>
         </div>
 
-        {/* En la computadora, el cuadro con la foto y la tarjeta adentro. */}
-        <div className="relative flex-1 lg:flex-none w-full lg:w-[min(1120px,calc(100vw_-_4rem),calc((100vh_-_4rem)*1.7768))] lg:aspect-[1672/941] lg:rounded-3xl lg:overflow-hidden lg:shadow-2xl lg:ring-1 lg:ring-borde-fuerte flex items-start lg:items-center justify-center lg:justify-end px-4 pb-8 lg:p-0 lg:pr-[3.5%]">
-          <img src="/login/fondo-oscuro.webp" alt="" aria-hidden="true"
-            className="hidden lg:block absolute inset-0 w-full h-full object-cover" />
+        {/* En la computadora, contra el borde derecho de lo que se ve de la foto. */}
+        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:right-[max(3vw,calc((100vw_-_var(--w))/2_+_var(--w)*0.04))]">
           {/* Un poco más alta que antes, con más aire entre las partes:
               pedido de Nehuen del 03/10. */}
           <div className="relative tema-claro w-full max-w-[360px] lg:w-[300px] bg-superficie text-texto rounded-2xl shadow-2xl px-6 py-8 lg:px-7 lg:py-10">
