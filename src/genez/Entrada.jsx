@@ -49,9 +49,8 @@ const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
    El negro, mucho más oscuro que en la imagen: lo pidió Nehuen el 04/10.
 
    La banda no es una línea: es una barra con volumen. De izquierda a
-   derecha, como en el diseño: una canaleta negra, la banda (con un brillo en su tercio izquierdo, el lado
-   derecho más oscuro y destellos arriba y abajo), un borde fino brillante
-   y el resplandor durazno sobre el blanco.
+   derecha: una canaleta negra que la separa del panel, la banda (un solo
+   trazo, con su degradé y destellos arriba y abajo) y el resplandor durazno sobre el blanco.
 
    Cada capa es la misma línea con otro grosor, recortada al lado que le
    toca (clip-path con el polígono negro o el blanco). Los grosores son en
@@ -93,14 +92,6 @@ function Fondo() {
           <stop offset="0.76" stopColor="#ff7d05" />
           <stop offset="1" stopColor="#f94801" />
         </linearGradient>
-        <linearGradient id="entrada-arista" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffb347" />
-          <stop offset="0.3" stopColor="#ff9a2e" />
-          <stop offset="0.425" stopColor="#ff7a1f" stopOpacity="0.55" />
-          <stop offset="0.6" stopColor="#ff9a2e" />
-          <stop offset="0.85" stopColor="#ffc35a" />
-          <stop offset="1" stopColor="#ff9a2e" />
-        </linearGradient>
         <radialGradient id="entrada-destello">
           <stop offset="0" stopColor="#fff1b8" stopOpacity="0.95" />
           <stop offset="0.35" stopColor="#ffc457" stopOpacity="0.6" />
@@ -110,7 +101,6 @@ function Fondo() {
         <clipPath id="entrada-lado-blanco"><polygon points={`${ARRIBA} 1650,-50 1650,950 ${ABAJO} ${PUNTA}`} /></clipPath>
         <filter id="entrada-brillo" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="20" /></filter>
         <filter id="entrada-suave" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="1.2" /></filter>
-        <filter id="entrada-funde" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="3.5" /></filter>
         <filter id="entrada-difuso" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" /></filter>
       </defs>
 
@@ -127,25 +117,17 @@ function Fondo() {
         <polyline {...linea} stroke="#000" strokeOpacity="0.6" style={t(ancho(B, `1.2 * ${G}`))} filter="url(#entrada-suave)" />
       </g>
 
-      {/* Lado blanco: el resplandor durazno y el borde fino brillante. */}
+      {/* Lado blanco: el resplandor durazno. */}
       <g clipPath="url(#entrada-lado-blanco)">
         <polyline {...linea} stroke="#ff7a2a" strokeOpacity="0.13" style={t(ancho(B, "clamp(36px, 3.4vw, 96px)"))} filter="url(#entrada-brillo)" />
         <polyline {...linea} stroke="#ffcfae" strokeOpacity="0.3" style={t(ancho(B, "clamp(10px, 0.8vw, 24px)"))} filter="url(#entrada-difuso)" />
-        <polyline {...linea} stroke="#ff9d52" style={t(ancho(B, "2.5px"))} />
       </g>
 
-      {/* La banda, con volumen: el lado derecho más oscuro y la arista
-          iluminada en el tercio izquierdo. */}
+      {/* La banda, de un solo trazo. Tenía franjas adentro (un brillo a la
+          izquierda y el borde de afuera más oscuro) y de lejos se leía como dos
+          líneas: Nehuen pidió una sola (04/10). El volumen lo dan la canaleta,
+          el degradé y los destellos. */}
       <polyline {...linea} stroke="url(#entrada-banda)" style={t(B)} />
-      {/* Solo el borde de afuera se oscurece: se oscurece la mitad derecha
-          y se vuelve a pintar el centro, así no queda en dos tonos. */}
-      <g clipPath="url(#entrada-lado-blanco)">
-        <polyline {...linea} stroke="#8a2400" strokeOpacity="0.3" style={t(B)} filter="url(#entrada-suave)" />
-      </g>
-      <polyline {...linea} stroke="url(#entrada-banda)" style={t(`calc(${B} * 0.55)`)} filter="url(#entrada-funde)" />
-      <g clipPath="url(#entrada-lado-negro)">
-        <polyline {...linea} stroke="url(#entrada-arista)" strokeOpacity="0.8" style={t(`calc(${B} * 0.7)`)} filter="url(#entrada-funde)" />
-      </g>
 
       {/* Los destellos: arriba, abajo y uno chico antes de la punta. */}
       <ellipse cx="921" cy="70" rx="16" ry="70" transform="rotate(27 921 70)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
