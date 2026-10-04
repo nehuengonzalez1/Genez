@@ -50,7 +50,7 @@ const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
 
    Tres planos con profundidad: el panel negro adelante (con su canto gris
    y su sombra sobre la banda), la banda en el medio (un solo trazo, con su
-   degradé y destellos) y el blanco atrás (con la sombra de la banda y el
+   degradé y un reflejo que la recorre) y el blanco atrás (con la sombra de la banda y el
    resplandor naranja).
 
    Cada capa es la misma línea con otro grosor, recortada al lado que le
@@ -60,6 +60,10 @@ const B = "clamp(8px, 0.85vw, 23px)";             // la banda (la mitad de la an
 const ancho = (...partes) => `calc(${partes.join(" + ")})`;
 
 function Fondo() {
+  /* Con "reducir movimiento" activado en el sistema, el reflejo queda
+     quieto a la altura de la punta. */
+  const quieto = typeof window !== "undefined" && window.matchMedia
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const t = (w, extra = {}) => ({ vectorEffect: "non-scaling-stroke", strokeWidth: w, ...extra });
   const linea = { points: BANDA, fill: "none", strokeLinejoin: "round", strokeLinecap: "butt" };
   return (
@@ -92,11 +96,22 @@ function Fondo() {
           <stop offset="0.76" stopColor="#ff7d05" />
           <stop offset="1" stopColor="#f94801" />
         </linearGradient>
-        <radialGradient id="entrada-destello">
-          <stop offset="0" stopColor="#fff1b8" stopOpacity="0.95" />
-          <stop offset="0.35" stopColor="#ffc457" stopOpacity="0.6" />
-          <stop offset="1" stopColor="#ff9a2e" stopOpacity="0" />
-        </radialGradient>
+        {/* El reflejo: una franja de luz que recorre la banda de arriba
+            abajo y vuelve (Nehuen, 04/10). Es un degradé vertical que se
+            desplaza; la banda y su halo lo usan como color. */}
+        <linearGradient id="entrada-reflejo" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="240"
+          gradientTransform={quieto ? "translate(0 330)" : undefined}>
+          <stop offset="0" stopColor="#ffd27a" stopOpacity="0" />
+          <stop offset="0.42" stopColor="#ffd889" stopOpacity="0.75" />
+          <stop offset="0.5" stopColor="#fff6dc" stopOpacity="1" />
+          <stop offset="0.58" stopColor="#ffd889" stopOpacity="0.75" />
+          <stop offset="1" stopColor="#ffd27a" stopOpacity="0" />
+          {!quieto && (
+            <animateTransform attributeName="gradientTransform" type="translate"
+              values="0 -260; 0 920; 0 -260" keyTimes="0; 0.5; 1" dur="7s" repeatCount="indefinite"
+              calcMode="spline" keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
+          )}
+        </linearGradient>
         <clipPath id="entrada-lado-negro"><polygon points={`-50,-50 ${BANDA} -50,950`} /></clipPath>
         <clipPath id="entrada-lado-blanco"><polygon points={`${ARRIBA} 1650,-50 1650,950 ${ABAJO} ${PUNTA}`} /></clipPath>
         <filter id="entrada-brillo" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="20" /></filter>
@@ -132,10 +147,12 @@ function Fondo() {
         <polyline {...linea} stroke="#000" strokeOpacity="0.5" style={t("clamp(14px, 1.2vw, 30px)")} filter="url(#entrada-difuso)" />
       </g>
 
-      {/* Los destellos: arriba, abajo y uno chico antes de la punta. */}
-      <ellipse cx="929" cy="70" rx="8" ry="60" transform="rotate(27 929 70)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
-      <ellipse cx="956" cy="760" rx="8" ry="66" transform="rotate(-26 956 760)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
-      <ellipse cx="808" cy="300" rx="6" ry="30" transform="rotate(27 808 300)" fill="url(#entrada-destello)" fillOpacity="0.6" filter="url(#entrada-difuso)" />
+      {/* El reflejo que sube y baja: sobre la banda y, más tenue, como halo
+          sobre el blanco. Reemplaza a los tres destellos fijos. */}
+      <g clipPath="url(#entrada-lado-blanco)">
+        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.35" style={t(ancho(`2 * ${B}`, "clamp(24px, 2.2vw, 60px)"))} filter="url(#entrada-brillo)" />
+        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.9" style={t(`calc(1.4 * ${B})`)} filter="url(#entrada-suave)" />
+      </g>
     </svg>
   );
 }
