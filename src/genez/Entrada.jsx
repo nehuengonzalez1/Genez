@@ -44,9 +44,24 @@ const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
 /* Los colores también son los de la imagen: el negro va de #2a2a2c arriba
    a #020202 abajo a la izquierda, el blanco de #fcfbfc a #e3e5e6, y la
    banda es más rojiza en la punta. Son fijos a propósito: el fondo es el
-   mismo en los dos temas, como el telón. */
+   mismo en los dos temas, como el telón.
+
+   La banda no es una línea: es una barra con volumen. De izquierda a
+   derecha, como en el diseño: el filo iluminado del panel negro, una
+   canaleta negra, la banda (con un brillo en su tercio izquierdo, el lado
+   derecho más oscuro y destellos arriba y abajo), un borde fino brillante
+   y el resplandor durazno sobre el blanco.
+
+   Cada capa es la misma línea con otro grosor, recortada al lado que le
+   toca (clip-path con el polígono negro o el blanco). Los grosores son en
+   píxeles de pantalla (vector-effect), así no se deforman. */
+const B = "clamp(16px, 1.7vw, 46px)";            // la banda
+const G = "clamp(6px, 0.55vw, 15px)";            // la canaleta negra
+const ancho = (...partes) => `calc(${partes.join(" + ")})`;
+
 function Fondo() {
-  const trazo = { vectorEffect: "non-scaling-stroke" };
+  const t = (w, extra = {}) => ({ vectorEffect: "non-scaling-stroke", strokeWidth: w, ...extra });
+  const linea = { points: BANDA, fill: "none", strokeLinejoin: "round", strokeLinecap: "butt" };
   return (
     <svg viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true"
       className="hidden lg:block absolute inset-0 w-full h-full">
@@ -56,9 +71,13 @@ function Fondo() {
           <stop offset="0.45" stopColor="#131416" />
           <stop offset="1" stopColor="#030304" />
         </linearGradient>
-        <radialGradient id="entrada-luz" cx="0.33" cy="0" r="0.55">
-          <stop offset="0" stopColor="#3a3b3e" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#3a3b3e" stopOpacity="0" />
+        <radialGradient id="entrada-luz" cx="0.36" cy="-0.05" r="0.6">
+          <stop offset="0" stopColor="#3d3f42" stopOpacity="0.6" />
+          <stop offset="1" stopColor="#3d3f42" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="entrada-vineta" cx="0.05" cy="1" r="0.7">
+          <stop offset="0" stopColor="#000" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
         </radialGradient>
         <linearGradient id="entrada-blanco" x1="0" y1="0" x2="0.15" y2="1">
           <stop offset="0" stopColor="#fdfcfd" />
@@ -66,38 +85,71 @@ function Fondo() {
           <stop offset="1" stopColor="#e1e3e4" />
         </linearGradient>
         <linearGradient id="entrada-banda" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ff800c" />
-          <stop offset="0.3" stopColor="#f7600a" />
-          <stop offset="0.43" stopColor="#ec4302" />
-          <stop offset="0.6" stopColor="#ff6703" />
-          <stop offset="0.78" stopColor="#ff8506" />
-          <stop offset="1" stopColor="#fc4601" />
+          <stop offset="0" stopColor="#ff7f0c" />
+          <stop offset="0.3" stopColor="#fa6807" />
+          <stop offset="0.425" stopColor="#e23c02" />
+          <stop offset="0.55" stopColor="#fd5d03" />
+          <stop offset="0.76" stopColor="#ff7d05" />
+          <stop offset="1" stopColor="#f94801" />
         </linearGradient>
-        <filter id="entrada-brillo" x="-50%" y="-10%" width="200%" height="120%">
-          <feGaussianBlur stdDeviation="22" />
-        </filter>
-        <filter id="entrada-sombra" x="-50%" y="-10%" width="200%" height="120%">
-          <feGaussianBlur stdDeviation="3" />
-        </filter>
+        <linearGradient id="entrada-arista" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffb347" />
+          <stop offset="0.3" stopColor="#ff9a2e" />
+          <stop offset="0.425" stopColor="#ff7a1f" stopOpacity="0.55" />
+          <stop offset="0.6" stopColor="#ff9a2e" />
+          <stop offset="0.85" stopColor="#ffc35a" />
+          <stop offset="1" stopColor="#ff9a2e" />
+        </linearGradient>
+        <radialGradient id="entrada-destello">
+          <stop offset="0" stopColor="#fff1b8" stopOpacity="0.95" />
+          <stop offset="0.35" stopColor="#ffc457" stopOpacity="0.6" />
+          <stop offset="1" stopColor="#ff9a2e" stopOpacity="0" />
+        </radialGradient>
+        <clipPath id="entrada-lado-negro"><polygon points={`-50,-50 ${BANDA} -50,950`} /></clipPath>
+        <clipPath id="entrada-lado-blanco"><polygon points={`${ARRIBA} 1650,-50 1650,950 ${ABAJO} ${PUNTA}`} /></clipPath>
+        <filter id="entrada-brillo" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="20" /></filter>
+        <filter id="entrada-suave" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="1.2" /></filter>
+        <filter id="entrada-funde" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="3.5" /></filter>
+        <filter id="entrada-difuso" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" /></filter>
       </defs>
 
+      {/* El panel negro, con su luz arriba y la viñeta abajo. */}
       <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-negro)" />
       <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-luz)" />
+      <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-vineta)" />
       <polygon points={`${ARRIBA} 1600,-20 1600,920 ${ABAJO} ${PUNTA}`} fill="url(#entrada-blanco)" />
 
-      {/* El resplandor se derrama sobre el blanco; del lado negro, el filo
-          oscuro que despega la banda del panel. */}
-      <polyline points={BANDA} transform="translate(16 0)" fill="none" stroke="#ff7a1a" strokeOpacity="0.22"
-        strokeLinejoin="round" style={{ ...trazo, strokeWidth: "clamp(36px, 3vw, 90px)" }} filter="url(#entrada-brillo)" />
-      <polyline points={BANDA} transform="translate(-11 0)" fill="none" stroke="#000" strokeOpacity="0.85"
-        strokeLinejoin="round" style={{ ...trazo, strokeWidth: "clamp(6px, 0.5vw, 14px)" }} filter="url(#entrada-sombra)" />
+      {/* Lado negro: el filo iluminado del panel, y adentro la canaleta. */}
+      <g clipPath="url(#entrada-lado-negro)">
+        <polyline {...linea} stroke="#ff8a3d" strokeOpacity="0.3" style={t(ancho(B, `2 * ${G}`, "3px"))} />
+        <polyline {...linea} stroke="#050505" style={t(ancho(B, `2 * ${G}`))} />
+        <polyline {...linea} stroke="#000" strokeOpacity="0.6" style={t(ancho(B, `1.2 * ${G}`))} filter="url(#entrada-suave)" />
+      </g>
 
-      <polyline points={BANDA} fill="none" stroke="url(#entrada-banda)" strokeLinejoin="round"
-        style={{ ...trazo, strokeWidth: "clamp(22px, 2.3vw, 64px)" }} />
-      {/* El centro apenas más claro, que le da el volumen sin leerse como
-          una segunda línea. */}
-      <polyline points={BANDA} fill="none" stroke="#ffa24d" strokeOpacity="0.45" strokeLinejoin="round"
-        style={{ ...trazo, strokeWidth: "clamp(6px, 0.55vw, 16px)" }} filter="url(#entrada-sombra)" />
+      {/* Lado blanco: el resplandor durazno y el borde fino brillante. */}
+      <g clipPath="url(#entrada-lado-blanco)">
+        <polyline {...linea} stroke="#ff7a2a" strokeOpacity="0.13" style={t(ancho(B, "clamp(36px, 3.4vw, 96px)"))} filter="url(#entrada-brillo)" />
+        <polyline {...linea} stroke="#ffcfae" strokeOpacity="0.3" style={t(ancho(B, "clamp(10px, 0.8vw, 24px)"))} filter="url(#entrada-difuso)" />
+        <polyline {...linea} stroke="#ff9d52" style={t(ancho(B, "2.5px"))} />
+      </g>
+
+      {/* La banda, con volumen: el lado derecho más oscuro y la arista
+          iluminada en el tercio izquierdo. */}
+      <polyline {...linea} stroke="url(#entrada-banda)" style={t(B)} />
+      {/* Solo el borde de afuera se oscurece: se oscurece la mitad derecha
+          y se vuelve a pintar el centro, así no queda en dos tonos. */}
+      <g clipPath="url(#entrada-lado-blanco)">
+        <polyline {...linea} stroke="#8a2400" strokeOpacity="0.3" style={t(B)} filter="url(#entrada-suave)" />
+      </g>
+      <polyline {...linea} stroke="url(#entrada-banda)" style={t(`calc(${B} * 0.55)`)} filter="url(#entrada-funde)" />
+      <g clipPath="url(#entrada-lado-negro)">
+        <polyline {...linea} stroke="url(#entrada-arista)" strokeOpacity="0.8" style={t(`calc(${B} * 0.7)`)} filter="url(#entrada-funde)" />
+      </g>
+
+      {/* Los destellos: arriba, abajo y uno chico antes de la punta. */}
+      <ellipse cx="921" cy="70" rx="16" ry="70" transform="rotate(27 921 70)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
+      <ellipse cx="948" cy="760" rx="16" ry="78" transform="rotate(-26 948 760)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
+      <ellipse cx="800" cy="300" rx="10" ry="34" transform="rotate(27 800 300)" fill="url(#entrada-destello)" fillOpacity="0.6" filter="url(#entrada-difuso)" />
     </svg>
   );
 }
