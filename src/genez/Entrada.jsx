@@ -217,8 +217,10 @@ function piezasDeG({ r, ranura, corteArriba, barraArriba, barraAbajo, diagonal, 
 
 /* Como el logo: anillo de 0,24 del radio. Medidas tomadas del logo. */
 const G_LOGO = piezasDeG({ r: 0.76, ranura: 0.06, corteArriba: -0.345, barraArriba: -0.045, barraAbajo: 0.218, diagonal: 0.088, separacion: 0.09 });
-/* El doble de grueso: anillo de 0,48 del radio y la barra el doble de alta. */
-const G_GRUESA = piezasDeG({ r: 0.52, ranura: 0.07, corteArriba: -0.42, barraArriba: -0.12, barraAbajo: 0.36, diagonal: 0.124, separacion: 0.1 });
+/* Más gruesa que el logo: anillo de 0,38 del radio y la barra en la misma
+   proporción. Arrancó el doble de gruesa (0,48) y Nehuen la pidió un poco
+   más angosta (04/10). */
+const G_GRUESA = piezasDeG({ r: 0.62, ranura: 0.065, corteArriba: -0.4, barraArriba: -0.09, barraAbajo: 0.28, diagonal: 0.1, separacion: 0.095 });
 
 /* Dibuja la G. Cada pieza es el anillo recortado (la barra, además, la
    franja horizontal que entra al hueco). Las piezas claras van en un
