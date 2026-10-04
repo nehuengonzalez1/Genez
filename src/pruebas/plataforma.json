@@ -1,5 +1,5 @@
 {
-  "copiado": "2026-10-02",
+  "copiado": "2026-10-03",
   "rubros": [
     {
       "clave": "minimercado",
@@ -82,6 +82,12 @@
               "n": "Ajustes"
             },
             {
+              "d": "Qué puede hacer cada rol, y quién cambió qué",
+              "i": "escudo",
+              "k": "permisos",
+              "n": "Permisos"
+            },
+            {
               "d": "Cotizar sin vender, convertir cuando el cliente confirma",
               "i": "presupuesto",
               "k": "presupuestos",
@@ -96,17 +102,19 @@
         "clientes": "Clientes"
       },
       "modulos": [
-        "cobro",
-        "caja",
         "ajustes",
-        "productos",
-        "stock",
-        "compras",
-        "pedidos",
-        "clientes",
-        "reportes",
         "asistente",
-        "cuentas"
+        "caja",
+        "clientes",
+        "cobro",
+        "compras",
+        "cuentas",
+        "equipo",
+        "pedidos",
+        "permisos",
+        "productos",
+        "reportes",
+        "stock"
       ],
       "orden": 10,
       "activo": true,
@@ -577,11 +585,13 @@
         "caja",
         "clientes",
         "cobro",
+        "comunicaciones",
         "crm",
         "equipo",
         "finanzas",
         "permisos",
-        "reportes"
+        "reportes",
+        "ventas"
       ],
       "orden": 30,
       "activo": true,

@@ -12,6 +12,7 @@
 
 import { supabase } from "./supabase.js";
 import { miMembresia } from "./interno.js";
+import { crearComercioDePrueba, miCuenta } from "./autoservicio.js";
 
 /* La base guarda `activa` y `creada_en`; la aplicación viene hablando de
    `activo` y `alta` desde antes. Se traduce acá y no se toca el resto. */
@@ -25,6 +26,8 @@ function aComercio(fila) {
     modulos: fila.modulos || [],
     config: fila.config || {},
     activo: fila.activa,
+    /* Texto AAAA-MM-DD a propósito: como Date cae al día anterior. */
+    pruebaHasta: fila.prueba_hasta || null,
     alta: d ? `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : "",
     usuarios: (fila.perfiles || []).map((p) => ({
       id: p.id,
@@ -40,7 +43,7 @@ function aComercio(fila) {
 }
 
 const SELECT_EMPRESA = `
-  id, nombre, rubro, plan, modulos, config, activa, creada_en,
+  id, nombre, rubro, plan, modulos, config, activa, creada_en, prueba_hasta,
   perfiles ( id, nombre, rol, activo, email )
 `;
 
@@ -51,13 +54,24 @@ export async function cargarSesion() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: perfil, error } = await supabase
+  const leerPerfil = () => supabase
     .from("perfiles")
     .select("id, nombre, rol, es_plataforma, activo, empresa_id, debe_cambiar_clave, invitado_en")
     .eq("id", user.id)
     .maybeSingle();
 
+  let { data: perfil, error } = await leerPerfil();
   if (error) throw error;
+
+  /* Se registró desde la landing y es la primera vez que entra: el
+     comercio se crea ahora, con el mail ya confirmado (ver autoservicio.js). */
+  const registro = user.user_metadata && user.user_metadata.registro;
+  if (!perfil && registro) {
+    await crearComercioDePrueba(registro);
+    ({ data: perfil, error } = await leerPerfil());
+    if (error) throw error;
+  }
+
   if (!perfil) {
     throw new Error("Tu usuario no tiene un perfil asignado. Avisale al administrador.");
   }
@@ -89,7 +103,15 @@ export async function cargarSesion() {
     .maybeSingle();
 
   if (e2) throw e2;
-  if (!empresa) throw new Error("No encontramos el comercio de tu usuario.");
+
+  /* Desde 0127 la base no le devuelve el comercio a quien tiene la prueba
+     vencida o la cuenta suspendida. No es un error: es la pantalla de
+     contratar, y `mi_cuenta` es lo único que contesta. */
+  if (!empresa) {
+    const cuenta = await miCuenta().catch(() => null);
+    if (cuenta) return { tipo: "sinAcceso", cuenta, nombre: perfil.nombre, usuario: user.email };
+    throw new Error("No encontramos el comercio de tu usuario.");
+  }
   if (!empresa.activa) throw new Error("Esta cuenta está suspendida. Contactate con el administrador.");
 
   return {
@@ -137,9 +159,9 @@ export async function guardarComercio(id, cambios) {
 /* Lo comercial del propio comercio, para que una sesión abierta se entere
    de que Genez le sacó un módulo o lo suspendió sin tener que refrescar. */
 export async function leerLoComercial(id) {
-  const { data, error } = await supabase.from("empresas").select("modulos, activa").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("empresas").select("modulos, activa, prueba_hasta").eq("id", id).maybeSingle();
   if (error) throw error;
-  return data ? { modulos: data.modulos || [], activo: data.activa } : null;
+  return data ? { modulos: data.modulos || [], activo: data.activa, pruebaHasta: data.prueba_hasta || null } : null;
 }
 
 /* Un comercio nuevo, desde el panel de Genez. Antes el panel lo armaba

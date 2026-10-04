@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { Login, ClaveNueva, Sistema, PanelGenez } from "./genez/PanelGenez.jsx";
+import { PantallaSinAcceso } from "./genez/Prueba.jsx";
 import { cargarSesion, cargarComercios, salir, alRecuperarClave, vinoDeRecuperacion, leerLoComercial } from "./datos/sesion.js";
 import { cargarRubro } from "./datos/rubros.js";
 import { cargarRoles } from "./datos/permisos.js";
@@ -51,7 +52,6 @@ export default function App() {
      salón de noche, una caja con la persiana baja. El claro queda para
      quien lo prefiera o trabaje contra una ventana. */
   const [tema, setTema] = useState("oscuro");
-  const [imagenFondo, setImagenFondo] = useState(null);   // fondo propio del login
   const [iniciando, setIniciando] = useState(true);
   /* undefined = todavía no se sabe. Distinto de null, que es "no tiene". */
   const [rubro, setRubro] = useState(undefined);
@@ -128,7 +128,14 @@ export default function App() {
     const mirar = async () => {
       let c;
       try { c = await leerLoComercial(comercioPropio); } catch { return; }   // sin conexión: la próxima
-      if (!vivo || !c) return;
+      if (!vivo) return;
+      /* Desde 0127 la base deja de devolver el comercio cuando vence la
+         prueba o Genez lo suspende: se relee la sesión, que lleva a la
+         pantalla de contratar. */
+      if (!c) {
+        try { const s = await cargarSesion(); if (vivo) setSesion(s); } catch { /* la próxima */ }
+        return;
+      }
       if (c.activo === false) {
         await salir();
         if (!vivo) return;
@@ -139,7 +146,8 @@ export default function App() {
       setSesion((s) => {
         if (!s || s.tipo !== "comercio") return s;
         const antes = (s.comercio.modulos || []).join(",");
-        return antes === c.modulos.join(",") ? s : { ...s, comercio: { ...s.comercio, modulos: c.modulos } };
+        if (antes === c.modulos.join(",") && s.comercio.pruebaHasta === c.pruebaHasta) return s;
+        return { ...s, comercio: { ...s.comercio, modulos: c.modulos, pruebaHasta: c.pruebaHasta } };
       });
     };
     const id = setInterval(mirar, 60000);
@@ -212,7 +220,6 @@ export default function App() {
   if (recuperando) {
     return envolver(
       <ClaveNueva
-        imagenFondo={imagenFondo}
         onListo={async () => {
           /* Se cierra la sesión temporal del link a propósito: que entre
              de nuevo con la contraseña nueva confirma que quedó bien y no
@@ -229,7 +236,6 @@ export default function App() {
     return envolver(
       <Login
         onEntrar={setSesion}
-        imagenFondo={imagenFondo}
         errorInicial={errorInicio}
       />
     );
@@ -245,7 +251,6 @@ export default function App() {
       <ClaveNueva
         forzado
         invitado={sesion.invitado}
-        imagenFondo={imagenFondo}
         onListo={async () => {
           /* Se relee la sesión en vez de apagar la bandera a mano: la
              marca la apaga la base, y leerla de nuevo es lo que confirma
@@ -265,6 +270,12 @@ export default function App() {
     );
   }
 
+  /* Prueba vencida o cuenta suspendida (0127): la base ya no le da datos,
+     así que no se monta nada del sistema. */
+  if (sesion.tipo === "sinAcceso") {
+    return envolver(<PantallaSinAcceso sesion={sesion} onSalir={cerrarSesion} />);
+  }
+
   if (sesion.tipo === "plataforma" && !sesion.viendo && enFounder && sesion.interno && sesion.interno.activo) {
     return envolver(
       <Suspense fallback={<Cargando />}>
@@ -277,7 +288,6 @@ export default function App() {
     return envolver(
       <PanelGenez
         tema={tema} setTema={setTema}
-        imagenFondo={imagenFondo} setImagenFondo={setImagenFondo}
         sesion={sesion}
         comercios={comercios}
         setComercios={setComercios}

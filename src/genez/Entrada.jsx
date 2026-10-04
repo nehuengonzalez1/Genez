@@ -1,0 +1,412 @@
+/* ============================================================
+   LA PANTALLA DE ENTRADA · el marco del login y de "contraseña nueva"
+   ============================================================
+
+   El fondo es el diseño de Nehuen (04/10) rearmado en vectores: el panel
+   negro, la banda naranja en flecha con su profundidad y una luz naranja
+   que la recorre de arriba abajo, y el blanco a la derecha, donde va la
+   tarjeta. Encima, el texto del panel: la G del logo, "Tu negocio / Bajo control." y tres
+   puntos, sacados de una referencia que pasó después.
+
+   El fondo de esa referencia (la banda como neón y una G de marca de
+   agua) se probó y se volvió atrás: Nehuen la había pasado solo por el
+   texto y para cambiar el destello, no el fondo.
+
+   Todo en vectores, sin una sola imagen: el fondo en SVG, los íconos en
+   SVG y el texto como texto. Nítido en cualquier pantalla.
+
+   - El fondo se estira a la pantalla (preserveAspectRatio="none") y los
+     trazos no (vector-effect): la banda queda siempre en el mismo lugar
+     proporcional y con el mismo grosor.
+   - La tarjeta va centrada en la zona blanca y lleva `.tema-claro`:
+     blanca aunque el sistema esté en oscuro, sin colores a mano.
+   - En el celular el panel no entra: el texto va arriba y la tarjeta
+     abajo, sobre el fondo del tema.
+
+   La versión clara de la pantalla viene después. */
+
+import React from "react";
+import { BarChart3, Clock, TrendingUp } from "lucide-react";
+import { LogoGenez } from "../ui/Logo.jsx";
+
+/* La geometría en una caja de 1600x900 (16:9), medida sobre la imagen de
+   Nehuen: la banda arranca arriba al 59,8% del ancho, hace la punta en
+   (47,8%, 42,5%) y termina abajo al 63,9%. */
+const ARRIBA = "957,-20";
+const PUNTA = "765,382";
+const ABAJO = "1022,920";
+const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
+
+/* Los colores también son los de la imagen: el negro va de #2a2a2c arriba
+   a #020202 abajo a la izquierda, el blanco de #fcfbfc a #e3e5e6, y la
+   banda es más rojiza en la punta. Son fijos a propósito: el fondo es el
+   mismo en los dos temas, como el telón.
+
+   El negro, mucho más oscuro que en la imagen: lo pidió Nehuen el 04/10.
+
+   Tres planos con profundidad: el panel negro adelante (con su canto gris
+   y su sombra sobre la banda), la banda en el medio (un solo trazo, con su
+   degradé y un reflejo que la recorre) y el blanco atrás (con la sombra de la banda y el
+   resplandor naranja).
+
+   Cada capa es la misma línea con otro grosor, recortada al lado que le
+   toca (clip-path con el polígono negro o el blanco). Los grosores son en
+   píxeles de pantalla (vector-effect), así no se deforman. */
+const B = "clamp(8px, 0.85vw, 23px)";             // la banda (la mitad de la anterior, 04/10)
+const ancho = (...partes) => `calc(${partes.join(" + ")})`;
+/* El grosor de la luz que sube y baja: una línea LED. */
+const LED = "clamp(2px, 0.22vw, 6px)";
+
+function Fondo() {
+  /* Con "reducir movimiento" activado en el sistema, el reflejo queda
+     quieto a la altura de la punta. */
+  const quieto = typeof window !== "undefined" && window.matchMedia
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const t = (w, extra = {}) => ({ vectorEffect: "non-scaling-stroke", strokeWidth: w, ...extra });
+  const linea = { points: BANDA, fill: "none", strokeLinejoin: "round", strokeLinecap: "butt" };
+  return (
+    <svg viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true"
+      className="hidden lg:block absolute inset-0 w-full h-full">
+      <defs>
+        <linearGradient id="entrada-negro" x1="0.35" y1="0" x2="0.05" y2="1">
+          <stop offset="0" stopColor="#151617" />
+          <stop offset="0.45" stopColor="#09090a" />
+          <stop offset="1" stopColor="#010101" />
+        </linearGradient>
+        <radialGradient id="entrada-luz" cx="0.36" cy="-0.05" r="0.6">
+          <stop offset="0" stopColor="#2e3033" stopOpacity="0.35" />
+          <stop offset="1" stopColor="#3d3f42" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="entrada-vineta" cx="0.05" cy="1" r="0.7">
+          <stop offset="0" stopColor="#000" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="entrada-blanco" x1="0" y1="0" x2="0.15" y2="1">
+          <stop offset="0" stopColor="#fdfcfd" />
+          <stop offset="0.5" stopColor="#f5f5f5" />
+          <stop offset="1" stopColor="#e1e3e4" />
+        </linearGradient>
+        <linearGradient id="entrada-banda" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ff7f0c" />
+          <stop offset="0.3" stopColor="#fa6807" />
+          <stop offset="0.425" stopColor="#e23c02" />
+          <stop offset="0.55" stopColor="#fd5d03" />
+          <stop offset="0.76" stopColor="#ff7d05" />
+          <stop offset="1" stopColor="#f94801" />
+        </linearGradient>
+        {/* El reflejo: una franja de luz que recorre la banda de arriba
+            abajo y vuelve (Nehuen, 04/10). Es un degradé vertical que se
+            desplaza; la banda y su halo lo usan como color. */}
+        <linearGradient id="entrada-reflejo" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="240"
+          gradientTransform={quieto ? "translate(0 330)" : undefined}>
+          {/* Naranja luminoso, como un LED encendido (Nehuen, 04/10). Más
+              claro que la banda, porque naranja sobre naranja no se veía;
+              sin llegar al amarillo. Opaco en casi todo el largo. */}
+          <stop offset="0" stopColor="#ff9a1f" stopOpacity="0" />
+          <stop offset="0.22" stopColor="#ffa12a" stopOpacity="1" />
+          <stop offset="0.5" stopColor="#ffb23a" stopOpacity="1" />
+          <stop offset="0.78" stopColor="#ffa12a" stopOpacity="1" />
+          <stop offset="1" stopColor="#ff9a1f" stopOpacity="0" />
+          {!quieto && (
+            <animateTransform attributeName="gradientTransform" type="translate"
+              values="0 -260; 0 920; 0 -260" keyTimes="0; 0.5; 1" dur="7s" repeatCount="indefinite"
+              calcMode="spline" keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
+          )}
+        </linearGradient>
+        <clipPath id="entrada-lado-negro"><polygon points={`-50,-50 ${BANDA} -50,950`} /></clipPath>
+        <clipPath id="entrada-lado-blanco"><polygon points={`${ARRIBA} 1650,-50 1650,950 ${ABAJO} ${PUNTA}`} /></clipPath>
+        <linearGradient id="entrada-reflejo-halo" href="#entrada-reflejo">
+          <stop offset="0" stopColor="#ff7a00" stopOpacity="0" />
+          <stop offset="0.25" stopColor="#ff8c10" stopOpacity="1" />
+          <stop offset="0.75" stopColor="#ff8c10" stopOpacity="1" />
+          <stop offset="1" stopColor="#ff7a00" stopOpacity="0" />
+        </linearGradient>
+        <mask id="entrada-led-ancho" maskUnits="userSpaceOnUse" x="-50" y="-50" width="1700" height="1000">
+          <polyline {...linea} stroke="#fff" style={t(ancho(B, `3 * ${LED}`))} />
+          <polyline {...linea} stroke="#000" style={t(`calc(${B} - 3 * ${LED})`)} />
+        </mask>
+        <mask id="entrada-led" maskUnits="userSpaceOnUse" x="-50" y="-50" width="1700" height="1000">
+          <polyline {...linea} stroke="#fff" style={t(ancho(B, LED))} />
+          <polyline {...linea} stroke="#000" style={t(`calc(${B} - ${LED})`)} />
+        </mask>
+        <filter id="entrada-brillo" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="20" /></filter>
+        <filter id="entrada-led-brillo" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="2.2" /></filter>
+        <filter id="entrada-suave" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="1.2" /></filter>
+        <filter id="entrada-difuso" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" /></filter>
+      </defs>
+
+      {/* El panel negro, con su luz arriba y la viñeta abajo. */}
+      <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-negro)" />
+      <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-luz)" />
+      <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-vineta)" />
+      <polygon points={`${ARRIBA} 1600,-20 1600,920 ${ABAJO} ${PUNTA}`} fill="url(#entrada-blanco)" />
+
+      {/* Tres planos, de atrás para adelante: el blanco, la banda y el
+          panel negro (Nehuen pidió la profundidad entre las tres, 04/10).
+          La banda nace en el borde del panel y va toda del lado blanco: es
+          un trazo del doble de ancho, centrado en el borde y recortado a ese
+          lado. Así el panel queda adelante, apoyado sobre la banda. */}
+      <g clipPath="url(#entrada-lado-blanco)">
+        {/* Lo que la banda le hace al blanco: el resplandor naranja y, más
+            pegada, su sombra. */}
+        <polyline {...linea} stroke="#ff7a2a" strokeOpacity="0.16" style={t(ancho(`2 * ${B}`, "clamp(60px, 5.5vw, 150px)"))} filter="url(#entrada-brillo)" />
+        <polyline {...linea} stroke="#000" strokeOpacity="0.2" style={t(ancho(`2 * ${B}`, "clamp(10px, 0.9vw, 24px)"))} filter="url(#entrada-difuso)" />
+        <polyline {...linea} stroke="url(#entrada-banda)" style={t(`calc(2 * ${B})`)} />
+        {/* La sombra del panel sobre la banda, del lado que la toca. */}
+        <polyline {...linea} stroke="#000" strokeOpacity="0.45" style={t(`calc(0.6 * ${B})`)} filter="url(#entrada-suave)" />
+      </g>
+
+      {/* El canto del panel: gris, muy fino. Naranja se leía como una
+          segunda línea. */}
+      <g clipPath="url(#entrada-lado-negro)">
+        <polyline {...linea} stroke="#4a4b4e" strokeOpacity="0.9" style={t("3px")} />
+        <polyline {...linea} stroke="#000" strokeOpacity="0.5" style={t("clamp(14px, 1.2vw, 30px)")} filter="url(#entrada-difuso)" />
+      </g>
+
+      {/* La luz que sube y baja: una línea LED naranja muy fina por el medio
+          de la banda, sin halo (Nehuen, 04/10: el destello de alrededor
+          cubría mucho). La máscara deja solo una franja angosta a mitad de
+          la banda: blanco hasta B + LED, negro hasta B - LED, y el recorte al
+          lado blanco se queda con la mitad que cae sobre la banda. */}
+      <g clipPath="url(#entrada-lado-blanco)">
+        {/* El resplandor del LED: una franja un poco más ancha, naranja
+            intenso, desenfocada apenas. Le pone el brillo sin derramarse. */}
+        <g filter="url(#entrada-led-brillo)">
+          <polyline {...linea} stroke="url(#entrada-reflejo-halo)" style={t(`calc(2 * ${B})`)} mask="url(#entrada-led-ancho)" />
+        </g>
+        <polyline {...linea} stroke="url(#entrada-reflejo)" style={t(`calc(2 * ${B})`)} mask="url(#entrada-led)" />
+      </g>
+    </svg>
+  );
+}
+
+/* ---------- La G del logo ---------- */
+
+/* La G redibujada en vectores (el logo es un PNG de 114 px y se
+   pixelaba), en un círculo de radio 1.
+
+   Como en el logo real, los cortes son rectos y no siguen el radio: un
+   anillo entero recortado por líneas. Con cortes radiales los extremos de
+   la ranura de arriba se abrían como una cuña, y en la G gruesa se notaba
+   (Nehuen, 04/10). Las piezas:
+   - la mitad izquierda: el anillo a la izquierda de la ranura vertical;
+   - arriba a la derecha (naranja en el logo): a la derecha de la ranura y
+     por encima de un corte horizontal;
+   - la barra: por debajo de su borde de arriba y a la derecha de una
+     diagonal, que es a la vez la punta de la barra y el corte de abajo;
+   - abajo a la derecha (naranja): del otro lado de esa diagonal.
+
+   Va en dos grosores: la de arriba del título, como el logo, y la grande
+   de marca de agua, con el anillo y la barra el doble de gruesos. */
+const NORMAL = [0.76, -0.65];   // perpendicular a la diagonal de la barra
+const enDiagonal = (c, y) => (c - NORMAL[1] * y) / NORMAL[0];
+const pts = (lista) => lista.map(([x, y]) => `${x.toFixed(4)},${y.toFixed(4)}`).join(" ");
+
+function piezasDeG({ r, ranura, corteArriba, barraArriba, barraAbajo, diagonal, separacion }) {
+  const c2 = diagonal - separacion;
+  const yRanura = (NORMAL[0] * ranura - c2) / -NORMAL[1];
+  return {
+    anillo: `M 1 0 A 1 1 0 1 1 -1 0 A 1 1 0 1 1 1 0 Z M ${r} 0 A ${r} ${r} 0 1 0 ${-r} 0 A ${r} ${r} 0 1 0 ${r} 0 Z`,
+    izquierda: pts([[-2, -2], [-ranura, -2], [-ranura, 2], [-2, 2]]),
+    arriba: pts([[ranura, -2], [2, -2], [2, corteArriba], [ranura, corteArriba]]),
+    barra: pts([[enDiagonal(diagonal, barraArriba), barraArriba], [2, barraArriba], [2, 2], [enDiagonal(diagonal, 2), 2]]),
+    barraArriba, barraAbajo, r,
+    abajo: pts([[ranura, Math.max(0, yRanura)], [enDiagonal(c2, Math.max(0, yRanura)), Math.max(0, yRanura)], [enDiagonal(c2, 2), 2], [ranura, 2]]),
+  };
+}
+
+/* Como el logo: anillo de 0,24 del radio. Medidas tomadas del logo. */
+const G_LOGO = piezasDeG({ r: 0.76, ranura: 0.06, corteArriba: -0.345, barraArriba: -0.045, barraAbajo: 0.218, diagonal: 0.088, separacion: 0.09 });
+/* Más gruesa que el logo: anillo de 0,38 del radio y la barra en la misma
+   proporción. Arrancó el doble de gruesa (0,48) y Nehuen la pidió un poco
+   más angosta (04/10). */
+const G_GRUESA = piezasDeG({ r: 0.62, ranura: 0.065, corteArriba: -0.4, barraArriba: -0.09, barraAbajo: 0.28, diagonal: 0.1, separacion: 0.095 });
+
+/* Dibuja la G. Cada pieza es el anillo recortado (la barra, además, la
+   franja horizontal que entra al hueco). Las piezas claras van en un
+   grupo y las naranjas en otro, con su opacidad de grupo: así la barra,
+   que superpone anillo y franja, no queda más opaca donde se cruzan. */
+function DibujoG({ g, id, claras, naranjas }) {
+  return (
+    <>
+      <defs>
+        <clipPath id={`${id}-izq`}><polygon points={g.izquierda} /></clipPath>
+        <clipPath id={`${id}-arr`}><polygon points={g.arriba} /></clipPath>
+        <clipPath id={`${id}-bar`}><polygon points={g.barra} /></clipPath>
+        <clipPath id={`${id}-aba`}><polygon points={g.abajo} /></clipPath>
+      </defs>
+      <g {...claras}>
+        <path d={g.anillo} fillRule="evenodd" clipPath={`url(#${id}-izq)`} />
+        <g clipPath={`url(#${id}-bar)`}>
+          <path d={g.anillo} fillRule="evenodd" />
+          {/* La franja llega hasta adentro del anillo y no más: si no,
+              asomaba por afuera del círculo. */}
+          <rect x="-2" y={g.barraArriba} width={2 + g.r + 0.05} height={g.barraAbajo - g.barraArriba} />
+        </g>
+      </g>
+      <g {...naranjas}>
+        <path d={g.anillo} fillRule="evenodd" clipPath={`url(#${id}-arr)`} />
+        <path d={g.anillo} fillRule="evenodd" clipPath={`url(#${id}-aba)`} />
+      </g>
+    </>
+  );
+}
+
+function LetraG({ style, className = "" }) {
+  return (
+    <svg viewBox="-1.02 -1.02 2.04 2.04" aria-label="Genez" role="img" className={className} style={style}>
+      <DibujoG g={G_LOGO} id="g-titulo" claras={{ className: "fill-sobre-panel" }} naranjas={{ className: "fill-acento" }} />
+    </svg>
+  );
+}
+
+/* La G grande de marca de agua, abajo a la izquierda y cortada por los
+   bordes, como en la referencia de Nehuen: en grises, con muy poca
+   opacidad, y la pieza de arriba a la derecha (la naranja del logo) un
+   poco más clara. Va detrás del texto. */
+function MarcaG() {
+  return (
+    <svg viewBox="-1.02 -1.02 2.04 2.04" aria-hidden="true"
+      className="hidden lg:block absolute pointer-events-none"
+      style={{ width: "58vh", height: "58vh", left: "calc(13vw - 29vh)", top: "calc(96vh - 29vh)" }}>
+      <DibujoG g={G_GRUESA} id="g-marca"
+        claras={{ className: "fill-sobre-panel", opacity: 0.045 }}
+        naranjas={{ className: "fill-sobre-panel", opacity: 0.07 }} />
+    </svg>
+  );
+}
+
+/* ---------- El texto del panel ---------- */
+
+/* Los íconos de la referencia, en SVG: blancos con un detalle naranja. */
+const ICONO = "w-full h-full";
+const IconoEficiencia = () => (
+  <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinejoin="round" className={ICONO}>
+    <rect x="3" y="13" width="4.2" height="8" rx="0.6" className="stroke-sobre-panel" />
+    <rect x="9.9" y="9" width="4.2" height="12" rx="0.6" className="stroke-acento" />
+    <rect x="16.8" y="4" width="4.2" height="17" rx="0.6" className="stroke-sobre-panel" />
+  </svg>
+);
+const IconoTiempo = () => (
+  <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={ICONO}>
+    <circle cx="12" cy="12" r="9" className="stroke-sobre-panel" />
+    <polyline points="12,7 12,12 15.5,14" className="stroke-acento" />
+  </svg>
+);
+const IconoResultados = () => (
+  <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={ICONO}>
+    <polyline points="3,17 8,12 12,15 17.5,9.5" className="stroke-sobre-panel" />
+    <polyline points="3,20.5 8,15.5 12,18.5 20.5,10" className="stroke-acento" />
+    <polyline points="15,6 20.5,6 20.5,11.5" className="stroke-acento" />
+    <line x1="20.5" y1="6" x2="14" y2="12.5" className="stroke-acento" />
+  </svg>
+);
+
+const PUNTOS = [
+  { icono: IconoEficiencia, iconoChico: BarChart3, texto: "Más eficiencia" },
+  { icono: IconoTiempo, iconoChico: Clock, texto: "Más tiempo" },
+  { icono: IconoResultados, iconoChico: TrendingUp, texto: "Más resultados" },
+];
+
+/* Medidas de la referencia: el título arranca al 28% del alto y al 5,8%
+   del ancho; las letras son de unos 58 px en una de 1337. Contra el ancho
+   y el alto a la vez, así en pantallas muy anchas no crece de más. */
+const tam = (vw, vh) => `min(${vw}vw, ${vh}vh)`;
+
+function TextoPanel() {
+  return (
+    <div className="hidden lg:block absolute text-sobre-panel" style={{ left: "5.8vw", top: "12vh" }}>
+      <LetraG className="block" style={{ width: tam(4.4, 7.8), height: tam(4.4, 7.8), marginBottom: tam(2.2, 3.9) }} />
+      {/* Un 10% más grande y sin el punto naranja de "Tu negocio"
+          (Nehuen, 04/10). */}
+      <h1 className="f-d font-black uppercase leading-[1.08] tracking-[-0.005em]" style={{ fontSize: tam(4.6, 8.2) }}>
+        Tu negocio<br />
+        <span className="text-acento">Bajo control.</span>
+      </h1>
+      <span className="block bg-acento" style={{ width: tam(6, 10.6), height: "max(2px, 0.22vw)", marginTop: tam(2.6, 4.6) }} aria-hidden="true" />
+      <ul className="flex items-stretch" style={{ marginTop: tam(3, 5.3) }}>
+        {PUNTOS.map(({ icono: I, texto }, i) => (
+          <li key={texto} className="flex items-stretch">
+            {i > 0 && <span className="w-px bg-sobre-panel/15 self-center" style={{ height: tam(4, 7), margin: `0 ${tam(2.2, 3.9)}` }} aria-hidden="true" />}
+            <div className="flex flex-col items-center" style={{ gap: tam(1, 1.8) }}>
+              <span style={{ width: tam(2.5, 4.4), height: tam(2.5, 4.4) }}><I /></span>
+              <span className="uppercase text-sobre-panel-suave font-medium whitespace-nowrap" style={{ fontSize: tam(0.72, 1.28), letterSpacing: "0.28em" }}>{texto}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function MarcoEntrada({ children }) {
+  return (
+    <div className="relative min-h-screen bg-fondo text-texto overflow-hidden">
+      <Fondo />
+      <MarcaG />
+      <TextoPanel />
+
+      <div className="relative z-10 min-h-screen flex flex-col lg:block">
+        {/* En el celular, el texto arriba de la tarjeta. */}
+        <div className="lg:hidden px-6 pt-10 pb-6">
+          <h1 className="f-d text-[30px] leading-[1.08] font-black uppercase">
+            Tu negocio<br /><span className="text-acento">Bajo control.</span>
+          </h1>
+          <span className="block w-12 h-0.5 bg-acento mt-5" aria-hidden="true" />
+          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs uppercase tracking-[0.18em] text-texto-suave">
+            {PUNTOS.map(({ iconoChico: I, texto }) => (
+              <li key={texto} className="flex items-center gap-2"><I size={15} className="text-acento" /> {texto}</li>
+            ))}
+          </ul>
+        </div>
+
+        {/* En la computadora, centrada en la zona blanca. */}
+        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:left-[79vw] lg:-translate-x-1/2 lg:-translate-y-1/2">
+          {/* En la computadora, sin recuadro: el formulario va directo sobre el
+              blanco, un poco más grande (Nehuen, 04/10). En el celular queda la
+              tarjeta, porque ahí el fondo es oscuro. */}
+          <div className="relative tema-claro w-full max-w-[380px] lg:w-[clamp(360px,22vw,440px)] lg:max-w-none bg-superficie text-texto rounded-2xl shadow-2xl ring-1 ring-borde px-7 py-9 lg:bg-transparent lg:shadow-none lg:ring-0 lg:rounded-none lg:p-0">
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* El encabezado de la tarjeta: el logo y la bajada de la maqueta. */
+export function CabezaEntrada() {
+  return (
+    <div className="flex flex-col items-center text-center">
+      {/* 56 px: el ícono mide 114, así que en una pantalla de alta
+          densidad casi no se estira. */}
+      <LogoGenez size={56} conNombre />
+      <p className="mt-4 font-mono text-[11px] leading-relaxed tracking-[0.28em] uppercase text-texto-tenue">
+        Sistemas de gestión<br />para comercios
+      </p>
+    </div>
+  );
+}
+
+/* El pie de la tarjeta: la rayita naranja y la firma. */
+export function PieEntrada() {
+  return (
+    <div className="mt-8 flex flex-col items-center gap-4">
+      <span className="block w-9 h-0.5 bg-acento" aria-hidden="true" />
+      <span className="text-xs text-texto-tenue">Genez - Sistemas de gestión para comercios</span>
+    </div>
+  );
+}
+
+/* Un campo con su ícono a la izquierda, como en la maqueta. `extra` es lo
+   que va a la derecha (el ojo de la contraseña). */
+export function CampoEntrada({ icono: I, extra = null, ...props }) {
+  return (
+    <label className="relative block">
+      <I size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-texto-suave pointer-events-none" aria-hidden="true" />
+      <input {...props}
+        className="w-full h-12 rounded-lg border border-borde-fuerte bg-superficie pl-11 pr-11 text-[15px] text-texto placeholder:text-texto-tenue outline-none focus:border-acento transition-colors disabled:opacity-60" />
+      {extra && <span className="absolute right-2.5 top-1/2 -translate-y-1/2">{extra}</span>}
+    </label>
+  );
+}

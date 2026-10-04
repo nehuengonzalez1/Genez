@@ -53,6 +53,11 @@
   --telon:       10 10 10;
   --sobre-telon: 168 162 158;
 
+  /* El texto sobre el panel negro del login (src/genez/Entrada.jsx). Fijo
+     por lo mismo que el telón: el panel es negro en los dos temas. */
+  --sobre-panel:       250 250 249;
+  --sobre-panel-suave: 196 194 190;
+
   /* LAS MUESTRAS DEL LOGO
 
      En Ajustes, cada logo se muestra sobre el fondo en el que se va a

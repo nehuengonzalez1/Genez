@@ -5,12 +5,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   LayoutDashboard, Barcode, Package, Boxes, Truck, Wallet, BarChart3,
-  Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
+  Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
-  Heart, MessageSquare, FileText, NotebookPen
+  Heart, MessageSquare, FileText, NotebookPen, Lock
 } from "lucide-react";
-import { mulberry32, uid, fdatel } from "../datos/generador.js";
+import { MarcoEntrada, CabezaEntrada, PieEntrada, CampoEntrada } from "./Entrada.jsx";
+import { uid, fdatel } from "../datos/generador.js";
 import { entrar as autenticar, pedirRecuperacion, cambiarClave, cargarComercios, guardarComercio, crearComercio } from "../datos/sesion.js";
 import { cargarRubros } from "../datos/rubros.js";
 import { crearAcceso, FORMAS } from "../datos/accesos.js";
@@ -36,6 +37,8 @@ import { Campo, inputCls } from "../ui/Campos.jsx";
 import { Inicio } from "../modulos/Inicio.jsx";
 import { PreciosPanel } from "./PreciosPanel.jsx";
 import { SolicitudesPanel } from "./SolicitudesPanel.jsx";
+import { PruebasPanel } from "./PruebasPanel.jsx";
+import { AvisoDePrueba } from "./Prueba.jsx";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
@@ -314,11 +317,10 @@ function FormAcceso({ abierto, comercio, onCerrar, onHecho }) {
   );
 }
 
-function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema, imagenFondo, setImagenFondo, onFounder = null }) {
+function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema, onFounder = null }) {
   const [abierto, setAbierto] = useState(null);       // comercio en detalle
   const [altaUsuario, setAltaUsuario] = useState(null);
   const [altaComercio, setAltaComercio] = useState(false);
-  const archivoFondo = useRef(null);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [rubroNuevo, setRubroNuevo] = useState("");
   const [rubros, setRubros] = useState([]);
@@ -418,52 +420,10 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
               ))}
             </div>
 
+            <PruebasPanel />
             <SolicitudesPanel />
             <PreciosPanel />
 
-            <section className="mt-8">
-              <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold mb-2">Imagen del login</h2>
-              <div className="bg-superficie-3 border border-borde-fuerte rounded-2xl p-4">
-                <div className="flex flex-wrap items-start gap-4">
-                  <div className="w-40 h-28 rounded-xl overflow-hidden border border-borde-fuerte shrink-0 relative bg-fondo">
-                    {imagenFondo
-                      ? <img src={imagenFondo} alt="Fondo del login" className="w-full h-full object-cover" />
-                      : <div className="absolute inset-0 flex items-center justify-center text-[11px] text-texto-suave text-center px-2">Panel generado por el sistema</div>}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-texto-tenue">
-                      Podés reemplazar el panel izquierdo del login por una imagen propia. Se recorta al centro,
-                      así que dejá los bordes sin nada importante.
-                    </p>
-                    <ul className="text-[11px] text-texto-suave mt-2 space-y-0.5">
-                      <li><strong className="text-texto-tenue">Medida ideal:</strong> 1400 × 2000 px (vertical, proporción 7:10).</li>
-                      <li><strong className="text-texto-tenue">Zona segura:</strong> los 200 px del borde derecho se funden con el fondo.</li>
-                      <li><strong className="text-texto-tenue">Peso:</strong> hasta 2 MB. JPG o PNG.</li>
-                      <li>En celular no se muestra: ahí el login va a pantalla completa.</li>
-                    </ul>
-                    <div className="flex items-center gap-2 mt-3">
-                      <input ref={archivoFondo} type="file" accept="image/*" className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files[0]; e.target.value = "";
-                          if (!f) return;
-                          if (f.size > 2 * 1024 * 1024) return alert("La imagen supera los 2 MB. Reducila y volvé a intentar.");
-                          const lector = new FileReader();
-                          lector.onload = () => setImagenFondo(lector.result);
-                          lector.readAsDataURL(f);
-                        }} />
-                      <button onClick={() => archivoFondo.current && archivoFondo.current.click()}
-                        className="flex items-center gap-1.5 bg-acento hover:bg-acento-vivo text-texto font-bold rounded-xl px-3.5 py-2 text-sm">
-                        <Upload size={15} /> Cargar imagen
-                      </button>
-                      {imagenFondo && (
-                        <button onClick={() => setImagenFondo(null)}
-                          className="text-sm text-texto-tenue hover:text-texto px-2">Volver al panel del sistema</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
           </>
         ) : (
           <>
@@ -633,96 +593,6 @@ function Sesion({ sesion, onSalir, oscuro = false }) {
   );
 }
 
-/* Panel hexagonal del login.
-   El relieve se logra con dos cosas: un degradado diagonal por celda (claro
-   arriba-izquierda, oscuro abajo-derecha para los salientes, invertido para
-   los hundidos) y una sombra propia en el borde inferior. Cada hexágono
-   recibe una profundidad al azar pero estable, así el panel no "baila" entre
-   recargas.
-   Se puede reemplazar por una imagen propia desde Ajustes de la plataforma. */
-function FondoHexagonal({ imagen }) {
-  if (imagen) {
-    return <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${imagen})` }} aria-hidden="true" />;
-  }
-
-  const filas = 11, columnas = 8, r = 62;
-  const anchoHex = Math.sqrt(3) * r, altoHex = 2 * r;
-  const centro = { x: 200, y: 520 };
-  const rnd = mulberry32(7);
-
-  const celdas = [];
-  for (let f = 0; f < filas; f++) {
-    for (let c = 0; c < columnas; c++) {
-      const x = c * anchoHex + (f % 2 ? anchoHex / 2 : 0);
-      const y = f * altoHex * 0.75;
-      const d = Math.hypot(x - centro.x, y - centro.y);
-      const luz = Math.pow(Math.max(0, 1 - d / 380), 2);
-      const v = rnd();
-      // Tres alturas: hundido, al ras y saliente. Da la textura irregular.
-      const rel = v < 0.34 ? -1 : v < 0.62 ? 0 : 1;
-      celdas.push({ x, y, luz, rel, esc: rel === 1 ? 0.985 : 0.955 });
-    }
-  }
-
-  const puntos = (x, y, k) => Array.from({ length: 6 }, (_, i) => {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    return `${(x + r * k * Math.cos(a)).toFixed(1)},${(y + r * k * Math.sin(a)).toFixed(1)}`;
-  }).join(" ");
-
-  return (
-    <svg viewBox="0 0 760 1080" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 w-full h-full" aria-hidden="true">
-      <defs>
-        <linearGradient id="caraAlta" x1="0" y1="0" x2="0.9" y2="1">
-          <stop offset="0%" stopColor="#2A2A2A" /><stop offset="55%" stopColor="#181818" /><stop offset="100%" stopColor="#0E0E0E" />
-        </linearGradient>
-        <linearGradient id="caraBaja" x1="0" y1="0" x2="0.9" y2="1">
-          <stop offset="0%" stopColor="#070707" /><stop offset="45%" stopColor="#101010" /><stop offset="100%" stopColor="#1E1E1E" />
-        </linearGradient>
-        <linearGradient id="caraPlana" x1="0" y1="0" x2="0.9" y2="1">
-          <stop offset="0%" stopColor="#1A1A1A" /><stop offset="100%" stopColor="#121212" />
-        </linearGradient>
-        <radialGradient id="halo" cx={centro.x / 760} cy={centro.y / 1080} r="0.4">
-          <stop offset="0%" stopColor="#FF6B00" stopOpacity="0.22" />
-          <stop offset="60%" stopColor="#FF6B00" stopOpacity="0.045" />
-          <stop offset="100%" stopColor="#FF6B00" stopOpacity="0" />
-        </radialGradient>
-        <filter id="difuso" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="9" />
-        </filter>
-      </defs>
-
-      <rect width="760" height="1080" fill="#070707" />
-
-      {/* Sombra propia: lo que da la sensación de que la pieza está apoyada */}
-      {celdas.filter((h) => h.rel === 1).map((h, k) => (
-        <polygon key={"s" + k} points={puntos(h.x + 3, h.y + 5, h.esc)} fill="#000" opacity="0.75" />
-      ))}
-
-      {celdas.map((h, k) => (
-        <g key={k}>
-          <polygon points={puntos(h.x, h.y, h.esc)}
-            fill={h.rel === 1 ? "url(#caraAlta)" : h.rel === -1 ? "url(#caraBaja)" : "url(#caraPlana)"} />
-          {/* Filo superior claro: el canto que devuelve la luz */}
-          <polygon points={puntos(h.x, h.y, h.esc)} fill="none"
-            stroke={h.rel === 1 ? "#3A3A3A" : "#000"} strokeOpacity={h.rel === 0 ? 0.5 : 0.9} strokeWidth="1" />
-          {h.luz > 0.02 && (
-            <>
-              <polygon points={puntos(h.x, h.y, h.esc)} fill="none" stroke="#FF6B00"
-                strokeOpacity={Math.min(1, 0.14 + h.luz * 1.3)} strokeWidth={h.luz > 0.45 ? 2.6 : 1.7} />
-              {h.luz > 0.3 && (
-                <polygon points={puntos(h.x, h.y, h.esc)} fill="none" stroke="#FFA24D"
-                  strokeOpacity={h.luz * 0.65} strokeWidth="3.5" filter="url(#difuso)" />
-              )}
-            </>
-          )}
-        </g>
-      ))}
-
-      <rect width="760" height="1080" fill="url(#halo)" />
-    </svg>
-  );
-}
-
 /* A esta pantalla se llega abriendo el link del correo. Supabase deja una
    sesión temporal que solo sirve para esto: no se muestra el sistema
    hasta que la contraseña quedó cambiada. */
@@ -730,7 +600,7 @@ function FondoHexagonal({ imagen }) {
    clave provisional que el dueño dictó. Cambia el texto y no la pantalla
    porque lo que hay que hacer es lo mismo; lo que cambia es por qué se
    llegó, y eso es una línea, no una pantalla nueva. */
-function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitado = false }) {
+function ClaveNueva({ onListo, onCancelar, forzado = false, invitado = false }) {
   const [clave, setClave] = useState("");
   const [repetir, setRepetir] = useState("");
   const [ver, setVer] = useState(false);
@@ -752,86 +622,67 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
     }
   };
 
-  const campo = "w-full bg-superficie/5 border border-borde rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-texto focus:border-acento transition-colors";
-
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-texto flex">
-      <div className="hidden lg:block relative w-[46%] max-w-[680px] overflow-hidden">
-        <FondoHexagonal imagen={imagenFondo} />
-        <div className="absolute inset-y-0 right-0 w-56 pointer-events-none"
-          style={{ background: "linear-gradient(to right, rgba(10,10,10,0) 0%, rgba(10,10,10,0.75) 55%, #0A0A0A 100%)" }} />
-      </div>
+    <MarcoEntrada>
+      <CabezaEntrada />
+      <h2 className="f-d text-lg text-center mt-5">
+        {forzado ? "Elegí tu contraseña" : "Elegí una contraseña nueva"}
+      </h2>
+      <p className="text-texto-suave mt-2 text-sm text-center">
+        {/* Tres entradas distintas y no la misma frase para las tres.
+            Al invitado nadie le dio una clave: viene de un link y se la
+            está poniendo por primera vez, así que decirle que "la sabe
+            otra persona" lo dejaría buscando quién. */}
+        {!forzado
+          ? "Con esta vas a entrar de ahora en más. Mínimo 8 caracteres."
+          : invitado
+            ? "Entraste por el link de la invitación. Elegí con qué vas a entrar de ahora en más. Mínimo 8 caracteres."
+            : "La que te dieron la sabe otra persona. Poné una tuya para seguir. Mínimo 8 caracteres."}
+      </p>
 
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          <div className="w-12 h-12 rounded-2xl bg-acento flex items-center justify-center">
-            <KeyRound size={22} className="text-texto" />
-          </div>
-          <h1 className="f-d text-2xl mt-5">
-            {forzado ? "Elegí tu contraseña" : "Elegí una contraseña nueva"}
-          </h1>
-          <p className="text-texto-tenue mt-2 text-sm">
-            {/* Tres entradas distintas y no la misma frase para las tres.
-                Al invitado nadie le dio una clave: viene de un link y se la
-                está poniendo por primera vez, así que decirle que "la sabe
-                otra persona" lo dejaría buscando quién. */}
-            {!forzado
-              ? "Con esta vas a entrar de ahora en más. Mínimo 8 caracteres."
-              : invitado
-                ? "Entraste por el link de la invitación. Elegí con qué vas a entrar de ahora en más. Mínimo 8 caracteres."
-                : "La que te dieron la sabe otra persona. Poné una tuya para seguir. Mínimo 8 caracteres."}
-          </p>
-
-          <div className="mt-8 space-y-5">
-            <label className="block">
-              <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Contraseña nueva</span>
-              <div className="relative">
-                <input type={ver ? "text" : "password"} value={clave} autoFocus
-                  onChange={(e) => { setClave(e.target.value); setError(""); }}
-                  autoComplete="new-password" disabled={guardando}
-                  className={`${campo} pr-12`} />
-                <button type="button" onClick={() => setVer((v) => !v)} tabIndex={-1}
-                  aria-label={ver ? "Ocultar la contraseña" : "Mostrar la contraseña"}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-texto-suave hover:text-texto-tenue transition-colors">
-                  {ver ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </label>
-
-            <label className="block">
-              <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Repetila</span>
-              <input type={ver ? "text" : "password"} value={repetir}
-                onChange={(e) => { setRepetir(e.target.value); setError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && guardar()}
-                autoComplete="new-password" disabled={guardando}
-                className={campo} />
-            </label>
-
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-mal bg-mal-suave border border-mal/40 rounded-xl px-3 py-2.5">
-                <AlertTriangle size={15} className="shrink-0" /> {error}
-              </div>
-            )}
-
-            <button onClick={guardar} disabled={guardando || !clave || !repetir}
-              className="w-full bg-acento hover:bg-acento-vivo active:bg-acento disabled:opacity-60 text-texto font-bold rounded-xl px-4 py-4 text-lg transition-colors">
-              {guardando ? "Guardando…" : "Guardar y entrar"}
+      <div className="mt-6 space-y-3.5">
+        <CampoEntrada icono={Lock} type={ver ? "text" : "password"} value={clave} autoFocus
+          placeholder="Contraseña nueva" aria-label="Contraseña nueva"
+          onChange={(e) => { setClave(e.target.value); setError(""); }}
+          autoComplete="new-password" disabled={guardando}
+          extra={
+            <button type="button" onClick={() => setVer((v) => !v)} tabIndex={-1}
+              aria-label={ver ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+              className="p-1 text-texto-suave hover:text-texto transition-colors">
+              {ver ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
+          } />
+        <CampoEntrada icono={Lock} type={ver ? "text" : "password"} value={repetir}
+          placeholder="Repetila" aria-label="Repetí la contraseña"
+          onChange={(e) => { setRepetir(e.target.value); setError(""); }}
+          onKeyDown={(e) => e.key === "Enter" && guardar()}
+          autoComplete="new-password" disabled={guardando} />
 
-            <button type="button" onClick={onCancelar}
-              className="w-full text-center text-sm text-texto-tenue hover:text-acento-vivo transition-colors">
-              {/* En el alta forzada no hay adónde volver: la única salida
-                  sin poner la clave es irse. */}
-              {forzado ? "Salir" : "Volver"}
-            </button>
+        {error && (
+          <div className="flex items-center gap-2 text-sm text-mal bg-mal-suave border border-mal/40 rounded-lg px-3 py-2.5">
+            <AlertTriangle size={15} className="shrink-0" /> {error}
           </div>
-        </div>
+        )}
+
+        <button onClick={guardar} disabled={guardando || !clave || !repetir}
+          className="relative w-full h-12 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-base transition-colors">
+          {guardando ? "Guardando…" : "Guardar y entrar"}
+          <ArrowRight size={19} className="absolute right-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
+        </button>
+
+        <button type="button" onClick={onCancelar}
+          className="w-full text-center text-sm font-medium text-texto hover:text-acento transition-colors pt-1">
+          {/* En el alta forzada no hay adónde volver: la única salida
+              sin poner la clave es irse. */}
+          {forzado ? "Salir" : "Volver"}
+        </button>
       </div>
-    </div>
+      <PieEntrada />
+    </MarcoEntrada>
   );
 }
 
-function Login({ onEntrar, imagenFondo, errorInicial }) {
+function Login({ onEntrar, errorInicial }) {
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
   const [verClave, setVerClave] = useState(false);
@@ -868,79 +719,52 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
     setEnviando(false);
   };
 
-  const campo = "w-full bg-transparent border rounded-xl px-4 py-3.5 text-base mt-2 outline-none text-texto transition-colors";
-
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-texto flex">
-      {/* El panel decorativo se esconde en celular: ahí manda el formulario */}
-      <div className="hidden lg:block relative w-[46%] max-w-[680px] overflow-hidden">
-        <FondoHexagonal imagen={imagenFondo} />
-        {/* Degradado de salida: sin esto se ve un borde recto entre el panel
-            y el formulario, y el conjunto parece dos piezas pegadas. */}
-        <div className="absolute inset-y-0 right-0 w-56 pointer-events-none"
-          style={{ background: "linear-gradient(to right, rgba(10,10,10,0) 0%, rgba(10,10,10,0.75) 55%, #0A0A0A 100%)" }} />
-      </div>
+    <MarcoEntrada>
+      <CabezaEntrada />
 
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md">
-            <LogoGenez size={64} claro conNombre />
-            <p className="text-texto-tenue mt-4">Sistemas de gestión para comercios.</p>
+      <div className="mt-8 space-y-3.5">
+        <CampoEntrada icono={Mail} type="email" value={usuario} placeholder="Correo electrónico" aria-label="Correo electrónico"
+          onChange={(e) => { setUsuario(e.target.value); setError(""); }}
+          onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
+          autoComplete="username" disabled={cargando} />
+        <CampoEntrada icono={Lock} type={verClave ? "text" : "password"} value={clave} placeholder="Contraseña" aria-label="Contraseña"
+          onChange={(e) => { setClave(e.target.value); setError(""); }}
+          onKeyDown={(e) => e.key === "Enter" && entrar()}
+          autoComplete="current-password" disabled={cargando}
+          extra={
+            <button type="button" onClick={() => setVerClave((v) => !v)} tabIndex={-1}
+              aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+              className="p-1 text-texto-suave hover:text-texto transition-colors">
+              {verClave ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          } />
 
-            <div className="mt-9 space-y-5">
-              <label className="block">
-                <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Correo</span>
-                <input type="email" value={usuario} onChange={(e) => { setUsuario(e.target.value); setError(""); }}
-                  onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
-                  autoComplete="username" disabled={cargando}
-                  className={`${campo} border-acento/70 focus:border-acento`} />
-              </label>
-              <label className="block">
-                <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Contraseña</span>
-                <div className="relative">
-                  <input type={verClave ? "text" : "password"} value={clave}
-                    onChange={(e) => { setClave(e.target.value); setError(""); }}
-                    onKeyDown={(e) => e.key === "Enter" && entrar()}
-                    autoComplete="current-password" disabled={cargando}
-                    className={`${campo} bg-superficie/5 border-borde focus:border-acento pr-12`} />
-                  <button type="button" onClick={() => setVerClave((v) => !v)} tabIndex={-1}
-                    aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 mt-1 text-texto-suave hover:text-texto-tenue transition-colors">
-                    {verClave ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </label>
-
-              {error && (
-                <div className="flex items-center gap-2 text-sm text-mal bg-mal-suave border border-mal/40 rounded-xl px-3 py-2.5">
-                  <AlertTriangle size={15} className="shrink-0" /> {error}
-                </div>
-              )}
-
-              {aviso && (
-                <div className="flex items-start gap-2 text-sm text-bien bg-bien-suave border border-bien/40 rounded-xl px-3 py-2.5">
-                  <Mail size={15} className="shrink-0 mt-0.5" /> {aviso}
-                </div>
-              )}
-
-              <button onClick={entrar} disabled={cargando}
-                className="w-full bg-acento hover:bg-acento-vivo active:bg-acento disabled:opacity-60 text-texto font-bold rounded-xl px-4 py-4 text-lg transition-colors">
-                {cargando ? "Entrando…" : "Entrar"}
-              </button>
-
-              <button type="button" onClick={recuperar} disabled={enviando}
-                className="w-full text-center text-sm text-texto-tenue hover:text-acento-vivo disabled:opacity-50 transition-colors">
-                {enviando ? "Enviando…" : "¿Olvidaste tu contraseña?"}
-              </button>
-            </div>
+        {error && (
+          <div className="flex items-center gap-2 text-sm text-mal bg-mal-suave border border-mal/40 rounded-lg px-3 py-2.5">
+            <AlertTriangle size={15} className="shrink-0" /> {error}
           </div>
-        </div>
+        )}
 
-        <footer className="px-6 py-4 text-center text-[11px] text-texto-suave">
-          Genez · sistemas de gestión
-        </footer>
+        {aviso && (
+          <div className="flex items-start gap-2 text-sm text-bien bg-bien-suave border border-bien/40 rounded-lg px-3 py-2.5">
+            <Mail size={15} className="shrink-0 mt-0.5" /> {aviso}
+          </div>
+        )}
+
+        <button onClick={entrar} disabled={cargando}
+          className="relative w-full h-12 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-base transition-colors">
+          {cargando ? "Entrando…" : "Entrar"}
+          <ArrowRight size={19} className="absolute right-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
+        </button>
+
+        <button type="button" onClick={recuperar} disabled={enviando}
+          className="w-full text-center text-sm font-medium text-texto hover:text-acento disabled:opacity-50 transition-colors pt-1">
+          {enviando ? "Enviando…" : "¿Olvidaste tu contraseña?"}
+        </button>
       </div>
-    </div>
+      <PieEntrada />
+    </MarcoEntrada>
   );
 }
 
@@ -2047,6 +1871,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           </header>
 
           <main className="flex-1 p-3 md:p-5">
+            <AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} compacto />
             {/* El POS ni se monta con la caja cerrada: la base rechaza toda
                 venta sin sesión, así que dejar armar el carrito termina en un
                 ticket impreso de una venta que el servidor nunca aceptó. */}
@@ -2120,6 +1945,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 <Sesion sesion={sesion} onSalir={onSalir} oscuro />
               </div>
             </div>
+            {/* Va en el encabezado y no en <main>: acá la altura es fija y un
+                renglón de más empujaba la pantalla fuera de la ventana. */}
+            <div className="px-3 md:px-4 empty:hidden"><AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} compacto /></div>
           </header>
 
           <main className="flex-1 min-h-0 p-3 md:p-4">
@@ -2252,6 +2080,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         </div>
 
         <main className="flex-1 min-w-0 p-4 md:p-6 pb-24 md:pb-8">
+          <AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} />
           <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div className="min-w-0">
               <h1 className="f-d text-xl md:text-2xl">{titulo}</h1>

@@ -41,7 +41,7 @@ export const RUBROS_DE_FABRICA = [
   {
     clave: "minimercado",
     nombre: "Comercio",
-    modulos: ["cobro", "caja", "ajustes", "productos", "stock", "compras", "pedidos", "clientes", "reportes", "asistente", "permisos"],
+    modulos: ["ajustes", "asistente", "caja", "clientes", "cobro", "compras", "cuentas", "equipo", "pedidos", "permisos", "productos", "reportes", "stock"],
     presentacion: {
       titulo: "Comercio y minimercado",
       bajada: "Cobrá con lector, controlá el stock y sabé qué deja plata.",
@@ -64,7 +64,7 @@ export const RUBROS_DE_FABRICA = [
   {
     clave: "gastronomia",
     nombre: "Gastronomía",
-    modulos: ["cobro", "caja", "ajustes", "comandas", "cocina", "productos", "stock", "compras", "clientes", "reportes", "permisos"],
+    modulos: ["ajustes", "asistente", "caja", "clientes", "cobro", "cocina", "comandas", "compras", "cuentas", "equipo", "productos", "reportes", "stock"],
     presentacion: {
       titulo: "Bar, café y restaurante",
       bajada: "Mesas, comandas y cocina en la misma pantalla.",
@@ -87,7 +87,7 @@ export const RUBROS_DE_FABRICA = [
   {
     clave: "servicios",
     nombre: "Servicios y turnos",
-    modulos: ["cobro", "caja", "ajustes", "clientes", "reportes", "agenda", "equipo", "ventas", "finanzas", "servicios", "informes", "crm", "comunicaciones", "permisos"],
+    modulos: ["ajustes", "caja", "clientes", "cobro", "comunicaciones", "crm", "equipo", "finanzas", "permisos", "reportes", "ventas"],
     presentacion: {
       titulo: "Turnos, clases y planes",
       bajada: "Agenda, abonos y una app para que tus clientes reserven solos.",

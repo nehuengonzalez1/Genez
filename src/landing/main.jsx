@@ -1,10 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import Landing from "./Landing.jsx";
+/* La landing nueva de una sola pantalla (docs/landing-nueva.md). La
+   anterior, con el alta en pasos, queda en Landing.jsx hasta publicar. */
+import Landing from "./LandingNueva.jsx";
 import Privacidad from "./Privacidad.jsx";
 import { iniciarTema } from "./tema.js";
 import "../index.css";
 import "./landing.css";
+import "./landing-nueva.css";
 
 /* Misma escala que la app del cliente y por la misma razón: esto se lee
    en un teléfono, donde no hay un 125% de Windows que compense el rem
@@ -20,10 +23,16 @@ const esPrivacidad = location.pathname.startsWith("/privacidad")
   || (import.meta.env.DEV && new URLSearchParams(location.search).has("privacidad"));
 if (esPrivacidad) document.title = "Política de privacidad · Genez";
 
+/* /empezar es el registro, en una página aparte (lo mismo: en desarrollo,
+   landing.html?empezar). */
+const esRegistro = !esPrivacidad && (location.pathname.startsWith("/empezar")
+  || (import.meta.env.DEV && new URLSearchParams(location.search).has("empezar")));
+if (esRegistro) document.title = "Probalo gratis · Genez";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <div className="min-h-screen bg-fondo text-texto">
-      {esPrivacidad ? <Privacidad /> : <Landing />}
+      {esPrivacidad ? <Privacidad /> : <Landing pagina={esRegistro ? "registro" : "principal"} />}
     </div>
   </React.StrictMode>
 );

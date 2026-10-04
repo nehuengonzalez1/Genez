@@ -8,6 +8,7 @@
  * según quién lo manda, sin rutas nuevas ni rewrites.
  *
  *   GET  con hub.mode           Meta verificando el webhook.
+ *   GET  ?tarea=pruebas         el cron de Vercel: los mails de la prueba gratis (0127).
  *   POST con X-Hub-Signature-256  Meta avisando mensajes y estados.
  *   POST con X-Genez-Llave      el reloj de la base (0122): mandar la cola.
  *   POST con Authorization      Founder: enviar, borrador, automatizaciones,
@@ -40,6 +41,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { waitUntil } from "@vercel/functions";
 import { generar, pideUnaPersona, conAviso, errorLegible } from "./_bot.js";
 import { plantillaParaMeta, mensajeDePlantilla, estadoDeMeta, reintentable, textoDeError } from "./_automatizaciones.js";
+import { avisosDePrueba } from "./_pruebas.js";
 
 /* En Vercel (y en Next) esto deja el cuerpo sin leer, que es lo que la
    firma necesita. */
@@ -77,6 +79,8 @@ async function graph(ruta, { metodo = "GET", cuerpo } = {}) {
 export default async function handler(req, res) {
   const query = Object.fromEntries(new URL(req.url, "http://genez").searchParams);
 
+  if (req.method === "GET" && query.tarea === "pruebas") return tareaDePruebas(req, res);
+
   if (req.method === "GET") {
     const v = verificarSuscripcion(query, process.env.WHATSAPP_VERIFY_TOKEN);
     if (!v.ok) return res.status(v.codigo).send(v.motivo);
@@ -89,6 +93,24 @@ export default async function handler(req, res) {
   if (req.headers["x-hub-signature-256"]) return webhook(req, res);
   if (req.headers["x-genez-llave"]) return llamadaDelReloj(req, res);
   return accionDeFounder(req, res);
+}
+
+
+/* ---------- El cron de las pruebas gratis ---------- */
+/* Vercel manda `Authorization: Bearer <CRON_SECRET>` (como en arca/caea.js). */
+async function tareaDePruebas(req, res) {
+  const secreto = process.env.CRON_SECRET;
+  if (!secreto) return error(res, 503, "Falta CRON_SECRET en el servidor.");
+  if (req.headers.authorization !== `Bearer ${secreto}`) return error(res, 401, "No autorizado.");
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const maestra = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!maestra) return error(res, 503, "Falta SUPABASE_SERVICE_ROLE_KEY en el servidor.");
+  const admin = createClient(url, maestra, { auth: { persistSession: false, autoRefreshToken: false } });
+  try {
+    return res.status(200).json(await avisosDePrueba(admin));
+  } catch (e) {
+    return error(res, 500, e.message || "No se pudieron mandar los avisos.");
+  }
 }
 
 
