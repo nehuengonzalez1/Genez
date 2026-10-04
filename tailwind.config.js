@@ -25,6 +25,8 @@ export default {
 
         telon:        color("telon"),
         "sobre-telon": color("sobre-telon"),
+        "sobre-panel": color("sobre-panel"),
+        "sobre-panel-suave": color("sobre-panel-suave"),
         "muestra-oscura": color("muestra-oscura"),
         "muestra-clara": color("muestra-clara"),
         papel:        color("papel"),
