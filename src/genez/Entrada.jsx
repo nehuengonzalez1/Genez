@@ -48,15 +48,15 @@ const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
 
    El negro, mucho más oscuro que en la imagen: lo pidió Nehuen el 04/10.
 
-   La banda no es una línea: es una barra con volumen. De izquierda a
-   derecha: una canaleta negra que la separa del panel, la banda (un solo
-   trazo, con su degradé y destellos arriba y abajo) y el resplandor durazno sobre el blanco.
+   Tres planos con profundidad: el panel negro adelante (con su canto gris
+   y su sombra sobre la banda), la banda en el medio (un solo trazo, con su
+   degradé y destellos) y el blanco atrás (con la sombra de la banda y el
+   resplandor naranja).
 
    Cada capa es la misma línea con otro grosor, recortada al lado que le
    toca (clip-path con el polígono negro o el blanco). Los grosores son en
    píxeles de pantalla (vector-effect), así no se deforman. */
-const B = "clamp(16px, 1.7vw, 46px)";            // la banda
-const G = "clamp(6px, 0.55vw, 15px)";            // la canaleta negra
+const B = "clamp(8px, 0.85vw, 23px)";             // la banda (la mitad de la anterior, 04/10)
 const ancho = (...partes) => `calc(${partes.join(" + ")})`;
 
 function Fondo() {
@@ -110,29 +110,32 @@ function Fondo() {
       <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-vineta)" />
       <polygon points={`${ARRIBA} 1600,-20 1600,920 ${ABAJO} ${PUNTA}`} fill="url(#entrada-blanco)" />
 
-      {/* Lado negro: la canaleta. Tenía también un filo naranja en el borde
-          del panel y se leía como una segunda línea: se sacó (Nehuen, 04/10). */}
-      <g clipPath="url(#entrada-lado-negro)">
-        <polyline {...linea} stroke="#050505" style={t(ancho(B, `2 * ${G}`))} />
-        <polyline {...linea} stroke="#000" strokeOpacity="0.6" style={t(ancho(B, `1.2 * ${G}`))} filter="url(#entrada-suave)" />
-      </g>
-
-      {/* Lado blanco: el resplandor durazno. */}
+      {/* Tres planos, de atrás para adelante: el blanco, la banda y el
+          panel negro (Nehuen pidió la profundidad entre las tres, 04/10).
+          La banda nace en el borde del panel y va toda del lado blanco: es
+          un trazo del doble de ancho, centrado en el borde y recortado a ese
+          lado. Así el panel queda adelante, apoyado sobre la banda. */}
       <g clipPath="url(#entrada-lado-blanco)">
-        <polyline {...linea} stroke="#ff7a2a" strokeOpacity="0.13" style={t(ancho(B, "clamp(36px, 3.4vw, 96px)"))} filter="url(#entrada-brillo)" />
-        <polyline {...linea} stroke="#ffcfae" strokeOpacity="0.3" style={t(ancho(B, "clamp(10px, 0.8vw, 24px)"))} filter="url(#entrada-difuso)" />
+        {/* Lo que la banda le hace al blanco: el resplandor naranja y, más
+            pegada, su sombra. */}
+        <polyline {...linea} stroke="#ff7a2a" strokeOpacity="0.16" style={t(ancho(`2 * ${B}`, "clamp(60px, 5.5vw, 150px)"))} filter="url(#entrada-brillo)" />
+        <polyline {...linea} stroke="#000" strokeOpacity="0.2" style={t(ancho(`2 * ${B}`, "clamp(10px, 0.9vw, 24px)"))} filter="url(#entrada-difuso)" />
+        <polyline {...linea} stroke="url(#entrada-banda)" style={t(`calc(2 * ${B})`)} />
+        {/* La sombra del panel sobre la banda, del lado que la toca. */}
+        <polyline {...linea} stroke="#000" strokeOpacity="0.45" style={t(`calc(0.6 * ${B})`)} filter="url(#entrada-suave)" />
       </g>
 
-      {/* La banda, de un solo trazo. Tenía franjas adentro (un brillo a la
-          izquierda y el borde de afuera más oscuro) y de lejos se leía como dos
-          líneas: Nehuen pidió una sola (04/10). El volumen lo dan la canaleta,
-          el degradé y los destellos. */}
-      <polyline {...linea} stroke="url(#entrada-banda)" style={t(B)} />
+      {/* El canto del panel: gris, muy fino. Naranja se leía como una
+          segunda línea. */}
+      <g clipPath="url(#entrada-lado-negro)">
+        <polyline {...linea} stroke="#4a4b4e" strokeOpacity="0.9" style={t("3px")} />
+        <polyline {...linea} stroke="#000" strokeOpacity="0.5" style={t("clamp(14px, 1.2vw, 30px)")} filter="url(#entrada-difuso)" />
+      </g>
 
       {/* Los destellos: arriba, abajo y uno chico antes de la punta. */}
-      <ellipse cx="921" cy="70" rx="16" ry="70" transform="rotate(27 921 70)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
-      <ellipse cx="948" cy="760" rx="16" ry="78" transform="rotate(-26 948 760)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
-      <ellipse cx="800" cy="300" rx="10" ry="34" transform="rotate(27 800 300)" fill="url(#entrada-destello)" fillOpacity="0.6" filter="url(#entrada-difuso)" />
+      <ellipse cx="929" cy="70" rx="8" ry="60" transform="rotate(27 929 70)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
+      <ellipse cx="956" cy="760" rx="8" ry="66" transform="rotate(-26 956 760)" fill="url(#entrada-destello)" filter="url(#entrada-difuso)" />
+      <ellipse cx="808" cy="300" rx="6" ry="30" transform="rotate(27 808 300)" fill="url(#entrada-destello)" fillOpacity="0.6" filter="url(#entrada-difuso)" />
     </svg>
   );
 }
