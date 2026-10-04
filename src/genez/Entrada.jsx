@@ -54,6 +54,8 @@ const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
    píxeles de pantalla (vector-effect), así no se deforman. */
 const B = "clamp(8px, 0.85vw, 23px)";             // la banda (la mitad de la anterior, 04/10)
 const ancho = (...partes) => `calc(${partes.join(" + ")})`;
+/* El grosor de la luz que sube y baja: una línea LED. */
+const LED = "clamp(1.5px, 0.16vw, 4px)";
 
 function Fondo() {
   /* Con "reducir movimiento" activado en el sistema, el reflejo queda
@@ -112,6 +114,10 @@ function Fondo() {
         </linearGradient>
         <clipPath id="entrada-lado-negro"><polygon points={`-50,-50 ${BANDA} -50,950`} /></clipPath>
         <clipPath id="entrada-lado-blanco"><polygon points={`${ARRIBA} 1650,-50 1650,950 ${ABAJO} ${PUNTA}`} /></clipPath>
+        <mask id="entrada-led" maskUnits="userSpaceOnUse" x="-50" y="-50" width="1700" height="1000">
+          <polyline {...linea} stroke="#fff" style={t(ancho(B, LED))} />
+          <polyline {...linea} stroke="#000" style={t(`calc(${B} - ${LED})`)} />
+        </mask>
         <filter id="entrada-brillo" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="20" /></filter>
         <filter id="entrada-suave" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="1.2" /></filter>
         <filter id="entrada-difuso" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" /></filter>
@@ -145,16 +151,13 @@ function Fondo() {
         <polyline {...linea} stroke="#000" strokeOpacity="0.5" style={t("clamp(14px, 1.2vw, 30px)")} filter="url(#entrada-difuso)" />
       </g>
 
-      {/* El reflejo que sube y baja: sobre la banda y, más tenue, como halo
-          sobre el blanco. Reemplaza a los tres destellos fijos. */}
+      {/* La luz que sube y baja: una línea LED naranja muy fina por el medio
+          de la banda, sin halo (Nehuen, 04/10: el destello de alrededor
+          cubría mucho). La máscara deja solo una franja angosta a mitad de
+          la banda: blanco hasta B + LED, negro hasta B - LED, y el recorte al
+          lado blanco se queda con la mitad que cae sobre la banda. */}
       <g clipPath="url(#entrada-lado-blanco)">
-        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.6" style={t(ancho(`2 * ${B}`, "clamp(50px, 4.5vw, 120px)"))} filter="url(#entrada-brillo)" />
-        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.55" style={t(ancho(`2 * ${B}`, "clamp(12px, 1vw, 28px)"))} filter="url(#entrada-difuso)" />
-        <polyline {...linea} stroke="url(#entrada-reflejo)" style={t(`calc(2 * ${B})`)} filter="url(#entrada-suave)" />
-      </g>
-      {/* La misma luz, tenue, sobre el borde del panel. */}
-      <g clipPath="url(#entrada-lado-negro)">
-        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.3" style={t("clamp(30px, 2.6vw, 70px)")} filter="url(#entrada-brillo)" />
+        <polyline {...linea} stroke="url(#entrada-reflejo)" style={t(`calc(2 * ${B})`)} mask="url(#entrada-led)" />
       </g>
     </svg>
   );
