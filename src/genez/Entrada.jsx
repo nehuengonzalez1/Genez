@@ -5,7 +5,7 @@
    El fondo es el diseño de Nehuen (04/10) rearmado en vectores: el panel
    negro, la banda naranja en flecha con su profundidad y una luz naranja
    que la recorre de arriba abajo, y el blanco a la derecha, donde va la
-   tarjeta. Encima, el texto del panel: "Tu negocio. Bajo control." y tres
+   tarjeta. Encima, el texto del panel: la G del logo, "Tu negocio / Bajo control." y tres
    puntos, sacados de una referencia que pasó después.
 
    El fondo de esa referencia (la banda como neón y una G de marca de
@@ -180,6 +180,41 @@ function Fondo() {
   );
 }
 
+/* ---------- La G del logo, arriba del título ---------- */
+
+/* La G redibujada en vectores (el logo es un PNG de 114 px y se
+   pixelaba): un anillo partido en cuatro piezas, en un círculo de radio
+   1. Los ángulos van en grados, 0 a las tres y en el sentido del reloj.
+   Con los colores del logo: la mitad izquierda y la barra claras, los dos
+   arcos de la derecha naranjas. */
+const R = 1, r = 0.76;
+const punto = (a, rad) => [Math.cos((a * Math.PI) / 180) * rad, Math.sin((a * Math.PI) / 180) * rad];
+const p = ([x, y]) => `${x.toFixed(4)} ${y.toFixed(4)}`;
+function arco(desde, hasta) {
+  const grande = Math.abs(hasta - desde) > 180 ? 1 : 0;
+  return `M ${p(punto(desde, R))} A ${R} ${R} 0 ${grande} 1 ${p(punto(hasta, R))} L ${p(punto(hasta, r))} A ${r} ${r} 0 ${grande} 0 ${p(punto(desde, r))} Z`;
+}
+const G_IZQUIERDA = arco(96, 264);
+const G_ARRIBA = arco(-84, -21);
+const G_ABAJO = arco(56, 84);
+/* La barra que entra desde la derecha, con su corte en diagonal, unida al
+   tramo del anillo que baja hasta los 48°. */
+const yBarra = -0.05, yBase = 0.22;
+const aBarra = (Math.asin(yBarra / R) * 180) / Math.PI;
+const aBase = (Math.asin(yBase / r) * 180) / Math.PI;
+const G_BARRA = `M 0.06 ${yBarra} L ${p(punto(aBarra, R))} A ${R} ${R} 0 0 1 ${p(punto(48, R))} L ${p(punto(48, r))} A ${r} ${r} 0 0 0 ${p(punto(aBase, r))} L 0.27 ${yBase} Z`;
+
+function LetraG({ style, className = "" }) {
+  return (
+    <svg viewBox="-1.02 -1.02 2.04 2.04" aria-label="Genez" role="img" className={className} style={style}>
+      <path d={G_IZQUIERDA} className="fill-sobre-panel" />
+      <path d={G_BARRA} className="fill-sobre-panel" />
+      <path d={G_ARRIBA} className="fill-acento" />
+      <path d={G_ABAJO} className="fill-acento" />
+    </svg>
+  );
+}
+
 /* ---------- El texto del panel ---------- */
 
 /* Los íconos de la referencia, en SVG: blancos con un detalle naranja. */
@@ -219,9 +254,12 @@ const tam = (vw, vh) => `min(${vw}vw, ${vh}vh)`;
 
 function TextoPanel() {
   return (
-    <div className="hidden lg:block absolute text-sobre-panel" style={{ left: "5.8vw", top: "28vh" }}>
-      <h1 className="f-d font-black uppercase leading-[1.08] tracking-[-0.005em]" style={{ fontSize: tam(4.15, 7.4) }}>
-        Tu negocio<span className="text-acento">.</span><br />
+    <div className="hidden lg:block absolute text-sobre-panel" style={{ left: "5.8vw", top: "17vh" }}>
+      <LetraG className="block" style={{ width: tam(4.4, 7.8), height: tam(4.4, 7.8), marginBottom: tam(2.2, 3.9) }} />
+      {/* Un 10% más grande y sin el punto naranja de "Tu negocio"
+          (Nehuen, 04/10). */}
+      <h1 className="f-d font-black uppercase leading-[1.08] tracking-[-0.005em]" style={{ fontSize: tam(4.6, 8.2) }}>
+        Tu negocio<br />
         <span className="text-acento">Bajo control.</span>
       </h1>
       <span className="block bg-acento" style={{ width: tam(6, 10.6), height: "max(2px, 0.22vw)", marginTop: tam(2.6, 4.6) }} aria-hidden="true" />
@@ -250,7 +288,7 @@ export function MarcoEntrada({ children }) {
         {/* En el celular, el texto arriba de la tarjeta. */}
         <div className="lg:hidden px-6 pt-10 pb-6">
           <h1 className="f-d text-[30px] leading-[1.08] font-black uppercase">
-            Tu negocio<span className="text-acento">.</span><br /><span className="text-acento">Bajo control.</span>
+            Tu negocio<br /><span className="text-acento">Bajo control.</span>
           </h1>
           <span className="block w-12 h-0.5 bg-acento mt-5" aria-hidden="true" />
           <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs uppercase tracking-[0.18em] text-texto-suave">
@@ -262,7 +300,10 @@ export function MarcoEntrada({ children }) {
 
         {/* En la computadora, centrada en la zona blanca. */}
         <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:left-[79vw] lg:-translate-x-1/2 lg:-translate-y-1/2">
-          <div className="relative tema-claro w-full max-w-[380px] lg:w-[clamp(340px,20vw,390px)] lg:max-w-none bg-superficie text-texto rounded-2xl shadow-2xl ring-1 ring-borde px-7 py-9 lg:px-9 lg:py-11">
+          {/* En la computadora, sin recuadro: el formulario va directo sobre el
+              blanco, un poco más grande (Nehuen, 04/10). En el celular queda la
+              tarjeta, porque ahí el fondo es oscuro. */}
+          <div className="relative tema-claro w-full max-w-[380px] lg:w-[clamp(360px,22vw,440px)] lg:max-w-none bg-superficie text-texto rounded-2xl shadow-2xl ring-1 ring-borde px-7 py-9 lg:bg-transparent lg:shadow-none lg:ring-0 lg:rounded-none lg:p-0">
             {children}
           </div>
         </div>
