@@ -2,9 +2,9 @@
 -- 0128 · La foto del login, subible desde el panel de plataforma
 -- ============================================================
 --
--- El login nuevo (03/10) dibuja el panel oscuro, el texto y la tarjeta
--- en el código; la foto del local es solo el fondo. Nehuen quiere poder
--- cambiarla por una en más calidad sin pasar por el código.
+-- El login nuevo (03/10) es una imagen con el diseño entero (foto, panel
+-- y texto) y la tarjeta real encima. Nehuen quiere poder cambiar la
+-- imagen por otra, en más calidad, sin pasar por el código.
 --
 -- "Imagen del login" ya estaba en el panel, pero guardaba la imagen en la
 -- memoria del navegador: nunca le llegaba al login, que no tiene sesión.

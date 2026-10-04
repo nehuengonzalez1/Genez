@@ -6,8 +6,9 @@
    del navegador: se perdía al cerrar sesión y nunca le llegaba al login.
    Ahora va a Storage y la ve cualquiera que abra el login.
 
-   La foto es solo el fondo: el panel oscuro con la flecha naranja, el
-   texto y la tarjeta los dibuja el sistema encima (src/genez/Entrada.jsx).
+   Lo que se sube es el diseño entero (foto, panel y texto) sin la
+   tarjeta: el sistema solo le pone encima la tarjeta para entrar, a la
+   derecha (src/genez/Entrada.jsx).
    ============================================================ */
 
 import React, { useRef, useState } from "react";
@@ -70,12 +71,13 @@ export function FotoLoginPanel() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm text-texto-tenue">
-              El fondo del login. El sistema dibuja encima, a la izquierda, el panel oscuro con la flecha naranja y el
-              texto, y a la derecha la tarjeta para entrar.
+              El diseño entero del login (la foto, el panel y el texto) sin la tarjeta para entrar: el sistema la pone
+              encima, a la derecha.
             </p>
             <ul className="text-[11px] text-texto-suave mt-2 space-y-0.5">
-              <li><strong className="text-texto-tenue">Medida:</strong> 16:9, idealmente 2560 × 1440 o 3840 × 2160.</li>
-              <li><strong className="text-texto-tenue">Qué mostrar:</strong> la escena sola, sin textos ni logos encima. El tercio izquierdo queda tapado por el panel.</li>
+              <li><strong className="text-texto-tenue">Medida:</strong> 16:9, de 2000 × 1125 en adelante (ideal 2560 × 1440).</li>
+              <li><strong className="text-texto-tenue">Zona libre:</strong> entre el 64% y el 92% del ancho y el 22% y el 78% del alto va la tarjeta: nada importante ahí.</li>
+              <li><strong className="text-texto-tenue">Bordes:</strong> en pantallas más angostas se recorta la derecha; nada importante en el 10% de cada borde.</li>
               <li><strong className="text-texto-tenue">Peso:</strong> hasta 8 MB, en WebP o JPG.</li>
               <li>En el celular no se muestra: ahí va el texto arriba y la tarjeta abajo.</li>
             </ul>
