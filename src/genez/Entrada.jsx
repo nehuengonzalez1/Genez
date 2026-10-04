@@ -183,47 +183,77 @@ function Fondo() {
 /* ---------- La G del logo ---------- */
 
 /* La G redibujada en vectores (el logo es un PNG de 114 px y se
-   pixelaba): un anillo partido en cuatro piezas, en un círculo de radio
-   1. Los ángulos van en grados, 0 a las tres y en el sentido del reloj.
+   pixelaba), en un círculo de radio 1.
 
-   Se arma con medidas porque va en dos grosores: la de arriba del título,
-   como el logo, y la grande de marca de agua, con el anillo el doble de
-   grueso (Nehuen, 04/10). Engrosarla no es escalarla: la barra y los
-   cortes se corren para que siga leyéndose como la G. */
-const punto = (a, rad) => [Math.cos((a * Math.PI) / 180) * rad, Math.sin((a * Math.PI) / 180) * rad];
-const p = ([x, y]) => `${x.toFixed(4)} ${y.toFixed(4)}`;
-const grados = (x) => (x * 180) / Math.PI;
+   Como en el logo real, los cortes son rectos y no siguen el radio: un
+   anillo entero recortado por líneas. Con cortes radiales los extremos de
+   la ranura de arriba se abrían como una cuña, y en la G gruesa se notaba
+   (Nehuen, 04/10). Las piezas:
+   - la mitad izquierda: el anillo a la izquierda de la ranura vertical;
+   - arriba a la derecha (naranja en el logo): a la derecha de la ranura y
+     por encima de un corte horizontal;
+   - la barra: por debajo de su borde de arriba y a la derecha de una
+     diagonal, que es a la vez la punta de la barra y el corte de abajo;
+   - abajo a la derecha (naranja): del otro lado de esa diagonal.
 
-function piezasDeG({ r, barraArriba, barraAbajo, barraIzq, barraIzqAbajo, finBarra, inicioAbajo }) {
-  const R = 1;
-  const arco = (desde, hasta) => {
-    const grande = Math.abs(hasta - desde) > 180 ? 1 : 0;
-    return `M ${p(punto(desde, R))} A ${R} ${R} 0 ${grande} 1 ${p(punto(hasta, R))} L ${p(punto(hasta, r))} A ${r} ${r} 0 ${grande} 0 ${p(punto(desde, r))} Z`;
-  };
-  /* La barra que entra desde la derecha, con su corte en diagonal, unida al
-     tramo del anillo que baja hasta `finBarra`. */
-  const aArriba = grados(Math.asin(barraArriba / R));
-  const aAbajo = grados(Math.asin(barraAbajo / r));
+   Va en dos grosores: la de arriba del título, como el logo, y la grande
+   de marca de agua, con el anillo y la barra el doble de gruesos. */
+const NORMAL = [0.76, -0.65];   // perpendicular a la diagonal de la barra
+const enDiagonal = (c, y) => (c - NORMAL[1] * y) / NORMAL[0];
+const pts = (lista) => lista.map(([x, y]) => `${x.toFixed(4)},${y.toFixed(4)}`).join(" ");
+
+function piezasDeG({ r, ranura, corteArriba, barraArriba, barraAbajo, diagonal, separacion }) {
+  const c2 = diagonal - separacion;
+  const yRanura = (NORMAL[0] * ranura - c2) / -NORMAL[1];
   return {
-    izquierda: arco(96, 264),
-    arriba: arco(-84, -21),
-    abajo: arco(inicioAbajo, 84),
-    barra: `M ${barraIzq} ${barraArriba} L ${p(punto(aArriba, R))} A ${R} ${R} 0 0 1 ${p(punto(finBarra, R))} L ${p(punto(finBarra, r))} A ${r} ${r} 0 0 0 ${p(punto(aAbajo, r))} L ${barraIzqAbajo} ${barraAbajo} Z`,
+    anillo: `M 1 0 A 1 1 0 1 1 -1 0 A 1 1 0 1 1 1 0 Z M ${r} 0 A ${r} ${r} 0 1 0 ${-r} 0 A ${r} ${r} 0 1 0 ${r} 0 Z`,
+    izquierda: pts([[-2, -2], [-ranura, -2], [-ranura, 2], [-2, 2]]),
+    arriba: pts([[ranura, -2], [2, -2], [2, corteArriba], [ranura, corteArriba]]),
+    barra: pts([[enDiagonal(diagonal, barraArriba), barraArriba], [2, barraArriba], [2, 2], [enDiagonal(diagonal, 2), 2]]),
+    barraArriba, barraAbajo, r,
+    abajo: pts([[ranura, Math.max(0, yRanura)], [enDiagonal(c2, Math.max(0, yRanura)), Math.max(0, yRanura)], [enDiagonal(c2, 2), 2], [ranura, 2]]),
   };
 }
 
-/* Como el logo: anillo de 0,24 del radio. */
-const G_LOGO = piezasDeG({ r: 0.76, barraArriba: -0.05, barraAbajo: 0.22, barraIzq: 0.06, barraIzqAbajo: 0.27, finBarra: 48, inicioAbajo: 56 });
-/* El doble de grueso: anillo de 0,48 y la barra más alta. */
-const G_GRUESA = piezasDeG({ r: 0.52, barraArriba: -0.1, barraAbajo: 0.3, barraIzq: 0.02, barraIzqAbajo: 0.3, finBarra: 52, inicioAbajo: 61 });
+/* Como el logo: anillo de 0,24 del radio. Medidas tomadas del logo. */
+const G_LOGO = piezasDeG({ r: 0.76, ranura: 0.06, corteArriba: -0.345, barraArriba: -0.045, barraAbajo: 0.218, diagonal: 0.088, separacion: 0.09 });
+/* El doble de grueso: anillo de 0,48 del radio y la barra el doble de alta. */
+const G_GRUESA = piezasDeG({ r: 0.52, ranura: 0.07, corteArriba: -0.42, barraArriba: -0.12, barraAbajo: 0.36, diagonal: 0.124, separacion: 0.1 });
+
+/* Dibuja la G. Cada pieza es el anillo recortado (la barra, además, la
+   franja horizontal que entra al hueco). Las piezas claras van en un
+   grupo y las naranjas en otro, con su opacidad de grupo: así la barra,
+   que superpone anillo y franja, no queda más opaca donde se cruzan. */
+function DibujoG({ g, id, claras, naranjas }) {
+  return (
+    <>
+      <defs>
+        <clipPath id={`${id}-izq`}><polygon points={g.izquierda} /></clipPath>
+        <clipPath id={`${id}-arr`}><polygon points={g.arriba} /></clipPath>
+        <clipPath id={`${id}-bar`}><polygon points={g.barra} /></clipPath>
+        <clipPath id={`${id}-aba`}><polygon points={g.abajo} /></clipPath>
+      </defs>
+      <g {...claras}>
+        <path d={g.anillo} fillRule="evenodd" clipPath={`url(#${id}-izq)`} />
+        <g clipPath={`url(#${id}-bar)`}>
+          <path d={g.anillo} fillRule="evenodd" />
+          {/* La franja llega hasta adentro del anillo y no más: si no,
+              asomaba por afuera del círculo. */}
+          <rect x="-2" y={g.barraArriba} width={2 + g.r + 0.05} height={g.barraAbajo - g.barraArriba} />
+        </g>
+      </g>
+      <g {...naranjas}>
+        <path d={g.anillo} fillRule="evenodd" clipPath={`url(#${id}-arr)`} />
+        <path d={g.anillo} fillRule="evenodd" clipPath={`url(#${id}-aba)`} />
+      </g>
+    </>
+  );
+}
 
 function LetraG({ style, className = "" }) {
   return (
     <svg viewBox="-1.02 -1.02 2.04 2.04" aria-label="Genez" role="img" className={className} style={style}>
-      <path d={G_LOGO.izquierda} className="fill-sobre-panel" />
-      <path d={G_LOGO.barra} className="fill-sobre-panel" />
-      <path d={G_LOGO.arriba} className="fill-acento" />
-      <path d={G_LOGO.abajo} className="fill-acento" />
+      <DibujoG g={G_LOGO} id="g-titulo" claras={{ className: "fill-sobre-panel" }} naranjas={{ className: "fill-acento" }} />
     </svg>
   );
 }
@@ -237,12 +267,9 @@ function MarcaG() {
     <svg viewBox="-1.02 -1.02 2.04 2.04" aria-hidden="true"
       className="hidden lg:block absolute pointer-events-none"
       style={{ width: "58vh", height: "58vh", left: "calc(13vw - 29vh)", top: "calc(96vh - 29vh)" }}>
-      <g className="fill-sobre-panel" fillOpacity="0.045">
-        <path d={G_GRUESA.izquierda} />
-        <path d={G_GRUESA.barra} />
-        <path d={G_GRUESA.abajo} />
-      </g>
-      <path d={G_GRUESA.arriba} className="fill-sobre-panel" fillOpacity="0.075" />
+      <DibujoG g={G_GRUESA} id="g-marca"
+        claras={{ className: "fill-sobre-panel", opacity: 0.045 }}
+        naranjas={{ className: "fill-sobre-panel", opacity: 0.07 }} />
     </svg>
   );
 }
