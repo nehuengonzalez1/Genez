@@ -180,37 +180,69 @@ function Fondo() {
   );
 }
 
-/* ---------- La G del logo, arriba del título ---------- */
+/* ---------- La G del logo ---------- */
 
 /* La G redibujada en vectores (el logo es un PNG de 114 px y se
    pixelaba): un anillo partido en cuatro piezas, en un círculo de radio
    1. Los ángulos van en grados, 0 a las tres y en el sentido del reloj.
-   Con los colores del logo: la mitad izquierda y la barra claras, los dos
-   arcos de la derecha naranjas. */
-const R = 1, r = 0.76;
+
+   Se arma con medidas porque va en dos grosores: la de arriba del título,
+   como el logo, y la grande de marca de agua, con el anillo el doble de
+   grueso (Nehuen, 04/10). Engrosarla no es escalarla: la barra y los
+   cortes se corren para que siga leyéndose como la G. */
 const punto = (a, rad) => [Math.cos((a * Math.PI) / 180) * rad, Math.sin((a * Math.PI) / 180) * rad];
 const p = ([x, y]) => `${x.toFixed(4)} ${y.toFixed(4)}`;
-function arco(desde, hasta) {
-  const grande = Math.abs(hasta - desde) > 180 ? 1 : 0;
-  return `M ${p(punto(desde, R))} A ${R} ${R} 0 ${grande} 1 ${p(punto(hasta, R))} L ${p(punto(hasta, r))} A ${r} ${r} 0 ${grande} 0 ${p(punto(desde, r))} Z`;
+const grados = (x) => (x * 180) / Math.PI;
+
+function piezasDeG({ r, barraArriba, barraAbajo, barraIzq, barraIzqAbajo, finBarra, inicioAbajo }) {
+  const R = 1;
+  const arco = (desde, hasta) => {
+    const grande = Math.abs(hasta - desde) > 180 ? 1 : 0;
+    return `M ${p(punto(desde, R))} A ${R} ${R} 0 ${grande} 1 ${p(punto(hasta, R))} L ${p(punto(hasta, r))} A ${r} ${r} 0 ${grande} 0 ${p(punto(desde, r))} Z`;
+  };
+  /* La barra que entra desde la derecha, con su corte en diagonal, unida al
+     tramo del anillo que baja hasta `finBarra`. */
+  const aArriba = grados(Math.asin(barraArriba / R));
+  const aAbajo = grados(Math.asin(barraAbajo / r));
+  return {
+    izquierda: arco(96, 264),
+    arriba: arco(-84, -21),
+    abajo: arco(inicioAbajo, 84),
+    barra: `M ${barraIzq} ${barraArriba} L ${p(punto(aArriba, R))} A ${R} ${R} 0 0 1 ${p(punto(finBarra, R))} L ${p(punto(finBarra, r))} A ${r} ${r} 0 0 0 ${p(punto(aAbajo, r))} L ${barraIzqAbajo} ${barraAbajo} Z`,
+  };
 }
-const G_IZQUIERDA = arco(96, 264);
-const G_ARRIBA = arco(-84, -21);
-const G_ABAJO = arco(56, 84);
-/* La barra que entra desde la derecha, con su corte en diagonal, unida al
-   tramo del anillo que baja hasta los 48°. */
-const yBarra = -0.05, yBase = 0.22;
-const aBarra = (Math.asin(yBarra / R) * 180) / Math.PI;
-const aBase = (Math.asin(yBase / r) * 180) / Math.PI;
-const G_BARRA = `M 0.06 ${yBarra} L ${p(punto(aBarra, R))} A ${R} ${R} 0 0 1 ${p(punto(48, R))} L ${p(punto(48, r))} A ${r} ${r} 0 0 0 ${p(punto(aBase, r))} L 0.27 ${yBase} Z`;
+
+/* Como el logo: anillo de 0,24 del radio. */
+const G_LOGO = piezasDeG({ r: 0.76, barraArriba: -0.05, barraAbajo: 0.22, barraIzq: 0.06, barraIzqAbajo: 0.27, finBarra: 48, inicioAbajo: 56 });
+/* El doble de grueso: anillo de 0,48 y la barra más alta. */
+const G_GRUESA = piezasDeG({ r: 0.52, barraArriba: -0.1, barraAbajo: 0.3, barraIzq: 0.02, barraIzqAbajo: 0.3, finBarra: 52, inicioAbajo: 61 });
 
 function LetraG({ style, className = "" }) {
   return (
     <svg viewBox="-1.02 -1.02 2.04 2.04" aria-label="Genez" role="img" className={className} style={style}>
-      <path d={G_IZQUIERDA} className="fill-sobre-panel" />
-      <path d={G_BARRA} className="fill-sobre-panel" />
-      <path d={G_ARRIBA} className="fill-acento" />
-      <path d={G_ABAJO} className="fill-acento" />
+      <path d={G_LOGO.izquierda} className="fill-sobre-panel" />
+      <path d={G_LOGO.barra} className="fill-sobre-panel" />
+      <path d={G_LOGO.arriba} className="fill-acento" />
+      <path d={G_LOGO.abajo} className="fill-acento" />
+    </svg>
+  );
+}
+
+/* La G grande de marca de agua, abajo a la izquierda y cortada por los
+   bordes, como en la referencia de Nehuen: en grises, con muy poca
+   opacidad, y la pieza de arriba a la derecha (la naranja del logo) un
+   poco más clara. Va detrás del texto. */
+function MarcaG() {
+  return (
+    <svg viewBox="-1.02 -1.02 2.04 2.04" aria-hidden="true"
+      className="hidden lg:block absolute pointer-events-none"
+      style={{ width: "58vh", height: "58vh", left: "calc(13vw - 29vh)", top: "calc(96vh - 29vh)" }}>
+      <g className="fill-sobre-panel" fillOpacity="0.045">
+        <path d={G_GRUESA.izquierda} />
+        <path d={G_GRUESA.barra} />
+        <path d={G_GRUESA.abajo} />
+      </g>
+      <path d={G_GRUESA.arriba} className="fill-sobre-panel" fillOpacity="0.075" />
     </svg>
   );
 }
@@ -282,6 +314,7 @@ export function MarcoEntrada({ children }) {
   return (
     <div className="relative min-h-screen bg-fondo text-texto overflow-hidden">
       <Fondo />
+      <MarcaG />
       <TextoPanel />
 
       <div className="relative z-10 min-h-screen flex flex-col lg:block">
