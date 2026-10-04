@@ -46,9 +46,10 @@ const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
    banda es más rojiza en la punta. Son fijos a propósito: el fondo es el
    mismo en los dos temas, como el telón.
 
+   El negro, mucho más oscuro que en la imagen: lo pidió Nehuen el 04/10.
+
    La banda no es una línea: es una barra con volumen. De izquierda a
-   derecha, como en el diseño: el filo iluminado del panel negro, una
-   canaleta negra, la banda (con un brillo en su tercio izquierdo, el lado
+   derecha, como en el diseño: una canaleta negra, la banda (con un brillo en su tercio izquierdo, el lado
    derecho más oscuro y destellos arriba y abajo), un borde fino brillante
    y el resplandor durazno sobre el blanco.
 
@@ -67,12 +68,12 @@ function Fondo() {
       className="hidden lg:block absolute inset-0 w-full h-full">
       <defs>
         <linearGradient id="entrada-negro" x1="0.35" y1="0" x2="0.05" y2="1">
-          <stop offset="0" stopColor="#2b2c2e" />
-          <stop offset="0.45" stopColor="#131416" />
-          <stop offset="1" stopColor="#030304" />
+          <stop offset="0" stopColor="#151617" />
+          <stop offset="0.45" stopColor="#09090a" />
+          <stop offset="1" stopColor="#010101" />
         </linearGradient>
         <radialGradient id="entrada-luz" cx="0.36" cy="-0.05" r="0.6">
-          <stop offset="0" stopColor="#3d3f42" stopOpacity="0.6" />
+          <stop offset="0" stopColor="#2e3033" stopOpacity="0.35" />
           <stop offset="1" stopColor="#3d3f42" stopOpacity="0" />
         </radialGradient>
         <radialGradient id="entrada-vineta" cx="0.05" cy="1" r="0.7">
@@ -119,9 +120,9 @@ function Fondo() {
       <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-vineta)" />
       <polygon points={`${ARRIBA} 1600,-20 1600,920 ${ABAJO} ${PUNTA}`} fill="url(#entrada-blanco)" />
 
-      {/* Lado negro: el filo iluminado del panel, y adentro la canaleta. */}
+      {/* Lado negro: la canaleta. Tenía también un filo naranja en el borde
+          del panel y se leía como una segunda línea: se sacó (Nehuen, 04/10). */}
       <g clipPath="url(#entrada-lado-negro)">
-        <polyline {...linea} stroke="#ff8a3d" strokeOpacity="0.3" style={t(ancho(B, `2 * ${G}`, "3px"))} />
         <polyline {...linea} stroke="#050505" style={t(ancho(B, `2 * ${G}`))} />
         <polyline {...linea} stroke="#000" strokeOpacity="0.6" style={t(ancho(B, `1.2 * ${G}`))} filter="url(#entrada-suave)" />
       </g>
