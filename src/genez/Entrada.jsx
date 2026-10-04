@@ -400,13 +400,18 @@ export function PieEntrada() {
 
 /* Un campo con su ícono a la izquierda, como en la maqueta. `extra` es lo
    que va a la derecha (el ojo de la contraseña). */
-export function CampoEntrada({ icono: I, extra = null, ...props }) {
+export function CampoEntrada({ icono: I, extra = null, etiqueta = null, ...props }) {
   return (
-    <label className="relative block">
-      <I size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-texto-suave pointer-events-none" aria-hidden="true" />
-      <input {...props}
-        className="w-full h-12 rounded-lg border border-borde-fuerte bg-superficie pl-11 pr-11 text-[15px] text-texto placeholder:text-texto-tenue outline-none focus:border-acento transition-colors disabled:opacity-60" />
-      {extra && <span className="absolute right-2.5 top-1/2 -translate-y-1/2">{extra}</span>}
+    <label className="block">
+      {/* El rótulo arriba de la casilla (Nehuen, 04/10): el texto de adentro
+          se va al escribir, y con él lo que pedía el campo. */}
+      {etiqueta && <span className="block mb-1.5 text-[13px] font-medium text-texto-suave">{etiqueta}</span>}
+      <span className="relative block">
+        <I size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-texto-suave pointer-events-none" aria-hidden="true" />
+        <input {...props}
+          className="w-full h-12 rounded-lg border border-borde-fuerte bg-superficie pl-11 pr-11 text-[15px] text-texto placeholder:text-texto-tenue outline-none focus:border-acento transition-colors disabled:opacity-60" />
+        {extra && <span className="absolute right-2.5 top-1/2 -translate-y-1/2">{extra}</span>}
+      </span>
     </label>
   );
 }
