@@ -3,14 +3,18 @@
    ============================================================
 
    La maqueta del 03/10: una foto del mostrador con el panel oscuro y el
-   texto ya dibujados (public/login/fondo-oscuro.jpg) y, a la derecha, una
+   texto ya dibujados (public/login/fondo-oscuro.webp) y, a la derecha, una
    tarjeta blanca. La tarjeta es de verdad y no está en la foto: con la
    tarjeta dibujada solo coincidían en pantallas 16:9.
 
    - La foto es el WebP original de la maqueta, sin recomprimir: pasarla a
      JPG le sumaba pérdida a una imagen que ya venía comprimida.
-   - La foto se recorta desde la derecha (object-left): en una pantalla
-     más angosta que la foto se pierden estantes, nunca el texto.
+   - La foto no va de borde a borde: es un cuadro de hasta 1120 px, con
+     la misma foto desenfocada alrededor. A pantalla completa, en un
+     monitor de 1920 todo quedaba enorme y borroso (la foto mide 1672 y
+     se agrandaba). Más chica que su tamaño real, se ve nítida. El cuadro
+     también se achica con la altura de la ventana, para entrar siempre
+     entero.
    - La tarjeta lleva `.tema-claro`: es blanca aunque el sistema esté en
      oscuro, y adentro los colores son los del tema claro sin escribir
      ninguno a mano.
@@ -32,10 +36,12 @@ const PUNTOS = [
 export function MarcoEntrada({ children }) {
   return (
     <div className="relative min-h-screen bg-fondo text-texto overflow-hidden">
+      {/* El fondo de la página: la misma foto, desenfocada y oscura. */}
       <img src="/login/fondo-oscuro.webp" alt="" aria-hidden="true"
-        className="hidden lg:block absolute inset-0 w-full h-full object-cover object-left" />
+        className="hidden lg:block absolute inset-0 w-full h-full object-cover scale-110 blur-3xl opacity-50" />
+      <div className="hidden lg:block absolute inset-0 bg-fondo/75" aria-hidden="true" />
 
-      <div className="relative z-10 min-h-screen flex flex-col lg:flex-row lg:items-center lg:justify-end">
+      <div className="relative z-10 min-h-screen flex flex-col lg:items-center lg:justify-center lg:p-8">
         {/* Lo que en la computadora ya está en la foto. */}
         <div className="lg:hidden px-6 pt-10 pb-6">
           <h1 className="f-d text-[28px] leading-[1.05] font-extrabold uppercase">
@@ -49,10 +55,13 @@ export function MarcoEntrada({ children }) {
           </ul>
         </div>
 
-        <div className="flex-1 lg:flex-none flex items-start lg:items-center justify-center px-4 pb-8 lg:p-0 lg:mr-[3vw]">
-          {/* Más chica que en la maqueta (27% del ancho): Nehuen la pidió
-              bastante más chica el 03/10. */}
-          <div className="tema-claro w-full max-w-[360px] lg:w-[clamp(300px,21vw,350px)] lg:max-w-none bg-superficie text-texto rounded-2xl shadow-2xl px-6 py-7 lg:px-7 lg:py-8">
+        {/* En la computadora, el cuadro con la foto y la tarjeta adentro. */}
+        <div className="relative flex-1 lg:flex-none w-full lg:w-[min(1120px,calc(100vw_-_4rem),calc((100vh_-_4rem)*1.7768))] lg:aspect-[1672/941] lg:rounded-3xl lg:overflow-hidden lg:shadow-2xl lg:ring-1 lg:ring-borde-fuerte flex items-start lg:items-center justify-center lg:justify-end px-4 pb-8 lg:p-0 lg:pr-[3.5%]">
+          <img src="/login/fondo-oscuro.webp" alt="" aria-hidden="true"
+            className="hidden lg:block absolute inset-0 w-full h-full object-cover" />
+          {/* Un poco más alta que antes, con más aire entre las partes:
+              pedido de Nehuen del 03/10. */}
+          <div className="relative tema-claro w-full max-w-[360px] lg:w-[300px] bg-superficie text-texto rounded-2xl shadow-2xl px-6 py-8 lg:px-7 lg:py-10">
             {children}
           </div>
         </div>
@@ -78,7 +87,7 @@ export function CabezaEntrada() {
 /* El pie de la tarjeta: la rayita naranja y la firma. */
 export function PieEntrada() {
   return (
-    <div className="mt-5 flex flex-col items-center gap-4">
+    <div className="mt-7 flex flex-col items-center gap-4">
       <span className="block w-8 h-0.5 bg-acento" aria-hidden="true" />
       <span className="text-[11px] text-texto-tenue">Genez - Sistemas de gestión para comercios</span>
     </div>

@@ -684,7 +684,7 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
             : "La que te dieron la sabe otra persona. Poné una tuya para seguir. Mínimo 8 caracteres."}
       </p>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-6 space-y-3.5">
         <CampoEntrada icono={Lock} type={ver ? "text" : "password"} value={clave} autoFocus
           placeholder="Contraseña nueva" aria-label="Contraseña nueva"
           onChange={(e) => { setClave(e.target.value); setError(""); }}
@@ -767,7 +767,7 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
     <MarcoEntrada>
       <CabezaEntrada />
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-8 space-y-3.5">
         <CampoEntrada icono={Mail} type="email" value={usuario} placeholder="Correo electrónico" aria-label="Correo electrónico"
           onChange={(e) => { setUsuario(e.target.value); setError(""); }}
           onKeyDown={(e) => e.key === "Enter" && entrar()} autoFocus autoCapitalize="none" autoCorrect="off"
