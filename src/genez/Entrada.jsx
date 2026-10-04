@@ -2,39 +2,32 @@
    LA PANTALLA DE ENTRADA · el marco del login y de "contraseña nueva"
    ============================================================
 
-   La maqueta del 03/10: una foto del mostrador con el panel oscuro y el
-   texto ya dibujados (public/login/fondo-oscuro.webp) y, a la derecha, una
-   tarjeta blanca. La tarjeta es de verdad y no está en la foto: con la
-   tarjeta dibujada solo coincidían en pantallas 16:9.
+   La maqueta del 03/10: una foto del mostrador con un panel oscuro a la
+   izquierda (borde naranja en flecha, texto y tres puntos) y una tarjeta
+   blanca a la derecha. Armada en capas, porque la foto
+   (public/login/fondo-oscuro.webp) trae el panel y el texto pegados:
 
-   - La foto es el WebP original de la maqueta, sin recomprimir: pasarla a
-     JPG le sumaba pérdida a una imagen que ya venía comprimida.
-   - La foto ocupa el 85% del ancho y sus bordes se funden en la misma
-     foto desenfocada: se lee como pantalla completa, pero más chica. De
-     borde a borde, en un monitor de 1920 todo quedaba enorme y borroso
-     (la foto mide 1672 y se agrandaba); en un cuadro con esquinas, no
-     ocupaba la pantalla. Las dos cosas las pidió Nehuen el 03/10.
-   - Nunca menos del 95% del alto: en una pantalla más angosta la foto
-     crece hasta cubrirlo y se recorta por la derecha, nunca el texto. La
-     tarjeta se ubica contra lo que se ve de la foto, no contra la foto.
-   - La tarjeta lleva `.tema-claro`: es blanca aunque el sistema esté en
-     oscuro, y adentro los colores son los del tema claro sin escribir
-     ninguno a mano.
-   - En el celular la foto no entra: el texto va escrito arriba y la
-     tarjeta abajo, sobre el fondo del tema.
+   1. La foto, de borde a borde, recortada desde la derecha (object-left):
+      en una pantalla angosta se pierden estantes, nunca el panel.
+   2. El interior del panel, redibujado en SVG en las coordenadas de la
+      foto (viewBox 1672x941) y escalado con ella, así tapa al píxel el
+      texto pegado en cualquier pantalla. La banda naranja y su brillo
+      quedan los de la foto: el polígono llega justo hasta su borde.
+   3. El texto, escrito de verdad y medido contra el ancho de la foto: se
+      ve nítido en cualquier resolución y se achica con la pantalla.
+   4. La tarjeta, real, con `.tema-claro`: blanca aunque el sistema esté en
+      oscuro, sin escribir colores a mano.
 
-   La versión clara de la pantalla viene después (pedido de Nehuen). */
+   Antes la foto entera iba de borde a borde, con el texto pegado: en un
+   monitor de 1920 quedaba enorme, y achicarla dejaba franjas. Nehuen pidió
+   pantalla completa, el texto más chico y la tarjeta más grande.
+
+   En el celular la foto no entra: el texto va arriba y la tarjeta abajo.
+   La versión clara de la pantalla viene después. */
 
 import React from "react";
 import { BarChart3, Settings, Rocket } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
-
-/* Poco a la izquierda: ahí está el texto, y el panel ya es oscuro. */
-const MASCARA = "linear-gradient(to right, transparent, #000 2%, #000 90%, transparent), linear-gradient(to bottom, transparent, #000 7%, #000 93%, transparent)";
-const BORDES_FUNDIDOS = {
-  maskImage: MASCARA, WebkitMaskImage: MASCARA,
-  maskComposite: "intersect", WebkitMaskComposite: "source-in",
-};
 
 const PUNTOS = [
   { icono: BarChart3, texto: "Más control" },
@@ -42,18 +35,60 @@ const PUNTOS = [
   { icono: Rocket, texto: "Más crecimiento" },
 ];
 
+/* El borde izquierdo de la banda naranja, relevado de la foto fila por
+   fila: baja hasta la punta de la flecha en (414, 450), vuelve a (515, 630)
+   y termina abajo en 302. Pasa un par de píxeles adentro de la banda para
+   que no quede una línea del panel viejo entre los dos. */
+const PANEL = "0,0 600,0 614,60 605,125 556,200 496,300 434,400 416,450 434,500 503,600 517,630 505,650 471,700 402,800 331,900 304,941 0,941";
+
+/* Los tamaños van contra el ancho de la foto en pantalla (--w), igual que
+   el panel: el texto siempre entra en el mismo lugar. */
+const T = (k) => `calc(var(--w) * ${k})`;
+
 export function MarcoEntrada({ children }) {
   return (
-    <div className="relative min-h-screen bg-fondo text-texto overflow-hidden" style={{ "--w": "max(85vw, calc(95vh * 1.7768))" }}>
-      {/* Detrás, la misma foto desenfocada: es donde se funden los bordes. */}
-      <img src="/login/fondo-oscuro.webp" alt="" aria-hidden="true"
-        className="hidden lg:block absolute inset-0 w-full h-full object-cover scale-110 blur-3xl opacity-60" />
-      <div className="hidden lg:block absolute inset-0 bg-fondo/60" aria-hidden="true" />
-      <img src="/login/fondo-oscuro.webp" alt="" aria-hidden="true" style={BORDES_FUNDIDOS}
-        className="hidden lg:block absolute top-1/2 -translate-y-1/2 max-w-none w-[var(--w)] aspect-[1672/941] left-[max(0px,calc((100vw_-_var(--w))/2))]" />
+    <div className="relative min-h-screen bg-fondo text-texto overflow-hidden" style={{ "--w": "max(100vw, calc(100vh * 1.7768))" }}>
+      <div className="hidden lg:block absolute left-0 top-1/2 -translate-y-1/2 w-[var(--w)] aspect-[1672/941]" aria-hidden="true">
+        <img src="/login/fondo-oscuro.webp" alt="" className="block w-full h-full max-w-none" />
+        <svg viewBox="0 0 1672 941" className="absolute inset-0 w-full h-full">
+          <defs>
+            <linearGradient id="entrada-panel" x1="0" y1="0" x2="0.55" y2="1">
+              <stop offset="0" stopColor="#1e1e1e" />
+              <stop offset="0.5" stopColor="#151515" />
+              <stop offset="1" stopColor="#0b0b0b" />
+            </linearGradient>
+            <linearGradient id="entrada-faceta" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#2a2a2a" stopOpacity="0.9" />
+              <stop offset="1" stopColor="#2a2a2a" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <polygon points={PANEL} fill="url(#entrada-panel)" />
+          {/* Las facetas de la maqueta: una más clara arriba y el filo
+              naranja fino que la cruza. */}
+          <polygon points="0,0 398,0 472,100 262,360 0,360" fill="url(#entrada-faceta)" />
+          <line x1="400" y1="0" x2="472" y2="100" stroke="#ff6a1a" strokeOpacity="0.55" strokeWidth="4" />
+          <polygon points="0,560 300,560 420,941 0,941" fill="#000" fillOpacity="0.18" />
+        </svg>
+      </div>
+
+      {/* El texto del panel, en la computadora. */}
+      <div className="hidden lg:block absolute top-1/2 -translate-y-1/2 text-sobre-foto" style={{ left: T(0.052) }}>
+        <h1 className="f-d font-extrabold uppercase leading-[1.03] tracking-[-0.01em]" style={{ fontSize: T(0.0205) }}>
+          Herramientas<br />reales para<br /><span className="text-acento">negocios<br />reales.</span>
+        </h1>
+        <span className="block h-[3px] bg-acento" style={{ width: T(0.034), marginTop: T(0.017) }} aria-hidden="true" />
+        <ul style={{ marginTop: T(0.02) }}>
+          {PUNTOS.map(({ icono: I, texto }) => (
+            <li key={texto} className="flex items-center text-sobre-foto-suave" style={{ gap: T(0.011), marginTop: T(0.012), fontSize: T(0.0118) }}>
+              <I className="text-acento shrink-0" strokeWidth={1.75} style={{ width: T(0.017), height: T(0.017) }} />
+              {texto}
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <div className="relative z-10 min-h-screen flex flex-col lg:block">
-        {/* Lo que en la computadora ya está en la foto. */}
+        {/* En el celular, el mismo texto arriba de la tarjeta. */}
         <div className="lg:hidden px-6 pt-10 pb-6">
           <h1 className="f-d text-[28px] leading-[1.05] font-extrabold uppercase">
             Herramientas reales para <span className="text-acento">negocios reales.</span>
@@ -66,11 +101,9 @@ export function MarcoEntrada({ children }) {
           </ul>
         </div>
 
-        {/* En la computadora, contra el borde derecho de lo que se ve de la foto. */}
-        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:right-[max(3vw,calc((100vw_-_var(--w))/2_+_var(--w)*0.04))]">
-          {/* Un poco más alta que antes, con más aire entre las partes:
-              pedido de Nehuen del 03/10. */}
-          <div className="relative tema-claro w-full max-w-[360px] lg:w-[300px] bg-superficie text-texto rounded-2xl shadow-2xl px-6 py-8 lg:px-7 lg:py-10">
+        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:right-[5vw]">
+          {/* Más grande que la anterior, pedido de Nehuen del 03/10. */}
+          <div className="relative tema-claro w-full max-w-[380px] lg:w-[clamp(340px,20vw,390px)] lg:max-w-none bg-superficie text-texto rounded-2xl shadow-2xl px-7 py-9 lg:px-9 lg:py-11">
             {children}
           </div>
         </div>
@@ -83,10 +116,10 @@ export function MarcoEntrada({ children }) {
 export function CabezaEntrada() {
   return (
     <div className="flex flex-col items-center text-center">
-      {/* 46 px: el ícono mide 114, así que en una pantalla de alta
-          densidad no se estira y queda nítido. */}
-      <LogoGenez size={46} conNombre />
-      <p className="mt-3 font-mono text-[10px] leading-relaxed tracking-[0.28em] uppercase text-texto-tenue">
+      {/* 56 px: el ícono mide 114, así que en una pantalla de alta
+          densidad casi no se estira. */}
+      <LogoGenez size={56} conNombre />
+      <p className="mt-4 font-mono text-[11px] leading-relaxed tracking-[0.28em] uppercase text-texto-tenue">
         Sistemas de gestión<br />para comercios
       </p>
     </div>
@@ -96,9 +129,9 @@ export function CabezaEntrada() {
 /* El pie de la tarjeta: la rayita naranja y la firma. */
 export function PieEntrada() {
   return (
-    <div className="mt-7 flex flex-col items-center gap-4">
-      <span className="block w-8 h-0.5 bg-acento" aria-hidden="true" />
-      <span className="text-[11px] text-texto-tenue">Genez - Sistemas de gestión para comercios</span>
+    <div className="mt-8 flex flex-col items-center gap-4">
+      <span className="block w-9 h-0.5 bg-acento" aria-hidden="true" />
+      <span className="text-xs text-texto-tenue">Genez - Sistemas de gestión para comercios</span>
     </div>
   );
 }
@@ -108,10 +141,10 @@ export function PieEntrada() {
 export function CampoEntrada({ icono: I, extra = null, ...props }) {
   return (
     <label className="relative block">
-      <I size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-texto-suave pointer-events-none" aria-hidden="true" />
+      <I size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-texto-suave pointer-events-none" aria-hidden="true" />
       <input {...props}
-        className="w-full h-11 rounded-lg border border-borde-fuerte bg-superficie pl-10 pr-10 text-sm text-texto placeholder:text-texto-tenue outline-none focus:border-acento transition-colors disabled:opacity-60" />
-      {extra && <span className="absolute right-2 top-1/2 -translate-y-1/2">{extra}</span>}
+        className="w-full h-12 rounded-lg border border-borde-fuerte bg-superficie pl-11 pr-11 text-[15px] text-texto placeholder:text-texto-tenue outline-none focus:border-acento transition-colors disabled:opacity-60" />
+      {extra && <span className="absolute right-2.5 top-1/2 -translate-y-1/2">{extra}</span>}
     </label>
   );
 }

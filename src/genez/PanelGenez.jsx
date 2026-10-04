@@ -709,9 +709,9 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
         )}
 
         <button onClick={guardar} disabled={guardando || !clave || !repetir}
-          className="relative w-full h-11 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-[15px] transition-colors">
+          className="relative w-full h-12 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-base transition-colors">
           {guardando ? "Guardando…" : "Guardar y entrar"}
-          <ArrowRight size={18} className="absolute right-4 top-1/2 -translate-y-1/2" aria-hidden="true" />
+          <ArrowRight size={19} className="absolute right-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
         </button>
 
         <button type="button" onClick={onCancelar}
@@ -797,9 +797,9 @@ function Login({ onEntrar, imagenFondo, errorInicial }) {
         )}
 
         <button onClick={entrar} disabled={cargando}
-          className="relative w-full h-11 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-[15px] transition-colors">
+          className="relative w-full h-12 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-base transition-colors">
           {cargando ? "Entrando…" : "Entrar"}
-          <ArrowRight size={18} className="absolute right-4 top-1/2 -translate-y-1/2" aria-hidden="true" />
+          <ArrowRight size={19} className="absolute right-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
         </button>
 
         <button type="button" onClick={recuperar} disabled={enviando}
