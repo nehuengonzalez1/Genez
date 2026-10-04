@@ -55,7 +55,7 @@ const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
 const B = "clamp(8px, 0.85vw, 23px)";             // la banda (la mitad de la anterior, 04/10)
 const ancho = (...partes) => `calc(${partes.join(" + ")})`;
 /* El grosor de la luz que sube y baja: una línea LED. */
-const LED = "clamp(1.5px, 0.16vw, 4px)";
+const LED = "clamp(2px, 0.22vw, 6px)";
 
 function Fondo() {
   /* Con "reducir movimiento" activado en el sistema, el reflejo queda
@@ -99,13 +99,14 @@ function Fondo() {
             desplaza; la banda y su halo lo usan como color. */}
         <linearGradient id="entrada-reflejo" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="240"
           gradientTransform={quieto ? "translate(0 330)" : undefined}>
-          {/* Naranja intenso, como una luz (Nehuen, 04/10): antes era casi
-              blanco y se leía como un brillo. */}
-          <stop offset="0" stopColor="#ff6a00" stopOpacity="0" />
-          <stop offset="0.35" stopColor="#ff7a0a" stopOpacity="0.85" />
-          <stop offset="0.5" stopColor="#ffa733" stopOpacity="1" />
-          <stop offset="0.65" stopColor="#ff7a0a" stopOpacity="0.85" />
-          <stop offset="1" stopColor="#ff6a00" stopOpacity="0" />
+          {/* Naranja luminoso, como un LED encendido (Nehuen, 04/10). Más
+              claro que la banda, porque naranja sobre naranja no se veía;
+              sin llegar al amarillo. Opaco en casi todo el largo. */}
+          <stop offset="0" stopColor="#ff9a1f" stopOpacity="0" />
+          <stop offset="0.22" stopColor="#ffa12a" stopOpacity="1" />
+          <stop offset="0.5" stopColor="#ffb23a" stopOpacity="1" />
+          <stop offset="0.78" stopColor="#ffa12a" stopOpacity="1" />
+          <stop offset="1" stopColor="#ff9a1f" stopOpacity="0" />
           {!quieto && (
             <animateTransform attributeName="gradientTransform" type="translate"
               values="0 -260; 0 920; 0 -260" keyTimes="0; 0.5; 1" dur="7s" repeatCount="indefinite"
@@ -114,11 +115,22 @@ function Fondo() {
         </linearGradient>
         <clipPath id="entrada-lado-negro"><polygon points={`-50,-50 ${BANDA} -50,950`} /></clipPath>
         <clipPath id="entrada-lado-blanco"><polygon points={`${ARRIBA} 1650,-50 1650,950 ${ABAJO} ${PUNTA}`} /></clipPath>
+        <linearGradient id="entrada-reflejo-halo" href="#entrada-reflejo">
+          <stop offset="0" stopColor="#ff7a00" stopOpacity="0" />
+          <stop offset="0.25" stopColor="#ff8c10" stopOpacity="1" />
+          <stop offset="0.75" stopColor="#ff8c10" stopOpacity="1" />
+          <stop offset="1" stopColor="#ff7a00" stopOpacity="0" />
+        </linearGradient>
+        <mask id="entrada-led-ancho" maskUnits="userSpaceOnUse" x="-50" y="-50" width="1700" height="1000">
+          <polyline {...linea} stroke="#fff" style={t(ancho(B, `3 * ${LED}`))} />
+          <polyline {...linea} stroke="#000" style={t(`calc(${B} - 3 * ${LED})`)} />
+        </mask>
         <mask id="entrada-led" maskUnits="userSpaceOnUse" x="-50" y="-50" width="1700" height="1000">
           <polyline {...linea} stroke="#fff" style={t(ancho(B, LED))} />
           <polyline {...linea} stroke="#000" style={t(`calc(${B} - ${LED})`)} />
         </mask>
         <filter id="entrada-brillo" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="20" /></filter>
+        <filter id="entrada-led-brillo" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="2.2" /></filter>
         <filter id="entrada-suave" x="-50%" y="-10%" width="200%" height="120%"><feGaussianBlur stdDeviation="1.2" /></filter>
         <filter id="entrada-difuso" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" /></filter>
       </defs>
@@ -157,6 +169,11 @@ function Fondo() {
           la banda: blanco hasta B + LED, negro hasta B - LED, y el recorte al
           lado blanco se queda con la mitad que cae sobre la banda. */}
       <g clipPath="url(#entrada-lado-blanco)">
+        {/* El resplandor del LED: una franja un poco más ancha, naranja
+            intenso, desenfocada apenas. Le pone el brillo sin derramarse. */}
+        <g filter="url(#entrada-led-brillo)">
+          <polyline {...linea} stroke="url(#entrada-reflejo-halo)" style={t(`calc(2 * ${B})`)} mask="url(#entrada-led-ancho)" />
+        </g>
         <polyline {...linea} stroke="url(#entrada-reflejo)" style={t(`calc(2 * ${B})`)} mask="url(#entrada-led)" />
       </g>
     </svg>
