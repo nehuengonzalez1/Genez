@@ -23,7 +23,7 @@
 
    La versión clara de la pantalla viene después. */
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { BarChart3, Settings, Rocket } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { urlFotoLogin, FOTO_DE_FABRICA } from "../datos/imagenLogin.js";
@@ -35,12 +35,18 @@ const PUNTOS = [
 ];
 
 /* La imagen subida, y si no hay o no carga, la de fábrica. Arranca
-   invisible y aparece al cargar, así no se ve una y después otra. */
+   invisible y aparece al cargar, así no se ve una y después otra. Si ya
+   estaba en el caché puede estar completa antes de que React escuche el
+   onLoad, y la pantalla quedaba en negro: por eso se mira también al montar. */
 function Fondo() {
   const [src, setSrc] = useState(() => urlFotoLogin() || FOTO_DE_FABRICA);
   const [lista, setLista] = useState(false);
+  const img = useRef(null);
+  useEffect(() => {
+    if (img.current && img.current.complete && img.current.naturalWidth) setLista(true);
+  }, [src]);
   return (
-    <img src={src} alt="" aria-hidden="true"
+    <img ref={img} src={src} alt="" aria-hidden="true"
       onLoad={() => setLista(true)}
       onError={() => { if (src !== FOTO_DE_FABRICA) setSrc(FOTO_DE_FABRICA); }}
       className={`hidden lg:block absolute inset-0 w-full h-full max-w-none object-cover object-left transition-opacity duration-500 ${lista ? "opacity-100" : "opacity-0"}`} />
