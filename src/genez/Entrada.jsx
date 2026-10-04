@@ -101,11 +101,13 @@ function Fondo() {
             desplaza; la banda y su halo lo usan como color. */}
         <linearGradient id="entrada-reflejo" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="240"
           gradientTransform={quieto ? "translate(0 330)" : undefined}>
-          <stop offset="0" stopColor="#ffd27a" stopOpacity="0" />
-          <stop offset="0.42" stopColor="#ffd889" stopOpacity="0.75" />
-          <stop offset="0.5" stopColor="#fff6dc" stopOpacity="1" />
-          <stop offset="0.58" stopColor="#ffd889" stopOpacity="0.75" />
-          <stop offset="1" stopColor="#ffd27a" stopOpacity="0" />
+          {/* Naranja intenso, como una luz (Nehuen, 04/10): antes era casi
+              blanco y se leía como un brillo. */}
+          <stop offset="0" stopColor="#ff6a00" stopOpacity="0" />
+          <stop offset="0.35" stopColor="#ff7a0a" stopOpacity="0.85" />
+          <stop offset="0.5" stopColor="#ffa733" stopOpacity="1" />
+          <stop offset="0.65" stopColor="#ff7a0a" stopOpacity="0.85" />
+          <stop offset="1" stopColor="#ff6a00" stopOpacity="0" />
           {!quieto && (
             <animateTransform attributeName="gradientTransform" type="translate"
               values="0 -260; 0 920; 0 -260" keyTimes="0; 0.5; 1" dur="7s" repeatCount="indefinite"
@@ -150,8 +152,13 @@ function Fondo() {
       {/* El reflejo que sube y baja: sobre la banda y, más tenue, como halo
           sobre el blanco. Reemplaza a los tres destellos fijos. */}
       <g clipPath="url(#entrada-lado-blanco)">
-        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.35" style={t(ancho(`2 * ${B}`, "clamp(24px, 2.2vw, 60px)"))} filter="url(#entrada-brillo)" />
-        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.9" style={t(`calc(1.4 * ${B})`)} filter="url(#entrada-suave)" />
+        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.6" style={t(ancho(`2 * ${B}`, "clamp(50px, 4.5vw, 120px)"))} filter="url(#entrada-brillo)" />
+        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.55" style={t(ancho(`2 * ${B}`, "clamp(12px, 1vw, 28px)"))} filter="url(#entrada-difuso)" />
+        <polyline {...linea} stroke="url(#entrada-reflejo)" style={t(`calc(2 * ${B})`)} filter="url(#entrada-suave)" />
+      </g>
+      {/* La misma luz, tenue, sobre el borde del panel. */}
+      <g clipPath="url(#entrada-lado-negro)">
+        <polyline {...linea} stroke="url(#entrada-reflejo)" strokeOpacity="0.3" style={t("clamp(30px, 2.6vw, 70px)")} filter="url(#entrada-brillo)" />
       </g>
     </svg>
   );
