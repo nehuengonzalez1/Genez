@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   LayoutDashboard, Barcode, Package, Boxes, Truck, Wallet, BarChart3,
-  Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft, Upload,
+  Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
   Heart, MessageSquare, FileText, NotebookPen, Lock
@@ -38,6 +38,7 @@ import { Inicio } from "../modulos/Inicio.jsx";
 import { PreciosPanel } from "./PreciosPanel.jsx";
 import { SolicitudesPanel } from "./SolicitudesPanel.jsx";
 import { PruebasPanel } from "./PruebasPanel.jsx";
+import { FotoLoginPanel } from "./FotoLoginPanel.jsx";
 import { AvisoDePrueba } from "./Prueba.jsx";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
@@ -317,11 +318,10 @@ function FormAcceso({ abierto, comercio, onCerrar, onHecho }) {
   );
 }
 
-function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema, imagenFondo, setImagenFondo, onFounder = null }) {
+function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, tema, setTema, onFounder = null }) {
   const [abierto, setAbierto] = useState(null);       // comercio en detalle
   const [altaUsuario, setAltaUsuario] = useState(null);
   const [altaComercio, setAltaComercio] = useState(false);
-  const archivoFondo = useRef(null);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [rubroNuevo, setRubroNuevo] = useState("");
   const [rubros, setRubros] = useState([]);
@@ -425,49 +425,7 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
             <SolicitudesPanel />
             <PreciosPanel />
 
-            <section className="mt-8">
-              <h2 className="text-[11px] uppercase tracking-widest text-texto-suave font-bold mb-2">Imagen del login</h2>
-              <div className="bg-superficie-3 border border-borde-fuerte rounded-2xl p-4">
-                <div className="flex flex-wrap items-start gap-4">
-                  <div className="w-40 h-28 rounded-xl overflow-hidden border border-borde-fuerte shrink-0 relative bg-fondo">
-                    {imagenFondo
-                      ? <img src={imagenFondo} alt="Fondo del login" className="w-full h-full object-cover" />
-                      : <div className="absolute inset-0 flex items-center justify-center text-[11px] text-texto-suave text-center px-2">Panel generado por el sistema</div>}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-texto-tenue">
-                      Podés reemplazar el panel izquierdo del login por una imagen propia. Se recorta al centro,
-                      así que dejá los bordes sin nada importante.
-                    </p>
-                    <ul className="text-[11px] text-texto-suave mt-2 space-y-0.5">
-                      <li><strong className="text-texto-tenue">Medida ideal:</strong> 1400 × 2000 px (vertical, proporción 7:10).</li>
-                      <li><strong className="text-texto-tenue">Zona segura:</strong> los 200 px del borde derecho se funden con el fondo.</li>
-                      <li><strong className="text-texto-tenue">Peso:</strong> hasta 2 MB. JPG o PNG.</li>
-                      <li>En celular no se muestra: ahí el login va a pantalla completa.</li>
-                    </ul>
-                    <div className="flex items-center gap-2 mt-3">
-                      <input ref={archivoFondo} type="file" accept="image/*" className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files[0]; e.target.value = "";
-                          if (!f) return;
-                          if (f.size > 2 * 1024 * 1024) return alert("La imagen supera los 2 MB. Reducila y volvé a intentar.");
-                          const lector = new FileReader();
-                          lector.onload = () => setImagenFondo(lector.result);
-                          lector.readAsDataURL(f);
-                        }} />
-                      <button onClick={() => archivoFondo.current && archivoFondo.current.click()}
-                        className="flex items-center gap-1.5 bg-acento hover:bg-acento-vivo text-texto font-bold rounded-xl px-3.5 py-2 text-sm">
-                        <Upload size={15} /> Cargar imagen
-                      </button>
-                      {imagenFondo && (
-                        <button onClick={() => setImagenFondo(null)}
-                          className="text-sm text-texto-tenue hover:text-texto px-2">Volver al panel del sistema</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
+            <FotoLoginPanel />
           </>
         ) : (
           <>
@@ -644,7 +602,7 @@ function Sesion({ sesion, onSalir, oscuro = false }) {
    clave provisional que el dueño dictó. Cambia el texto y no la pantalla
    porque lo que hay que hacer es lo mismo; lo que cambia es por qué se
    llegó, y eso es una línea, no una pantalla nueva. */
-function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitado = false }) {
+function ClaveNueva({ onListo, onCancelar, forzado = false, invitado = false }) {
   const [clave, setClave] = useState("");
   const [repetir, setRepetir] = useState("");
   const [ver, setVer] = useState(false);
@@ -726,7 +684,7 @@ function ClaveNueva({ onListo, onCancelar, imagenFondo, forzado = false, invitad
   );
 }
 
-function Login({ onEntrar, imagenFondo, errorInicial }) {
+function Login({ onEntrar, errorInicial }) {
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
   const [verClave, setVerClave] = useState(false);

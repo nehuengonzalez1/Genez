@@ -52,7 +52,6 @@ export default function App() {
      salón de noche, una caja con la persiana baja. El claro queda para
      quien lo prefiera o trabaje contra una ventana. */
   const [tema, setTema] = useState("oscuro");
-  const [imagenFondo, setImagenFondo] = useState(null);   // fondo propio del login
   const [iniciando, setIniciando] = useState(true);
   /* undefined = todavía no se sabe. Distinto de null, que es "no tiene". */
   const [rubro, setRubro] = useState(undefined);
@@ -221,7 +220,6 @@ export default function App() {
   if (recuperando) {
     return envolver(
       <ClaveNueva
-        imagenFondo={imagenFondo}
         onListo={async () => {
           /* Se cierra la sesión temporal del link a propósito: que entre
              de nuevo con la contraseña nueva confirma que quedó bien y no
@@ -238,7 +236,6 @@ export default function App() {
     return envolver(
       <Login
         onEntrar={setSesion}
-        imagenFondo={imagenFondo}
         errorInicial={errorInicio}
       />
     );
@@ -254,7 +251,6 @@ export default function App() {
       <ClaveNueva
         forzado
         invitado={sesion.invitado}
-        imagenFondo={imagenFondo}
         onListo={async () => {
           /* Se relee la sesión en vez de apagar la bandera a mano: la
              marca la apaga la base, y leerla de nuevo es lo que confirma
@@ -292,7 +288,6 @@ export default function App() {
     return envolver(
       <PanelGenez
         tema={tema} setTema={setTema}
-        imagenFondo={imagenFondo} setImagenFondo={setImagenFondo}
         sesion={sesion}
         comercios={comercios}
         setComercios={setComercios}

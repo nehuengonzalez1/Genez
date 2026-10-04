@@ -2,32 +2,35 @@
    LA PANTALLA DE ENTRADA · el marco del login y de "contraseña nueva"
    ============================================================
 
-   La maqueta del 03/10: una foto del mostrador con un panel oscuro a la
-   izquierda (borde naranja en flecha, texto y tres puntos) y una tarjeta
-   blanca a la derecha. Armada en capas, porque la foto
-   (public/login/fondo-oscuro.webp) trae el panel y el texto pegados:
+   La maqueta del 03/10: una foto del local, un panel oscuro a la
+   izquierda con el borde naranja en flecha, el texto y tres puntos, y la
+   tarjeta blanca a la derecha. Armada en capas:
 
-   1. La foto, de borde a borde, recortada desde la derecha (object-left):
-      en una pantalla angosta se pierden estantes, nunca el panel.
-   2. El interior del panel, redibujado en SVG en las coordenadas de la
-      foto (viewBox 1672x941) y escalado con ella, así tapa al píxel el
-      texto pegado en cualquier pantalla. La banda naranja y su brillo
-      quedan los de la foto: el polígono llega justo hasta su borde.
-   3. El texto, escrito de verdad y medido contra el ancho de la foto: se
-      ve nítido en cualquier resolución y se achica con la pantalla.
+   1. La foto del local, de borde a borde. La sube Genez desde su panel
+      (src/datos/imagenLogin.js, 0128); si no hay, la de la maqueta.
+   2. El panel, dibujado entero en SVG: el fondo oscuro, las facetas, la
+      banda naranja y su brillo. No depende de la foto, así que cualquier
+      foto del local queda bien.
+   3. El texto, escrito de verdad.
    4. La tarjeta, real, con `.tema-claro`: blanca aunque el sistema esté en
       oscuro, sin escribir colores a mano.
 
-   Antes la foto entera iba de borde a borde, con el texto pegado: en un
-   monitor de 1920 quedaba enorme, y achicarla dejaba franjas. Nehuen pidió
-   pantalla completa, el texto más chico y la tarjeta más grande.
+   El panel, el texto y la foto se miden contra una caja de 16:9 que cubre
+   la pantalla (--w). La foto de la maqueta es 16:9 y trae su propio panel
+   pegado: así el dibujado cae justo encima y lo tapa, banda incluida (la
+   del dibujo es más ancha a propósito; ver BANDA).
 
-   En el celular la foto no entra: el texto va arriba y la tarjeta abajo.
+   Por qué así (pedidos de Nehuen del 03/10): la foto sola de borde a
+   borde dejaba el texto enorme; achicada, quedaban franjas; y tiene que
+   parecerse a la maqueta y poder cambiarse la foto por una mejor.
+
+   En el celular el panel no entra: el texto va arriba y la tarjeta abajo.
    La versión clara de la pantalla viene después. */
 
-import React from "react";
+import React, { useState } from "react";
 import { BarChart3, Settings, Rocket } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
+import { urlFotoLogin, FOTO_DE_FABRICA } from "../datos/imagenLogin.js";
 
 const PUNTOS = [
   { icono: BarChart3, texto: "Más control" },
@@ -35,52 +38,87 @@ const PUNTOS = [
   { icono: Rocket, texto: "Más crecimiento" },
 ];
 
-/* El borde izquierdo de la banda naranja, relevado de la foto fila por
-   fila: baja hasta la punta de la flecha en (414, 450), vuelve a (515, 630)
-   y termina abajo en 302. Pasa un par de píxeles adentro de la banda para
-   que no quede una línea del panel viejo entre los dos. */
-const PANEL = "0,0 600,0 614,60 605,125 556,200 496,300 434,400 416,450 434,500 503,600 517,630 505,650 471,700 402,800 331,900 304,941 0,941";
+/* El centro de la banda naranja, en las coordenadas de la caja (1672x941).
+   Sale de relevar la de la foto de la maqueta fila por fila: arranca
+   arriba en 668, llega a la punta de la flecha en (424, 450), vuelve a
+   (530, 630) y termina abajo en 327. Con 52 de ancho cubre la de la foto
+   en todas las filas, así no se ven dos bandas. */
+const BANDA = "668,0 620,125 571,200 508,300 445,400 424,450 448,500 516,600 530,630 520,650 488,700 430,800 358,900 329,941";
+const PANEL = `0,0 ${BANDA} 0,941`;
 
-/* Los tamaños van contra el ancho de la foto en pantalla (--w), igual que
-   el panel: el texto siempre entra en el mismo lugar. */
+/* Los tamaños van contra el ancho de la caja: el texto siempre cae en el
+   mismo lugar del panel. */
 const T = (k) => `calc(var(--w) * ${k})`;
+
+function Panel() {
+  return (
+    <svg viewBox="0 0 1672 941" className="absolute inset-0 w-full h-full overflow-visible" aria-hidden="true">
+      <defs>
+        <linearGradient id="entrada-fondo" x1="0" y1="0" x2="0.55" y2="1">
+          <stop offset="0" stopColor="#1f1f1f" />
+          <stop offset="0.5" stopColor="#151515" />
+          <stop offset="1" stopColor="#0b0b0b" />
+        </linearGradient>
+        <linearGradient id="entrada-faceta" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#2c2c2c" stopOpacity="0.95" />
+          <stop offset="1" stopColor="#2c2c2c" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="entrada-banda" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ff8a2a" />
+          <stop offset="0.48" stopColor="#ff6a10" />
+          <stop offset="1" stopColor="#f24e00" />
+        </linearGradient>
+        <filter id="entrada-brillo" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="22" />
+        </filter>
+      </defs>
+
+      {/* El brillo va primero: se derrama sobre la foto, detrás de todo. */}
+      <polyline points={BANDA} fill="none" stroke="#ff5a00" strokeOpacity="0.55" strokeWidth="96" strokeLinejoin="miter" filter="url(#entrada-brillo)" />
+
+      <polygon points={PANEL} fill="url(#entrada-fondo)" />
+      <polygon points="0,0 398,0 472,100 262,360 0,360" fill="url(#entrada-faceta)" />
+      <polygon points="0,560 300,560 420,941 0,941" fill="#000" fillOpacity="0.2" />
+      <line x1="400" y1="0" x2="472" y2="100" stroke="#ff6a1a" strokeOpacity="0.55" strokeWidth="4" />
+
+      <polyline points={BANDA} fill="none" stroke="url(#entrada-banda)" strokeWidth="52" strokeLinejoin="miter" strokeMiterlimit="8" />
+      {/* El filo claro del lado de adentro, que le da el relieve. */}
+      <polyline points={BANDA} fill="none" stroke="#ffc08a" strokeOpacity="0.7" strokeWidth="3" strokeLinejoin="miter" strokeMiterlimit="8" transform="translate(-24 0)" />
+    </svg>
+  );
+}
+
+/* La foto subida, y si no hay o no carga, la de la maqueta. Arranca
+   invisible y aparece al cargar, así no se ve una foto y después otra. */
+function Foto() {
+  const [src, setSrc] = useState(() => urlFotoLogin() || FOTO_DE_FABRICA);
+  const [lista, setLista] = useState(false);
+  return (
+    <img src={src} alt="" aria-hidden="true"
+      onLoad={() => setLista(true)}
+      onError={() => { if (src !== FOTO_DE_FABRICA) setSrc(FOTO_DE_FABRICA); }}
+      className={`absolute inset-0 w-full h-full max-w-none object-cover transition-opacity duration-500 ${lista ? "opacity-100" : "opacity-0"}`} />
+  );
+}
 
 export function MarcoEntrada({ children }) {
   return (
     <div className="relative min-h-screen bg-fondo text-texto overflow-hidden" style={{ "--w": "max(100vw, calc(100vh * 1.7768))" }}>
-      <div className="hidden lg:block absolute left-0 top-1/2 -translate-y-1/2 w-[var(--w)] aspect-[1672/941]" aria-hidden="true">
-        <img src="/login/fondo-oscuro.webp" alt="" className="block w-full h-full max-w-none" />
-        <svg viewBox="0 0 1672 941" className="absolute inset-0 w-full h-full">
-          <defs>
-            <linearGradient id="entrada-panel" x1="0" y1="0" x2="0.55" y2="1">
-              <stop offset="0" stopColor="#1e1e1e" />
-              <stop offset="0.5" stopColor="#151515" />
-              <stop offset="1" stopColor="#0b0b0b" />
-            </linearGradient>
-            <linearGradient id="entrada-faceta" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#2a2a2a" stopOpacity="0.9" />
-              <stop offset="1" stopColor="#2a2a2a" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <polygon points={PANEL} fill="url(#entrada-panel)" />
-          {/* Las facetas de la maqueta: una más clara arriba y el filo
-              naranja fino que la cruza. */}
-          <polygon points="0,0 398,0 472,100 262,360 0,360" fill="url(#entrada-faceta)" />
-          <line x1="400" y1="0" x2="472" y2="100" stroke="#ff6a1a" strokeOpacity="0.55" strokeWidth="4" />
-          <polygon points="0,560 300,560 420,941 0,941" fill="#000" fillOpacity="0.18" />
-        </svg>
+      <div className="hidden lg:block absolute left-0 top-1/2 -translate-y-1/2 w-[var(--w)] aspect-[1672/941]">
+        <Foto />
+        <Panel />
       </div>
 
       {/* El texto del panel, en la computadora. */}
       <div className="hidden lg:block absolute top-1/2 -translate-y-1/2 text-sobre-foto" style={{ left: T(0.052) }}>
-        <h1 className="f-d font-extrabold uppercase leading-[1.03] tracking-[-0.01em]" style={{ fontSize: T(0.0205) }}>
+        <h1 className="f-d font-extrabold uppercase leading-[1.03] tracking-[-0.01em]" style={{ fontSize: T(0.024) }}>
           Herramientas<br />reales para<br /><span className="text-acento">negocios<br />reales.</span>
         </h1>
-        <span className="block h-[3px] bg-acento" style={{ width: T(0.034), marginTop: T(0.017) }} aria-hidden="true" />
-        <ul style={{ marginTop: T(0.02) }}>
+        <span className="block h-[3px] bg-acento" style={{ width: T(0.04), marginTop: T(0.02) }} aria-hidden="true" />
+        <ul style={{ marginTop: T(0.022) }}>
           {PUNTOS.map(({ icono: I, texto }) => (
-            <li key={texto} className="flex items-center text-sobre-foto-suave" style={{ gap: T(0.011), marginTop: T(0.012), fontSize: T(0.0118) }}>
-              <I className="text-acento shrink-0" strokeWidth={1.75} style={{ width: T(0.017), height: T(0.017) }} />
+            <li key={texto} className="flex items-center text-sobre-foto-suave" style={{ gap: T(0.013), marginTop: T(0.014), fontSize: T(0.0138) }}>
+              <I className="text-acento shrink-0" strokeWidth={1.6} style={{ width: T(0.02), height: T(0.02) }} />
               {texto}
             </li>
           ))}
@@ -101,8 +139,9 @@ export function MarcoEntrada({ children }) {
           </ul>
         </div>
 
-        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:right-[5vw]">
-          {/* Más grande que la anterior, pedido de Nehuen del 03/10. */}
+        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:right-[9vw]">
+          {/* Más grande que la anterior y más hacia el centro: lo más
+              importante de la pantalla (Nehuen, 03/10). */}
           <div className="relative tema-claro w-full max-w-[380px] lg:w-[clamp(340px,20vw,390px)] lg:max-w-none bg-superficie text-texto rounded-2xl shadow-2xl px-7 py-9 lg:px-9 lg:py-11">
             {children}
           </div>
