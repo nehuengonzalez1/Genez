@@ -2,31 +2,30 @@
    LA PANTALLA DE ENTRADA · el marco del login y de "contraseña nueva"
    ============================================================
 
-   El diseño de Nehuen (03/10) es una imagen: la foto del local con el
-   panel oscuro, la flecha naranja y el texto ya armados, sin la tarjeta
-   (public/login/fondo-oscuro.webp, 2000x1126). Va de borde a borde tal
-   cual, y encima la tarjeta, que es de verdad.
+   El fondo es el diseño de Nehuen del 04/10 (negro a la izquierda, blanco
+   a la derecha y una banda naranja en flecha entre los dos), rearmado en
+   vectores: SVG, sin una sola imagen. Se ve nítido en cualquier pantalla,
+   de una notebook a un 4K. Los colores y la forma salen de medir su
+   imagen; ver FONDO.
 
-   Antes se probó dibujar el panel y escribir el texto en el código, para
-   poder achicarlos sin tocar la imagen: no quedaba como el diseño. La
-   imagen se hizo de nuevo con el texto más chico y la derecha despejada
-   (entre el 64 y el 92% del ancho), que es donde va la tarjeta.
-
-   - Recortada desde la derecha (object-left): en una pantalla más
-     angosta que 16:9 se pierden estantes, nunca el panel ni el texto.
-   - La puede reemplazar Genez desde su panel (Foto del login, 0128) por
-     otra con el mismo diseño; si no hay, o no carga, queda esta.
+   - El SVG se estira a la pantalla (preserveAspectRatio="none") y los
+     trazos no (vector-effect): la banda queda siempre en el mismo lugar
+     proporcional y con el mismo grosor, sin recortar ni deformar. Con
+     una imagen fija, en una pantalla 4:3 la banda caía debajo de la
+     tarjeta.
+   - La tarjeta va centrada en la zona blanca (79% del ancho): a la altura
+     de la tarjeta la banda no pasa del 58%.
    - La tarjeta lleva `.tema-claro`: blanca aunque el sistema esté en
-     oscuro, sin escribir colores a mano.
-   - En el celular la imagen no entra: el texto va arriba y la tarjeta
-     abajo, sobre el fondo del tema.
+     oscuro, sin escribir colores a mano. Sobre el blanco la despegan la
+     sombra y un borde fino.
+   - En el celular, el texto arriba y la tarjeta abajo, sobre el fondo
+     del tema.
 
    La versión clara de la pantalla viene después. */
 
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import { BarChart3, Settings, Rocket } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
-import { urlFotoLogin, FOTO_DE_FABRICA } from "../datos/imagenLogin.js";
 
 const PUNTOS = [
   { icono: BarChart3, texto: "Más control" },
@@ -34,22 +33,72 @@ const PUNTOS = [
   { icono: Rocket, texto: "Más crecimiento" },
 ];
 
-/* La imagen subida, y si no hay o no carga, la de fábrica. Arranca
-   invisible y aparece al cargar, así no se ve una y después otra. Si ya
-   estaba en el caché puede estar completa antes de que React escuche el
-   onLoad, y la pantalla quedaba en negro: por eso se mira también al montar. */
+/* La geometría en una caja de 1600x900 (16:9), medida sobre la imagen de
+   Nehuen: la banda arranca arriba al 59,8% del ancho, hace la punta en
+   (47,8%, 42,5%) y termina abajo al 63,9%. */
+const ARRIBA = "957,-20";
+const PUNTA = "765,382";
+const ABAJO = "1022,920";
+const BANDA = `${ARRIBA} ${PUNTA} ${ABAJO}`;
+
+/* Los colores también son los de la imagen: el negro va de #2a2a2c arriba
+   a #020202 abajo a la izquierda, el blanco de #fcfbfc a #e3e5e6, y la
+   banda es más rojiza en la punta. Son fijos a propósito: el fondo es el
+   mismo en los dos temas, como el telón. */
 function Fondo() {
-  const [src, setSrc] = useState(() => urlFotoLogin() || FOTO_DE_FABRICA);
-  const [lista, setLista] = useState(false);
-  const img = useRef(null);
-  useEffect(() => {
-    if (img.current && img.current.complete && img.current.naturalWidth) setLista(true);
-  }, [src]);
+  const trazo = { vectorEffect: "non-scaling-stroke" };
   return (
-    <img ref={img} src={src} alt="" aria-hidden="true"
-      onLoad={() => setLista(true)}
-      onError={() => { if (src !== FOTO_DE_FABRICA) setSrc(FOTO_DE_FABRICA); }}
-      className={`hidden lg:block absolute inset-0 w-full h-full max-w-none object-cover object-left transition-opacity duration-500 ${lista ? "opacity-100" : "opacity-0"}`} />
+    <svg viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true"
+      className="hidden lg:block absolute inset-0 w-full h-full">
+      <defs>
+        <linearGradient id="entrada-negro" x1="0.35" y1="0" x2="0.05" y2="1">
+          <stop offset="0" stopColor="#2b2c2e" />
+          <stop offset="0.45" stopColor="#131416" />
+          <stop offset="1" stopColor="#030304" />
+        </linearGradient>
+        <radialGradient id="entrada-luz" cx="0.33" cy="0" r="0.55">
+          <stop offset="0" stopColor="#3a3b3e" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#3a3b3e" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="entrada-blanco" x1="0" y1="0" x2="0.15" y2="1">
+          <stop offset="0" stopColor="#fdfcfd" />
+          <stop offset="0.5" stopColor="#f5f5f5" />
+          <stop offset="1" stopColor="#e1e3e4" />
+        </linearGradient>
+        <linearGradient id="entrada-banda" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ff800c" />
+          <stop offset="0.3" stopColor="#f7600a" />
+          <stop offset="0.43" stopColor="#ec4302" />
+          <stop offset="0.6" stopColor="#ff6703" />
+          <stop offset="0.78" stopColor="#ff8506" />
+          <stop offset="1" stopColor="#fc4601" />
+        </linearGradient>
+        <filter id="entrada-brillo" x="-50%" y="-10%" width="200%" height="120%">
+          <feGaussianBlur stdDeviation="22" />
+        </filter>
+        <filter id="entrada-sombra" x="-50%" y="-10%" width="200%" height="120%">
+          <feGaussianBlur stdDeviation="3" />
+        </filter>
+      </defs>
+
+      <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-negro)" />
+      <polygon points={`0,0 ${BANDA} 0,900`} fill="url(#entrada-luz)" />
+      <polygon points={`${ARRIBA} 1600,-20 1600,920 ${ABAJO} ${PUNTA}`} fill="url(#entrada-blanco)" />
+
+      {/* El resplandor se derrama sobre el blanco; del lado negro, el filo
+          oscuro que despega la banda del panel. */}
+      <polyline points={BANDA} transform="translate(16 0)" fill="none" stroke="#ff7a1a" strokeOpacity="0.22"
+        strokeLinejoin="round" style={{ ...trazo, strokeWidth: "clamp(36px, 3vw, 90px)" }} filter="url(#entrada-brillo)" />
+      <polyline points={BANDA} transform="translate(-11 0)" fill="none" stroke="#000" strokeOpacity="0.85"
+        strokeLinejoin="round" style={{ ...trazo, strokeWidth: "clamp(6px, 0.5vw, 14px)" }} filter="url(#entrada-sombra)" />
+
+      <polyline points={BANDA} fill="none" stroke="url(#entrada-banda)" strokeLinejoin="round"
+        style={{ ...trazo, strokeWidth: "clamp(22px, 2.3vw, 64px)" }} />
+      {/* El centro apenas más claro, que le da el volumen sin leerse como
+          una segunda línea. */}
+      <polyline points={BANDA} fill="none" stroke="#ffa24d" strokeOpacity="0.45" strokeLinejoin="round"
+        style={{ ...trazo, strokeWidth: "clamp(6px, 0.55vw, 16px)" }} filter="url(#entrada-sombra)" />
+    </svg>
   );
 }
 
@@ -59,7 +108,7 @@ export function MarcoEntrada({ children }) {
       <Fondo />
 
       <div className="relative z-10 min-h-screen flex flex-col lg:block">
-        {/* En el celular, el texto de la imagen escrito arriba de la tarjeta. */}
+        {/* En el celular, el texto arriba de la tarjeta. */}
         <div className="lg:hidden px-6 pt-10 pb-6">
           <h1 className="f-d text-[28px] leading-[1.05] font-extrabold uppercase">
             Herramientas reales para <span className="text-acento">negocios reales.</span>
@@ -72,9 +121,9 @@ export function MarcoEntrada({ children }) {
           </ul>
         </div>
 
-        {/* En la computadora, en la zona que la imagen deja libre. */}
-        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:right-[9vw]">
-          <div className="relative tema-claro w-full max-w-[380px] lg:w-[clamp(340px,20vw,390px)] lg:max-w-none bg-superficie text-texto rounded-2xl shadow-2xl px-7 py-9 lg:px-9 lg:py-11">
+        {/* En la computadora, centrada en la zona blanca. */}
+        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:left-[79vw] lg:-translate-x-1/2 lg:-translate-y-1/2">
+          <div className="relative tema-claro w-full max-w-[380px] lg:w-[clamp(340px,20vw,390px)] lg:max-w-none bg-superficie text-texto rounded-2xl shadow-2xl ring-1 ring-borde px-7 py-9 lg:px-9 lg:py-11">
             {children}
           </div>
         </div>

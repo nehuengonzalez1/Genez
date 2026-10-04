@@ -38,7 +38,6 @@ import { Inicio } from "../modulos/Inicio.jsx";
 import { PreciosPanel } from "./PreciosPanel.jsx";
 import { SolicitudesPanel } from "./SolicitudesPanel.jsx";
 import { PruebasPanel } from "./PruebasPanel.jsx";
-import { FotoLoginPanel } from "./FotoLoginPanel.jsx";
 import { AvisoDePrueba } from "./Prueba.jsx";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
@@ -425,7 +424,6 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
             <SolicitudesPanel />
             <PreciosPanel />
 
-            <FotoLoginPanel />
           </>
         ) : (
           <>
