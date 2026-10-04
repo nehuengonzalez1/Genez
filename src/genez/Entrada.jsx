@@ -313,7 +313,7 @@ const tam = (vw, vh) => `min(${vw}vw, ${vh}vh)`;
 
 function TextoPanel() {
   return (
-    <div className="hidden lg:block absolute text-sobre-panel" style={{ left: "5.8vw", top: "17vh" }}>
+    <div className="hidden lg:block absolute text-sobre-panel" style={{ left: "5.8vw", top: "12vh" }}>
       <LetraG className="block" style={{ width: tam(4.4, 7.8), height: tam(4.4, 7.8), marginBottom: tam(2.2, 3.9) }} />
       {/* Un 10% más grande y sin el punto naranja de "Tu negocio"
           (Nehuen, 04/10). */}
