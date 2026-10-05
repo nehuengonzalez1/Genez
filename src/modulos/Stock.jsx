@@ -83,19 +83,58 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
       <Card className="overflow-hidden">
         <div className="px-4 pt-2"><Tabs items={items} value={tab} onChange={setTab} /></div>
 
-        {tab === "alertas" && (
-          <TablaSimple
-            cols={["Producto", "Stock", "Vende por día", "Alcanza para", "Sugerido"]}
-            filas={k.criticos.slice(0, 60).map(({ p, cobertura }) => [
-              <div key="a"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-texto-tenue">{p.proveedor}</div></div>,
-              <span className="f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span>,
-              <span className="f-m text-texto-suave">{p.vel.toFixed(1)}</span>,
-              <span className={`f-m font-semibold ${cobertura < 2 ? "text-mal" : "text-ojo"}`}>{cobertura < 1 ? "hoy" : `${Math.round(cobertura)} días`}</span>,
-              <span className="f-m">{Math.max(p.bulto, Math.ceil((p.vel * 14 - p.stock) / p.bulto) * p.bulto)} u</span>,
-            ])}
-            vacio="No hay nada por reponer. Buen momento."
-          />
-        )}
+        {tab === "alertas" && (() => {
+          const filas = k.criticos.slice(0, 60).map(({ p, cobertura }) => ({
+            p,
+            stock: p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock),
+            vende: p.vel.toFixed(1).replace(".", ","),
+            alcanza: cobertura < 1 ? "hoy" : `${Math.round(cobertura)} días`,
+            tono: cobertura < 2 ? "text-mal" : "text-ojo",
+            sugerido: Math.max(p.bulto, Math.ceil((p.vel * 14 - p.stock) / p.bulto) * p.bulto),
+          }));
+          const vacio = "No hay nada por reponer. Buen momento.";
+          return (
+            <>
+              {/* En el celular, un renglón por producto y no la tabla: con
+                  sus cinco columnas medía 680 px y en un teléfono se veían
+                  dos, con "Alcanza para" —lo que importa— afuera (04/10). */}
+              <div className="md:hidden">
+                {filas.length ? (
+                  <ul className="divide-y divide-borde">
+                    {filas.map((f) => (
+                      <li key={f.p.id} className="px-4 py-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-medium text-sm min-w-0 truncate">{f.p.nombre}</span>
+                          <span className={`f-m text-sm font-semibold shrink-0 ${f.tono}`}>{f.alcanza}</span>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-3 mt-1 text-xs text-texto-suave">
+                          <span className="min-w-0 truncate">
+                            Hay <span className="f-m text-texto">{f.stock}</span> · vende <span className="f-m">{f.vende}</span> por día
+                            {f.p.proveedor ? <> · {f.p.proveedor}</> : null}
+                          </span>
+                          <span className="shrink-0">Pedir <span className="f-m text-texto">{f.sugerido} u</span></span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <Vacio>{vacio}</Vacio>}
+              </div>
+              <div className="hidden md:block">
+                <TablaSimple
+                  cols={["Producto", "Stock", "Vende por día", "Alcanza para", "Sugerido"]}
+                  filas={filas.map((f) => [
+                    <div key="a"><div className="font-medium">{f.p.nombre}</div><div className="text-[11px] text-texto-tenue">{f.p.proveedor}</div></div>,
+                    <span className="f-m">{f.stock}</span>,
+                    <span className="f-m text-texto-suave">{f.vende}</span>,
+                    <span className={`f-m font-semibold ${f.tono}`}>{f.alcanza}</span>,
+                    <span className="f-m">{f.sugerido} u</span>,
+                  ])}
+                  vacio={vacio}
+                />
+              </div>
+            </>
+          );
+        })()}
 
         {tab === "vencer" && (
           <TablaSimple
