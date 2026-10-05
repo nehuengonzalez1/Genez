@@ -10,9 +10,11 @@
  *   GET  con hub.mode           Meta verificando el webhook.
  *   GET  ?tarea=pruebas         el cron de Vercel: los mails de la prueba gratis (0127).
  *   POST con X-Hub-Signature-256  Meta avisando mensajes y estados.
+ *   POST con X-Signature        Mercado Pago avisando la suscripción de un comercio (0128).
  *   POST con X-Genez-Llave      el reloj de la base (0122): mandar la cola.
  *   POST con Authorization      Founder: enviar, borrador, automatizaciones,
  *                               plantilla, sincronizar, estado, registrar, suscribir.
+ *                               Y el dueño de un comercio: contratar (0128).
  *
  * Lo próximo de Founder que necesite servidor va acá también, como otra
  * `accion`, hasta que el plan cambie.
@@ -42,6 +44,7 @@ import { waitUntil } from "@vercel/functions";
 import { generar, pideUnaPersona, conAviso, errorLegible } from "./_bot.js";
 import { plantillaParaMeta, mensajeDePlantilla, estadoDeMeta, reintentable, textoDeError } from "./_automatizaciones.js";
 import { avisosDePrueba } from "./_pruebas.js";
+import { contratar, webhookMP } from "./_suscripcion.js";
 
 /* En Vercel (y en Next) esto deja el cuerpo sin leer, que es lo que la
    firma necesita. */
@@ -91,6 +94,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return error(res, 405, "Solo GET y POST.");
 
   if (req.headers["x-hub-signature-256"]) return webhook(req, res);
+  if (req.headers["x-signature"]) return avisoDeMercadoPago(req, res, query);
   if (req.headers["x-genez-llave"]) return llamadaDelReloj(req, res);
   return accionDeFounder(req, res);
 }
@@ -190,8 +194,25 @@ async function accionDeFounder(req, res) {
     case "estado": return estado(req, res, db, quien);
     case "registrar":
     case "suscribir": return alta(res, db, quien, cuerpo.accion);
+    case "contratar": return contratar(res, db, quien, cuerpo, req);
     default: return error(res, 400, "Acción desconocida.");
   }
+}
+
+/* ---------- Lo que manda Mercado Pago (0128) ---------- */
+/* El aviso trae solo un id: el estado se le pregunta a MP adentro de
+   webhookMP, con la firma ya validada. */
+async function avisoDeMercadoPago(req, res, query) {
+  const db = maestra();
+  if (!db) return error(res, 503, "Falta SUPABASE_SERVICE_ROLE_KEY en el servidor.");
+  let cuerpo = {};
+  try {
+    const crudo = (await leerCrudo(req, 64 * 1024)).toString("utf8");
+    cuerpo = crudo ? JSON.parse(crudo) : {};
+  } catch {
+    return error(res, 400, "El cuerpo no es JSON.");
+  }
+  return webhookMP(req, res, db, cuerpo, query);
 }
 
 /* Prepara en la base y manda por Meta. Lo usan una persona desde Founder

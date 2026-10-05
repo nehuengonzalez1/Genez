@@ -26,16 +26,28 @@ const T = datos.tablas;
 /* ?prueba=… (0127): el comercio en prueba gratis. Un número son los días
    que le quedan; "vencida" y "suspendida" muestran la pantalla de
    contratar, y como en la base, el comercio deja de leerse. Con
-   ?sesion=plataforma, el panel trae tres pruebas inventadas. */
+   ?sesion=plataforma, el panel trae tres pruebas inventadas.
+   La suscripción (0128): "gracia" es un cobro rechazado con 3 días por
+   delante, "gracia-vencida" la gracia terminada, y "baja" una suscripción
+   cancelada con días pagos todavía. */
 const prueba = params.get("prueba");
 const hoyFalso = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
 const aHoyMas = (n) => { const [a, m, d] = hoyFalso().split("-").map(Number); return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10); };
 const estadoPrueba = { pago: null, borrados: false };
 if (prueba && datos.perfil.empresa_id) {
   datos.empresa.plan = "pro";
-  datos.empresa.prueba_hasta = prueba === "vencida" ? aHoyMas(-1) : prueba === "suspendida" ? null : aHoyMas((Number(prueba) || 10) - 1);
+  datos.empresa.prueba_hasta = prueba === "vencida" || prueba === "gracia-vencida" ? aHoyMas(-1)
+    : prueba === "suspendida" ? null
+    : prueba === "gracia" ? aHoyMas(3) : prueba === "baja" ? aHoyMas(12)
+    : aHoyMas((Number(prueba) || 10) - 1);
   if (prueba === "suspendida") datos.empresa.activa = false;
-  if (prueba === "vencida" || prueba === "suspendida") T.empresas = [];
+  if (prueba === "vencida" || prueba === "suspendida" || prueba === "gracia-vencida") T.empresas = [];
+  if (prueba === "gracia" || prueba === "gracia-vencida" || prueba === "baja") {
+    estadoPrueba.suscripcion = {
+      plan: "pro", periodo: "mensual", monto: 59900, estado: prueba === "baja" ? "cancelada" : "activa",
+      pago_fallido_desde: prueba === "baja" ? null : aHoyMas(prueba === "gracia" ? -2 : -6), proximo_cobro: aHoyMas(13),
+    };
+  }
 }
 if (!datos.perfil.empresa_id) {
   const alta = (dias) => new Date(Date.now() - dias * 86400000).toISOString();
@@ -636,7 +648,8 @@ const FUNCIONES = {
   mi_cuenta: () => {
     const e = datos.empresa;
     return { id: e.id, nombre: e.nombre, rubro: e.rubro, plan: e.plan, modulos: e.modulos, activa: e.activa !== false,
-      prueba_hasta: e.prueba_hasta || null, hoy: hoyFalso(), pago_avisado_en: estadoPrueba.pago, ejemplos: !estadoPrueba.borrados };
+      prueba_hasta: e.prueba_hasta || null, hoy: hoyFalso(), pago_avisado_en: estadoPrueba.pago, ejemplos: !estadoPrueba.borrados,
+      plan_elegido: "start", suscripcion: estadoPrueba.suscripcion || null };
   },
   crear_comercio_de_prueba: ({ p }) => { T.altaDePrueba = p; return datos.empresa.id; },
   borrar_ejemplos: () => { estadoPrueba.borrados = true; return null; },
@@ -761,6 +774,12 @@ if (typeof window !== "undefined" && !window.__genezFounderFalso) {
     if (!String(url).startsWith("/api/founder")) return anterior(url, opciones);
     const cuerpo = JSON.parse(opciones.body || "{}");
     registro.push({ api: "founder", accion: cuerpo.accion });
+    if (cuerpo.accion === "contratar") {
+      const precios = { start: 29900, pro: 59900 };
+      const monto = (precios[cuerpo.plan] || 0) * (cuerpo.periodo === "anual" ? 10 : 1);
+      estadoPrueba.suscripcion = { plan: cuerpo.plan, periodo: cuerpo.periodo, monto, estado: "pendiente", pago_fallido_desde: null, proximo_cobro: null };
+      return json({ link: `${location.pathname}${location.search}${location.search ? "&" : "?"}suscripcion=volvio`, monto, periodo: cuerpo.periodo, plan: cuerpo.plan });
+    }
     if (cuerpo.accion === "enviar") {
       const c = tablaDe("interno_wa_conversaciones").find((x) => x.id === cuerpo.conversacion);
       if (!c) return json({ error: { message: "No existe esa conversación." } }, 400);
