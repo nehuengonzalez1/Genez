@@ -312,8 +312,9 @@
 .ln-negocios-parrafo { margin-top: 14px; font-size: 16px; line-height: 1.45; color: rgb(var(--ln-suave)); }
 .ln-negocios-nota { display: none; }
 
-.ln-filtros { margin-top: 22px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-.ln-filtros::-webkit-scrollbar { display: none; }
+/* En dos renglones si no entran, y no deslizables: a 375 px "Servicios"
+   quedaba cortado en el borde y nada decía que la fila se movía (04/10). */
+.ln-filtros { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; }
 .ln-filtro {
   flex-shrink: 0; padding: 9px 16px; border-radius: 9999px; font-size: 14px; font-weight: 600;
   background: rgb(var(--ln-linea-fondo)); border: 1px solid rgb(var(--ln-linea-borde)); color: rgb(var(--ln-suave));
@@ -362,8 +363,9 @@
 
 .ln-negocios-resto { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: rgb(var(--ln-suave)); }
 .ln-negocios-resto > span { margin-right: 4px; font-weight: 600; }
+/* 40 px de alto para el dedo: con 5 px de relleno medían 31. */
 .ln-negocios-chip {
-  padding: 5px 12px; border-radius: 9999px; font-size: 13px; font-weight: 600;
+  padding: 10px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600;
   background: rgb(var(--ln-linea-fondo)); border: 1px solid rgb(var(--ln-linea-borde)); color: rgb(var(--ln-texto));
 }
 .ln-negocios-chip:hover { border-color: rgb(var(--ln-naranja) / 0.5); color: rgb(var(--ln-naranja)); }
@@ -396,7 +398,7 @@
     position: absolute; left: calc(-70 * var(--u)); top: calc(48 * var(--u));
     width: calc(56 * var(--u)); transform: rotate(118deg) scaleY(-1); color: rgb(var(--ln-naranja));
   }
-  .ln-filtros { position: absolute; left: calc(141 * var(--u)); top: calc(268 * var(--u)); margin: 0; gap: calc(14 * var(--u)); overflow: visible; }
+  .ln-filtros { position: absolute; left: calc(141 * var(--u)); top: calc(268 * var(--u)); margin: 0; gap: calc(14 * var(--u)); flex-wrap: nowrap; }
   .ln-filtro { height: calc(50 * var(--u)); padding: 0 calc(25 * var(--u)); font-size: calc(17.5 * var(--u)); font-weight: 500; }
   .ln-negocios-grilla { margin: 0; grid-template-columns: repeat(3, calc(545 * var(--u))); column-gap: calc(25 * var(--u)); row-gap: calc(20 * var(--u)); }
   .ln-negocio { height: calc(208 * var(--u)); padding: calc(23 * var(--u)) calc(35 * var(--u)); border-radius: calc(22 * var(--u)); }
@@ -985,7 +987,8 @@
 .ln-mas-campos { margin-top: 16px; display: grid; grid-template-columns: 1fr; gap: 12px; }
 .ln-campo { display: grid; gap: 6px; font-size: 13.5px; font-weight: 600; color: rgb(var(--ln-suave)); }
 .ln-campo input, .ln-campo textarea, .ln-campo select {
-  width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 15px; font-weight: 500;
+  /* 16 px y no 15: con menos, el iPhone agranda la página al tocar el campo. */
+  width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 16px; font-weight: 500;
   color: rgb(var(--ln-texto)); background: rgb(var(--ln-tarjeta)); border: 1px solid rgb(var(--ln-linea-borde));
   outline: none; resize: vertical; font-family: inherit;
 }
@@ -1032,7 +1035,7 @@
   .ln-mas-opcion-texto { margin-top: calc(6 * var(--u)); font-size: calc(15.5 * var(--u)); }
   .ln-mas-campos { margin-top: calc(22 * var(--u)); gap: calc(14 * var(--u)); }
   .ln-campo { font-size: calc(15.5 * var(--u)); gap: calc(7 * var(--u)); }
-  .ln-campo input, .ln-campo textarea, .ln-campo select { padding: calc(14 * var(--u)) calc(16 * var(--u)); font-size: calc(17 * var(--u)); border-radius: calc(11 * var(--u)); }
+  .ln-campo input, .ln-campo textarea, .ln-campo select { padding: calc(14 * var(--u)) calc(16 * var(--u)); font-size: max(16px, calc(17 * var(--u))); border-radius: calc(11 * var(--u)); }
   .ln-mas-error { font-size: calc(16 * var(--u)); }
   .ln-mas-enviar { margin-top: calc(20 * var(--u)); height: calc(58 * var(--u)); font-size: calc(18 * var(--u)); border-radius: calc(12 * var(--u)); }
 }
@@ -1179,7 +1182,9 @@
 .ln-pie { border-top: 1px solid rgb(var(--ln-borde)); }
 .ln-pie-marco { padding: 28px 20px; display: grid; gap: 18px; }
 .ln-pie-marca { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; color: rgb(var(--ln-tenue)); }
-.ln-pie-enlaces { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: rgb(var(--ln-suave)); }
+.ln-pie-enlaces { display: flex; flex-wrap: wrap; gap: 0 20px; font-size: 14px; color: rgb(var(--ln-suave)); }
+/* En el celular el renglón medía 21 px: el relleno agranda lo que se toca. */
+@media (max-width: 1023px) { .ln-pie-enlaces a { padding: 10px 0; } }
 .ln-pie-enlaces a:hover { color: rgb(var(--ln-texto)); }
 .ln-pie-copia { font-size: 12.5px; color: rgb(var(--ln-tenue)); }
 
