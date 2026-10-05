@@ -665,7 +665,7 @@ function ClaveNueva({ onListo, onCancelar, forzado = false, invitado = false }) 
         )}
 
         <button onClick={guardar} disabled={guardando || !clave || !repetir}
-          className="relative w-full h-12 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-base transition-colors">
+          className="relative w-full h-[48px] lg:h-12 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-base transition-colors">
           {guardando ? "Guardando…" : "Guardar y entrar"}
           <ArrowRight size={19} className="absolute right-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
         </button>
@@ -753,7 +753,7 @@ function Login({ onEntrar, errorInicial }) {
         )}
 
         <button onClick={entrar} disabled={cargando}
-          className="relative w-full h-12 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-base transition-colors">
+          className="relative w-full h-[48px] lg:h-12 rounded-lg bg-acento hover:bg-acento-vivo disabled:opacity-60 text-sobre-acento font-semibold text-base transition-colors">
           {cargando ? "Entrando…" : "Entrar"}
           <ArrowRight size={19} className="absolute right-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
         </button>
