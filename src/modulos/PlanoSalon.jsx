@@ -747,8 +747,13 @@ export function PlanoSalon({
 
         {/* --- El plano ------------------------------------------------- */}
         <div className="min-w-0 flex flex-col gap-2.5">
-          <div className="shrink-0 flex items-center gap-1.5">
-            <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto [-webkit-overflow-scrolling:touch]">
+          {/* En el celular los pisos van en su renglón y los botones abajo:
+              compartiendo uno, los botones se llevaban 308 px y al piso le
+              quedaban 41, con "Salón" cortado y los demás pisos escondidos
+              sin aviso (05/10). Ahí los pisos bajan de renglón en vez de
+              deslizarse; desde md, todo en una fila como antes. */}
+          <div className="shrink-0 flex flex-wrap md:flex-nowrap items-center gap-1.5">
+            <div className="basis-full md:basis-auto flex-1 min-w-0 flex flex-wrap md:flex-nowrap items-center gap-1.5 md:overflow-x-auto [-webkit-overflow-scrolling:touch]">
               {solapas.map((s) => (
                 <button key={s.k} onClick={() => setSector(s.k)}
                   className={`shrink-0 px-3.5 py-2 rounded-xl text-sm font-semibold border transition-colors ${
