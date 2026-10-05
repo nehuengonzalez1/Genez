@@ -28,7 +28,7 @@
    la tarjeta con `.tema-claro`), así se ve igual con el sistema en claro
    o en oscuro. */
 
-import React from "react";
+import React, { useId } from "react";
 import { BarChart3, Clock, TrendingUp } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 
@@ -255,10 +255,18 @@ function DibujoG({ g, id, claras, naranjas }) {
   );
 }
 
+/* Un nombre propio para los recortes de cada G: con dos en la página (la
+   de la computadora, oculta, y la del celular) compartían el nombre, el
+   navegador usaba los de la oculta, que no recortan, y la del celular
+   salía como un anillo entero. useId da ":r0:"; los dos puntos se sacan
+   para poder usarlo en url(#…). */
+const usarIdDeG = () => "g" + useId().replace(/[^a-zA-Z0-9_-]/g, "");
+
 function LetraG({ style, className = "" }) {
+  const id = usarIdDeG();
   return (
     <svg viewBox="-1.02 -1.02 2.04 2.04" aria-label="Genez" role="img" className={className} style={style}>
-      <DibujoG g={G_LOGO} id="g-titulo" claras={{ className: "fill-sobre-panel" }} naranjas={{ className: "fill-acento" }} />
+      <DibujoG g={G_LOGO} id={id} claras={{ className: "fill-sobre-panel" }} naranjas={{ className: "fill-acento" }} />
     </svg>
   );
 }
@@ -268,11 +276,12 @@ function LetraG({ style, className = "" }) {
    opacidad, y la pieza de arriba a la derecha (la naranja del logo) un
    poco más clara. Va detrás del texto. */
 function MarcaG() {
+  const id = usarIdDeG();
   return (
     <svg viewBox="-1.02 -1.02 2.04 2.04" aria-hidden="true"
       className="hidden lg:block absolute pointer-events-none"
       style={{ width: "58vh", height: "58vh", left: "calc(13vw - 29vh)", top: "calc(96vh - 29vh)" }}>
-      <DibujoG g={G_GRUESA} id="g-marca"
+      <DibujoG g={G_GRUESA} id={id}
         claras={{ className: "fill-sobre-panel", opacity: 0.045 }}
         naranjas={{ className: "fill-sobre-panel", opacity: 0.07 }} />
     </svg>
@@ -349,9 +358,12 @@ export function MarcoEntrada({ children }) {
       <MarcaG />
       <TextoPanel />
 
-      <div className="relative z-10 min-h-screen flex flex-col lg:block">
+      {/* En el celular, el texto y la tarjeta centrados en vertical: arriba
+          quedaba un tercio de pantalla negra vacía abajo (Nehuen, 04/10). */}
+      <div className="relative z-10 min-h-screen flex flex-col justify-center py-8 lg:py-0 lg:block">
         {/* En el celular, el texto arriba de la tarjeta. */}
-        <div className="lg:hidden px-6 pt-10 pb-6">
+        <div className="lg:hidden px-6 pb-6">
+          <LetraG className="block w-11 h-11 mb-5" />
           <h1 className="f-d text-[30px] leading-[1.08] font-black uppercase">
             Tu negocio<br /><span className="text-acento">Bajo control.</span>
           </h1>
@@ -364,7 +376,7 @@ export function MarcoEntrada({ children }) {
         </div>
 
         {/* En la computadora, centrada en la zona blanca. */}
-        <div className="flex-1 flex items-start justify-center px-4 pb-8 lg:p-0 lg:absolute lg:top-1/2 lg:left-[79vw] lg:-translate-x-1/2 lg:-translate-y-1/2">
+        <div className="flex justify-center px-4 lg:p-0 lg:absolute lg:top-1/2 lg:left-[79vw] lg:-translate-x-1/2 lg:-translate-y-1/2">
           {/* En la computadora, sin recuadro: el formulario va directo sobre el
               blanco, un poco más grande (Nehuen, 04/10). En el celular queda la
               tarjeta, porque ahí el fondo es oscuro. */}
@@ -411,8 +423,11 @@ export function CampoEntrada({ icono: I, extra = null, etiqueta = null, ...props
       {etiqueta && <span className="block mb-1.5 text-[13px] font-medium text-texto-suave">{etiqueta}</span>}
       <span className="relative block">
         <I size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-texto-suave pointer-events-none" aria-hidden="true" />
+        {/* En el celular, 16 px y 48 de alto: Safari en iPhone agranda la
+            pantalla al tocar una casilla con menos de 16 px, y 48 es lo cómodo
+            para el dedo. En la computadora, como estaba. */}
         <input {...props}
-          className="w-full h-12 rounded-lg border border-borde-fuerte bg-superficie pl-11 pr-11 text-[15px] text-texto placeholder:text-texto-tenue outline-none focus:border-acento transition-colors disabled:opacity-60" />
+          className="w-full h-[48px] lg:h-12 rounded-lg border border-borde-fuerte bg-superficie pl-11 pr-11 text-[16px] lg:text-[15px] text-texto placeholder:text-texto-tenue outline-none focus:border-acento transition-colors disabled:opacity-60" />
         {extra && <span className="absolute right-2.5 top-1/2 -translate-y-1/2">{extra}</span>}
       </span>
     </label>
