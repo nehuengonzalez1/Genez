@@ -136,59 +136,131 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
           );
         })()}
 
-        {tab === "vencer" && (
-          <TablaSimple
-            cols={["Producto", "Vence", "Stock", "Plata en riesgo", ""]}
-            filas={k.porVencer.map(({ p, dias, valor }) => [
-              <div key="a" className="font-medium">{p.nombre}</div>,
-              <span className={`f-m ${dias <= 0 ? "text-mal font-semibold" : dias <= 7 ? "text-ojo" : ""}`}>{dias <= 0 ? "Vencido" : `en ${dias} días`} · {fdatel(p.vence)}</span>,
-              <span className="f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span>,
-              <span className="f-m">{money(valor)}</span>,
-              /* Una promoción de verdad (0102), hasta que vence, y no el
-                 precio pisado en la memoria: antes el mostrador cobraba el
-                 30% menos en esta computadora y la base seguía con el
-                 precio de antes. Vencido, no se ofrece: no se vende. */
-              dias > 0 && p.vence && new Date(p.vence) > new Date() && crearPromo ? (
-                <Boton key="b" size="sm" variant="ghost" disabled={guardando === p.id} onClick={async () => {
-                  setGuardando(p.id);
-                  try {
-                    await crearPromo({ producto: p, pct: 30, hasta: p.vence });
-                    toast(`${p.nombre}: 30% menos hasta que vence. Está en Productos → Promociones.`);
-                  } catch (e) {
-                    toast(e.message, "mal");
-                  } finally {
-                    setGuardando(null);
-                  }
-                }}>Poner 30% menos</Boton>
-              ) : <span key="b" />,
-            ])}
-            vacio="Ningún producto vence en los próximos 15 días."
-          />
-        )}
+        {tab === "vencer" && (() => {
+          /* Una promoción de verdad (0102), hasta que vence, y no el
+             precio pisado en la memoria: antes el mostrador cobraba el
+             30% menos en esta computadora y la base seguía con el
+             precio de antes. Vencido, no se ofrece: no se vende. */
+          const promo = (p, dias) => (dias > 0 && p.vence && new Date(p.vence) > new Date() && crearPromo ? (
+            <Boton key="b" size="sm" variant="ghost" disabled={guardando === p.id} onClick={async () => {
+              setGuardando(p.id);
+              try {
+                await crearPromo({ producto: p, pct: 30, hasta: p.vence });
+                toast(`${p.nombre}: 30% menos hasta que vence. Está en Productos → Promociones.`);
+              } catch (e) {
+                toast(e.message, "mal");
+              } finally {
+                setGuardando(null);
+              }
+            }}>Poner 30% menos</Boton>
+          ) : null);
+          const filas = k.porVencer.map(({ p, dias, valor }) => ({
+            p, dias, valor,
+            cuando: dias <= 0 ? "Vencido" : `en ${dias} días`,
+            tono: dias <= 0 ? "text-mal font-semibold" : dias <= 7 ? "text-ojo" : "",
+            stock: p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock),
+          }));
+          const vacio = "Ningún producto vence en los próximos 15 días.";
+          return (
+            <>
+              {/* En el celular, un renglón por producto, como Reponer: la
+                  tabla medía 680 px y el botón de la promo quedaba afuera. */}
+              <div className="md:hidden">
+                {filas.length ? (
+                  <ul className="divide-y divide-borde">
+                    {filas.map((f) => (
+                      <li key={f.p.id} className="px-4 py-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-medium text-sm min-w-0 truncate">{f.p.nombre}</span>
+                          <span className={`f-m text-sm shrink-0 ${f.tono}`}>{f.cuando}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 mt-1 text-xs text-texto-suave">
+                          <span className="min-w-0 truncate">
+                            {fdatel(f.p.vence)} · hay <span className="f-m text-texto">{f.stock}</span> · <span className="f-m text-texto">{money(f.valor)}</span> en riesgo
+                          </span>
+                          {promo(f.p, f.dias)}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <Vacio>{vacio}</Vacio>}
+              </div>
+              <div className="hidden md:block">
+                <TablaSimple
+                  cols={["Producto", "Vence", "Stock", "Plata en riesgo", ""]}
+                  filas={filas.map((f) => [
+                    <div key="a" className="font-medium">{f.p.nombre}</div>,
+                    <span className={`f-m ${f.tono}`}>{f.cuando} · {fdatel(f.p.vence)}</span>,
+                    <span className="f-m">{f.stock}</span>,
+                    <span className="f-m">{money(f.valor)}</span>,
+                    promo(f.p, f.dias) || <span key="b" />,
+                  ])}
+                  vacio={vacio}
+                />
+              </div>
+            </>
+          );
+        })()}
 
-        {tab === "dormidos" && (
-          <TablaSimple
-            cols={["Producto", "Última venta", "Stock", "Plata inmovilizada", ""]}
-            filas={k.dormidos.slice(0, 60).map(({ p, valor }) => [
-              <div key="a"><div className="font-medium">{p.nombre}</div><div className="text-[11px] text-texto-tenue">{p.categoria}</div></div>,
-              <span className="f-m text-texto-suave">hace {diasDesde(p.ultimaVenta)} días</span>,
-              <span className="f-m">{p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock)}</span>,
-              <span className="f-m font-semibold">{money(valor)}</span>,
-              /* Guardado en el producto (campos_extra.noReponer): sale del
-                 pedido sugerido y de "para reponer", pero se sigue vendiendo
-                 lo que queda. Antes lo desactivaba en la memoria: dejaba de
-                 aparecer en el mostrador hasta refrescar. */
-              actualizarProducto ? (
-                <Boton key="b" size="sm" variant="ghost" onClick={() => {
-                  const no = !(p.camposExtra && p.camposExtra.noReponer);
-                  actualizarProducto(p.id, { camposExtra: { ...(p.camposExtra || {}), noReponer: no } },
-                    no ? `${p.nombre}: no se repone. Se sigue vendiendo lo que queda.` : `${p.nombre}: vuelve a reponerse.`);
-                }}>{p.camposExtra && p.camposExtra.noReponer ? "Volver a reponer" : "No reponer"}</Boton>
-              ) : <span key="b" />,
-            ])}
-            vacio="Todo tu inventario rotó en los últimos 30 días."
-          />
-        )}
+        {tab === "dormidos" && (() => {
+          /* Guardado en el producto (campos_extra.noReponer): sale del
+             pedido sugerido y de "para reponer", pero se sigue vendiendo
+             lo que queda. Antes lo desactivaba en la memoria: dejaba de
+             aparecer en el mostrador hasta refrescar. */
+          const noReponer = (p) => (actualizarProducto ? (
+            <Boton key="b" size="sm" variant="ghost" onClick={() => {
+              const no = !(p.camposExtra && p.camposExtra.noReponer);
+              actualizarProducto(p.id, { camposExtra: { ...(p.camposExtra || {}), noReponer: no } },
+                no ? `${p.nombre}: no se repone. Se sigue vendiendo lo que queda.` : `${p.nombre}: vuelve a reponerse.`);
+            }}>{p.camposExtra && p.camposExtra.noReponer ? "Volver a reponer" : "No reponer"}</Boton>
+          ) : null);
+          const filas = k.dormidos.slice(0, 60).map(({ p, valor }) => ({
+            p, valor,
+            // Sin fecha es que nunca se vendió: antes contaba desde 1970 y decía
+            // "hace 20731 días".
+            hace: p.ultimaVenta ? `hace ${diasDesde(p.ultimaVenta)} días` : "nunca",
+            stock: p.unidad === "kg" ? p.stock.toFixed(1) : nf.format(p.stock),
+          }));
+          const vacio = "Todo tu inventario rotó en los últimos 30 días.";
+          return (
+            <>
+              <div className="md:hidden">
+                {filas.length ? (
+                  <ul className="divide-y divide-borde">
+                    {filas.map((f) => (
+                      <li key={f.p.id} className="px-4 py-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-medium text-sm min-w-0 truncate">{f.p.nombre}</span>
+                          <span className="f-m text-sm font-semibold shrink-0">{money(f.valor)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 mt-1 text-xs text-texto-suave">
+                          <span className="min-w-0 truncate">
+                            {f.p.ultimaVenta ? `Última venta ${f.hace}` : "Nunca se vendió"} · hay <span className="f-m text-texto">{f.stock}</span>
+                            {f.p.categoria ? <> · {f.p.categoria}</> : null}
+                          </span>
+                          {noReponer(f.p)}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <Vacio>{vacio}</Vacio>}
+              </div>
+              <div className="hidden md:block">
+                <TablaSimple
+                  cols={["Producto", "Última venta", "Stock", "Plata inmovilizada", ""]}
+                  filas={filas.map((f) => [
+                    <div key="a"><div className="font-medium">{f.p.nombre}</div><div className="text-[11px] text-texto-tenue">{f.p.categoria}</div></div>,
+                    <span className="f-m text-texto-suave">{f.hace}</span>,
+                    <span className="f-m">{f.stock}</span>,
+                    <span className="f-m font-semibold">{money(f.valor)}</span>,
+                    noReponer(f.p) || <span key="b" />,
+                  ])}
+                  vacio={vacio}
+                />
+              </div>
+            </>
+          );
+        })()}
 
         {tab === "sucursales" && (
           <StockPorSucursal productos={productos} empresaId={empresaId} lugar={lugar} toast={toast} />
