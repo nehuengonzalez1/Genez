@@ -355,9 +355,12 @@ export function CentroPedidos({
           {/* El buscador y los filtros solo donde hay algo que buscar o
               filtrar. En estadísticas no filtran nada, y un control que
               está pero no hace es peor que uno que falta. */}
-          <div className="ml-auto flex items-center gap-2 w-full md:w-auto">
+          {/* En el celular el buscador va solo en su renglón y los botones
+              abajo: compartiendo uno, a "Nuevo pedido" le tocaba casi todo
+              y el buscador quedaba en "Buscar p" (04/10). */}
+          <div className="ml-auto flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto">
             {(pantalla === "tablero" || pantalla === "historial") && (
-              <label className="flex-1 md:w-[320px] flex items-center gap-2.5 rounded-md border border-borde bg-superficie px-3.5 py-2.5">
+              <label className="basis-full md:basis-auto flex-1 md:w-[320px] flex items-center gap-2.5 rounded-md border border-borde bg-superficie px-3.5 py-2.5">
                 <Search size={16} className="text-texto-tenue shrink-0" />
                 <input value={q} onChange={(e) => setQ(e.target.value)}
                   placeholder="Buscar pedido, cliente, N°…"
@@ -386,7 +389,7 @@ export function CentroPedidos({
                 que está a la vista y no adentro de un menú. La maqueta no
                 lo tiene, pero una pantalla de mostrador sin forma visible
                 de arrancar un pedido no se puede usar. */}
-            <Boton size="md" className="shrink-0 h-[42px]" onClick={() => setNuevo(true)} disabled={abriendo}>
+            <Boton size="md" className="flex-1 md:flex-none shrink-0 h-[42px]" onClick={() => setNuevo(true)} disabled={abriendo}>
               <Plus size={16} /> Nuevo pedido
             </Boton>
           </div>
@@ -693,11 +696,14 @@ function Totales({ pedidos }) {
              cada recuadro tiene 190 px y "En preparación $160.700" en un
              renglón terminaba cortado justo en la plata, que es la mitad
              de para qué está la barra. */
-          <div key={r.k} className="flex items-center gap-3 rounded-lg border border-borde bg-fondo px-3.5 py-2.5">
-            <Icono size={20} className={`shrink-0 ${r.txt}`} />
+          /* En el celular, sin ícono y con menos relleno: en tres columnas
+             de 105 px, "En preparación" y "Completados hoy" se salían del
+             recuadro. El color del número dice el estado igual. */
+          <div key={r.k} className="flex items-center gap-3 rounded-lg border border-borde bg-fondo px-2.5 sm:px-3.5 py-2.5">
+            <Icono size={20} className={`hidden sm:block shrink-0 ${r.txt}`} />
             <div className="min-w-0">
-              <div className="f-d text-[22px] leading-none">{nf.format(r.lista.length)}</div>
-              <div className="text-[10px] uppercase tracking-[0.1em] text-texto-tenue font-bold leading-tight mt-1">{r.n}</div>
+              <div className={`f-d text-[22px] leading-none ${r.txt} sm:text-texto`}>{nf.format(r.lista.length)}</div>
+              <div className="text-[10px] uppercase tracking-[0.04em] sm:tracking-[0.1em] text-texto-tenue font-bold leading-tight mt-1 break-words">{r.n}</div>
               {!r.sinPlata && <div className="f-m text-[11px] text-texto-suave leading-tight">{money(suma(r.lista))}</div>}
             </div>
           </div>
