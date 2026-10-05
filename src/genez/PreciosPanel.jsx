@@ -83,6 +83,32 @@ export function PreciosPanel() {
 
         {estado === "listo" && (
           <>
+            {/* Los planes de precio fijo (05/10): lo que muestra la landing,
+                lo que dice el registro y lo que va a cobrar la suscripción.
+                Iguales en todos los rubros; Empresa es a medida. */}
+            <div className="p-4 border-b border-borde">
+              <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mb-3">Planes con precio fijo</div>
+              <div className="grid md:grid-cols-3 gap-3">
+                <Campo label="Simple, por mes">
+                  <input value={t.planes?.start ?? ""} onChange={(e) => tocar({ planes: { ...t.planes, start: aMonto(e.target.value) } })} inputMode="numeric" placeholder="a confirmar" className={`${inputCls} f-m text-right`} />
+                </Campo>
+                <Campo label="Pro, por mes">
+                  <input value={t.planes?.pro ?? ""} onChange={(e) => tocar({ planes: { ...t.planes, pro: aMonto(e.target.value) } })} inputMode="numeric" placeholder="a confirmar" className={`${inputCls} f-m text-right`} />
+                </Campo>
+                <Campo label="El año se paga (meses; 10 = dos gratis)">
+                  <input value={t.anualMeses ?? ""} onChange={(e) => tocar({ anualMeses: aMonto(e.target.value) })} inputMode="numeric" placeholder="sin pago anual" className={`${inputCls} f-m text-right`} />
+                </Campo>
+                <Campo label="Precio congelado (meses; después, inflación)">
+                  <input value={t.congeladoMeses ?? ""} onChange={(e) => tocar({ congeladoMeses: aMonto(e.target.value) })} inputMode="numeric" placeholder="no se promete" className={`${inputCls} f-m text-right`} />
+                </Campo>
+                <Campo label="Sucursales incluidas en Pro">
+                  <input value={t.sucursalesIncluidas ?? ""} onChange={(e) => tocar({ sucursalesIncluidas: aMonto(e.target.value) })} inputMode="numeric" placeholder="sin límite" className={`${inputCls} f-m text-right`} />
+                </Campo>
+                <Campo label="Cada sucursal extra, por mes">
+                  <input value={t.sucursalExtra ?? ""} onChange={(e) => tocar({ sucursalExtra: aMonto(e.target.value) })} inputMode="numeric" placeholder="no se cobra" className={`${inputCls} f-m text-right`} />
+                </Campo>
+              </div>
+            </div>
             <div className="p-4 grid md:grid-cols-3 gap-3">
               <Campo label={`Base por mes (incluye ${nombresBase})`}>
                 <input value={t.base ?? ""} onChange={(e) => tocar({ base: aMonto(e.target.value) })} inputMode="numeric" placeholder="a confirmar" className={`${inputCls} f-m text-right`} />

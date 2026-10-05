@@ -22,6 +22,14 @@
    A medida (02/10): el que no toma el plan de su negocio y se queda solo
    con los módulos que eligió paga con otra lista, `medida:base` y
    `medida:<clave>`. Sin la base a medida, esa opción no se ofrece.
+
+   Planes con precio fijo (05/10): Simple y Pro cuestan lo mismo en todos
+   los rubros, sin sumar módulos. `plan:start` y `plan:pro` son el precio
+   por mes; `anual_meses` cuántos meses paga el que paga el año (10: dos
+   gratis); `congelado_meses` cuánto dura el precio del lanzamiento antes
+   de ajustarse por inflación; `sucursales_incluidas` y `sucursal_extra`,
+   las sucursales que trae Pro y lo que cuesta cada una más. Empresa no
+   tiene precio: es a medida. Siguen siendo filas, no una migración.
    ============================================================ */
 
 /* El WhatsApp al que llega el presupuesto mientras la plataforma no cargue
@@ -37,14 +45,30 @@ export const TARIFAS_VACIAS = Object.freeze({
   whatsapp: CONTACTO_DE_FABRICA.whatsapp,
   descuento: Object.freeze({ porcentaje: null, meses: null }),
   medida: Object.freeze({ base: null, modulos: Object.freeze({}) }),
+  planes: Object.freeze({ start: null, pro: null }),
+  anualMeses: null,
+  congeladoMeses: null,
+  sucursalesIncluidas: null,
+  sucursalExtra: null,
 });
+
+/* Las claves de las filas sueltas de los planes con precio fijo, y el
+   nombre que tienen en el objeto. */
+const SUELTAS = {
+  anual_meses: "anualMeses",
+  congelado_meses: "congeladoMeses",
+  sucursales_incluidas: "sucursalesIncluidas",
+  sucursal_extra: "sucursalExtra",
+};
 
 const numero = (v) => (v == null || v === "" ? null : Number(v));
 
 export function armarTarifas(filas) {
-  const t = { ...TARIFAS_VACIAS, modulos: {}, descuento: { porcentaje: null, meses: null }, medida: { base: null, modulos: {} } };
+  const t = { ...TARIFAS_VACIAS, modulos: {}, descuento: { porcentaje: null, meses: null }, medida: { base: null, modulos: {} }, planes: { start: null, pro: null } };
   for (const f of filas || []) {
-    if (f.clave === "base") t.base = numero(f.monto);
+    if (f.clave.startsWith("plan:")) t.planes[f.clave.slice("plan:".length)] = numero(f.monto);
+    else if (SUELTAS[f.clave]) t[SUELTAS[f.clave]] = numero(f.monto);
+    else if (f.clave === "base") t.base = numero(f.monto);
     else if (f.clave === "puesta_en_marcha") t.puestaEnMarcha = numero(f.monto);
     else if (f.clave === "whatsapp") t.whatsapp = (f.texto || "").trim() || CONTACTO_DE_FABRICA.whatsapp;
     else if (f.clave === "descuento") t.descuento.porcentaje = numero(f.monto);
@@ -70,6 +94,12 @@ export function filasDeTarifas(t) {
   ];
   for (const [k, monto] of Object.entries(t.modulos || {})) {
     filas.push({ clave: `modulo:${k}`, monto: numero(monto), texto: null });
+  }
+  for (const [k, monto] of Object.entries(t.planes || {})) {
+    filas.push({ clave: `plan:${k}`, monto: numero(monto), texto: null });
+  }
+  for (const [clave, campo] of Object.entries(SUELTAS)) {
+    filas.push({ clave, monto: numero(t[campo]), texto: null });
   }
   const medida = t.medida || {};
   filas.push({ clave: "medida:base", monto: numero(medida.base), texto: null });

@@ -827,7 +827,7 @@ function Precio({ pre, calculando }) {
    marcado `pronto`. */
 const PLANES_COMERCIO = [
   {
-    k: "start", n: "Simple", precio: 29900, tono: "verde", etiqueta: "Ideal para empezar",
+    k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
     subtitulo: "Para el kiosco o el almacén que atiende una persona.",
     boton: "Empezar con Simple",
     items: [
@@ -845,7 +845,7 @@ const PLANES_COMERCIO = [
     ],
   },
   {
-    k: "pro", n: "Pro", precio: 59900, tono: "naranja", etiqueta: "Más elegido",
+    k: "pro", n: "Pro", tono: "naranja", etiqueta: "Más elegido",
     subtitulo: "Para el minimercado con empleados que quiere crecer.",
     boton: "Empezar con Pro", todo: "Simple",
     items: [
@@ -863,7 +863,7 @@ const PLANES_COMERCIO = [
     ],
   },
   {
-    k: "empresa", n: "Empresa", precio: null, tono: "azul", etiqueta: "Para cadenas",
+    k: "empresa", n: "Empresa", tono: "azul", etiqueta: "Para cadenas",
     subtitulo: "Para cadenas y franquicias, armado con vos.",
     boton: "Hablar con nosotros", todo: "Pro",
     items: [
@@ -881,7 +881,7 @@ const PLANES_COMERCIO = [
    varios usuarios y sucursales en Pro, Empresa a medida. Lo que se nombra
    existe; lo que no, va como `pronto`. */
 const EMPRESA_A_MEDIDA = (subtitulo, propios) => ({
-  k: "empresa", n: "Empresa", precio: null, tono: "azul", etiqueta: "Para cadenas",
+  k: "empresa", n: "Empresa", tono: "azul", etiqueta: "Para cadenas",
   subtitulo, boton: "Hablar con nosotros", todo: "Pro",
   items: [
     ...propios,
@@ -894,7 +894,7 @@ const EMPRESA_A_MEDIDA = (subtitulo, propios) => ({
 
 const PLANES_GASTRONOMIA = [
   {
-    k: "start", n: "Simple", precio: 29900, tono: "verde", etiqueta: "Ideal para empezar",
+    k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
     subtitulo: "Para el café, la rotisería o el take away que atiende una persona.",
     boton: "Empezar con Simple",
     items: [
@@ -910,7 +910,7 @@ const PLANES_GASTRONOMIA = [
     ],
   },
   {
-    k: "pro", n: "Pro", precio: 59900, tono: "naranja", etiqueta: "Más elegido",
+    k: "pro", n: "Pro", tono: "naranja", etiqueta: "Más elegido",
     subtitulo: "Para el bar o el restaurante con salón y equipo.",
     boton: "Empezar con Pro", todo: "Simple",
     items: [
@@ -937,7 +937,7 @@ const PLANES_GASTRONOMIA = [
 
 const PLANES_SERVICIOS = [
   {
-    k: "start", n: "Simple", precio: 29900, tono: "verde", etiqueta: "Ideal para empezar",
+    k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
     subtitulo: "Para el profesional o el estudio que atiende solo.",
     boton: "Empezar con Simple",
     items: [
@@ -951,7 +951,7 @@ const PLANES_SERVICIOS = [
     ],
   },
   {
-    k: "pro", n: "Pro", precio: 59900, tono: "naranja", etiqueta: "Más elegido",
+    k: "pro", n: "Pro", tono: "naranja", etiqueta: "Más elegido",
     subtitulo: "Para el centro, el gimnasio o el consultorio con equipo.",
     boton: "Empezar con Pro", todo: "Simple",
     items: [
@@ -1015,7 +1015,12 @@ const SIMBOLO_PLAN = {
   ),
 };
 
-function PlanComercio({ p, onElegir }) {
+/* El precio sale de las tarifas (plan:start, plan:pro): lo mismo que lee
+   el registro y lo que va a cobrar la suscripción. Sin fila, "Consultar":
+   nunca se inventa un número. Empresa no tiene precio, es a medida. */
+function PlanComercio({ p, t, onElegir }) {
+  const precio = p.k === "empresa" ? null : (t.planes || {})[p.k];
+  const congelado = t.congeladoMeses, anual = t.anualMeses;
   return (
     <li className={`ln-plan ln-plan-${p.k}`}>
       <div className="ln-plan-cabeza">
@@ -1027,13 +1032,15 @@ function PlanComercio({ p, onElegir }) {
       </div>
       <h3 className="ln-plan-nombre">{p.n}</h3>
       <p className="ln-plan-subtitulo">{p.subtitulo}</p>
-      {p.precio ? (
+      {precio != null ? (
         <div className="ln-plan-precio">
-          <span className="ln-plan-monto">{pesos(p.precio)}</span>
+          <span className="ln-plan-monto">{pesos(precio)}</span>
           <span className="ln-plan-mes">/ mes</span>
-          <span className="ln-plan-congelado">Precio congelado por 6 meses</span>
-          <span className="ln-plan-anual">O pagá {pesos(p.precio * 10)} al año: 2 meses gratis.</span>
+          {congelado ? <span className="ln-plan-congelado">Precio congelado por {congelado} meses</span> : null}
+          {anual && anual < 12 ? <span className="ln-plan-anual">O pagá {pesos(precio * anual)} al año: {12 - anual === 1 ? "1 mes gratis" : `${12 - anual} meses gratis`}.</span> : null}
         </div>
+      ) : p.k !== "empresa" ? (
+        <div className="ln-plan-precio"><span className="ln-plan-monto">Consultar</span></div>
       ) : (
         <div className="ln-plan-precio">
           <span className="ln-plan-monto">A medida</span>
@@ -1108,7 +1115,7 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
         <h2 className="ln-precios-titulo">Pagás por lo que{" "}<br /><span className="ln-naranja">necesitás.</span></h2>
         {planesFijos ? (
         <p className="ln-precios-parrafo">
-          Precio de lanzamiento: <strong>congelado por 6 meses</strong>.<br className="ln-solo-ancho" />{" "}
+          {t.congeladoMeses ? <>Precio de lanzamiento: <strong>congelado por {t.congeladoMeses} meses</strong>; después, se ajusta por inflación cada 3 meses.<br className="ln-solo-ancho" />{" "}</> : null}
           Precio final por mes, sin permanencia:{" "}<br className="ln-solo-ancho" />cancelás cuando quieras.
         </p>
         ) : (
@@ -1120,8 +1127,8 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
 
         <ul className="ln-planes">
           {planesFijos && fijos.map((p) => (
-            <PlanComercio key={p.k} p={p}
-              onElegir={(x) => (x.precio ? onElegir(rubro.clave, x.k) : irA("hacemos-mas")())} />
+            <PlanComercio key={p.k} p={p} t={t}
+              onElegir={(x) => (x.k !== "empresa" ? onElegir(rubro.clave, x.k) : irA("hacemos-mas")())} />
           ))}
           {!planesFijos && lista.map((p, i) => {
             const e = ESTILO_PLAN[p.k];
@@ -1326,7 +1333,19 @@ function HacemosMas({ tarifas }) {
    "Varias sucursales" no se promete entera: cada local tiene sus cajas y
    su stock, pero verlos juntos todavía está en camino. */
 function respuestaDelPrecio(tarifas) {
-  const { descuento, puestaEnMarcha } = presupuestar(tarifas || TARIFAS_VACIAS, []);
+  /* Con los planes de precio fijo (05/10), la respuesta dice esos números
+     y no la base más módulos. Sin precios cargados, la de antes. */
+  const t = tarifas || TARIFAS_VACIAS;
+  const { start, pro } = t.planes || {};
+  if (start != null && pro != null) {
+    return [
+      `Simple cuesta ${pesos(start)} y Pro ${pesos(pro)} por mes, lo mismo en todos los rubros; Empresa se arma a medida.`,
+      t.congeladoMeses ? `Por el lanzamiento, el precio queda congelado ${t.congeladoMeses} meses y después se ajusta por inflación cada 3 meses.` : "",
+      t.anualMeses && t.anualMeses < 12 ? `Si pagás el año, pagás ${t.anualMeses} meses.` : "",
+      "Antes, probás Pro 10 días gratis, sin tarjeta. No hay permanencia: cancelás cuando quieras.",
+    ].filter(Boolean).join(" ");
+  }
+  const { descuento, puestaEnMarcha } = presupuestar(t, []);
   const cuando = !descuento || !descuento.meses ? "" : descuento.meses === 1 ? "el primer mes " : `los primeros ${descuento.meses} meses `;
   return [
     "Una base por mes que incluye cobro, caja y ajustes, más los módulos de tu plan. Lo ves arriba, por rubro, antes de registrarte.",
@@ -1411,7 +1430,7 @@ const PROVINCIAS = [
   "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
 ];
 const SUCURSALES = [["1", "Una"], ["2", "Dos o tres"], ["4", "Cuatro o más"]];
-const NOMBRE_PLAN = { start: "Start", pro: "Pro", empresa: "Empresa", medida: "A medida" };
+const NOMBRE_PLAN = { start: "Simple", pro: "Pro", empresa: "Empresa", medida: "A medida" };
 const VENTAJAS_REGISTRO = [
   { icono: BarChart3, texto: "Una configuración a tu medida." },
   { icono: Puzzle, texto: "Soluciones para tus problemas reales." },
@@ -1449,6 +1468,14 @@ function Registro({ rubros, tarifas, eleccion }) {
     ? (eleccion.plan === "medida" && eleccion.modulos ? eleccion.modulos : (lista[0] ? lista[0].armado.elegidos : []))
     : ((lista.find((p) => p.k === d.plan) || {}).armado || {}).elegidos || [];
   const pre = presupuestar(d.plan === "medida" ? tarifasAMedida(t) : t, modulos);
+  /* Con planes de precio fijo (05/10) se elige Simple o Pro: Empresa es a
+     medida y se habla. La prueba es siempre de Pro, sin ARCA, sea cual sea
+     el plan elegido: se crea con los módulos de Pro, y el plan elegido
+     queda anotado para cobrar cuando termine. */
+  const fijos = rubro ? PLANES_FIJOS[rubro.clave] : null;
+  const planFijo = fijos && (d.plan === "start" || d.plan === "pro") ? d.plan : "pro";
+  const precioFijo = fijos ? (t.planes || {})[planFijo] : null;
+  const modulosDePrueba = fijos ? (((lista.find((p) => p.k === "pro") || {}).armado || {}).elegidos || []) : modulos;
 
   const seguir = (e) => {
     e.preventDefault();
@@ -1473,12 +1500,12 @@ function Registro({ rubros, tarifas, eleccion }) {
         escala: d.sucursales,
         respuestas: [
           { k: "comercio", n: d.comercio.trim() },
-          { k: "plan", n: `Plan ${NOMBRE_PLAN[d.plan] || d.plan}` },
+          { k: "plan", n: `Plan ${NOMBRE_PLAN[fijos ? planFijo : d.plan] || d.plan}` },
           ...(d.provincia ? [{ k: "provincia", n: d.provincia }] : []),
-          ...(pre.conDescuento != null ? [{ k: "descuento", n: `${pesos(pre.conDescuento)} por mes, ${textoDescuento(pre.descuento)}` }] : []),
+          ...(!fijos && pre.conDescuento != null ? [{ k: "descuento", n: `${pesos(pre.conDescuento)} por mes, ${textoDescuento(pre.descuento)}` }] : []),
         ],
-        modulos,
-        mensual: pre.mensual,
+        modulos: modulosDePrueba,
+        mensual: fijos ? precioFijo : pre.mensual,
         nombre: d.nombre, telefono: d.telefono, email: d.email,
         mensaje: d.problema,
         origen: ALTAS_ABIERTAS ? "registro-prueba" : "registro-landing",
@@ -1498,7 +1525,7 @@ function Registro({ rubros, tarifas, eleccion }) {
         registro: {
           comercio: d.comercio.trim(), rubro: rubroClave, negocio: negocioNombre || null,
           sucursales: d.sucursales, provincia: d.provincia || null, problema: d.problema.trim(),
-          nombre: d.nombre.trim(), telefono: d.telefono, plan: d.plan, modulos,
+          nombre: d.nombre.trim(), telefono: d.telefono, plan: fijos ? planFijo : d.plan, modulos: modulosDePrueba,
         },
       });
       setPaso(3);
@@ -1597,15 +1624,21 @@ function Registro({ rubros, tarifas, eleccion }) {
                   </label>
                 )}
                 <label className="ln-campo"><span>Plan</span>
-                  <select value={d.plan} onChange={cambiar("plan")}>
-                    {["start", "pro", "empresa"].map((k) => <option key={k} value={k}>{NOMBRE_PLAN[k]}</option>)}
-                    {hayAMedida(t) && <option value="medida">A medida</option>}
+                  <select value={fijos ? planFijo : d.plan} onChange={cambiar("plan")}>
+                    {(fijos ? ["start", "pro"] : ["start", "pro", "empresa"]).map((k) => <option key={k} value={k}>{NOMBRE_PLAN[k]}</option>)}
+                    {!fijos && hayAMedida(t) && <option value="medida">A medida</option>}
                   </select>
                 </label>
               </div>
               <div className="ln-reg-resumen">
-                <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[d.plan]} · {modulos.length} módulos</span>
-                {pre.mensual != null && (
+                {fijos ? (
+                  <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[planFijo]} · 10 días gratis de Pro</span>
+                ) : (
+                  <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[d.plan]} · {modulos.length} módulos</span>
+                )}
+                {fijos ? (precioFijo != null && (
+                  <span className="ln-reg-resumen-precio">después <b>{pesos(precioFijo)}</b> / mes</span>
+                )) : pre.mensual != null && (
                   <span className="ln-reg-resumen-precio">
                     {pre.conDescuento != null && <s>{pesos(pre.mensual)}</s>} <b>{pesos(pre.conDescuento != null ? pre.conDescuento : pre.mensual)}</b> / mes
                   </span>
