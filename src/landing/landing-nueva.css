@@ -75,8 +75,11 @@
 }
 .ln-logo { display: inline-flex; flex-shrink: 0; }
 /* El logo es el de la maqueta en pantalla ancha; en el teléfono, más
-   chico para que entren Entrar y el tema. */
-@media (max-width: 1023px) { .ln-logo { transform: scale(0.78); transform-origin: left center; } }
+   chico para que entren Entrar y el tema. Con zoom y no con transform:
+   transform achicaba el dibujo pero dejaba ocupado el lugar de antes
+   (176 px para 137 de logo), y en un teléfono de 320 px el tema quedaba
+   15 px afuera y la página se corría de costado (05/10). */
+@media (max-width: 1023px) { .ln-logo { zoom: 0.78; } }
 .ln-menu { display: none; }
 .ln-acciones { display: flex; align-items: center; gap: 8px; }
 .ln-entrar, .ln-armar { padding: 9px 16px; font-size: 14px; }
