@@ -869,7 +869,10 @@
 .ln-plan-item-nombre { display: block; font-size: 14.5px; font-weight: 700; line-height: 1.2; }
 .ln-plan-item-texto { display: block; font-size: 12.5px; color: rgb(var(--ln-suave)); }
 .ln-plan-boton { margin-top: auto; width: 100%; height: 50px; font-size: 15.5px; }
-.ln-plan-items + .ln-plan-boton { margin-top: 20px; }
+/* El espacio mínimo va en la lista y no en el botón: con margin-top fijo
+   en el botón se pisaba el auto, cada botón quedaba pegado a su lista y
+   los tres planes los tenían a alturas distintas (04/10). */
+.ln-plan-items { padding-bottom: 20px; }
 .ln-plan-boton-gris { background: rgb(var(--ln-gris-boton)); color: rgb(var(--ln-texto)); border: 1px solid rgb(var(--ln-tarjeta-borde)); }
 .ln-plan-boton-gris:hover { border-color: rgb(var(--ln-naranja) / 0.5); }
 
@@ -940,7 +943,7 @@
   .ln-plan-item-nombre { font-size: calc(17 * var(--u)); }
   .ln-plan-item-texto { font-size: calc(14.5 * var(--u)); }
   .ln-plan-boton { height: calc(58 * var(--u)); font-size: calc(18 * var(--u)); border-radius: calc(12 * var(--u)); }
-  .ln-plan-items + .ln-plan-boton { margin-top: calc(24 * var(--u)); }
+  .ln-plan-items { padding-bottom: calc(24 * var(--u)); }
   .ln-medida { margin-top: calc(26 * var(--u)); padding: calc(22 * var(--u)) calc(28 * var(--u)); border-radius: calc(20 * var(--u)); }
   .ln-medida-titulo { font-size: calc(20 * var(--u)); }
   .ln-medida-texto { font-size: calc(16 * var(--u)); }
