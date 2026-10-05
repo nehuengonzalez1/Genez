@@ -344,4 +344,14 @@ html { background-color: rgb(var(--fondo)); }
    elementos traen su propio display (inline-flex, md:flex). */
 @media (hover: none) and (pointer: coarse) {
   .solo-teclado { display: none !important; }
+  /* Los botones de Boton (sm y md) a 40 px para el dedo. min-height y no
+     padding: el que ya tenía un alto propio (h-[42px]) no cambia. */
+  .boton-tactil { min-height: 40px; }
+  /* Los botones armados a mano en cada pantalla (filtros, rangos, chips,
+     links de texto) medían entre 14 y 26 px. No hay un componente común,
+     así que va por regla, con dos excepciones a propósito: el que tiene un
+     alto propio (h-5 de un interruptor, h-8 de un ícono) y el que está
+     posicionado encima de otra cosa (una mesa del salón, la cruz de un
+     buscador). Un botón centra su contenido, así que crecer no lo corre. */
+  main button:not(.boton-tactil):not([class*="h-"]):not([class*="absolute"]) { min-height: 36px; }
 }

@@ -67,7 +67,10 @@ export function Boton({ children, onClick, variant = "primary", size = "md", cla
     quiet: "text-texto-suave hover:text-texto hover:bg-superficie-2",
     danger: "bg-superficie text-mal border border-mal hover:bg-mal-suave",
   }[variant];
-  const s = { sm: "text-xs px-2.5 py-1.5", md: "text-sm px-3.5 py-2", lg: "text-base px-5 py-3" }[size];
+  /* boton-tactil: en una pantalla táctil sm y md crecen a 40 px de alto,
+     que es lo que pide un dedo; sm medía 25 (04/10). En la computadora,
+     con mouse, quedan como estaban: ahí la densidad sirve. */
+  const s = { sm: "boton-tactil text-xs px-2.5 py-1.5", md: "boton-tactil text-sm px-3.5 py-2", lg: "text-base px-5 py-3" }[size];
   return <button title={title} disabled={disabled} onClick={onClick} className={`${base} ${v} ${s} ${className}`}>{children}</button>;
 }
 
