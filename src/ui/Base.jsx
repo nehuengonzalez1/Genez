@@ -38,7 +38,9 @@ export function Kpi({ label, valor, delta, sub, tono = "neutro", icono: Ico, chi
             <Ico size={15} className="text-acento" />
           </span>
         )}
-        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold min-w-0 truncate">{label}</div>
+        {/* Baja de renglón en vez de cortarse: con truncate, en una
+            notebook se leía "FACTURACIÓN H…" o "INGRESOS DEL …" (05/10). */}
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold min-w-0 leading-tight">{label}</div>
       </div>
       <div className={`f-d text-3xl mt-1 tabular-nums ${col}`}>{valor}</div>
       <div className="flex items-center gap-2 mt-1">
@@ -48,7 +50,7 @@ export function Kpi({ label, valor, delta, sub, tono = "neutro", icono: Ico, chi
             {pct(Math.abs(delta))}
           </span>
         )}
-        {sub && <span className="text-xs text-texto-tenue truncate">{sub}</span>}
+        {sub && <span className="text-xs text-texto-tenue min-w-0 leading-tight">{sub}</span>}
         {chispa && <span className="ml-auto shrink-0">{chispa}</span>}
       </div>
     </Card>
