@@ -8,7 +8,7 @@ import {
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
-  Heart, MessageSquare, FileText, NotebookPen, Lock
+  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X
 } from "lucide-react";
 import { MarcoEntrada, CabezaEntrada, PieEntrada, CampoEntrada } from "./Entrada.jsx";
 import { uid, fdatel } from "../datos/generador.js";
@@ -888,6 +888,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     entradaPedida || entradaPorDefecto;
   const [vista, setVista] = useState(entrada);
   const [tab, setTab] = useState("inicio");
+  const [masAbierto, setMasAbierto] = useState(false);
   /* Si Genez le saca al comercio el módulo de la pantalla en la que
      alguien está parado, el menú ya no lo muestra pero la pantalla seguía
      abierta. Se vuelve al Inicio; y del salón, al panel. */
@@ -1772,7 +1773,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      sus módulos como una lista plana, igual que siempre. */
   const items = useMemo(() => grupos.flatMap((g) => (
     g.nombre && g.modulos.length
-      ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i }]
+      ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
       : g.modulos
   )), [grupos]);
 
@@ -2054,30 +2055,80 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           </div>
         </aside>
 
-        {/* Navegación móvil */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-superficie border-t border-borde overflow-x-auto seguro-abajo">
-          <div className="flex">
-            {accion && (
-              <button onClick={cobrar_}
-                className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${
-                  accion.destacada ? "text-sobre-acento bg-acento" : "text-texto-tenue"}`}>
-                <IconoAccion size={17} /> {rotuloVender}
-              </button>
-            )}
-            {/* En el celular los grupos se aplanan a propósito: es una tira
-                que se desliza, y meterle rótulos adentro la haría más larga
-                sin ordenar nada. */}
-            {items.map((n) => {
-              const Icono = iconoDe(n.i);
-              return (
-                <button key={n.k} onClick={() => ir(n.k)}
-                  className={`flex flex-col items-center gap-0.5 px-3.5 py-2 text-[10px] font-semibold shrink-0 ${tab === n.k ? "text-acento" : "text-texto-tenue"}`}>
-                  <Icono size={17} /> {n.n}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Navegación móvil: la acción, las tres primeras secciones del menú
+            y "Más". Antes era una tira que se deslizaba con todas: en un
+            comercio son catorce, en pantalla entraban seis, y Productos,
+            Stock y Caja quedaban afuera sin nada que avisara que había más
+            (04/10). Las fijas salen del orden del menú, que es dato del
+            rubro: no se elige acá cuáles importan. */}
+        {(() => {
+          const lugares = accion ? 3 : 4;
+          const fijas = items.length > lugares + 1 ? items.slice(0, lugares) : items;
+          const resto = items.slice(fijas.length);
+          const estaEn = (n) => (n.claves || [n.k]).includes(tab);
+          const enResto = resto.some(estaEn);
+          const celda = "flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 py-2 min-h-[56px] text-[10px] font-semibold";
+          return (
+            <>
+              <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-superficie border-t border-borde seguro-abajo">
+                <div className="flex">
+                  {accion && (
+                    <button onClick={() => { setMasAbierto(false); cobrar_(); }}
+                      className={`${celda} ${accion.destacada ? "text-sobre-acento bg-acento" : "text-texto-tenue"}`}>
+                      <IconoAccion size={18} /> <span className="truncate max-w-full">{rotuloVender}</span>
+                    </button>
+                  )}
+                  {fijas.map((n) => {
+                    const Icono = iconoDe(n.i);
+                    return (
+                      <button key={n.k} onClick={() => { setMasAbierto(false); ir(n.k); }}
+                        className={`${celda} ${estaEn(n) && !masAbierto ? "text-acento" : "text-texto-tenue"}`}>
+                        <Icono size={18} /> <span className="truncate max-w-full">{n.n}</span>
+                      </button>
+                    );
+                  })}
+                  {resto.length > 0 && (
+                    <button onClick={() => setMasAbierto((v) => !v)} aria-expanded={masAbierto}
+                      className={`${celda} ${masAbierto || enResto ? "text-acento" : "text-texto-tenue"}`}>
+                      <MoreHorizontal size={18} /> Más
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Todas las secciones en una hoja que sube desde la barra, no
+                  solo las que faltan: así cualquiera se encuentra siempre en
+                  el mismo lugar. */}
+              {masAbierto && (
+                <div className="md:hidden fixed inset-0 z-30" onClick={() => setMasAbierto(false)}>
+                  <div className="absolute inset-0 bg-fondo/70 backdrop-blur-[2px]" />
+                  <div onClick={(e) => e.stopPropagation()}
+                    className="absolute left-0 right-0 bottom-0 pb-[calc(56px+env(safe-area-inset-bottom))] bg-superficie border-t border-borde rounded-t-2xl max-h-[80vh] overflow-y-auto">
+                    <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-texto-tenue">Secciones</span>
+                      <button onClick={() => setMasAbierto(false)} aria-label="Cerrar"
+                        className="w-10 h-10 -mr-2 flex items-center justify-center rounded-xl text-texto-suave"><X size={18} /></button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 px-3 pb-3">
+                      {items.map((n) => {
+                        const Icono = iconoDe(n.i);
+                        const aca = estaEn(n);
+                        return (
+                          <button key={n.k} onClick={() => { setMasAbierto(false); ir(n.k); }}
+                            className={`min-w-0 flex flex-col items-center justify-center gap-1.5 px-1 py-3 min-h-[76px] rounded-xl border text-xs font-medium ${
+                              aca ? "border-acento bg-superficie-3 text-texto" : "border-borde text-texto-suave"}`}>
+                            <Icono size={20} className={aca ? "text-acento-vivo" : "text-texto-tenue"} />
+                            <span className="text-center leading-tight line-clamp-2">{n.n}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         <main className="flex-1 min-w-0 p-4 md:p-6 pb-24 md:pb-8">
           <AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} />

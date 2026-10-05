@@ -232,8 +232,11 @@ export function Finanzas({ empresaId, caja, movCaja, abrirCaja, cerrarCaja, ajus
       ) : (
         <>
           {/* ---------- Selector de mes ---------- */}
+          {/* flex-wrap: en el celular el mes y los botones de Ingreso y
+              Gasto no entran en un renglón, y sin bajar corrían la página
+              unos pixeles de costado. */}
           {(pestana === "resumen" || pestana === "movimientos") && (
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1 gap-y-2">
               <button onClick={() => setMes((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
                 className="p-2 rounded-lg border border-borde text-texto-suave hover:bg-superficie-2"><ChevronLeft size={15} /></button>
               <span className="f-d text-base px-2 min-w-[150px]">{mesLargo(mes)}</span>

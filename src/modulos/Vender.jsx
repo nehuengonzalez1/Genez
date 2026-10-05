@@ -1247,14 +1247,17 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const W = ajustes.ancho === 58 ? 32 : 48;
 
   return (
-    <div className="grid lg:grid-cols-[1fr_360px] gap-4 items-start">
+    /* grid-cols-1 en el celular: sin columnas definidas, la grilla tomaba
+       el ancho mínimo de la fila del lector (campo, tres botones y la
+       tecla) y la pantalla de cobro medía 451 px en un teléfono de 375. */
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 items-start">
       <div className="space-y-3">
         <Card className="p-0 overflow-hidden">
           <div className="flex items-center gap-3 px-4 py-3 bg-superficie-3">
             <Barcode size={20} className="text-acento-vivo shrink-0" />
             <input ref={inp} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} onKeyDown={onKeyInput}
               placeholder="Escaneá o escribí el nombre · Enter con el campo vacío cobra"
-              className="f-m flex-1 bg-transparent text-texto placeholder-texto-tenue text-base outline-none py-1" autoFocus />
+              className="f-m flex-1 min-w-0 bg-transparent text-texto placeholder-texto-tenue text-base outline-none py-1" autoFocus />
             <button onClick={() => { setVerTodo((v) => !v); setQ(""); inp.current && inp.current.focus(); }}
               className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold border rounded-xl px-2.5 py-2 ${
                 verTodo ? "text-acento border-acento bg-acento-suave" : "text-texto bg-superficie/10 active:bg-superficie/20 border-borde-fuerte"}`}
