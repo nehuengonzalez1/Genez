@@ -71,7 +71,9 @@ function Mini({ icono: Ico, rotulo, valor, pie, accion, ir, tab }) {
         <span className="w-7 h-7 shrink-0 rounded-lg bg-superficie-2 flex items-center justify-center">
           <Ico size={14} className="text-acento" />
         </span>
-        <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold truncate">{rotulo}</span>
+        {/* En dos renglones si hace falta: con cinco por fila en una
+            notebook, los cinco quedaban cortados con "…" (05/10). */}
+        <span className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold min-w-0 leading-tight">{rotulo}</span>
       </div>
       <div className="f-d text-2xl mt-1.5 tabular-nums text-texto">{valor}</div>
       <div className="text-[11px] text-texto-tenue mt-0.5 leading-snug">{pie}</div>
