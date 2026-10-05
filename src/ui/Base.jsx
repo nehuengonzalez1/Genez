@@ -2,7 +2,7 @@
    4. UI BASE
    ============================================================ */
 
-import React, { useEffect, useRef, useContext, createContext, useCallback } from "react";
+import React, { useEffect, useRef, useState, useContext, createContext, useCallback } from "react";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import QRCode from "qrcode";
 import { armarPdfTicket, imprimirPdf } from "./ticketPdf.js";
@@ -101,11 +101,54 @@ export function Modal({ open, onClose, children, ancho = "max-w-lg" }) {
   );
 }
 
+/* En el celular las pestañas no entran y la fila se desliza. Antes no lo
+   decía nada: "Etiquetas" o "Sin movimiento" quedaban cortadas en el
+   borde, y la barra de scroll (más un cuadrado blanco, porque el -mb-px
+   de la rayita la hacía desbordar también para abajo) era lo único que
+   se veía (04/10). Ahora el lado donde hay más se desvanece, y la
+   pestaña elegida se acomoda a la vista. No se pasan a dos renglones: con
+   la rayita de abajo, el segundo renglón queda flotando. La máscara es la
+   del borde y no un degradé pintado, porque abajo puede haber cualquier
+   superficie. */
 export function Tabs({ items, value, onChange }) {
+  const fila = useRef(null);
+  const [mas, setMas] = useState({ izq: false, der: false });
+  useEffect(() => {
+    const el = fila.current;
+    if (!el) return;
+    const medir = () => setMas({
+      izq: el.scrollLeft > 2,
+      der: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+    });
+    medir();
+    el.addEventListener("scroll", medir, { passive: true });
+    // La fila y no la ventana: el resize de la ventana llega antes de que
+    // la fila se acomode, y quedaba el degradé con todo entrando.
+    const obs = typeof ResizeObserver !== "undefined" ? new ResizeObserver(medir) : null;
+    if (obs) obs.observe(el);
+    return () => { el.removeEventListener("scroll", medir); if (obs) obs.disconnect(); };
+  }, [items.length]);
+  useEffect(() => {
+    const el = fila.current;
+    const b = el && el.querySelector('[aria-selected="true"]');
+    if (!b || el.scrollWidth <= el.clientWidth) return;
+    // Entera y fuera de lo que se desvanece; centrada no: la última quedaba
+    // a pocos pixeles del final, todavía bajo el degradé.
+    const margen = 40;
+    const desde = b.offsetLeft - margen;
+    const hasta = b.offsetLeft + b.offsetWidth + margen - el.clientWidth;
+    if (el.scrollLeft > desde) el.scrollTo({ left: desde, behavior: "smooth" });
+    else if (el.scrollLeft < hasta) el.scrollTo({ left: hasta, behavior: "smooth" });
+  }, [value]);
+  const mascara = mas.izq || mas.der
+    ? `linear-gradient(to right, ${mas.izq ? "transparent, black 36px" : "black"}, ${mas.der ? "black calc(100% - 36px), transparent" : "black"})`
+    : undefined;
   return (
-    <div className="flex gap-1 border-b border-borde overflow-x-auto">
+    <div ref={fila} role="tablist"
+      style={mascara ? { maskImage: mascara, WebkitMaskImage: mascara } : undefined}
+      className="relative flex gap-1 border-b border-borde overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {items.map((it) => (
-        <button key={it.k} onClick={() => onChange(it.k)}
+        <button key={it.k} onClick={() => onChange(it.k)} role="tab" aria-selected={value === it.k}
           className={`px-3 py-2 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${value === it.k ? "border-acento text-texto" : "border-transparent text-texto-tenue hover:text-texto"}`}>
           {it.n}{it.badge != null && <span className="ml-1.5 text-[10px] bg-superficie-2 text-texto-suave rounded-full px-1.5 py-0.5">{it.badge}</span>}
         </button>
