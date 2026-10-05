@@ -6,7 +6,7 @@ import React from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { ArrowRight, Truck, Wallet, Barcode } from "lucide-react";
 import { fdatel } from "../datos/generador.js";
-import { money, moneyk, pct, nf } from "../utils/helpers.js";
+import { money, moneyk, pct, nf, pl } from "../utils/helpers.js";
 import { Card, Kpi, Boton, SEV } from "../ui/Base.jsx";
 import { InicioServicios } from "./InicioServicios.jsx";
 
@@ -23,6 +23,7 @@ export function Inicio(props) {
 function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar }) {
   const serie = k.diario.slice(-30).map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
   const ganHoy = ventasHoy * k.margen30;
+  const urgentes = ins.filter((i) => i.sev === "alta").length;
   return (
     <div className="space-y-5">
       <div className="bg-superficie-3 text-texto rounded-2xl p-6 md:p-8 relative overflow-hidden">
@@ -33,12 +34,12 @@ function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar })
           </div>
           <h1 className="f-d text-2xl md:text-4xl leading-tight mt-3 max-w-3xl">
             Hoy llevás <span className="text-acento-vivo tabular-nums">{money(ventasHoy)}</span> en{" "}
-            <span className="tabular-nums">{ticketsHoy}</span> tickets.
+            <span className="tabular-nums">{ticketsHoy}</span> {pl(ticketsHoy, "ticket", "tickets")}.
             <br className="hidden md:block" /> Te queda aproximadamente{" "}
             <span className="text-bien tabular-nums">{money(ganHoy)}</span> de ganancia bruta.
           </h1>
           <p className="text-texto-tenue text-sm mt-3 max-w-2xl">
-            Tenés {ins.filter((i) => i.sev === "alta").length} cosas urgentes y {ins.filter((i) => i.sev === "media").length} para
+            Tenés {urgentes} {pl(urgentes, "cosa urgente", "cosas urgentes")} y {ins.filter((i) => i.sev === "media").length} para
             mirar esta semana. Están abajo, en orden.
           </p>
           <div className="flex flex-wrap gap-2 mt-5">
