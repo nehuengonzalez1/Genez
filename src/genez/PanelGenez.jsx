@@ -8,7 +8,7 @@ import {
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft,
   ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
-  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X
+  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X, ShieldCheck, UserCog
 } from "lucide-react";
 import { MarcoEntrada, CabezaEntrada, PieEntrada, CampoEntrada } from "./Entrada.jsx";
 import { uid, fdatel } from "../datos/generador.js";
@@ -781,6 +781,9 @@ const ICONOS = {
   cubiertos: UtensilsCrossed, cocina: ChefHat, agenda: CalendarDays,
   barcode: Barcode, bolsa: ShoppingBag, corazon: Heart, mensaje: MessageSquare,
   presupuesto: FileText, cuaderno: NotebookPen,
+  // El menú los usa desde 0031 (equipo) y 0045 (escudo) y no estaban acá:
+  // Equipo y Permisos caían los dos en la tienda y se veían iguales.
+  escudo: ShieldCheck, equipo: UserCog,
 };
 const iconoDe = (n) => ICONOS[n] || Store;
 
