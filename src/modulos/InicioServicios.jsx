@@ -155,11 +155,13 @@ export function InicioServicios({ datos, cargando, ir, negocio, sucursal, usuari
           </h1>
           <p className="text-sm text-texto-suave mt-1">{diaLargo(new Date())}</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Puede bajar de renglón: con shrink-0, en el celular el lugar y el
+            botón medían 424 px y la pantalla entera se corría de costado. */}
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           {/* Contextual y no un selector: multi sucursal todavía no existe,
               y un desplegable que no hace nada es peor que un texto. */}
-          <span className="inline-flex items-center gap-1.5 text-sm text-texto-suave border border-borde rounded-xl px-3 py-2">
-            <MapPin size={14} className="text-texto-tenue" /> {sucursal || negocio}
+          <span className="inline-flex items-center gap-1.5 text-sm text-texto-suave border border-borde rounded-xl px-3 py-2 min-w-0 max-w-full">
+            <MapPin size={14} className="text-texto-tenue shrink-0" /> <span className="truncate">{sucursal || negocio}</span>
           </span>
           <div className="relative">
             <Boton onClick={() => setAbierto((v) => !v)}>
