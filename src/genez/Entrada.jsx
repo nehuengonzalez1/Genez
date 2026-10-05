@@ -21,9 +21,12 @@
    - La tarjeta va centrada en la zona blanca y lleva `.tema-claro`:
      blanca aunque el sistema esté en oscuro, sin colores a mano.
    - En el celular el panel no entra: el texto va arriba y la tarjeta
-     abajo, sobre el fondo del tema.
+     abajo, sobre el mismo negro.
 
-   La versión clara de la pantalla viene después. */
+   Una sola versión (Nehuen, 04/10): no hay versión clara. Todo lo de
+   esta pantalla usa colores fijos (el SVG, `--telon`, `--sobre-panel`, y
+   la tarjeta con `.tema-claro`), así se ve igual con el sistema en claro
+   o en oscuro. */
 
 import React from "react";
 import { BarChart3, Clock, TrendingUp } from "lucide-react";
@@ -341,7 +344,7 @@ function TextoPanel() {
 
 export function MarcoEntrada({ children }) {
   return (
-    <div className="relative min-h-screen bg-fondo text-texto overflow-hidden">
+    <div className="relative min-h-screen bg-telon text-sobre-panel overflow-hidden">
       <Fondo />
       <MarcaG />
       <TextoPanel />
@@ -353,7 +356,7 @@ export function MarcoEntrada({ children }) {
             Tu negocio<br /><span className="text-acento">Bajo control.</span>
           </h1>
           <span className="block w-12 h-0.5 bg-acento mt-5" aria-hidden="true" />
-          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs uppercase tracking-[0.18em] text-texto-suave">
+          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs uppercase tracking-[0.18em] text-sobre-panel-suave">
             {PUNTOS.map(({ iconoChico: I, texto }) => (
               <li key={texto} className="flex items-center gap-2"><I size={15} className="text-acento" /> {texto}</li>
             ))}
