@@ -43,6 +43,10 @@ export const moneyk = (v) => {
   return "$" + Math.round(v || 0);
 };
 export const pct = (v, dec = 1) => (v * 100).toFixed(dec).replace(".", ",") + "%";
+/* Singular o plural según la cantidad: pl(n, "vence", "vencen"). Para las
+   frases donde además del sustantivo cambia el verbo, que con el
+   `n === 1 ? "" : "s"` de siempre quedaban "1 productos se te acaban". */
+export const pl = (n, uno, varios) => (n === 1 ? uno : varios);
 
 /* La hora, siempre de 24. Pedirle "es-AR" al navegador devuelve
    "06:15 p. m.": son cuatro caracteres de más en cada renglón de una

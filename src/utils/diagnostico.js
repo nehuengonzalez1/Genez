@@ -3,7 +3,7 @@
    ============================================================ */
 
 import { TrendingDown, TrendingUp, AlertTriangle, Boxes, Clock, Percent } from "lucide-react";
-import { pct, money, nf, faltantesProducto, diasHasta } from "./helpers.js";
+import { pct, money, nf, pl, faltantesProducto, diasHasta } from "./helpers.js";
 
 export function calcular(productos, diario, coberturaDias) {
   const ult30 = diario.slice(-30);
@@ -109,18 +109,24 @@ export function insights(k) {
       id: "margen", sev: "alta", tab: "reportes", icon: TrendingDown,
       titulo: `Tu margen bajó ${(caidaMargen * 100).toFixed(1).replace(".", ",")} puntos en 30 días`,
       que: `Pasaste de ${pct(k.margen30p)} a ${pct(k.margen30)} de margen bruto. Sobre ${money(k.v30)} de venta, son ${money(k.impactoTotal)} menos de ganancia por mes.`,
-      porque: `${k.subas.length} productos aumentaron de costo y los seguís vendiendo al precio viejo. Los ${top.length} más pesados explican el ${pct(share, 0)} de la caída, empezando por ${top[0].p.nombre}: ${pct(top[0].subaPct, 0)} más caro, de ${pct(top[0].margenAntes, 0)} a ${pct(top[0].margenHoy, 0)} de margen.`,
-      hacer: `Corregí el precio de esos ${top.length} primero: son ${money(top.reduce((s, x) => s + x.impacto, 0))} al mes. El sistema te sugiere el precio que recupera el margen que tenías.`,
+      porque: `${k.subas.length} ${pl(k.subas.length, "producto aumentó de costo y lo seguís", "productos aumentaron de costo y los seguís")} vendiendo al precio viejo. ${top.length === 1
+        ? `Es ${top[0].p.nombre}`
+        : `Los ${top.length} más pesados explican el ${pct(share, 0)} de la caída, empezando por ${top[0].p.nombre}`}: ${pct(top[0].subaPct, 0)} más caro, de ${pct(top[0].margenAntes, 0)} a ${pct(top[0].margenHoy, 0)} de margen.`,
+      hacer: `Corregí ${pl(top.length, "ese precio", `el precio de esos ${top.length}`)} primero: son ${money(top.reduce((s, x) => s + x.impacto, 0))} al mes. El sistema te sugiere el precio que recupera el margen que tenías.`,
       accion: "Ver productos que perdieron margen",
     });
   }
   if (k.criticos.length) {
     const urg = k.criticos.filter((x) => x.cobertura < 4);
+    const otros = k.criticos.length - urg.length;
     out.push({
       id: "quiebre", sev: urg.length > 12 ? "alta" : "media", tab: "compras", icon: AlertTriangle,
-      titulo: `${urg.length} productos se te acaban esta semana`,
-      que: `${urg.length} artículos que vendés todos los días tienen menos de 4 días de stock. Otros ${k.criticos.length - urg.length} están cerca del mínimo.`,
-      porque: `Los de mayor rotación: ${urg.slice(0, 3).map((x) => x.p.nombre).join(", ")}.`,
+      titulo: `${urg.length} ${pl(urg.length, "producto se te acaba", "productos se te acaban")} esta semana`,
+      que: `${urg.length} ${pl(urg.length, "artículo que vendés todos los días tiene", "artículos que vendés todos los días tienen")} menos de 4 días de stock.${
+        otros ? ` ${pl(otros, "Otro está", `Otros ${otros} están`)} cerca del mínimo.` : ""}`,
+      porque: urg.length === 1
+        ? `Es ${urg[0].p.nombre}.`
+        : `Los de mayor rotación: ${urg.slice(0, 3).map((x) => x.p.nombre).join(", ")}.`,
       hacer: `Tenés un pedido sugerido armado por proveedor. Confirmalo antes del próximo reparto.`,
       accion: "Ir al pedido sugerido",
     });
@@ -129,29 +135,37 @@ export function insights(k) {
     out.push({
       id: "dormido", sev: "media", tab: "stock", icon: Boxes,
       titulo: `${money(k.valorDormido)} parados en mercadería que no se vende`,
-      que: `${k.dormidos.length} productos no tuvieron ni una venta en 30 días y siguen ocupando góndola y plata.`,
-      porque: `El más pesado es ${k.dormidos[0].p.nombre}: ${nf.format(k.dormidos[0].p.stock)} unidades por ${money(k.dormidos[0].valor)}.`,
-      hacer: `Liquidalos con descuento o dejá de reponerlos. Es el ${pct(k.valorDormido / k.valorStock, 0)} de tu inventario.`,
+      que: `${k.dormidos.length} ${pl(k.dormidos.length, "producto no tuvo ni una venta en 30 días y sigue", "productos no tuvieron ni una venta en 30 días y siguen")} ocupando góndola y plata.`,
+      porque: `${pl(k.dormidos.length, "Es", "El más pesado es")} ${k.dormidos[0].p.nombre}: ${nf.format(k.dormidos[0].p.stock)} unidades por ${money(k.dormidos[0].valor)}.`,
+      hacer: `${pl(k.dormidos.length, "Liquidalo con descuento o dejá de reponerlo", "Liquidalos con descuento o dejá de reponerlos")}. Es el ${pct(k.valorDormido / k.valorStock, 0)} de tu inventario.`,
       accion: "Ver productos sin movimiento",
     });
   }
   if (k.porVencer.length) {
     out.push({
       id: "vencer", sev: k.porVencer.some((x) => x.dias <= 0) ? "alta" : "media", tab: "stock", icon: Clock,
-      titulo: `${k.porVencer.length} productos vencen en menos de 15 días`,
+      titulo: `${k.porVencer.length} ${pl(k.porVencer.length, "producto vence", "productos vencen")} en menos de 15 días`,
       que: `Hay ${money(k.valorVencer)} en mercadería con fecha próxima.`,
-      porque: `${k.porVencer.filter((x) => x.dias <= 0).length} ya están vencidos y ${k.porVencer.filter((x) => x.dias > 0 && x.dias <= 7).length} vencen dentro de la semana.`,
-      hacer: `Adelantalos en góndola o armá una promo. Si vencen, la pérdida es total.`,
+      porque: (() => {
+        const ya = k.porVencer.filter((x) => x.dias <= 0).length;
+        const semana = k.porVencer.filter((x) => x.dias > 0 && x.dias <= 7).length;
+        return `${ya} ${pl(ya, "ya está vencido", "ya están vencidos")} y ${semana} ${pl(semana, "vence", "vencen")} dentro de la semana.`;
+      })(),
+      hacer: pl(k.porVencer.length,
+        `Adelantalo en góndola o armá una promo. Si vence, la pérdida es total.`,
+        `Adelantalos en góndola o armá una promo. Si vencen, la pérdida es total.`),
       accion: "Ver vencimientos",
     });
   }
   if (k.margenFlaco.length) {
     out.push({
       id: "flaco", sev: "info", tab: "productos", icon: Percent,
-      titulo: `${k.margenFlaco.length} productos venden mucho y dejan poco`,
-      que: `Mueven ${money(k.margenFlaco.reduce((s, x) => s + x.vol, 0))} al mes con menos de 15% de margen.`,
-      porque: `Encabeza ${k.margenFlaco[0].p.nombre}, con ${pct(k.margenFlaco[0].m)} de margen.`,
-      hacer: `No siempre conviene tocarles el precio: algunos traen gente al local. Pero conocé cuáles son.`,
+      titulo: `${k.margenFlaco.length} ${pl(k.margenFlaco.length, "producto vende mucho y deja poco", "productos venden mucho y dejan poco")}`,
+      que: `${pl(k.margenFlaco.length, "Mueve", "Mueven")} ${money(k.margenFlaco.reduce((s, x) => s + x.vol, 0))} al mes con menos de 15% de margen.`,
+      porque: `${pl(k.margenFlaco.length, "Es", "Encabeza")} ${k.margenFlaco[0].p.nombre}, con ${pct(k.margenFlaco[0].m)} de margen.`,
+      hacer: pl(k.margenFlaco.length,
+        `No siempre conviene tocarle el precio: puede ser lo que trae gente al local. Pero tenelo presente.`,
+        `No siempre conviene tocarles el precio: algunos traen gente al local. Pero conocé cuáles son.`),
       accion: "Ver listado",
     });
   }
@@ -162,12 +176,12 @@ export function insights(k) {
     const top = Object.entries(campos).sort((a, b) => b[1] - a[1]).slice(0, 3);
     out.push({
       id: "incompletos", sev: sinPrecio.length ? "alta" : "media", tab: "productos", icon: AlertTriangle,
-      titulo: `${k.incompletos.length} fichas de producto quedaron incompletas`,
+      titulo: `${k.incompletos.length} ${pl(k.incompletos.length, "ficha de producto quedó incompleta", "fichas de producto quedaron incompletas")}`,
       que: sinPrecio.length
-        ? `${sinPrecio.length} no tienen precio de venta cargado: no se pueden cobrar hasta que los completes.`
-        : `Se pueden vender, pero les falta información para que los reportes salgan bien.`,
+        ? `${sinPrecio.length} ${pl(sinPrecio.length, "no tiene precio de venta cargado: no se puede cobrar hasta que lo completes", "no tienen precio de venta cargado: no se pueden cobrar hasta que los completes")}.`
+        : `${pl(k.incompletos.length, "Se puede vender, pero le falta", "Se pueden vender, pero les falta")} información para que los reportes salgan bien.`,
       porque: `Lo que más falta: ${top.map(([f, n]) => `${f} (${n})`).join(", ")}. Suele pasar con lo que se dio de alta rápido al recibir un remito.`,
-      hacer: `Completalas desde Productos, con el filtro "Incompletos".`,
+      hacer: `${pl(k.incompletos.length, "Completala", "Completalas")} desde Productos, con el filtro "Incompletos".`,
       accion: "Completar fichas",
     });
   }
@@ -176,7 +190,7 @@ export function insights(k) {
   out.push({
     id: "ticket", sev: "info", tab: "reportes", icon: dt >= 0 ? TrendingUp : TrendingDown,
     titulo: `Ticket promedio ${money(k.ticketProm)} (${dt >= 0 ? "+" : ""}${pct(dt)} vs. mes anterior)`,
-    que: `${nf.format(k.tickets30)} tickets en 30 días por ${money(k.v30)}.`,
+    que: `${nf.format(k.tickets30)} ${pl(k.tickets30, "ticket", "tickets")} en 30 días por ${money(k.v30)}.`,
     porque: dt >= 0 ? `Cada cliente se está llevando un poco más que el mes pasado.` : `Cada cliente se está llevando menos que el mes pasado.`,
     hacer: `Probá combos en caja con los productos de mayor margen.`,
     accion: "Ver reporte de ventas",
