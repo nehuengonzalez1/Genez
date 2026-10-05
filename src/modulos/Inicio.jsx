@@ -55,7 +55,12 @@ function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar })
             variación: dividir por cero daba "Infinity%". */}
         <Kpi label="Ventas 30 días" valor={money(k.ventas30)}
           delta={k.ventas30p > 0 ? k.ventas30 / k.ventas30p - 1 : null} sub={k.ventas30p > 0 ? "vs. 30 previos" : "sin mes anterior para comparar"} />
-        <Kpi label="Margen bruto" valor={pct(k.margen30)} delta={k.v30p > 0 ? k.margen30 - k.margen30p : null} tono={k.margen30 >= k.margen30p ? "bien" : "mal"} sub={k.v30p > 0 ? "vs. mes anterior" : undefined} />
+        {/* "A valores de hoy" y no "bruto": se calcula con el precio y el
+            costo de hoy de cada producto, por lo vendido en 30 días
+            (calcular, en diagnostico.js). Informes da el margen real, con
+            el costo guardado en cada venta, y con el mismo nombre eran dos
+            números distintos para lo mismo (05/10). */}
+        <Kpi label="Margen a valores de hoy" valor={pct(k.margen30)} delta={k.v30p > 0 ? k.margen30 - k.margen30p : null} tono={k.margen30 >= k.margen30p ? "bien" : "mal"} sub={k.v30p > 0 ? "vs. mes anterior" : undefined} />
         <Kpi label="Ticket promedio" valor={money(k.ticketProm)} delta={k.ticketPromP > 0 ? k.ticketProm / k.ticketPromP - 1 : null} />
         <Kpi label="Valor del stock" valor={moneyk(k.valorStock)} sub={`${nf.format(k.dormidos.length)} sin rotar`} />
       </div>
