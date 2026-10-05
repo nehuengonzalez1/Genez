@@ -1982,7 +1982,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {accion && accion.destacada && (
             <Boton className="w-full mt-2" size="lg" onClick={cobrar_}>
               <IconoAccion size={17} /> {rotuloVender}
-              <kbd className="f-m text-[10px] border border-borde-fuerte rounded px-1 py-0.5">F10</kbd>
+              <kbd className="solo-teclado f-m text-[10px] border border-borde-fuerte rounded px-1 py-0.5">F10</kbd>
             </Boton>
           )}
           {/* Sin destacar queda como un renglón más, arriba del menú: se
@@ -1992,7 +1992,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             <button onClick={cobrar_}
               className="w-full mt-3 flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium text-texto-suave hover:bg-superficie-2 transition-colors">
               <IconoAccion size={16} className="text-texto-tenue" /> {rotuloVender}
-              <kbd className="f-m text-[10px] border border-borde rounded px-1 py-0.5 ml-auto text-texto-tenue">F10</kbd>
+              <kbd className="solo-teclado f-m text-[10px] border border-borde rounded px-1 py-0.5 ml-auto text-texto-tenue">F10</kbd>
             </button>
           )}
           {/* Un grupo sin nombre se dibuja como lista pelada: así se ve el

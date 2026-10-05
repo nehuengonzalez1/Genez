@@ -172,7 +172,7 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
           Crear sin precio y seguir
         </Boton>
         <p className="text-[11px] text-texto-tenue mt-3 text-center">
-          Va a quedar marcado como ficha incompleta en el Panel. <Tecla>Esc</Tecla> cancela.
+          Va a quedar marcado como ficha incompleta en el Panel.<span className="solo-teclado"> <Tecla>Esc</Tecla> cancela.</span>
         </p>
       </div>
     </Overlay>
@@ -517,7 +517,7 @@ function PedirImporte({ pedido, onClose, onConfirmar }) {
           className="w-full border border-borde rounded-xl px-3 py-3 mt-3 f-m text-right text-2xl outline-none focus:border-acento" />
         <div className="f-m text-right text-sm text-texto-tenue mt-1 h-5">{importe > 0 ? money(importe) : ""}</div>
         <Boton className="w-full mt-3" disabled={importe <= 0} onClick={confirmar}>Agregar</Boton>
-        <button onClick={onClose} className="w-full mt-2 text-xs text-texto-tenue hover:text-texto py-1">Cancelar · Esc</button>
+        <button onClick={onClose} className="w-full mt-2 text-xs text-texto-tenue hover:text-texto py-1">Cancelar<span className="solo-teclado"> · Esc</span></button>
       </div>
     </Modal>
   );
@@ -533,7 +533,7 @@ export function Overlay({ children, ancho = "max-w-xl" }) {
 }
 
 export function Tecla({ children }) {
-  return <kbd className="f-m text-[10px] border border-borde-fuerte rounded px-1.5 py-0.5 bg-superficie text-texto-suave">{children}</kbd>;
+  return <kbd className="solo-teclado f-m text-[10px] border border-borde-fuerte rounded px-1.5 py-0.5 bg-superficie text-texto-suave">{children}</kbd>;
 }
 
 /* El descuento de la venta: un porcentaje o un importe en pesos. Los
@@ -1417,7 +1417,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           </p>
         )}
 
-        <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+        <div className="solo-teclado hidden md:flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
           {ATAJOS.filter(([t]) => (t !== "F4" || permisos.descuentos) && (t !== "F8" || permisos.anular)).map(([t, n]) => (
             <span key={t} className="flex items-center gap-1.5 text-[11px] text-texto-tenue"><Tecla>{t}</Tecla> {n}</span>
           ))}
@@ -1523,7 +1523,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Total a cobrar · {cart.length} productos</div>
               <div className="f-d text-4xl mt-0.5">{money(total)}</div>
             </div>
-            <div className="text-right text-xs text-texto-tenue"><Tecla>Esc</Tecla> volver</div>
+            <div className="solo-teclado text-right text-xs text-texto-tenue"><Tecla>Esc</Tecla> volver</div>
           </div>
           <div className="p-4">
             <div className="flex items-center justify-between gap-3 mb-3">
@@ -1627,7 +1627,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               <span className="font-semibold flex-1">Pago combinado</span>
               <span className="text-xs text-texto-tenue">parte en efectivo y parte con tarjeta</span>
             </button>
-            <p className="text-xs text-texto-tenue mt-3 flex items-center gap-2">
+            <p className="solo-teclado text-xs text-texto-tenue mt-3 flex items-center gap-2">
               <Tecla>↑</Tecla><Tecla>↓</Tecla> elegir · <Tecla>Enter</Tecla> confirmar · <Tecla>1</Tecla>–<Tecla>6</Tecla> atajo directo
             </p>
           </div>
@@ -1682,7 +1682,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               </div>
             )}
             <div className="flex items-center justify-between mt-4">
-              <span className="text-xs text-texto-tenue"><Tecla>Esc</Tecla> cambiar medio</span>
+              <span className="solo-teclado text-xs text-texto-tenue"><Tecla>Esc</Tecla> cambiar medio</span>
               <Boton size="lg" onClick={() => { if (recibe && Number(recibe) < totalFinal) return toast("El importe recibido es menor al total.", "mal"); finalizar("efectivo", recibe ? Number(recibe) : null); }}>
                 Confirmar cobro <Tecla>Enter</Tecla>
               </Boton>
@@ -1701,7 +1701,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               </div>
               <div className={`f-d text-4xl mt-0.5 ${falta > 0 ? "text-acento-vivo" : "text-bien"}`}>{money(falta > 0 ? falta : total)}</div>
             </div>
-            <div className="text-right text-xs text-texto-tenue">de {money(total)}<br /><Tecla>Esc</Tecla> volver</div>
+            <div className="text-right text-xs text-texto-tenue">de {money(total)}<span className="solo-teclado"><br /><Tecla>Esc</Tecla> volver</span></div>
           </div>
 
           <div className="p-5">
@@ -1735,7 +1735,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                   placeholder={`${money(falta)} (todo lo que falta)`}
                   className="f-m w-full text-right text-2xl border-2 border-borde rounded-xl px-4 py-2.5 mt-1 outline-none focus:border-acento" />
                 <p className="text-xs text-texto-tenue mt-2 flex items-center gap-1.5 flex-wrap">
-                  <Tecla>↑</Tecla><Tecla>↓</Tecla> medio · <Tecla>Enter</Tecla> agregar · <Tecla>Supr</Tecla> borrar el último ·
+                  <span className="solo-teclado"><Tecla>↑</Tecla><Tecla>↓</Tecla> medio · <Tecla>Enter</Tecla> agregar · <Tecla>Supr</Tecla> borrar el último · </span>
                   vacío toma {money(falta)}
                 </p>
                 <Boton size="lg" className="w-full mt-3" onClick={agregarPago}>

@@ -336,3 +336,12 @@ html { background-color: rgb(var(--fondo)); }
 
 .tema-claro .logo-tema-claro { display: block; }
 .tema-claro .logo-tema-oscuro { display: none; }
+
+/* Los atajos de teclado (F2, Esc, Enter, 1–6) solo donde hay teclado. En
+   un celular o una tablet ocupaban lugar y no servían para nada (04/10).
+   Por el puntero y no por el ancho: una caja con monitor angosto sigue
+   teniendo teclado, y una tablet ancha no. El !important es porque estos
+   elementos traen su propio display (inline-flex, md:flex). */
+@media (hover: none) and (pointer: coarse) {
+  .solo-teclado { display: none !important; }
+}
