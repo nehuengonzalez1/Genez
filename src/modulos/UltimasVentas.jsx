@@ -123,7 +123,7 @@ export function UltimasVentas({ empresaId, ajustes, toast, onCerrar, caja = null
           ) : ventas.map((v, i) => (
             <li key={v.id} className="flex items-center gap-3">
               <button onClick={() => setAbierta(v)} className="flex-1 min-w-0 flex items-center gap-3 py-3 text-left hover:bg-superficie-2 -ml-2 pl-2 rounded-md">
-                <kbd className="f-m text-[11px] w-6 h-6 shrink-0 inline-flex items-center justify-center rounded border border-borde text-texto-suave">{i + 1}</kbd>
+                <kbd className="solo-teclado f-m text-[11px] w-6 h-6 shrink-0 inline-flex items-center justify-center rounded border border-borde text-texto-suave">{i + 1}</kbd>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                     <span className="f-m text-texto-suave">{esHoy(v.fecha) ? hora(v.fecha) : `${fdatel(v.fecha)} ${hora(v.fecha)}`}</span>
@@ -143,7 +143,7 @@ export function UltimasVentas({ empresaId, ajustes, toast, onCerrar, caja = null
           ))}
         </ul>
 
-        <p className="text-xs text-texto-tenue mt-3">
+        <p className="solo-teclado text-xs text-texto-tenue mt-3">
           <kbd className="f-m">1</kbd>–<kbd className="f-m">{CUANTAS}</kbd> imprime · <kbd className="f-m">Esc</kbd> cierra
         </p>
       </div>
