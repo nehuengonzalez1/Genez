@@ -816,6 +816,247 @@ function Precio({ pre, calculando }) {
   );
 }
 
+/* Comercio se vende por lo que hace y no por módulos (05/10): así lo
+   muestran Ventario, Vendi, Cobrando y Kubo, y "Cuenta corriente" o
+   "Permisos" no le dicen nada a quien atiende un almacén. Precios fijos,
+   congelados por 6 meses; el anual es 10 meses (2 de regalo). Empresa es
+   a medida. ARCA solo desde Pro, un usuario en Simple, productos sin
+   tope en todos. Gastronomía y Servicios, igual: ver más abajo.
+
+   Cada renglón tiene que ser algo que el sistema ya hace, salvo lo
+   marcado `pronto`. */
+const PLANES_COMERCIO = [
+  {
+    k: "start", n: "Simple", precio: 29900, tono: "verde", etiqueta: "Ideal para empezar",
+    subtitulo: "Para el kiosco o el almacén que atiende una persona.",
+    boton: "Empezar con Simple",
+    items: [
+      [ScanBarcode, "Punto de venta con lector y ticketera"],
+      [Boxes, "Control de stock y vencimientos"],
+      [Wallet, "Caja diaria con arqueo y cierre"],
+      [BookOpen, "Fiado y cuenta corriente"],
+      [Tag, "Listas de precios y promociones (2x1, 3x2, %)"],
+      [Percent, "Cambio de precios masivo y etiquetas de góndola"],
+      [ClipboardList, "Carga por Excel y 79 mil productos precargados"],
+      [WifiOff, "Funciona sin internet"],
+      [BarChart3, "Reportes de ventas y margen"],
+      [MessageCircle, "Respuestas al toque: por qué bajó tu ganancia, qué comprar", true],
+      [UserRound, "1 usuario · productos ilimitados"],
+    ],
+  },
+  {
+    k: "pro", n: "Pro", precio: 59900, tono: "naranja", etiqueta: "Más elegido",
+    subtitulo: "Para el minimercado con empleados que quiere crecer.",
+    boton: "Empezar con Pro", todo: "Simple",
+    items: [
+      [FileText, "Factura electrónica ARCA (A, B y C)"],
+      [Truck, "Compras y proveedores, con el remito por foto (30 por mes)"],
+      [Sparkles, "Asistente con IA: preguntale lo que quieras (150 por mes)"],
+      [ShoppingCart, "Te dice qué comprar antes de que falte"],
+      [TrendingDown, "Te avisa si te subieron un costo o perdés margen"],
+      [Users, "Multiusuario, con roles y permisos"],
+      [Network, "Multisucursal y varias cajas"],
+      [QrCode, "Cobro con QR de Mercado Pago"],
+      [ClipboardList, "Pedidos para preparar o enviar"],
+      [Landmark, "Planillas para tu contador"],
+      [Globe, "Tienda online", true],
+    ],
+  },
+  {
+    k: "empresa", n: "Empresa", precio: null, tono: "azul", etiqueta: "Para cadenas",
+    subtitulo: "Para cadenas y franquicias, armado con vos.",
+    boton: "Hablar con nosotros", todo: "Pro",
+    items: [
+      [Sparkles, "Asistente con IA (1.000 por mes) y remitos por foto (200 por mes)"],
+      [UserCog, "Equipo: horarios y liquidaciones"],
+      [Smartphone, "App propia con tu marca y tu dominio"],
+      [Puzzle, "Automatizaciones e integraciones a medida"],
+      [HeartHandshake, "Te acompañamos a arrancar"],
+      [Headphones, "Soporte prioritario por WhatsApp"],
+    ],
+  },
+];
+/* Gastronomía y Servicios con el mismo formato que Comercio (05/10, para
+   ver cómo queda): mismos precios, ARCA desde Pro, un usuario en Simple,
+   varios usuarios y sucursales en Pro, Empresa a medida. Lo que se nombra
+   existe; lo que no, va como `pronto`. */
+const EMPRESA_A_MEDIDA = (subtitulo, propios) => ({
+  k: "empresa", n: "Empresa", precio: null, tono: "azul", etiqueta: "Para cadenas",
+  subtitulo, boton: "Hablar con nosotros", todo: "Pro",
+  items: [
+    ...propios,
+    [Smartphone, "App propia con tu marca y tu dominio"],
+    [Puzzle, "Automatizaciones e integraciones a medida"],
+    [HeartHandshake, "Te acompañamos a arrancar"],
+    [Headphones, "Soporte prioritario por WhatsApp"],
+  ],
+});
+
+const PLANES_GASTRONOMIA = [
+  {
+    k: "start", n: "Simple", precio: 29900, tono: "verde", etiqueta: "Ideal para empezar",
+    subtitulo: "Para el café, la rotisería o el take away que atiende una persona.",
+    boton: "Empezar con Simple",
+    items: [
+      [Coffee, "Mostrador y take away con ticketera"],
+      [ChefHat, "Comandas a cocina y barra, impresas o en pantalla"],
+      [BookOpen, "Tu carta por categorías, con happy hour"],
+      [Tag, "Promociones (2x1, 3x2, %)"],
+      [Wallet, "Caja diaria con arqueo y cierre"],
+      [WifiOff, "Funciona sin internet"],
+      [BarChart3, "Reportes de ventas por día y por producto"],
+      [MessageCircle, "Respuestas al toque: por qué bajó tu ganancia, qué comprar", true],
+      [UserRound, "1 usuario · productos ilimitados"],
+    ],
+  },
+  {
+    k: "pro", n: "Pro", precio: 59900, tono: "naranja", etiqueta: "Más elegido",
+    subtitulo: "Para el bar o el restaurante con salón y equipo.",
+    boton: "Empezar con Pro", todo: "Simple",
+    items: [
+      [FileText, "Factura electrónica ARCA (A, B y C)"],
+      [UtensilsCrossed, "Salón con plano de mesas: juntar, separar y dividir la cuenta"],
+      [CalendarDays, "Reservas de mesas"],
+      [QrCode, "Carta QR en cada mesa"],
+      [ShoppingBag, "Centro de pedidos: delivery y take away"],
+      [Coins, "Costo por receta y margen de cada plato"],
+      [Sparkles, "Asistente con IA: preguntale lo que quieras (150 por mes)"],
+      [Boxes, "Stock de insumos y compras a proveedores"],
+      [Users, "Multiusuario: mozos y cajeros, cada uno con su rol"],
+      [Network, "Multisucursal y varias cajas"],
+      [Smartphone, "Cobro con QR de Mercado Pago"],
+      [Landmark, "Planillas para tu contador"],
+      [Globe, "Pedidos online desde tu carta", true],
+    ],
+  },
+  EMPRESA_A_MEDIDA("Para cadenas y franquicias gastronómicas, armado con vos.", [
+    [Sparkles, "Asistente con IA (1.000 por mes) y remitos por foto (200 por mes)"],
+    [UserCog, "Equipo: horarios y liquidaciones"],
+  ]),
+];
+
+const PLANES_SERVICIOS = [
+  {
+    k: "start", n: "Simple", precio: 29900, tono: "verde", etiqueta: "Ideal para empezar",
+    subtitulo: "Para el profesional o el estudio que atiende solo.",
+    boton: "Empezar con Simple",
+    items: [
+      [CalendarDays, "Agenda de turnos y clases"],
+      [ClipboardList, "Servicios, salas y profesionales"],
+      [BookOpen, "Ficha de cada cliente con su historial"],
+      [Wallet, "Cobro y caja diaria"],
+      [BarChart3, "Informes de ingresos, ocupación y asistencia"],
+      [WifiOff, "Funciona sin internet"],
+      [UserRound, "1 usuario · clientes ilimitados"],
+    ],
+  },
+  {
+    k: "pro", n: "Pro", precio: 59900, tono: "naranja", etiqueta: "Más elegido",
+    subtitulo: "Para el centro, el gimnasio o el consultorio con equipo.",
+    boton: "Empezar con Pro", todo: "Simple",
+    items: [
+      [FileText, "Factura electrónica ARCA (A, B y C)"],
+      [Ticket, "Abonos, packs y planes"],
+      [Smartphone, "App para tus clientes con tu marca: reservan y ven su plan"],
+      [BellRing, "Recordatorios de turno por WhatsApp, listos para enviar"],
+      [Zap, "Lista de espera y huecos libres para vender"],
+      [Users, "Multiusuario: cada profesional con su rol"],
+      [Network, "Multisucursal"],
+      [QrCode, "Cobro con QR de Mercado Pago"],
+      [Landmark, "Planillas para tu contador"],
+    ],
+  },
+  EMPRESA_A_MEDIDA("Para redes de centros y franquicias, armado con vos.", [
+    [MessageCircle, "Seguimiento: a quién conviene escribirle, y por qué"],
+    [UserCog, "Equipo: horarios y liquidaciones"],
+    [PieChart, "Finanzas: ingresos, egresos y sueldos"],
+  ]),
+];
+
+const PLANES_FIJOS = { minimercado: PLANES_COMERCIO, gastronomia: PLANES_GASTRONOMIA, servicios: PLANES_SERVICIOS };
+
+
+/* El símbolo de cada plan: dibujado acá, de línea con un relleno suave
+   del mismo color, y no el dibujo en 3D de los otros rubros, que con los
+   renglones de línea cargaba la tarjeta (05/10). Cuentan lo mismo que el
+   plan: un local, un negocio que crece, una cadena. */
+const SIMBOLO_PLAN = {
+  start: (
+    <>
+      <path className="ln-relleno" d="M9 11.5h30l2.5 7.5h-35z" />
+      <path d="M9 11.5h30l2.5 7.5h-35z" />
+      <path d="M6.5 19c0 2.2 1.6 3.6 3.6 3.6s3.6-1.4 3.6-3.6c0 2.2 1.6 3.6 3.6 3.6s3.6-1.4 3.6-3.6c0 2.2 1.6 3.6 3.6 3.6s3.6-1.4 3.6-3.6c0 2.2 1.6 3.6 3.6 3.6s3.6-1.4 3.6-3.6c0 2.2 1.6 3.6 3.6 3.6s3.4-1.4 3.4-3.6" />
+      <path d="M10 23v15.5h28V23" />
+      <path className="ln-relleno" d="M20.5 38.5v-9a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v9" />
+      <path d="M20.5 38.5v-9a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v9" />
+      <rect x="13" y="27" width="4.5" height="4.5" rx="1" />
+      <rect x="30.5" y="27" width="4.5" height="4.5" rx="1" />
+    </>
+  ),
+  pro: (
+    <>
+      <rect className="ln-relleno" x="30" y="20" width="7" height="18.5" rx="1.5" />
+      <rect x="9" y="29" width="7" height="9.5" rx="1.5" />
+      <rect x="19.5" y="24.5" width="7" height="14" rx="1.5" />
+      <rect x="30" y="20" width="7" height="18.5" rx="1.5" />
+      <path d="M8.5 21.5 17 14l6 4.5L38.5 8" />
+      <path d="M32 8h6.5v6.5" />
+    </>
+  ),
+  empresa: (
+    <>
+      <path className="ln-relleno" d="M21.5 38.5V10.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v28" />
+      <path d="M21.5 38.5V10.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v28" />
+      <path d="M21.5 20H12.5a2 2 0 0 0-2 2v16.5" />
+      <path d="M6.5 38.5h35" />
+      <path d="M26.5 14.5h1M31.5 14.5h1M26.5 20.5h1M31.5 20.5h1M26.5 26.5h1M31.5 26.5h1M15 26h1.5M15 31.5h1.5" />
+      <path d="M27.5 38.5v-5h4v5" />
+    </>
+  ),
+};
+
+function PlanComercio({ p, onElegir }) {
+  return (
+    <li className={`ln-plan ln-plan-${p.k}`}>
+      <div className="ln-plan-cabeza">
+        <svg viewBox="0 0 48 48" className={`ln-plan-simbolo ln-color-${p.tono}`} aria-hidden="true"
+          fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {SIMBOLO_PLAN[p.k]}
+        </svg>
+        <span className={`ln-plan-etiqueta ln-tono-${p.tono}`}>{p.etiqueta}</span>
+      </div>
+      <h3 className="ln-plan-nombre">{p.n}</h3>
+      <p className="ln-plan-subtitulo">{p.subtitulo}</p>
+      {p.precio ? (
+        <div className="ln-plan-precio">
+          <span className="ln-plan-monto">{pesos(p.precio)}</span>
+          <span className="ln-plan-mes">/ mes</span>
+          <span className="ln-plan-congelado">Precio congelado por 6 meses</span>
+          <span className="ln-plan-anual">O pagá {pesos(p.precio * 10)} al año: 2 meses gratis.</span>
+        </div>
+      ) : (
+        <div className="ln-plan-precio">
+          <span className="ln-plan-monto">A medida</span>
+          <span className="ln-plan-anual">Según tus sucursales y lo que necesites.</span>
+        </div>
+      )}
+      {p.todo && <div className="ln-plan-todo">Todo {p.todo}, más:</div>}
+      <ul className="ln-plan-items ln-plan-lineas">
+        {p.items.map(([I, texto, pronto]) => (
+          <li key={texto} className={`ln-plan-linea ln-texto-${p.tono}`}>
+            <I strokeWidth={1.8} aria-hidden="true" />
+            <span>{texto}{pronto && <span className="ln-plan-pronto">Próximamente</span>}</span>
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={() => onElegir(p)}
+        className={`ln-boton ln-plan-boton ${p.k === "pro" ? "ln-boton-lleno" : "ln-plan-boton-gris"}`}>
+        {p.boton} <ArrowRight className="ln-flecha" strokeWidth={2} />
+      </button>
+    </li>
+  );
+}
+
 function ItemModulo({ k, tono }) {
   const m = moduloPorClave(k) || { n: k, d: "" };
   const I = ICONO_MODULO[k] || LayoutGrid;
@@ -837,6 +1078,8 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
   const t = tarifas || TARIFAS_VACIAS;
 
   const lista = rubro ? planes({ rubro }) : [];
+  const fijos = rubro ? PLANES_FIJOS[rubro.clave] : null;
+  const planesFijos = !!fijos;
   const [medidaAbierta, setMedidaAbierta] = useState(false);
   const universo = lista.length ? lista[lista.length - 1].armado.elegidos : [];
   const [medida, setMedida] = useState(null);
@@ -863,13 +1106,24 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
         </div>
         <div className="ln-rotulo ln-precios-rotulo">Precio claro</div>
         <h2 className="ln-precios-titulo">Pagás por lo que{" "}<br /><span className="ln-naranja">necesitás.</span></h2>
+        {planesFijos ? (
+        <p className="ln-precios-parrafo">
+          Precio de lanzamiento: <strong>congelado por 6 meses</strong>.<br className="ln-solo-ancho" />{" "}
+          Precio final por mes, sin permanencia:{" "}<br className="ln-solo-ancho" />cancelás cuando quieras.
+        </p>
+        ) : (
         <p className="ln-precios-parrafo">
           {descuento ? <>Precio de lanzamiento: <strong>{textoDescuento(descuento)}</strong>.<br className="ln-solo-ancho" />{" "}</> : null}
           Precio final por mes, sin permanencia:{" "}<br className="ln-solo-ancho" />cancelás cuando quieras.
         </p>
+        )}
 
         <ul className="ln-planes">
-          {lista.map((p, i) => {
+          {planesFijos && fijos.map((p) => (
+            <PlanComercio key={p.k} p={p}
+              onElegir={(x) => (x.precio ? onElegir(rubro.clave, x.k) : irA("hacemos-mas")())} />
+          ))}
+          {!planesFijos && lista.map((p, i) => {
             const e = ESTILO_PLAN[p.k];
             const pre = presupuestar(t, p.armado.elegidos);
             const anterior = i > 0 ? lista[i - 1].armado.elegidos : [];
@@ -901,7 +1155,7 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
           })}
         </ul>
 
-        {hayAMedida(t) && universo.length > 0 && (
+        {!planesFijos && hayAMedida(t) && universo.length > 0 && (
           <div className="ln-medida">
             <div className="ln-medida-cabeza">
               <div>
@@ -994,7 +1248,7 @@ function HacemosMas({ tarifas }) {
   };
 
   return (
-    <section className="ln-mas">
+    <section id="hacemos-mas" className="ln-mas">
       <div className="ln-mas-lienzo">
         <div className="ln-mas-texto">
           <div className="ln-rotulo">Hacemos más</div>

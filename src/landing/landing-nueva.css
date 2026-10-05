@@ -7,12 +7,13 @@
 
    En pantalla ancha cada sección es un lienzo con las medidas de su
    maqueta: `--u` es un píxel de la maqueta, escalado al ancho de la
-   pantalla y achicado un 15% (la página entera quedaba grande, 02/10).
+   pantalla y achicado un 25% (la página entera quedaba grande: 15% el
+   02/10, 25% el 05/10).
    En el teléfono los elementos bajan en columna con medidas en px.
    ============================================================ */
 
 .ln {
-  --ln-escala: 0.85;
+  --ln-escala: 0.75;
   --ln-fondo: 22 24 25;
   --ln-texto: 245 245 244;
   --ln-suave: 160 162 165;
@@ -61,8 +62,12 @@
 /* ------------------------------------------------------------
    Cabecera (maqueta: 1859 px de ancho, 86 de alto)
    ------------------------------------------------------------ */
+/* El encabezado no sigue a la escala de la página: con ella, en una
+   notebook de 1280 px el menú quedaba en 10 px y los botones en 32 de
+   alto (05/10). Al 88%, y se achica por debajo de 1600 px de ancho; con
+   la escala entera quedaba grande en una pantalla ancha. */
 .ln-cabecera {
-  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1859));
+  --u: min(0.88px, calc(0.88 * 100vw / 1600));
   position: sticky; top: 0; z-index: 30;
   background: rgb(var(--ln-fondo) / 0.92);
   backdrop-filter: blur(10px);
@@ -93,22 +98,27 @@
 .ln-tema svg { width: 18px; height: 18px; }
 
 @media (min-width: 1024px) {
-  .ln-cabecera-marco { width: calc(1438 * var(--u)); margin: 0 auto; padding: 0; }
+  .ln-cabecera-marco { width: calc(1438 * var(--u)); margin: 0 auto; padding: 0; height: max(72px, calc(100 * var(--u))); }
   .ln-menu {
     display: flex; gap: calc(37 * var(--u));
-    font-size: calc(15.5 * var(--u)); font-weight: 600;
+    font-size: max(13.5px, calc(15.5 * var(--u))); font-weight: 600;
     margin-left: calc(-62 * var(--u));
   }
   .ln-menu a { color: rgb(var(--ln-texto)); }
   .ln-menu a:hover { color: rgb(var(--ln-naranja)); }
   .ln-acciones { gap: calc(20 * var(--u)); }
   .ln-entrar, .ln-armar {
-    height: calc(49 * var(--u)); padding: 0 calc(21 * var(--u));
-    font-size: calc(16 * var(--u));
+    height: max(40px, calc(49 * var(--u))); padding: 0 max(16px, calc(21 * var(--u)));
+    font-size: max(14px, calc(16 * var(--u)));
   }
   .ln-armar { display: inline-flex; }
-  .ln-tema { width: calc(47 * var(--u)); height: calc(47 * var(--u)); border-radius: calc(9 * var(--u)); }
+  .ln-tema { width: max(40px, calc(47 * var(--u))); height: max(40px, calc(47 * var(--u))); border-radius: calc(9 * var(--u)); }
   .ln-tema svg { width: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+}
+/* Con el encabezado más grande, en las pantallas más angostas el menú se
+   pisaba con el logo: sin el corrimiento a la izquierda y más junto. */
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .ln-menu { margin-left: 0; gap: 22px; }
 }
 
 /* ------------------------------------------------------------
@@ -1123,8 +1133,10 @@
 /* ------------------------------------------------------------
    12 · Registro (maqueta: 1536 × 1024) y el pie
    ------------------------------------------------------------ */
+/* Un 15% más chico que la escala de la página: con la maqueta de 1536 px
+   de ancho, el registro quedaba más grande que todo lo demás (05/10). */
 .ln-reg {
-  --u: min(calc(var(--ln-escala) * 1px), calc(var(--ln-escala) * 100vw / 1536));
+  --u: min(calc(var(--ln-escala) * 0.85px), calc(var(--ln-escala) * 0.85 * 100vw / 1536));
   position: relative; overflow: hidden;
   padding: 48px 20px 56px;
 }
@@ -1242,3 +1254,34 @@
   }
   .ln-pie-enlaces { justify-content: center; flex-wrap: nowrap; white-space: nowrap; }
 }
+
+/* El sello de lo que todavía no existe dentro de un plan (la tienda
+   online de Comercio): el mismo que el de los rubros que vienen. */
+.ln-plan-pronto {
+  display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 9999px; vertical-align: 2px;
+  font-size: 11px; font-weight: 700; color: rgb(var(--ln-naranja)); background: rgb(var(--ln-icono-fondo));
+}
+
+/* Los planes de Comercio dicen lo que hacen, en renglones con un ícono
+   de línea y sin recuadro (05/10, mirando a Ventario). */
+.ln-plan-lineas { gap: 11px; }
+.ln-plan-linea { display: flex; align-items: flex-start; gap: 11px; font-size: 14.5px; line-height: 1.35; color: rgb(var(--ln-texto)); }
+.ln-plan-linea svg { flex-shrink: 0; width: 19px; height: 19px; margin-top: 1px; }
+.ln-texto-verde svg { color: rgb(var(--ln-verde)); }
+.ln-texto-naranja svg { color: rgb(var(--ln-naranja)); }
+.ln-texto-azul svg { color: rgb(var(--ln-azul)); }
+.ln-plan-congelado { width: 100%; font-size: 13px; font-weight: 700; color: rgb(var(--ln-naranja)); }
+.ln-plan-anual { width: 100%; font-size: 13px; color: rgb(var(--ln-suave)); }
+@media (min-width: 1024px) {
+  .ln-plan-lineas { gap: calc(12 * var(--u)); }
+  .ln-plan-linea { gap: calc(12 * var(--u)); font-size: calc(16.5 * var(--u)); }
+  .ln-plan-linea svg { width: calc(21 * var(--u)); height: calc(21 * var(--u)); }
+  .ln-plan-congelado, .ln-plan-anual { font-size: calc(15 * var(--u)); }
+}
+/* El símbolo de cada plan de Comercio: de línea, sin círculo ni fondo. */
+.ln-plan-simbolo { width: 52px; height: 52px; }
+.ln-plan-simbolo .ln-relleno { fill: currentColor; fill-opacity: 0.16; stroke: none; }
+.ln-color-verde { color: rgb(var(--ln-verde)); }
+.ln-color-naranja { color: rgb(var(--ln-naranja)); }
+.ln-color-azul { color: rgb(var(--ln-azul)); }
+@media (min-width: 1024px) { .ln-plan-simbolo { width: calc(62 * var(--u)); height: calc(62 * var(--u)); } }
