@@ -36,7 +36,7 @@ const TITULAR = "[nombre y apellido del titular]";
 const CUIT = "[CUIT]";
 const DOMICILIO = "[domicilio]";
 const CIUDAD = "[ciudad del domicilio]";
-const EMAIL = "[email de contacto]";
+const EMAIL = "contacto@genez.com.ar";
 
 const WHATSAPP = "+54 9 11 2485-9144";
 const LINK_WA = "https://wa.me/5491124859144";
@@ -76,7 +76,7 @@ export default function Terminos() {
             ("Genez", "nosotros").
           </p>
           <p>
-            Contacto: {EMAIL} · WhatsApp <a href={LINK_WA} className="text-acento font-semibold hover:underline">{WHATSAPP}</a>.
+            Contacto: <a href={`mailto:${EMAIL}`} className="text-acento font-semibold hover:underline">{EMAIL}</a> · WhatsApp <a href={LINK_WA} className="text-acento font-semibold hover:underline">{WHATSAPP}</a>.
           </p>
         </Seccion>
 
