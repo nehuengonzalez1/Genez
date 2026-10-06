@@ -2,6 +2,7 @@
    3. MOTOR DE DIAGNÓSTICO  ("Lo que tenés que saber")
    ============================================================ */
 
+import { margen } from "./metricas.js";
 import { TrendingDown, TrendingUp, AlertTriangle, Boxes, Clock, Percent } from "lucide-react";
 import { pct, money, nf, pl, faltantesProducto, diasHasta } from "./helpers.js";
 
@@ -15,8 +16,10 @@ export function calcular(productos, diario, coberturaDias) {
   const c30 = productos.reduce((s, p) => s + p.costo * p.u30, 0);
   const v30p = productos.reduce((s, p) => s + p.precioPrev * p.u30p, 0);
   const c30p = productos.reduce((s, p) => s + p.costoPrev * p.u30p, 0);
-  const margen30 = v30 ? (v30 - c30) / v30 : 0;
-  const margen30p = v30p ? (v30p - c30p) / v30p : 0;
+  /* La fórmula es la de src/utils/metricas.js; lo que cambia es sobre qué
+     se aplica: acá, a precios y costos de hoy ("a valores de hoy"). */
+  const margen30 = margen(v30, c30);
+  const margen30p = margen(v30p, c30p);
 
   /* Lo que de verdad se vendió, de la serie de la base (ventas_diarias):
      con los descuentos, los precios bajados a mano y las devoluciones. Es

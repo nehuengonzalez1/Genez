@@ -5,7 +5,10 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Loader2 } from "lucide-react";
-import { money, moneyk, pct, nf } from "../utils/helpers.js";
+import { money, moneyk, pct, nf, mediosDe, comisionDe } from "../utils/helpers.js";
+import { margen, ganancia, ticketPromedio, porTicket, variacion, puntos, puenteDeRentabilidad, matrizDeProductos, CUADRANTES } from "../utils/metricas.js";
+import { cargarPuente } from "../datos/puente.js";
+import { bajarExcel } from "../utils/planilla.js";
 import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
@@ -25,7 +28,7 @@ const diasEntre = (a, b) => Math.round((alMediodia(b) - alMediodia(a)) / 8640000
 const paraInput = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const deInput = (v) => (v ? new Date(`${v}T12:00:00`) : null);
 
-export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = { sucursales: [], varias: false } }) {
+export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = { sucursales: [], varias: false }, ajustes = {} }) {
   /* La sucursal que se mira (0108). "" es todas, como siempre. */
   const [sucursal, setSucursal] = useState("");
   /* El período es de una fecha a otra, las dos incluidas. Los atajos son
@@ -108,6 +111,99 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
     return () => { vigente = false; };
   }, [empresaId, rango, sucursal]);
 
+  /* EL PERÍODO ANTERIOR (06/10)
+
+     Cada número se muestra contra el período anterior del mismo largo:
+     "30 días" contra los 30 de antes; "del 1 al 15" contra los 15 días
+     previos. Un número solo no dice si es bueno o malo. */
+  const rangoPrevio = useMemo(() => {
+    const h = new Date(rango.desde); h.setDate(h.getDate() - 1);
+    const d = new Date(h); d.setDate(d.getDate() - (dias - 1));
+    return { desde: d, hasta: h };
+  }, [rango, dias]);
+  const [previo, setPrevio] = useState(null);
+  useEffect(() => {
+    if (!empresaId) return undefined;
+    let vigente = true;
+    setPrevio(null);
+    const p = { desde: rangoPrevio.desde, hasta: rangoPrevio.hasta, sucursal: sucursal || null };
+    Promise.all([cargarSerieDiaria(empresaId, p), cargarVentasPorItem(empresaId, p)])
+      .then(([s, i]) => { if (vigente) setPrevio({ serie: s, porItem: i }); })
+      .catch((e) => { if (vigente) console.error("No se pudo cargar el período anterior:", e); });
+    return () => { vigente = false; };
+  }, [empresaId, rangoPrevio, sucursal]);
+
+  /* El puente de rentabilidad: descuentos, devoluciones, cobros por medio
+     y mermas del período (src/datos/puente.js). */
+  const [puenteDatos, setPuenteDatos] = useState(null);
+  useEffect(() => {
+    if (!empresaId) return undefined;
+    let vigente = true;
+    setPuenteDatos(null);
+    cargarPuente({ empresaId, desde: rango.desde, hasta: rango.hasta, sucursal: sucursal || null })
+      .then((p) => { if (vigente) setPuenteDatos(p); })
+      .catch((e) => { if (vigente) console.error("No se pudo armar el puente:", e); });
+    return () => { vigente = false; };
+  }, [empresaId, rango, sucursal]);
+
+  const tickets = serie.reduce((s, d) => s + (d.tickets || 0), 0);
+  const unidades = porItem.reduce((s, p) => s + p.unidades, 0);
+  const ant = previo && {
+    ventas: previo.serie.reduce((s, d) => s + d.ventas, 0),
+    costo: previo.serie.reduce((s, d) => s + d.costo, 0),
+    tickets: previo.serie.reduce((s, d) => s + (d.tickets || 0), 0),
+    unidades: previo.porItem.reduce((s, p) => s + p.unidades, 0),
+  };
+  const margenAhora = margen(ventas, costo);
+  const margenAntes = ant ? margen(ant.ventas, ant.costo) : null;
+  const comisiones = puenteDatos
+    ? mediosDe(ajustes).reduce((s, m) => s + comisionDe(m, puenteDatos.cobradoPorMedio[m.k] || 0), 0)
+    : 0;
+  const puente = puenteDatos && puenteDeRentabilidad({
+    ventasNetas: ventas, costo, descuentos: puenteDatos.descuentos, devoluciones: puenteDatos.devoluciones,
+    comisiones, mermas: puenteDatos.mermas,
+  });
+  const matriz = useMemo(() => matrizDeProductos(porItem, margen(ventas, costo)), [porItem, ventas, costo]);
+  const vsAnterior = ant ? "vs período anterior" : undefined;
+
+  /* Exportar (06/10): lo mismo que se ve, en una planilla con una hoja por
+     bloque. Los números van como números, para poder sumar. */
+  const [exportando, setExportando] = useState(false);
+  const exportar = async () => {
+    setExportando(true);
+    try {
+      const periodo = `${paraInput(rango.desde)} al ${paraInput(rango.hasta)}`;
+      const medios = mediosDe(ajustes);
+      const hojas = [
+        { nombre: "Resumen", anchos: [30, 16, 18], filas: [
+          ["Período", periodo, ""],
+          ["", "Este período", "Período anterior"],
+          ["Ventas netas", ventas, ant ? ant.ventas : ""],
+          ["Ganancia bruta", ganancia(ventas, costo), ant ? ganancia(ant.ventas, ant.costo) : ""],
+          ["Margen", +margenAhora.toFixed(4), ant ? +margenAntes.toFixed(4) : ""],
+          ["Tickets", tickets, ant ? ant.tickets : ""],
+          ["Ticket promedio", Math.round(ticketPromedio(ventas, tickets)), ant ? Math.round(ticketPromedio(ant.ventas, ant.tickets)) : ""],
+          ["Unidades por ticket", +porTicket(unidades, tickets).toFixed(2), ant ? +porTicket(ant.unidades, ant.tickets).toFixed(2) : ""],
+        ] },
+        ...(puente ? [{ nombre: "De lo vendido a lo que queda", anchos: [30, 16], filas: [["Concepto", "Importe"], ...puente.pasos.map((p) => [p.n, p.valor])] }] : []),
+        { nombre: "Por día", anchos: [12, 14, 14, 10], filas: [["Fecha", "Ventas", "Costo", "Tickets"], ...serie.map((d) => [d.fecha instanceof Date ? paraInput(d.fecha) : (d.label || ""), d.ventas, d.costo, d.tickets || 0])] },
+        { nombre: "Por producto", anchos: [36, 18, 10, 14, 14, 10], filas: [["Producto", "Rubro", "Unidades", "Venta", "Ganancia", "Margen"],
+          ...porItem.map((p) => [p.nombre, p.categoria, p.unidades, p.venta, p.ganancia, +p.margen.toFixed(4)])] },
+        ...(puenteDatos ? [
+          { nombre: "Por día de la semana", anchos: [12, 14, 10], filas: [["Día", "Ventas", "Tickets"], ...puenteDatos.porDia.map((d) => [NOMBRE_DIA[d.dia], d.ventas, d.tickets])] },
+          { nombre: "Por hora", anchos: [8, 14, 10], filas: [["Hora", "Ventas", "Tickets"], ...puenteDatos.porHora.filter((h) => h.tickets).map((h) => [h.hora, h.ventas, h.tickets])] },
+          { nombre: "Medios de pago", anchos: [22, 14, 14], filas: [["Medio", "Cobrado", "Comisión"],
+            ...Object.entries(puenteDatos.cobradoPorMedio).map(([k, c]) => { const m = medios.find((x) => x.k === k) || { k, n: k }; return [m.n, c, comisionDe(m, c)]; })] },
+          { nombre: "Vendedores", anchos: [24, 14, 10, 14, 12], filas: [["Vendedor", "Ventas", "Tickets", "Descuentos", "Desc. promedio"],
+            ...puenteDatos.vendedores.map((v) => [v.nombre, v.ventas, v.tickets, v.descuentos, +v.descuentoPromedio.toFixed(4)])] },
+        ] : []),
+      ];
+      await bajarExcel(`Genez - reporte ${periodo}`, hojas);
+    } finally {
+      setExportando(false);
+    }
+  };
+
   /* Ya viene ordenado por venta desde la base. */
   const topVenta = porItem.slice(0, 10);
   const topGanancia = [...porItem].sort((a, b) => b.ganancia - a.ganancia).slice(0, 10);
@@ -165,14 +261,42 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
 
         {/* Cuántos días son: "del 01/09 al 15/09" no dice solo que son 15. */}
         {!problema && <span className="text-xs text-texto-tenue ml-1">{dias} {dias === 1 ? "día" : "días"}</span>}
+        <Boton size="sm" variant="ghost" className="ml-auto" onClick={exportar} disabled={exportando || !puenteDatos}>
+          {exportando ? "Armando…" : "Exportar a Excel"}
+        </Boton>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi label={`Ventas ${dias} días`} valor={money(ventas)} />
-        <Kpi label="Ganancia bruta" valor={money(ventas - costo)} tono="bien" />
-        <Kpi label="Margen" valor={pct(ventas ? (ventas - costo) / ventas : 0)} />
+        <Kpi label={`Ventas ${dias} días`} valor={money(ventas)} delta={ant ? variacion(ventas, ant.ventas) : null} sub={vsAnterior} />
+        <Kpi label="Ganancia bruta" valor={money(ganancia(ventas, costo))} tono="bien"
+          delta={ant ? variacion(ganancia(ventas, costo), ganancia(ant.ventas, ant.costo)) : null} sub={vsAnterior} />
+        {/* El margen se compara en puntos, no en porcentaje del margen: de
+            30% a 33% son "3 puntos", no "+10%". */}
+        <Kpi label="Margen" valor={pct(margenAhora)} delta={ant && ant.ventas ? puntos(margenAhora, margenAntes) : null}
+          sub={ant && ant.ventas ? "puntos vs período anterior" : undefined} />
         <Kpi label="Promedio por día" valor={money(ventas / dias)} />
       </div>
+
+      {/* El ticket (06/10): cuántas ventas, de cuánto y con cuántas cosas.
+          Unidades por ticket mide si se vende de a una o se arma la compra. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi label="Ventas (tickets)" valor={nf.format(tickets)} delta={ant ? variacion(tickets, ant.tickets) : null} sub={vsAnterior} />
+        <Kpi label="Ticket promedio" valor={money(ticketPromedio(ventas, tickets))}
+          delta={ant ? variacion(ticketPromedio(ventas, tickets), ticketPromedio(ant.ventas, ant.tickets)) : null} sub={vsAnterior} />
+        <Kpi label="Unidades por ticket" valor={unidades ? porTicket(unidades, tickets).toFixed(1).replace(".", ",") : "—"}
+          delta={ant ? variacion(porTicket(unidades, tickets), porTicket(ant.unidades, ant.tickets)) : null} sub={vsAnterior} />
+        <Kpi label="Lo que queda" valor={puente ? money(puente.queda) : "…"} tono={puente && puente.queda < 0 ? "mal" : "bien"}
+          sub="después de comisiones y mermas" />
+      </div>
+
+      {puente && <PuenteDeRentabilidad puente={puente} />}
+
+      <MatrizDeProductos matriz={matriz} />
+
+      {puenteDatos && <CuandoSeVende porHora={puenteDatos.porHora} porDia={puenteDatos.porDia} />}
+      {puenteDatos && <MediosDelPeriodo cobradoPorMedio={puenteDatos.cobradoPorMedio} ajustes={ajustes} />}
+      {puenteDatos && <PorVendedor vendedores={puenteDatos.vendedores} />}
+
 
       {conPedidos && <PorCanal empresaId={empresaId} rango={rango} ir={ir} />}
 
@@ -378,6 +502,207 @@ function PorCanal({ empresaId, rango, ir }) {
           {d.cancelados} pedido{d.cancelados === 1 ? "" : "s"} cancelado{d.cancelados === 1 ? "" : "s"} en el período.
         </p>
       )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   El puente de rentabilidad (06/10)
+
+   De lo que se hubiera cobrado sin descuentos a lo que de verdad queda:
+   dónde se va la plata. Las definiciones están en src/utils/metricas.js.
+   Cada barra es proporcional a las ventas sin descuentos.
+   ------------------------------------------------------------ */
+function PuenteDeRentabilidad({ puente }) {
+  const base = Math.max(1, ...puente.pasos.map((p) => Math.abs(p.valor)));
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">De lo que vendiste a lo que te queda</div>
+      <ul className="mt-3 space-y-1.5">
+        {puente.pasos.map((p) => {
+          const fuerte = p.tipo === "total" || p.tipo === "subtotal";
+          const negativo = p.valor < 0;
+          if (!fuerte && p.valor === 0) return null;
+          return (
+            <li key={p.k} className={`grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm ${fuerte ? "font-semibold" : "text-texto-suave"}`}>
+              <span className="truncate">{p.n}</span>
+              <span className="h-2 bg-superficie-2 rounded-full overflow-hidden">
+                <span className={`block h-full rounded-full ${negativo ? "bg-mal" : p.tipo === "total" ? "bg-acento" : "bg-superficie-3"}`}
+                  style={{ width: `${(Math.abs(p.valor) / base) * 100}%` }} />
+              </span>
+              <span className={`f-m text-right ${negativo ? "text-mal" : ""}`}>{negativo ? "−" : ""}{money(Math.abs(p.valor))}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-xs text-texto-tenue mt-3">
+        Las comisiones se estiman con los medios de pago de Ajustes (con su IVA si lo tienen); las mermas, al costo de hoy.
+        No incluye gastos fijos como alquiler o sueldos.
+      </p>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   La matriz de productos (06/10)
+
+   Cuánto se vende contra cuánto deja, con cortes del propio comercio
+   (ver matrizDeProductos en src/utils/metricas.js).
+   ------------------------------------------------------------ */
+const TONO_CUADRANTE = { estrella: "text-bien", volumen: "text-ojo", rentable: "text-acento", problema: "text-mal" };
+
+function MatrizDeProductos({ matriz }) {
+  const total = Object.values(matriz.grupos).reduce((s, g) => s + g.length, 0);
+  if (!total) return null;
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Tus productos, por lo que venden y lo que dejan</div>
+      <p className="text-xs text-texto-tenue mt-1">
+        "Vende mucho": más de {money(matriz.corteVenta)} en el período (la mitad de arriba). "Deja mucho": margen arriba de {pct(matriz.corteMargen)}, el de todo el período.
+      </p>
+      <div className="grid sm:grid-cols-2 gap-3 mt-3">
+        {CUADRANTES.map((c) => {
+          const g = matriz.grupos[c.k];
+          return (
+            <div key={c.k} className="border border-borde rounded-xl p-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className={`font-semibold ${TONO_CUADRANTE[c.k]}`}>{c.n}</span>
+                <span className="f-m text-sm text-texto-suave">{nf.format(g.length)}</span>
+              </div>
+              <p className="text-xs text-texto-suave mt-0.5">{c.d}</p>
+              {g.length > 0 && (
+                <ul className="mt-2 space-y-1 text-sm">
+                  {g.slice(0, 4).map((p) => (
+                    <li key={p.nombre} className="flex justify-between gap-2">
+                      <span className="truncate">{p.nombre}</span>
+                      <span className="f-m text-xs text-texto-tenue shrink-0">{money(p.venta)} · {pct(p.margen, 0)}</span>
+                    </li>
+                  ))}
+                  {g.length > 4 && <li className="text-xs text-texto-tenue">y {nf.format(g.length - 4)} más</li>}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   Cuándo se vende (06/10)
+
+   Por día de la semana y por hora, en Buenos Aires: para saber cuándo
+   reforzar la caja y cuándo sobra gente. Las horas sin ventas se ocultan
+   en las puntas para que el gráfico no sea medio vacío.
+   ------------------------------------------------------------ */
+const NOMBRE_DIA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+function CuandoSeVende({ porHora, porDia }) {
+  const conVentas = porHora.filter((h) => h.tickets > 0);
+  if (!conVentas.length) return null;
+  const desde = conVentas[0].hora, hasta = conVentas[conVentas.length - 1].hora;
+  const horas = porHora.filter((h) => h.hora >= desde && h.hora <= hasta).map((h) => ({ ...h, label: `${h.hora}h` }));
+  const mejorDia = [...porDia].sort((a, b) => b.ventas - a.ventas)[0];
+  const mejorHora = [...porHora].sort((a, b) => b.ventas - a.ventas)[0];
+  const maxDia = Math.max(1, ...porDia.map((x) => x.ventas));
+  return (
+    <div className="grid lg:grid-cols-2 gap-4">
+      <Card className="p-4">
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Por día de la semana</div>
+        <p className="text-xs text-texto-suave mt-1">El que más vende: <b className="text-texto">{NOMBRE_DIA[mejorDia.dia]}</b>.</p>
+        <ul className="mt-3 space-y-1.5 text-sm">
+          {porDia.map((d) => (
+            <li key={d.dia} className="grid grid-cols-[6rem_1fr_auto] items-center gap-3">
+              <span className="text-texto-suave">{NOMBRE_DIA[d.dia]}</span>
+              <span className="h-2 bg-superficie-2 rounded-full overflow-hidden">
+                <span className="block h-full bg-acento rounded-full" style={{ width: `${(d.ventas / maxDia) * 100}%` }} />
+              </span>
+              <span className="f-m text-right text-xs">
+                {money(d.ventas)} <span className="text-texto-tenue">· {nf.format(d.tickets)} t · {money(d.tickets ? d.ventas / d.tickets : 0)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-[11px] text-texto-tenue mt-2">Ventas · tickets · ticket promedio.</p>
+      </Card>
+      <Card className="p-4">
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Por hora</div>
+        <p className="text-xs text-texto-suave mt-1">La hora más fuerte: <b className="text-texto">de {mejorHora.hora} a {mejorHora.hora + 1}</b>.</p>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={horas} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#a8a29e" }} axisLine={false} tickLine={false} interval={0} />
+            <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} tickFormatter={moneyk} axisLine={false} tickLine={false} width={60} />
+            <Tooltip formatter={(v, n) => [n === "ventas" ? money(v) : v, n === "ventas" ? "Ventas" : "Tickets"]} contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e7e5e4" }} />
+            <Bar dataKey="ventas" fill="#f97316" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   Medios de pago del período (06/10)
+
+   Cuánto entró por cada medio y cuánto se llevó cada uno en comisiones
+   (con su IVA): el costo financiero de cobrar. Con la configuración de
+   Ajustes de hoy.
+   ------------------------------------------------------------ */
+function MediosDelPeriodo({ cobradoPorMedio, ajustes }) {
+  const medios = mediosDe(ajustes);
+  const filas = Object.entries(cobradoPorMedio)
+    .map(([k, cobrado]) => {
+      const m = medios.find((x) => x.k === k) || { k, n: k, tasa: 0 };
+      return { k, n: m.n, cobrado, comision: comisionDe(m, cobrado), dias: m.dias || 0 };
+    })
+    .sort((a, b) => b.cobrado - a.cobrado);
+  if (!filas.length) return null;
+  const total = filas.reduce((s, f) => s + f.cobrado, 0);
+  const comisiones = filas.reduce((s, f) => s + f.comision, 0);
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Cómo te pagaron</div>
+      <p className="text-xs text-texto-suave mt-1">
+        Cobrar te costó <b className="text-texto">{money(comisiones)}</b> en comisiones: el {pct(total ? comisiones / total : 0)} de lo cobrado.
+      </p>
+      <TablaSimple
+        cols={["Medio", "Cobrado", "Del total", "Comisión", "Se acredita"]}
+        filas={filas.map((f) => [
+          f.n,
+          <span key="c" className="f-m">{money(f.cobrado)}</span>,
+          <span key="p" className="f-m">{pct(total ? f.cobrado / total : 0, 0)}</span>,
+          <span key="m" className="f-m">{f.comision ? money(f.comision) : "—"}</span>,
+          f.dias ? `a ${f.dias} días` : "en el día",
+        ])}
+      />
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   Por vendedor (06/10)
+
+   Quién cobró cada venta. El descuento promedio sirve para ver si alguien
+   descuenta mucho más que el resto.
+   ------------------------------------------------------------ */
+function PorVendedor({ vendedores }) {
+  if (vendedores.length < 2) return null;
+  const promedio = vendedores.reduce((s, v) => s + v.descuentos, 0) / Math.max(1, vendedores.reduce((s, v) => s + v.ventas + v.descuentos, 0));
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Por vendedor</div>
+      <p className="text-xs text-texto-suave mt-1">Quién cobró cada venta. Descuento promedio de todos: {pct(promedio)}.</p>
+      <TablaSimple
+        cols={["Vendedor", "Ventas", "Tickets", "Ticket promedio", "Descuento promedio"]}
+        filas={vendedores.map((v) => [
+          v.nombre,
+          <span key="v" className="f-m">{money(v.ventas)}</span>,
+          <span key="t" className="f-m">{nf.format(v.tickets)}</span>,
+          <span key="tp" className="f-m">{money(v.ticketPromedio)}</span>,
+          <span key="d" className={`f-m ${v.descuentoPromedio > promedio * 1.5 && v.descuentoPromedio > 0.02 ? "text-mal font-semibold" : ""}`}>{pct(v.descuentoPromedio)}</span>,
+        ])}
+      />
     </Card>
   );
 }
