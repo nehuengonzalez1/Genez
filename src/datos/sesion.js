@@ -28,6 +28,8 @@ function aComercio(fila) {
     activo: fila.activa,
     /* Texto AAAA-MM-DD a propósito: como Date cae al día anterior. */
     pruebaHasta: fila.prueba_hasta || null,
+    /* Para el onboarding (0137): los primeros pasos son de un comercio nuevo. */
+    creadaEn: fila.creada_en || null,
     alta: d ? `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : "",
     usuarios: (fila.perfiles || []).map((p) => ({
       id: p.id,
@@ -104,6 +106,12 @@ export async function cargarSesion() {
 
   if (e2) throw e2;
 
+  /* Lo que la persona ya vio del onboarding (0137). Aparte y sin cortar:
+     si la columna todavía no existe o la consulta falla, se entra igual,
+     como si no hubiera visto nada. */
+  const { data: ob } = await supabase.from("perfiles").select("onboarding, creado_en").eq("id", user.id).maybeSingle()
+    .then((r) => r, () => ({ data: null }));
+
   /* Desde 0127 la base no le devuelve el comercio a quien tiene la prueba
      vencida o la cuenta suspendida. No es un error: es la pantalla de
      contratar, y `mi_cuenta` es lo único que contesta. */
@@ -122,6 +130,8 @@ export async function cargarSesion() {
     usuario: user.email,
     debeCambiarClave,
     invitado,
+    onboarding: (ob && ob.onboarding) || {},
+    perfilCreado: (ob && ob.creado_en) || null,
   };
 }
 

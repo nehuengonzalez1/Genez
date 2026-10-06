@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   LayoutDashboard, Barcode, Package, Boxes, Truck, Wallet, BarChart3,
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft,
-  ArrowRight, Store, CalendarDays, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
+  ArrowRight, Store, CalendarDays, CircleHelp, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
   Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X, ShieldCheck, UserCog
 } from "lucide-react";
@@ -39,6 +39,8 @@ import { PreciosPanel } from "./PreciosPanel.jsx";
 import { SolicitudesPanel } from "./SolicitudesPanel.jsx";
 import { PruebasPanel } from "./PruebasPanel.jsx";
 import { AvisoDePrueba } from "./Prueba.jsx";
+import { Bienvenida, PrimerosPasos, BotonAyuda, CentroDeAyuda } from "../ayuda/Onboarding.jsx";
+import { esNuevo, marcarOnboarding } from "../datos/onboarding.js";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
@@ -853,6 +855,11 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      montar ("Cannot access 'empresaId' before initialization") y dejaba
      la pantalla en negro al elegir el local. La compilación no lo ve. */
   const empresaId = sesion.comercio.id;
+
+  /* El onboarding (0137): lo que esta persona ya vio, y la ayuda abierta.
+     Arriba por lo mismo que empresaId: lo leen funciones de más abajo. */
+  const [onboarding, setOnboarding] = useState(sesion.onboarding || {});
+  const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
   /* La configuración del comercio se lee directo de la sesión. `ajustes`
      todavía arranca con valores fijos del minimercado, así que para lo que
@@ -1800,6 +1807,24 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     return () => window.removeEventListener("keydown", h);
   }, [vista]);
 
+  /* La bienvenida sale una vez por persona, en un comercio nuevo o a una
+     persona recién dada de alta; nunca a la plataforma entrando como. Los
+     primeros pasos, a quien configura, mientras el comercio es nuevo. */
+  const configura = !!permisos.configurar;
+  const rubroClave = sesion.comercio.rubro;
+  const secciones = grupos.flatMap((g) => g.modulos.map((m) => m.k));
+  const comercioNuevo = esNuevo(sesion.comercio.creadaEn);
+  const verBienvenida = !sesion.comoAdmin && !onboarding.bienvenida && (comercioNuevo || esNuevo(sesion.perfilCreado));
+  const verPrimerosPasos = !sesion.comoAdmin && configura && comercioNuevo && !onboarding.pasos_ocultos;
+  const terminarBienvenida = (destino) => {
+    /* Se marca antes de esperar a la base: si no se guarda, vuelve a salir
+       la próxima vez, que es mejor que dejarla trabada en pantalla. */
+    setOnboarding((o) => ({ ...o, bienvenida: new Date().toISOString() }));
+    marcarOnboarding("bienvenida", new Date().toISOString()).then(setOnboarding).catch(() => {});
+    if (destino === "inicio") ir("inicio");
+    else if (destino === "cobro" && accion) cobrar_();
+  };
+
   return (
     <ScanCtx.Provider value={{ push }}>
     <div className="f-ui min-h-screen bg-superficie-2 text-texto">
@@ -1826,6 +1851,13 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
            de Tailwind con !important, y cada color nuevo que alguien usaba
            quedaba ilegible hasta que se acordaran de agregarlo. */
       `}</style>
+
+      {verBienvenida && (
+        <Bienvenida nombre={sesion.nombre} comercio={sesion.comercio.nombre} rubro={rubroClave}
+          configura={configura} alListo={terminarBienvenida} />
+      )}
+      {ayudaAbierta && <CentroDeAyuda rubro={rubroClave} secciones={vender === "cobro" ? ["cobro", ...secciones] : secciones}
+        ir={(k) => (k === "cobro" ? cobrar_() : ir(k))} onCerrar={() => setAyudaAbierta(false)} />}
 
       {/* ============ PANTALLA DE COBRO (la de todo el día) ============ */}
       {vista === "cobro" && (
@@ -2138,7 +2170,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           <AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} />
           <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div className="min-w-0">
-              <h1 className="f-d text-xl md:text-2xl">{titulo}</h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h1 className="f-d text-xl md:text-2xl">{titulo}</h1>
+                <BotonAyuda k={tab} rubro={rubroClave} />
+              </div>
               <p className="text-sm text-texto-suave">{bajada}</p>
             </div>
             <div className="flex items-center gap-2 text-xs text-texto-suave">
@@ -2146,6 +2181,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               <span className="text-texto-tenue">·</span>
               <span className="f-m">{money(ventasHoy)} hoy</span>
               <BotonTema tema={tema} setTema={setTema} />
+              <button type="button" onClick={() => setAyudaAbierta(true)} title="Ayuda" aria-label="Ayuda"
+                className="w-8 h-8 inline-flex items-center justify-center rounded-full border border-borde text-texto-suave hover:text-texto hover:bg-superficie-2">
+                <CircleHelp size={15} />
+              </button>
               {accion && (
                 <Boton size="sm" variant="dark" className="md:hidden" onClick={cobrar_}>
                   <IconoAccion size={14} /> {rotuloVender}
@@ -2169,6 +2208,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               andando y el error queda a la vista (ver src/ui/Barrera.jsx).
               La `key` la limpia al cambiar de sección. */}
           <Barrera key={tab} nombre={titulo}>
+          {tab === "inicio" && verPrimerosPasos && (
+            <PrimerosPasos empresaId={empresaId} creadaEn={sesion.comercio.creadaEn} rubro={rubroClave} ajustes={ajustes}
+              onboarding={onboarding} setOnboarding={setOnboarding} ir={ir} cobrar={cobrar_} secciones={secciones} />
+          )}
           {tab === "inicio" && (
             <Inicio tablero={rubro ? rubro.inicio : "comercio"}
               k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy}
