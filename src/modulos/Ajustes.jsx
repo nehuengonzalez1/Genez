@@ -15,7 +15,7 @@ import {
   condicionNombre, mediosDe, conRecargo, money, nf, nf2, pct, hora,
   MEDIOS_INICIALES, LISTAS_INICIALES, condicionLegal, BALANZA_INICIAL
 } from "../utils/helpers.js";
-import { Card, Boton, Modal, Kpi, Vacio } from "../ui/Base.jsx";
+import { Card, Boton, Modal, Kpi, Vacio, Tabs } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
@@ -63,16 +63,46 @@ const Vol2 = Volume2;
    13. AJUSTES
    ============================================================ */
 
+/* Los apartados de Ajustes, en el orden en que se muestran. */
+const APARTADOS = [
+  { k: "negocio", n: "Negocio" },
+  { k: "cobros", n: "Cobros y facturas" },
+  { k: "equipos", n: "Equipos" },
+  { k: "precios", n: "Precios y stock" },
+  { k: "clientes", n: "Clientes" },
+  { k: "plan", n: "Mi plan" },
+];
+const APARTADO_GUARDADO = "genez.ajustes.apartado";
+
 export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro, facturacion = { puede: false }, empresaId, recargarConexion, alCambiarCajas, sucursales = [], alCambiarSucursales }) {
   const f = ajustes.fiscal || FISCAL_INICIAL;
   const setFiscal = (cambios) => setAjustes({ ...ajustes, fiscal: { ...f, ...cambios } });
   const bal = ajustes.balanza || BALANZA_INICIAL;
   const setBalanza = (cambios) => setAjustes({ ...ajustes, balanza: { ...bal, ...cambios } });
+  const [seccion, setSeccion] = useState(() => {
+    try {
+      const guardada = localStorage.getItem(APARTADO_GUARDADO);
+      return APARTADOS.some((a) => a.k === guardada) ? guardada : APARTADOS[0].k;
+    } catch { return APARTADOS[0].k; }
+  });
+  /* Se recuerda en esta computadora: quien entra a Ajustes vuelve a lo que
+     estaba mirando. Es una comodidad, no un dato: si el navegador no deja
+     guardar, arranca en el primero. */
+  const elegirSeccion = (k) => {
+    setSeccion(k);
+    try { localStorage.setItem(APARTADO_GUARDADO, k); } catch { /* sin guardar */ }
+  };
+  const ver = (k) => seccion === k;
   return (
     <div className="max-w-2xl space-y-4">
-      {/* Primero: es lo que los términos mandan a buscar acá (0130). */}
-      <MiPlan toast={toast} />
+      {/* Por apartado (06/10): eran diecisiete tarjetas una abajo de la otra y no
+          se sabía dónde estaba cada cosa. "Mi plan" es el nombre que usan los
+          términos ("Ajustes → Mi plan"); si se cambia, se cambia allá también. */}
+      <Tabs items={APARTADOS} value={seccion} onChange={elegirSeccion} />
 
+      {ver("plan") && <MiPlan toast={toast} />}
+
+      {ver("negocio") && (<>
       <Card className="p-5">
         <h3 className="f-d text-lg">Datos fiscales</h3>
         <p className="text-sm text-texto-suave mt-1">
@@ -166,7 +196,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
 
       {empresaId && <SucursalesDelComercio empresaId={empresaId} sucursales={sucursales} toast={toast} alCambiar={alCambiarSucursales} />}
       {empresaId && <CajasDelComercio empresaId={empresaId} toast={toast} alCambiar={alCambiarCajas} sucursales={sucursales} />}
+      </>)}
 
+      {ver("cobros") && (<>
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -279,7 +311,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
       </Card>
 
       {empresaId && <ConexionArca empresaId={empresaId} toast={toast} alCambiar={recargarConexion} />}
+      </>)}
 
+      {ver("equipos") && (<>
       <ImpresionDirecta ajustes={ajustes} toast={toast} />
 
       <Card className="p-5">
@@ -332,7 +366,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           La pistola funciona como un teclado. El sistema reconoce la ráfaga de tecleo y el Enter final, así que se puede disparar sin clickear ningún campo.
         </p>
       </Card>
+      </>)}
 
+      {ver("cobros") && (<>
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -377,7 +413,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           </p>
         </details>
       </Card>
+      </>)}
 
+      {ver("equipos") && (<>
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -425,7 +463,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           </p>
         )}
       </Card>
+      </>)}
 
+      {ver("precios") && (<>
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -501,9 +541,13 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           Los precios de cada lista se cargan producto por producto, o de una vez con la planilla desde el catálogo.
         </p>
       </Card>
+      </>)}
 
+      {ver("clientes") && (<>
       <PuntosDelComercio ajustes={ajustes} setAjustes={setAjustes} />
+      </>)}
 
+      {ver("precios") && (<>
       <Card className="p-5">
         <h3 className="f-d text-lg">Reposición</h3>
         <p className="text-sm text-texto-suave mt-1">Cuántos días de venta querés tener cubiertos cuando el sistema arma el pedido sugerido.</p>
@@ -523,7 +567,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           <span className="f-m text-lg w-16 text-right">{ajustes.margenMinimo}%</span>
         </div>
       </Card>
+      </>)}
 
+      {ver("negocio") && (<>
       <Card className="p-5">
         <h3 className="f-d text-lg">Datos de la demo</h3>
         <ul className="text-sm text-texto-suave mt-2 space-y-1">
@@ -533,6 +579,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
         </ul>
         <Boton variant="ghost" className="mt-4" onClick={() => { window.location.reload(); toast("Recargando…"); }}>Reiniciar la demo</Boton>
       </Card>
+      </>)}
     </div>
   );
 }
