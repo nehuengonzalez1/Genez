@@ -20,7 +20,7 @@ import {
 import { preguntarAlModelo, fotoParaElModelo } from "../datos/modelo.js";
 import { EscanerCamara, TicketModal, FormProveedor } from "./Vender.jsx";
 import { palabras, emparejar } from "./Stock.jsx";
-import { registrarCompra, crearOrden, cerrarOrden } from "../datos/compras.js";
+import { registrarCompra, crearOrden, cerrarOrden, registrarRecepcion } from "../datos/compras.js";
 import { crearProducto } from "../datos/items.js";
 
 // Camera importada como Cam para los usos que la usan con ese nombre
@@ -507,10 +507,14 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
     }
   };
 
-  const recibir = async (ped, lineasRec) => {
+  const recibir = async (ped, todas, cerrar = false) => {
+    /* Lo que no llegó (0) no se registra como compra: solo cuenta para
+       saber qué falta. */
+    const lineasRec = todas.filter((l) => Number(l.cant) > 0);
+    if (!lineasRec.length && !cerrar) return toast("No llegó nada: escribí cuánto llegó de cada producto.", "mal");
     setRecibiendoGuarda(true);
     let compraId = null;
-    try {
+    if (lineasRec.length) try {
       compraId = await registrarCompra({
         empresaId,
         sucursalId: lugar.actual,
@@ -541,15 +545,27 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
     }));
     const total = lineasRec.reduce((s, l) => s + Number(l.cant) * Number(l.costo), 0);
     const contado = (provs[ped.prov] || {}).pago === "Contado";
-    if (contado) movCaja({ tipo: "egreso", medio: "efectivo", monto: total, detalle: `Compra ${ped.nro} · ${ped.prov}` });
+    if (contado && total > 0) movCaja({ tipo: "egreso", medio: "efectivo", monto: total, detalle: `Compra ${ped.nro} · ${ped.prov}` });
     /* La compra ya quedó; si marcar la orden falla, la mercadería no se
        pierde: la orden sigue pendiente y se ve en la lista. */
-    try { await cerrarOrden(ped.id, "recibida", { compraId, total }); }
-    catch { toast(`La mercadería quedó cargada, pero la orden ${ped.nro} no se pudo marcar como recibida. Refrescá antes de volver a recibirla.`, "mal"); }
-    setPedidos((ps) => ps.map((x) => (x.id === ped.id ? { ...x, estado: "recibido", total } : x)));
+    let quedo = { estado: "recibido", faltan: 0, totalRecibido: total };
+    try { quedo = await registrarRecepcion(ped.id, lineasRec, { compraId, cerrar }); }
+    catch { toast(`La mercadería quedó cargada, pero la orden ${ped.nro} no se pudo actualizar. Refrescá antes de volver a recibirla.`, "mal"); }
+    setPedidos((ps) => ps.map((x) => {
+      if (x.id !== ped.id) return x;
+      const items = x.items.map((i) => {
+        const l = lineasRec.find((r) => r.pid === i.pid);
+        const recibido = +(i.recibido + (l ? Number(l.cant) : 0)).toFixed(3);
+        return { ...i, recibido, falta: Math.max(0, +(i.cant - recibido).toFixed(3)) };
+      });
+      return { ...x, estado: quedo.estado, parcial: true, items, ...(quedo.estado === "recibido" ? { total: quedo.totalRecibido } : {}) };
+    }));
     setRecibiendoGuarda(false);
     setRecibiendo(null);
-    toast(contado ? `Mercadería recibida y ${money(total)} pagados de caja.` : `Mercadería recibida. ${money(total)} quedan en cuenta corriente.`);
+    const pago = !lineasRec.length ? "" : contado ? ` ${money(total)} pagados de caja.` : ` ${money(total)} quedan en cuenta corriente.`;
+    toast(quedo.estado === "pendiente"
+      ? `Llegó parte: faltan ${quedo.faltan} producto${quedo.faltan === 1 ? "" : "s"}. La orden sigue abierta.${pago}`
+      : `Orden ${ped.nro} recibida.${pago}`);
   };
 
   const aDonde = lugar.varias ? (lugar.sucursales.find((s) => s.id === lugar.actual) || {}).nombre : null;
@@ -639,12 +655,18 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-sm">{p.nro} · {p.prov}</div>
                     <div className="text-xs text-texto-suave">{p.items.length} productos · {fdatel(p.fecha)} · {(provs[p.prov] || {}).pago}</div>
+                    {p.estado === "pendiente" && p.parcial && (
+                      <div className="text-xs text-ojo mt-0.5">
+                        Llegó parte · faltan {p.items.filter((i) => i.falta > 0).map((i) => `${i.nombre} (${i.falta})`).slice(0, 3).join(", ")}
+                        {p.items.filter((i) => i.falta > 0).length > 3 ? "…" : ""}
+                      </div>
+                    )}
                   </div>
                   <span className="f-m text-sm">{money(p.total)}</span>
                   {p.estado === "pendiente" ? (
                     <>
                       <Boton size="sm" variant="quiet" onClick={() => cancelarOrden(p)}>Cancelar</Boton>
-                      <Boton size="sm" onClick={() => setRecibiendo(p)}>Recibir mercadería</Boton>
+                      <Boton size="sm" onClick={() => setRecibiendo(p)}>{p.parcial ? "Recibir lo que falta" : "Recibir mercadería"}</Boton>
                     </>
                   ) : p.estado === "cancelado"
                     ? <span className="text-xs font-semibold text-texto-tenue border border-borde rounded-full px-2.5 py-1">Cancelada</span>
@@ -726,7 +748,11 @@ export function Compras({ empresaId, productos, setProductos, k, pedidos, setPed
 }
 
 function RecepcionModal({ ped, onClose, onConfirm, provs, guardando }) {
-  const [lineas, setLineas] = useState(ped.items.map((i) => ({ ...i, cant: i.cant, costo: i.costo, ver: 0 })));
+  /* Lo que falta de cada producto: en la primera recepción es todo lo
+     pedido; después, lo que no llegó (06/10). */
+  const [lineas, setLineas] = useState(ped.items.filter((i) => (i.falta ?? i.cant) > 0).map((i) => ({ ...i, cant: i.falta ?? i.cant, costo: i.costo, ver: 0 })));
+  const [cerrar, setCerrar] = useState(false);
+  const llegaMenos = lineas.some((l) => Number(l.cant) < Number(l.falta ?? l.cant));
   const set = (pid, campo, val) => setLineas((ls) => ls.map((l) => (l.pid === pid ? { ...l, [campo]: val } : l)));
   useScanHandler((cod) => {
     const i = lineas.findIndex((l) => l.barcode === cod);
@@ -784,6 +810,15 @@ function RecepcionModal({ ped, onClose, onConfirm, provs, guardando }) {
             })}
           </tbody>
         </table>
+        {llegaMenos && (
+          <div className="text-sm border border-borde rounded-xl p-3 mt-4 space-y-2">
+            <p className="text-texto-suave">Llega menos de lo pedido: la orden queda abierta con lo que falta, para recibirlo cuando llegue.</p>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={cerrar} onChange={(e) => setCerrar(e.target.checked)} />
+              Lo que falta no va a llegar: cerrar la orden igual
+            </label>
+          </div>
+        )}
         {cambios.length > 0 && (
           <p className="text-xs text-ojo bg-ojo-suave border border-ojo rounded-xl p-3 mt-4">
             {cambios.length} productos llegan con otro costo. Al confirmar se actualiza el costo, el historial y el margen — y vas a ver el aviso de precios a revisar.
@@ -793,7 +828,7 @@ function RecepcionModal({ ped, onClose, onConfirm, provs, guardando }) {
           <div><span className="text-sm text-texto-suave">Total a pagar </span><span className="f-d text-xl">{money(total)}</span>
             <div className="text-xs text-texto-tenue">{(provs[ped.prov] || {}).pago === "Contado" ? "Sale de caja al confirmar" : "Queda en cuenta corriente"}</div>
           </div>
-          <Boton onClick={() => onConfirm(ped, lineas)} disabled={guardando}>
+          <Boton onClick={() => onConfirm(ped, lineas, cerrar)} disabled={guardando}>
             {guardando ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} {guardando ? "Guardando…" : "Confirmar recepción"}
           </Boton>
         </div>
