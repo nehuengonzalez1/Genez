@@ -1491,7 +1491,7 @@ function Registro({ rubros, tarifas, eleccion }) {
     if (problema) return setError(problema);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())) return setError("Escribí tu email: ahí te llega el acceso.");
     if (ALTAS_ABIERTAS && d.clave.length < 8) return setError("La contraseña tiene que tener al menos 8 caracteres.");
-    if (!d.acepta) return setError("Para seguir tenés que aceptar la política de privacidad.");
+    if (!d.acepta) return setError("Para seguir tenés que aceptar los términos y la política de privacidad.");
     setError(null); setEnviando(true);
     try {
       await pedirPresupuesto({
@@ -1653,7 +1653,7 @@ function Registro({ rubros, tarifas, eleccion }) {
               </div>
               <label className="ln-reg-legal ln-reg-acepta">
                 <input type="checkbox" checked={d.acepta} onChange={(e) => setD((x) => ({ ...x, acepta: e.target.checked }))} />
-                <span>Leí y acepto la <a href="/privacidad" target="_blank" rel="noreferrer">política de privacidad</a>.</span>
+                <span>Leí y acepto los <a href="/terminos" target="_blank" rel="noreferrer">términos y condiciones</a> y la <a href="/privacidad" target="_blank" rel="noreferrer">política de privacidad</a>.</span>
               </label>
             </form>
           )}
@@ -1707,7 +1707,12 @@ function Pie({ fuera = false }) {
           <a {...ancla(ANCLAS.precios)}>Precios</a>
           <a {...ancla("preguntas")}>Preguntas</a>
           <a href="/login">Entrar</a>
+          <a href="/terminos">Términos</a>
           <a href="/privacidad">Privacidad</a>
+          {/* Resolución 424/2020: a la vista desde la página principal,
+              sin pedir entrar. Con borde para que no se pierda entre los
+              demás links del pie. */}
+          <a href="/arrepentimiento" className="ln-pie-arrepentimiento">Botón de arrepentimiento</a>
         </nav>
         <div className="ln-pie-copia">© {new Date().getFullYear()} Genez · Hecho en Argentina</div>
       </div>

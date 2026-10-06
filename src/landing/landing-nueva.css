@@ -1204,6 +1204,8 @@
 /* En el celular el renglón medía 21 px: el relleno agranda lo que se toca. */
 @media (max-width: 1023px) { .ln-pie-enlaces a { padding: 10px 0; } }
 .ln-pie-enlaces a:hover { color: rgb(var(--ln-texto)); }
+.ln-pie-enlaces a.ln-pie-arrepentimiento { border: 1px solid rgb(var(--ln-suave) / 0.5); border-radius: 8px; padding: 4px 10px; color: rgb(var(--ln-texto)); }
+@media (max-width: 1023px) { .ln-pie-enlaces a.ln-pie-arrepentimiento { padding: 8px 12px; margin: 4px 0; } }
 .ln-pie-copia { font-size: 12.5px; color: rgb(var(--ln-tenue)); }
 
 @media (max-width: 1023px) {
