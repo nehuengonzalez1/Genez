@@ -897,6 +897,8 @@ if (typeof window !== "undefined" && !window.__genezFounderFalso) {
       estadoPrueba.suscripcion = { plan: cuerpo.plan, periodo: cuerpo.periodo, monto, estado: "pendiente", pago_fallido_desde: null, proximo_cobro: null };
       return json({ link: `${location.pathname}${location.search}${location.search ? "&" : "?"}suscripcion=volvio`, monto, periodo: cuerpo.periodo, plan: cuerpo.plan });
     }
+    /* "Mandarme uno ahora" (0136): no sale ningún mail, solo contesta. */
+    if (cuerpo.accion === "reportePrueba") return json({ ok: true, para: "prueba@genez.test" });
     /* Mi plan (0130): lo mismo que contestaría el servidor. */
     if (cuerpo.accion === "cambiarPlan") {
       const sus = estadoPrueba.suscripcion;

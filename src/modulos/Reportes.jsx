@@ -15,6 +15,7 @@ import { cargarQuiebres } from "../datos/quiebres.js";
 import { cargarComparativo } from "../datos/sucursales.js";
 import { Kpi, Card, Boton, TablaSimple, Vacio, Sello, Tabs } from "../ui/Base.jsx";
 import { ReporteAMedida } from "./ReporteAMedida.jsx";
+import { ReportesPorMail } from "./ReportesPorMail.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
 import { tonoCanal } from "../ui/canales.jsx";
@@ -33,7 +34,7 @@ const diasEntre = (a, b) => Math.round((alMediodia(b) - alMediodia(a)) / 8640000
 const paraInput = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const deInput = (v) => (v ? new Date(`${v}T12:00:00`) : null);
 
-export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = { sucursales: [], varias: false }, ajustes = {} }) {
+export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = { sucursales: [], varias: false }, ajustes = {}, permisos = {} }) {
   /* La sucursal que se mira (0108). "" es todas, como siempre. */
   const [sucursal, setSucursal] = useState("");
   /* "Mi reporte" (0135): el constructor, con el mismo período de arriba. */
@@ -323,9 +324,10 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
         )}
       </div>
 
-      <Tabs value={vista} onChange={setVista} items={[{ k: "resumen", n: "Resumen" }, { k: "medida", n: "Mi reporte" }]} />
+      <Tabs value={vista} onChange={setVista} items={[{ k: "resumen", n: "Resumen" }, { k: "medida", n: "Mi reporte" }, { k: "mail", n: "Por mail" }]} />
 
-      {vista === "medida" ? <ReporteAMedida empresaId={empresaId} rango={rango}
+      {vista === "mail" ? <ReportesPorMail empresaId={empresaId} puedeConfigurar={!!permisos.configurar} />
+        : vista === "medida" ? <ReporteAMedida empresaId={empresaId} rango={rango}
         sucursal={sucursal ? (lugar.sucursales.find((s) => s.id === sucursal) || {}).nombre : null} /> : (<>
 
       {/* El mes en curso contra sus objetivos (06/10), sea cual sea el
