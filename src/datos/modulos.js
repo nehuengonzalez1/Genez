@@ -42,7 +42,11 @@ export const MODULOS = [
   { k: "crm", n: "Seguimiento", d: "A quién conviene escribirle, y por qué", nivel: "empresa", necesita: ["WhatsApp en el teléfono del local"] },
   { k: "comunicaciones", n: "Avisos", d: "Recordatorios de turno, plantillas e historial", nivel: "pro", necesita: ["WhatsApp en el teléfono del local"] },
   { k: "permisos", n: "Permisos", d: "Qué puede hacer cada rol, y quién cambió qué", nivel: "empresa", necesita: [] },
-  { k: "asistente", n: "Asistente con IA", d: "Diagnóstico y consultas", nivel: "empresa", necesita: [] },
+  /* Pro desde el 05/10: es lo que promete la landing (150 preguntas por mes)
+     y lo que cuenta el servidor (api/_planes.js). Estaba en Empresa, así que
+     la prueba —que es Pro— arrancaba sin el asistente: lo vio Nehuen el
+     06/10 en el alta real de punta a punta. */
+  { k: "asistente", n: "Asistente con IA", d: "Diagnóstico y consultas", nivel: "pro", necesita: [] },
 ];
 
 export const MODULOS_BASE = MODULOS.filter((m) => m.base).map((m) => m.k);
