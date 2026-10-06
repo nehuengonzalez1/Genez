@@ -732,6 +732,13 @@ const FUNCIONES = {
   },
   /* Tres casos fijos con los primeros productos (0134): uno que sigue sin
      stock, uno que se repuso, y uno vendido con el stock en cero. */
+  /* El onboarding (0137): guarda en el perfil de mentira, como la base. */
+  marcar_onboarding: ({ p_clave, p_valor = true }) => {
+    const yo = tablaDe("perfiles").find((x) => x.id === USUARIO.id);
+    if (!yo) return {};
+    yo.onboarding = { ...(yo.onboarding || {}), [p_clave]: p_valor };
+    return yo.onboarding;
+  },
   quiebres_de_stock: () => {
     const [a, b, c, d] = tablaDe("items").filter((i) => i.tipo === "producto");
     const f = (i, x) => i && { item_id: i.id, dias_contados: 30, dias_vendiendo_en_cero: 0, sin_stock_desde: null, stock: 5, ...x };

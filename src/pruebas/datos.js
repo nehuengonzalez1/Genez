@@ -206,7 +206,9 @@ export function armarDatos(rubro, sesion = "comercio") {
     config: { negocio: "Comercio de prueba", fiscal: { condicion: "MONOTRIBUTO", razonSocial: "Comercio de prueba" },
       ...((typeof location !== "undefined" && new URLSearchParams(location.search).get("tope"))
         ? { descuentoMax: Object.fromEntries(["encargado", "cajero", "repositor"].map((k) => [k, Number(new URLSearchParams(location.search).get("tope"))])) } : {}) },
-    activa: true, creada_en: hace(90), slug: "comercio-de-prueba",
+    /* ?nuevo=1: un comercio recién creado, para ver la bienvenida y los
+       primeros pasos del onboarding (0137). */
+    activa: true, creada_en: (typeof location !== "undefined" && new URLSearchParams(location.search).get("nuevo")) ? new Date(Date.now() - 3600000).toISOString() : hace(90), slug: "comercio-de-prueba",
   };
   const perfil = {
     /* ?rol=cajero (encargado, repositor): para ver lo que ve otro rol (06/10). */
