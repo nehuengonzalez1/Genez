@@ -30,12 +30,16 @@ import { estaOscuro } from "./tema.js";
 
 const ACTUALIZADA = "5 de octubre de 2026";
 
-/* Los datos del titular. FALTAN: sin ellos los términos no obligan a
-   nadie, y no se publica la página hasta completarlos. */
-const TITULAR = "[nombre y apellido del titular]";
-const CUIT = "[CUIT]";
-const DOMICILIO = "[domicilio]";
-const CIUDAD = "[ciudad del domicilio]";
+/* Los datos del titular, cargados el 06/10. Es CUIL porque Nehuen todavía
+   no está inscripto: al inscribirse en el monotributo ARCA usa el mismo
+   número como CUIT, y acá solo cambia la palabra (CLAVE_FISCAL). La
+   ciudad es la de los tribunales: Tres de Febrero es del Departamento
+   Judicial de San Martín. */
+const TITULAR = "Nehuen Gonzalez";
+const CLAVE_FISCAL = "CUIL";
+const CUIT = "20-40460947-6";
+const DOMICILIO = "José Murias 2271, partido de Tres de Febrero, provincia de Buenos Aires";
+const CIUDAD = "del Departamento Judicial de San Martín, provincia de Buenos Aires";
 const EMAIL = "contacto@genez.com.ar";
 
 const WHATSAPP = "+54 9 11 2485-9144";
@@ -72,7 +76,7 @@ export default function Terminos() {
         <Seccion n={1} titulo="Quiénes somos">
           <p>
             Genez es un sistema de gestión para comercios —cobro, caja, stock, compras, clientes, pedidos, informes y otros
-            módulos— que se usa desde el navegador en genez.com.ar. Lo presta {TITULAR}, CUIT {CUIT}, con domicilio en {DOMICILIO}
+            módulos— que se usa desde el navegador en genez.com.ar. Lo presta {TITULAR}, {CLAVE_FISCAL} {CUIT}, con domicilio en {DOMICILIO}
             ("Genez", "nosotros").
           </p>
           <p>
@@ -277,7 +281,7 @@ export default function Terminos() {
           <p>
             Rigen las leyes de la República Argentina. Si sos consumidor, son competentes los tribunales de tu domicilio (Código Civil
             y Comercial, art. 1109), y podés hacer tu reclamo ante la autoridad de Defensa del Consumidor de tu jurisdicción. En los
-            demás casos, son competentes los tribunales ordinarios de {CIUDAD}.
+            demás casos, son competentes los tribunales ordinarios {CIUDAD}.
           </p>
           <p>Antes de cualquier reclamo, escribinos: casi todo se resuelve hablando.</p>
         </Seccion>
