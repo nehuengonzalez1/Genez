@@ -19,7 +19,7 @@ import { saldoDePuntos } from "../datos/puntos.js";
 import { reglaDePuntos, puntosGanados, canjeMaximo, valorDePuntos } from "../utils/puntos.js";
 import QRCode from "qrcode";
 import {
-  nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista, listasDeCliente,
+  nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista, listasDeCliente, comisionDe,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
   condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
   leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE,
@@ -1651,7 +1651,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     })()}
                     {m.tasa > 0 && (
                       <span className="text-xs text-texto-tenue shrink-0">
-                        {m.recargo ? `recargo ${m.tasa}%` : `comisión ${money(total * m.tasa / 100)}`}
+                        {m.recargo ? `recargo ${m.tasa}%` : `comisión ${money(comisionDe(m, total))}`}
                       </span>
                     )}
                     {i === medioSel && <ArrowRight size={16} className="text-acento" />}

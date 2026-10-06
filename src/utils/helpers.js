@@ -392,6 +392,17 @@ export function medioPorK(ajustes, k) {
 
 /* Total que paga el cliente con ese medio. Solo cambia si el recargo se
    traslada; si no, el total es el mismo y la tasa sale de la ganancia. */
+/* Lo que se lleva el procesador de una venta con este medio (06/10). La
+   comisión puede llevar IVA (21%, `ivaComision`): para un monotributista
+   es un costo más, y sin contarlo la ganancia del día daba de más. Los
+   medios guardados antes no lo tienen y quedan como estaban. */
+export const IVA_COMISION = 21;
+export function comisionDe(medio, monto) {
+  if (!medio || !medio.tasa || !monto) return 0;
+  const c = Number(monto) * Number(medio.tasa) / 100;
+  return Math.round(medio.ivaComision ? c * (1 + IVA_COMISION / 100) : c);
+}
+
 export function conRecargo(base, medio) {
   if (!medio || !medio.recargo || !medio.tasa) return { total: base, recargo: 0 };
   const r = Math.round(base * (medio.tasa / 100));
