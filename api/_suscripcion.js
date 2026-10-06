@@ -235,12 +235,35 @@ async function alCambiarSuscripcion(db, mpId) {
       plan: s.plan, ...(modulos ? { modulos } : {}),
       prueba_hasta: s.pago_fallido_desde ? masDias(s.pago_fallido_desde, GRACIA_DIAS) : null,
     }).eq("id", s.empresa_id);
+    if (s.plan === "start") await dejarSoloAlDueno(db, s.empresa_id);
   } else if (estado === "pausada" || estado === "cancelada") {
     /* Sigue entrando hasta el último día pago; si no hay fecha, hasta hoy. */
     const hasta = proximo ? masDias(proximo, -1) : hoy();
     await db.from("empresas").update({ prueba_hasta: hasta < hoy() ? hoy() : hasta }).eq("id", s.empresa_id);
   }
   await db.rpc("suscripcion_a_founder", { p_empresa: s.empresa_id });
+}
+
+/* Simple es de un usuario (api/_planes.js), pero la prueba es Pro y ahí se
+   pueden dar de alta varios. Decidido el 05/10: al contratar Simple queda
+   solo el dueño y los demás se dan de baja. Baja y no borrado: quedan en
+   la lista y en la bitácora (acceso.baja), y si pasa a Pro se reactivan.
+
+   El dueño es quien se registró (pruebas.usuario_id); si no está o ya no
+   es de acá, el dueño activo más antiguo. Sin ninguno de los dos no se da
+   de baja a nadie: dejar un comercio pagando sin nadie que entre es peor
+   que dejarle un usuario de más. */
+export async function dejarSoloAlDueno(db, empresaId) {
+  const { data: activos } = await db.from("perfiles").select("id, rol, creado_en")
+    .eq("empresa_id", empresaId).eq("activo", true).order("creado_en", { ascending: true });
+  if (!activos || activos.length <= 1) return;
+  const { data: prueba } = await db.from("pruebas").select("usuario_id").eq("empresa_id", empresaId).maybeSingle();
+  const registrado = prueba && activos.find((p) => p.id === prueba.usuario_id);
+  const dueno = registrado || activos.find((p) => p.rol === "dueno");
+  if (!dueno) return;
+  const { error } = await db.from("perfiles").update({ activo: false })
+    .eq("empresa_id", empresaId).eq("activo", true).neq("id", dueno.id);
+  if (error) throw error;
 }
 
 async function alCobrar(db, pagoId) {

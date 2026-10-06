@@ -107,6 +107,14 @@ export function Contratar({ cuenta }) {
           );
         })}
       </div>
+      {/* Al activarse Simple, el servidor da de baja a todos menos al dueño
+          (dejarSoloAlDueno, api/_suscripcion.js): se avisa antes de pagar. */}
+      {plan === "start" && (
+        <p className="text-xs text-texto-suave mt-2">
+          Simple es para una sola persona: cuando se active, queda solo tu acceso y los demás usuarios se dan de baja.
+          Si después pasás a Pro, los volvés a dar de alta desde Permisos.
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2 mt-3">
         {[["mensual", "Por mes"], ["anual", `Por año: pagás ${meses} meses`]].map(([k, n]) => (
