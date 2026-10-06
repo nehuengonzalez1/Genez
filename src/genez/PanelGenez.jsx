@@ -2207,6 +2207,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes}
                 promos={promos} recargarPromos={leerPromos} puedePromos={!!permisos.cambiarPrecios} />)}
           {tab === "stock" && <Stock productos={productos} setProductos={setProductos} k={k} toast={toast} empresaId={empresaId} lugar={lugar}
+            verCostos={permisos.verCostos !== false}
             actualizarProducto={actualizarProducto}
             crearPromo={async ({ producto, pct, hasta }) => {
               const dia = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };

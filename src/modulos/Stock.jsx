@@ -9,9 +9,10 @@ import { diasDesde, money, moneyk, nf } from "../utils/helpers.js";
 import { useScanHandler, beep, Card, Kpi, Tabs, Vacio, Boton, TablaSimple } from "../ui/Base.jsx";
 import { inputCls } from "../ui/Campos.jsx";
 import { StockInicial } from "./StockInicial.jsx";
+import { Mermas } from "./Mermas.jsx";
 import { cargarStockPorSucursal, transferirStock, guardarConteo } from "../datos/sucursales.js";
 
-export function Stock({ productos, setProductos, k, toast, empresaId = null, lugar = { sucursales: [], varias: false }, actualizarProducto = null, crearPromo = null }) {
+export function Stock({ productos, setProductos, k, toast, empresaId = null, lugar = { sucursales: [], varias: false }, actualizarProducto = null, crearPromo = null, verCostos = true }) {
   const [guardando, setGuardando] = useState(null);
   const [tab, setTab] = useState("alertas");
   const [q, setQ] = useState("");
@@ -56,6 +57,8 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
     { k: "vencer", n: "Vencimientos", badge: k.porVencer.length },
     { k: "dormidos", n: "Sin movimiento", badge: k.dormidos.length },
     { k: "inventario", n: "Conteo de inventario" },
+    /* Las bajas con motivo (06/10): rotura, vencido, robo, consumo propio. */
+    ...(empresaId ? [{ k: "mermas", n: "Mermas" }] : []),
     /* Con una sola sucursal no hay nada que mostrar (0108). */
     ...(lugar.varias && empresaId ? [{ k: "sucursales", n: "Sucursales" }] : []),
   ];
@@ -261,6 +264,11 @@ export function Stock({ productos, setProductos, k, toast, empresaId = null, lug
             </>
           );
         })()}
+
+        {tab === "mermas" && (
+          <Mermas productos={productos} setProductos={setProductos} empresaId={empresaId} lugar={lugar} toast={toast}
+            activa={tab === "mermas"} verCostos={verCostos} />
+        )}
 
         {tab === "sucursales" && (
           <StockPorSucursal productos={productos} empresaId={empresaId} lugar={lugar} toast={toast} />
