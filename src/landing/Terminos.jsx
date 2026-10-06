@@ -166,7 +166,7 @@ export default function Terminos() {
 
         <Seccion n={7} titulo="Cambiar de plan">
           <p>
-            El dueño puede pasar a cualquier otro plan, o de mensual a anual y al revés, desde <B>Ajustes → Mi plan</B>. El plan nuevo
+            El dueño puede pasar a cualquier otro plan, o de mensual a anual y al revés, desde <B>Ajustes → Mi cuenta</B>. El plan nuevo
             rige desde ese momento y su precio se cobra desde el próximo cobro: no pagás diferencias por los días que faltan.
           </p>
           <p>
@@ -184,7 +184,7 @@ export default function Terminos() {
             pago. (Ley 24.240, art. 34; Código Civil y Comercial, arts. 1110 a 1116; Resolución 424/2020.)
           </p>
           <p>
-            <B>Baja.</B> Podés darte de baja cuando quieras, sin permanencia mínima, desde <B>Ajustes → Mi plan → Dar de baja</B>, desde
+            <B>Baja.</B> Podés darte de baja cuando quieras, sin permanencia mínima, desde <B>Ajustes → Mi cuenta → Dar de baja</B>, desde
             tus suscripciones en Mercado Pago o escribiéndonos. Te damos un <B>código de baja</B> en el momento y te lo mandamos por mail.
           </p>
           <Lista>

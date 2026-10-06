@@ -417,7 +417,7 @@ export async function tareasDiarias(db) {
           await avisar(para, "Genez: el precio se ajusta por inflación", [
             `Como dicen los términos, el precio de tu plan ${NOMBRE[s.plan]} se ajusta por la inflación (IPC del INDEC): subió ${variacion}% desde el último ajuste.`,
             `Desde el cobro del ${diaLindo(s.proximo_cobro)} pagás ${plata(nuevo)} ${s.periodo === "anual" ? "por año" : "por mes"} (antes ${plata(antes)}).`,
-            "Si no estás de acuerdo, podés darte de baja antes de esa fecha desde Ajustes → Mi plan, sin ningún costo.",
+            "Si no estás de acuerdo, podés darte de baja antes de esa fecha desde Ajustes → Mi cuenta, sin ningún costo.",
           ]);
         }
       }

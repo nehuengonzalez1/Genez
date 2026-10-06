@@ -114,7 +114,7 @@ export async function contratar(res, db, quien, cuerpo, req) {
   ]);
   if (!empresa) return res.status(404).json({ error: { message: "No encontré el comercio." } });
   if (previa && (previa.estado === "activa" || previa.estado === "pausada")) {
-    return res.status(409).json({ error: { message: "Ya tenés una suscripción. Para cambiarla, entrá a Ajustes → Mi plan." } });
+    return res.status(409).json({ error: { message: "Ya tenés una suscripción. Para cambiarla, entrá a Ajustes → Mi cuenta." } });
   }
 
   const locales = Math.max(1, sucursales || 1);

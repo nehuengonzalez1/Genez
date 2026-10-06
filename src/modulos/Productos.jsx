@@ -107,7 +107,8 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
      hacia abajo. */
   const [pctRemarcar, setPctRemarcar] = useState("");
   const [destinoRemarcar, setDestinoRemarcar] = useState("precio");
-  const [redondeo, setRedondeo] = useState("10");
+  /* Arranca con el del comercio (Ajustes → Precios y stock, 06/10). */
+  const [redondeo, setRedondeo] = useState(String((ajustes && ajustes.redondeo) || 10));
   const redondear = (v, subiendo) => {
     const r = Number(redondeo) || 1;
     return (subiendo ? Math.ceil : Math.floor)(Math.round(v * 100) / 100 / r) * r;

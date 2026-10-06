@@ -909,8 +909,26 @@ export function ticketVenta(t, ajustes, W) {
   }
   b.push({ t: "b" });
   b.push({ t: "c", v: `${t.items.length} items` });
-  b.push({ t: "c", v: "GRACIAS POR SU COMPRA" });
+  b.push(...pieDelTicket(ajustes));
   return armarLineas(W, b);
+}
+
+/* El pie (06/10, Ajustes → Equipos → Ticket): el texto del comercio, o
+   "Gracias por su compra" si no puso nada, y su teléfono e Instagram si
+   los cargó. Antes era siempre la misma frase, escrita acá. */
+export function pieDelTicket(ajustes) {
+  const t = (ajustes && ajustes.ticket) || {};
+  const c = (ajustes && ajustes.contacto) || {};
+  const renglones = String(t.pie || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 4);
+  const b = (renglones.length ? renglones : ["GRACIAS POR SU COMPRA"]).map((v) => ({ t: "c", v: v.toUpperCase() }));
+  if (t.contacto !== false) {
+    const tel = [c.telefono && `TEL ${c.telefono}`, c.whatsapp && c.whatsapp !== c.telefono && `WHATSAPP ${c.whatsapp}`].filter(Boolean);
+    const ig = c.instagram ? `@${String(c.instagram).trim().replace(/^@/, "")}` : null;
+    if (tel.length || ig) b.push({ t: "b" });
+    for (const v of tel) b.push({ t: "c", v });
+    if (ig) b.push({ t: "c", v: ig });
+  }
+  return b;
 }
 
 /* --- Pre cuenta --------------------------------------------------------

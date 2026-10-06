@@ -68,3 +68,19 @@ export async function guardarAjustes(empresaId, ajustes) {
 
   if (error) throw error;
 }
+
+/* El nombre es su propia columna (empresas.nombre). Desde 0132 lo puede
+   cambiar el comercio con el permiso de configurar; la base le saca los
+   espacios de los costados y frena uno vacío. Devuelve el que quedó. */
+export async function renombrarComercio(empresaId, nombre) {
+  const { data, error } = await supabase
+    .from("empresas")
+    .update({ nombre })
+    .eq("id", empresaId)
+    .select("nombre");
+  if (error) throw new Error(error.message || "No se pudo cambiar el nombre.");
+  /* Sin filas es que la base no lo dejó: sin el permiso de configurar,
+     RLS no da error, devuelve vacío. */
+  if (!data || !data.length) throw new Error("No tenés permiso para cambiar el nombre del comercio.");
+  return data[0].nombre;
+}
