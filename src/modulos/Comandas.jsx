@@ -30,7 +30,7 @@ import {
   Pizza, Beef, Sandwich, Salad, Soup, Fish, Drumstick, Coffee, Wine, Beer,
   CupSoda, IceCream, Cake, Croissant, Cookie, Milk, Flame, Utensils,
 } from "lucide-react";
-import { money, hora, mediosDe, medioPorK, conRecargo, FISCAL_INICIAL, TOPE_DESCUENTO, topeDescuento, limpiarPorcentaje } from "../utils/helpers.js";
+import { money, hora, mediosDe, medioPorK, conRecargo, FISCAL_INICIAL, TOPE_DESCUENTO, topeDescuento, limpiarPorcentaje, descuentoMaxDe } from "../utils/helpers.js";
 import { siguienteNumero, serieDe } from "../datos/ventas.js";
 import {
   cargarSalon, cargarRecursos, abrirComanda, cargarComanda, cargarCarta, agregarLinea, aplicarPromosEnComanda,
@@ -272,6 +272,7 @@ export function PantallaComandas({ empresaId, sucursalId = null, config = {}, aj
         <Pedido
           pleno comandaId={abierta.id} empresaId={empresaId} config={config}
           ajustes={ajustes} caja={caja} toast={toast} promos={promos}
+          puedeDescontar={!!permisos.descuentos} descuentoMax={descuentoMaxDe(sesion, ajustes)}
           empleado={sesion ? sesion.nombre : ""}
           voz={esMesa ? VOZ_MESA : { ...abierta.voz, volver }}
           encabezado={abierta.encabezado}
@@ -530,6 +531,7 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
     return (
       <Pedido comandaId={comandaId} empresaId={empresaId} config={config}
         ajustes={ajustes} caja={caja} toast={toast} promos={promos}
+        puedeDescontar={!!permisos.descuentos} descuentoMax={descuentoMaxDe(sesion, ajustes)}
         empleado={sesion ? sesion.nombre : ""} onVolver={volver} />
     );
   }
@@ -577,7 +579,12 @@ export function Comandas({ empresaId, sucursalId = null, config = {}, ajustes, c
 
    `onCambiarCanal` recibe un canal para pasar el pedido derecho a
    mostrador o para llevar, o nada para preguntar por el canal completo. */
-function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, empleado = "", pleno = false, promos = [] }) {
+/* `puedeDescontar` y `descuentoMax` (06/10): el permiso de hacer descuentos
+   y el tope del rol, los mismos que en el cobro. Antes la comanda no
+   miraba ninguno de los dos: cualquiera descontaba lo que quisiera. Por
+   defecto no se puede, para que una pantalla nueva que se olvide de
+   pasarlos no habilite descuentos sin querer. */
+function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, onVolver, onCambiarCanal = null, encabezado = null, voz = VOZ_MESA, empleado = "", pleno = false, promos = [], puedeDescontar = false, descuentoMax = null }) {
   const [comanda, setComanda] = useState(null);
   const [carta, setCarta] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -1094,15 +1101,15 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
               {/* Con descuento puesto el botón queda en acento: es la única
                   forma de que se note desde la grilla que la cuenta no es
                   la suma de lo pedido. */}
-              <Accion icono={Percent} tono={comanda.descuento > 0 ? "acento" : "oscuro"}
-                disabled={trabajando} onClick={() => setDescontando(true)}
+              {(puedeDescontar || comanda.descuento > 0) && <Accion icono={Percent} tono={comanda.descuento > 0 ? "acento" : "oscuro"}
+                disabled={trabajando || !puedeDescontar} onClick={() => setDescontando(true)}
                 title={comanda.descuento > 0
                   ? `Descuento aplicado: -${money(comanda.descuento)}`
                   : "Aplicar un descuento a la cuenta"}>
                 {comanda.descuento > 0
                   ? (comanda.descuentoPct != null ? `Desc · ${comanda.descuentoPct}%` : `Desc · ${money(comanda.descuento)}`)
                   : "Descuento"}
-              </Accion>
+              </Accion>}
               <Accion icono={StickyNote} tono={comanda.observacion ? "acento" : "oscuro"}
                 onClick={() => setObservando(true)}
                 title={comanda.observacion || "Algo que hay que saber de este pedido"}>
@@ -1212,7 +1219,7 @@ function Pedido({ comandaId, empresaId, config, ajustes = {}, caja = {}, toast, 
       <ModalDetalle item={detalle} onCerrar={() => setDetalle(null)}
         onAgregar={(extra) => { const i = detalle; setDetalle(null); agregar(i, extra); }} />
 
-      <ModalDescuento abierto={descontando} comanda={comanda} rotulo={rotulo} trabajando={trabajando}
+      <ModalDescuento abierto={descontando} comanda={comanda} rotulo={rotulo} trabajando={trabajando} descuentoMax={descuentoMax}
         onCerrar={() => setDescontando(false)} onAplicar={ponerDescuento} onQuitar={sacarDescuento} />
 
       <ModalObservacion abierto={observando} valor={comanda.observacion} rotulo={rotulo}
@@ -1468,7 +1475,7 @@ function ModalDetalle({ item, onCerrar, onAgregar }) {
    dos mil pesos que alguien pactó en la mesa. Lo que no puede pasar es
    confirmar sin ver el total, porque ese —y no el descuento— es el número
    que se le va a decir al cliente.                                       */
-function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onAplicar, onQuitar }) {
+function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onAplicar, onQuitar, descuentoMax = null }) {
   const [modo, setModo] = useState("pct");   // pct | monto
   const [valor, setValor] = useState("");
 
@@ -1488,14 +1495,19 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
   const n = esPct ? Number(valor.replace(",", ".")) || 0 : Number(valor) || 0;
   /* Hasta 99,99 %, y medido en plata: el redondeo del porcentaje puede
      dejar la mesa en cero aunque el número tipeado esté en regla. */
-  const tope = topeDescuento(sub);
+  /* Con tope de rol, el porcentaje máximo es ese y el importe máximo, ese
+     porcentaje de la cuenta. */
+  const topePct = descuentoMax == null ? TOPE_DESCUENTO : Math.min(descuentoMax, TOPE_DESCUENTO);
+  const tope = descuentoMax == null ? topeDescuento(sub) : Math.min(topeDescuento(sub), Math.floor(sub * topePct / 100));
   const pedido = esPct ? Math.round(sub * n / 100) : n;
-  const excede = esPct ? n > TOPE_DESCUENTO : n > tope;
+  const excede = esPct ? n > topePct : n > tope;
   const desc = Math.min(pedido, tope);
   const total = sub - desc;
   /* El porcentaje se guarda como porcentaje porque sigue al subtotal si
      se agregan platos. Solo cuando el redondeo lo pasaría del tope va
      como importe, que es el tope mismo. */
+  /* El porcentaje sigue al subtotal si se agregan platos: con tope de
+     rol, nunca lo pasa (es un porcentaje dentro del tope). */
   const aAplicar = esPct && pedido <= tope ? { pct: n } : { monto: desc };
   const habia = comanda.descuento > 0;
 
@@ -1529,7 +1541,7 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
         {/* Los de todos los días, para no tipear con gente esperando. */}
         {esPct && (
           <div className="grid grid-cols-4 gap-1.5 mt-2">
-            {[5, 10, 15, 20].map((p) => (
+            {[5, 10, 15, 20].filter((p) => p <= topePct).map((p) => (
               <button key={p} onClick={() => setValor(String(p))}
                 className={`f-m py-2.5 rounded-xl border text-sm font-semibold transition-colors ${
                   n === p ? "border-acento bg-acento-suave text-acento" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
@@ -1544,7 +1556,7 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
             <span>Subtotal</span><span className="f-m">{money(sub)}</span>
           </div>
           <div className="flex items-baseline justify-between text-sm text-acento mt-0.5">
-            <span>Descuento{esPct && n > 0 ? ` (${String(Math.min(n, TOPE_DESCUENTO)).replace(".", ",")}%)` : ""}</span>
+            <span>Descuento{esPct && n > 0 ? ` (${String(Math.min(n, topePct)).replace(".", ",")}%)` : ""}</span>
             <span className="f-m">-{money(desc)}</span>
           </div>
           <div className="flex items-baseline justify-between gap-2 mt-1">
@@ -1555,7 +1567,9 @@ function ModalDescuento({ abierto, comanda, rotulo, trabajando, onCerrar, onApli
 
         {excede && (
           <p className="text-xs text-mal mt-2">
-            {esPct ? "El descuento llega hasta 99,99 %." : `El descuento llega hasta 99,99 % de la cuenta: ${money(tope)}.`}
+            {descuentoMax != null
+              ? `Tu usuario puede descontar hasta un ${String(topePct).replace(".", ",")} %${esPct ? "" : `: ${money(tope)}`}.`
+              : esPct ? "El descuento llega hasta 99,99 %." : `El descuento llega hasta 99,99 % de la cuenta: ${money(tope)}.`}
           </p>
         )}
 

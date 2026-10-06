@@ -697,7 +697,26 @@ const FUNCIONES = {
   },
   transferir_stock: () => null, ajustar_stock: ({ p_real }) => [{ antes: 0, diferencia: p_real }],
   ajustar_stock_lote: ({ p_filas }) => p_filas.map((f) => ({ item_id: f.item_id, antes: 0, diferencia: f.real })),
-  abrir_comanda: () => uuid(),
+  /* Crea la comanda de verdad (06/10): antes devolvía un id que no existía
+     y la pantalla quedaba en "Abriendo la mesa…". Como la base, una mesa
+     ocupada devuelve la comanda que ya tiene. */
+  abrir_comanda: ({ datos }) => {
+    const ops = T.operaciones || (T.operaciones = []);
+    if (datos.recurso_id) {
+      const ya = ops.find((o) => o.tipo === "comanda" && o.estado === "abierta" && o.recurso_id === datos.recurso_id);
+      if (ya) return ya.id;
+    }
+    const id = uuid();
+    const ahora = new Date().toISOString();
+    ops.push({
+      id, empresa_id: datos.empresa_id, sucursal_id: datos.sucursal_id || null, tipo: "comanda", estado: "abierta",
+      numero: `C-${String(ops.filter((o) => o.tipo === "comanda").length + 1).padStart(4, "0")}`,
+      fecha: ahora, abierta_en: ahora, recurso_id: datos.recurso_id || null, cliente_id: datos.cliente_id || null,
+      comensales: null, descuento: 0, descuento_pct: null, canal: datos.canal || (datos.recurso_id ? "salon" : "mostrador"),
+      referencia: datos.referencia || null, campos_extra: datos.campos_extra || {}, observacion: null, subtotal: 0, total: 0,
+    });
+    return id;
+  },
   /* Cualquier cliente tiene 530 puntos, 30 por vencer: alcanza para ver
      el canje en el cobro. Sumar y restar lo hace la base de verdad. */
   saldo_puntos: () => [{ saldo: 530, por_vencer: 30, proximo_vencimiento: dia(new Date(Date.now() + 20 * 86400000)) }],
