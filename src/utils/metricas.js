@@ -88,3 +88,60 @@ export function matrizDeProductos(items, margenDelPeriodo) {
   for (const k of Object.keys(grupos)) grupos[k].sort((a, b) => b.venta - a.venta);
   return { corteVenta, corteMargen: margenDelPeriodo, grupos };
 }
+
+/* ------------------------------------------------------------
+   Objetivos del mes (06/10)
+
+   El comercio fija uno por mes en Ajustes (ventas, margen, ticket). La
+   proyección es el ritmo del mes hasta hoy llevado al mes entero: si en
+   10 días de 30 se vendió $1M, al cierre serían $3M. No es una promesa,
+   es "a este ritmo".
+   ------------------------------------------------------------ */
+export function proyeccionDelMes(acumulado, diaDelMes, diasDelMes) {
+  return diaDelMes ? (acumulado / diaDelMes) * diasDelMes : 0;
+}
+
+/* ------------------------------------------------------------
+   Clientes por cuándo compran, cuántas veces y cuánto (RFM, 06/10)
+
+   Sobre el último año. Las reglas, en orden (gana la primera que cumple):
+   - Sin compras: nunca compró identificado.
+   - Perdido: no compra hace más de 120 días.
+   - Nuevo: su primera compra fue en los últimos 30 días y compró una o
+     dos veces. Si el comercio tiene menos de 60 días de historia no hay
+     nuevos: para el sistema todos compraron por primera vez hace poco
+     (lo que pasó con Super 25, que empezó en septiembre).
+   - En riesgo: compraba (2 o más veces) y hace entre 45 y 120 días que no.
+   - VIP: está entre el 20% que más gastó y compró en los últimos 45 días.
+   - Fiel: compró 3 o más veces y la última hace 45 días o menos.
+   - Ocasional: el resto.
+   Días fijos y no relativos: "hace 4 meses que no viene" quiere decir lo
+   mismo en cualquier comercio. El corte de VIP sí es del comercio.
+   ------------------------------------------------------------ */
+export const SEGMENTOS = [
+  { k: "vip", n: "VIP", uno: "VIP", d: "Los que más gastan y siguen viniendo", tono: "acento" },
+  { k: "fiel", n: "Fieles", uno: "Fiel", d: "Compran seguido", tono: "bien" },
+  { k: "nuevo", n: "Nuevos", uno: "Nuevo", d: "Primera compra este mes", tono: "info" },
+  { k: "riesgo", n: "En riesgo", uno: "En riesgo", d: "Compraban y hace más de 45 días que no", tono: "ojo" },
+  { k: "perdido", n: "Perdidos", uno: "Perdido", d: "Más de 120 días sin comprar", tono: "mal" },
+  { k: "ocasional", n: "Ocasionales", uno: "Ocasional", d: "Compran de vez en cuando", tono: "tenue" },
+  { k: "sin", n: "Sin compras", uno: "Sin compras", d: "Nunca compraron identificados", tono: "tenue" },
+];
+
+export function corteVip(gastos) {
+  const ordenados = gastos.filter((g) => g > 0).sort((a, b) => b - a);
+  if (!ordenados.length) return Infinity;
+  return ordenados[Math.max(0, Math.ceil(ordenados.length * 0.2) - 1)];
+}
+
+/* `dias`: desde la última compra (o turno); null si nunca. `diasPrimera`:
+   desde la primera del año. */
+export function segmentoRfm({ dias, diasPrimera, compras, gastado }, vip, hayHistoria = true) {
+  if (dias == null || !compras) return "sin";
+  if (dias > 120) return "perdido";
+  if (hayHistoria && diasPrimera != null && diasPrimera <= 30 && compras <= 2) return "nuevo";
+  if (dias > 45 && compras >= 2) return "riesgo";
+  if (gastado >= vip && dias <= 45) return "vip";
+  if (compras >= 3 && dias <= 45) return "fiel";
+  return "ocasional";
+}

@@ -365,3 +365,30 @@ export async function invitarALaApp(empresaId, fichaId, email) {
 export async function quitarLaApp(empresaId, fichaId) {
   return llamarAcceso({ accion: "quitar", empresaId, fichaId });
 }
+
+/* Las compras del último año de cada cliente (06/10), para segmentarlos
+   (RFM, src/utils/metricas.js). Solo las ventas con cliente elegido: en
+   un almacén la mayoría son de mostrador y no cuentan para nadie.
+   Devuelve Map clienteId → { primera, ultima, compras, gastado }. */
+export async function cargarComprasPorCliente(empresaId) {
+  if (!empresaId) throw new Error("cargarComprasPorCliente necesita la empresa.");
+  const desde = new Date(Date.now() - 365 * 86400000).toISOString();
+  const porCliente = new Map();
+  for (let i = 0; ; i += PAGINA) {
+    const { data, error } = await supabase.from("operaciones")
+      .select("cliente_id, fecha, total")
+      .eq("empresa_id", empresaId).not("cliente_id", "is", null).in("tipo", ["venta", "comanda"]).eq("estado", "confirmada")
+      .gte("fecha", desde).order("fecha", { ascending: true }).range(i, i + PAGINA - 1);
+    if (error) throw error;
+    for (const o of data || []) {
+      const fecha = new Date(o.fecha);
+      const c = porCliente.get(o.cliente_id) || { primera: fecha, ultima: fecha, compras: 0, gastado: 0 };
+      if (fecha < c.primera) c.primera = fecha;
+      if (fecha > c.ultima) c.ultima = fecha;
+      c.compras += 1;
+      c.gastado += Number(o.total) || 0;
+      porCliente.set(o.cliente_id, c);
+    }
+    if (!data || data.length < PAGINA) return porCliente;
+  }
+}

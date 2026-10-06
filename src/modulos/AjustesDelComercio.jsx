@@ -86,6 +86,44 @@ export function DatosDelComercio({ ajustes, setAjustes, empresaId, toast }) {
   );
 }
 
+/* ---------- Negocio: los objetivos del mes (06/10) ---------- */
+
+/* Valen para todos los meses hasta que se cambien. Se ven en Inicio y en
+   Reportes (src/modulos/Objetivos.jsx). Vacío: sin objetivo. */
+export function ObjetivosConfig({ ajustes, setAjustes }) {
+  const o = ajustes.objetivos || {};
+  const set = (k, texto) => {
+    const n = Number(String(texto).replace(/[^\d]/g, "")) || null;
+    setAjustes({ ...ajustes, objetivos: { ...o, [k]: k === "margen" && n ? Math.min(99, n) : n } });
+  };
+  return (
+    <Card className="p-5">
+      <h3 className="f-d text-lg">Objetivos del mes</h3>
+      <p className="text-sm text-texto-suave mt-1">
+        Cuánto querés vender por mes. En Inicio y en Reportes vas a ver cuánto llevás y a qué llegás al cierre si seguís a este ritmo.
+      </p>
+      <div className="grid sm:grid-cols-3 gap-3 mt-3">
+        <label className="block">
+          <Rotulo>Ventas del mes ($)</Rotulo>
+          <input value={o.ventas || ""} onChange={(e) => set("ventas", e.target.value)} inputMode="numeric" placeholder="sin objetivo"
+            className={`${inputCls} f-m text-right`} />
+          {o.ventas > 0 && <span className="block text-xs text-texto-tenue mt-1">{money(o.ventas)}</span>}
+        </label>
+        <label className="block">
+          <Rotulo>Margen (%)</Rotulo>
+          <input value={o.margen || ""} onChange={(e) => set("margen", e.target.value)} inputMode="numeric" placeholder="sin objetivo"
+            className={`${inputCls} f-m text-right`} />
+        </label>
+        <label className="block">
+          <Rotulo>Ticket promedio ($)</Rotulo>
+          <input value={o.ticket || ""} onChange={(e) => set("ticket", e.target.value)} inputMode="numeric" placeholder="sin objetivo"
+            className={`${inputCls} f-m text-right`} />
+        </label>
+      </div>
+    </Card>
+  );
+}
+
 /* ---------- Equipos: el pie del ticket y los sonidos ---------- */
 
 export function TicketDelComercio({ ajustes, setAjustes }) {

@@ -21,7 +21,7 @@ import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
 import { MiPlan } from "./MiPlan.jsx";
-import { DatosDelComercio, TicketDelComercio, Sonidos, FondoDeCaja, DescuentosPorRol, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
+import { DatosDelComercio, ObjetivosConfig, TicketDelComercio, Sonidos, FondoDeCaja, DescuentosPorRol, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
 import { useLogos } from "../ui/logos.js";
 import { reglaDePuntos, valorDePuntos } from "../utils/puntos.js";
 
@@ -109,6 +109,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
 
       {ver("negocio") && (<>
       <DatosDelComercio ajustes={ajustes} setAjustes={setAjustes} empresaId={empresaId} toast={toast} />
+      <ObjetivosConfig ajustes={ajustes} setAjustes={setAjustes} />
       <Card className="p-5">
         <h3 className="f-d text-lg">Datos fiscales</h3>
         <p className="text-sm text-texto-suave mt-1">

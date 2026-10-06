@@ -9,6 +9,7 @@ import { fdatel } from "../datos/generador.js";
 import { money, moneyk, pct, nf, pl } from "../utils/helpers.js";
 import { Card, Kpi, Boton, SEV } from "../ui/Base.jsx";
 import { InicioServicios } from "./InicioServicios.jsx";
+import { ObjetivosDelMes } from "./Objetivos.jsx";
 
 /* Qué tablero se dibuja lo decide el rubro, en la base. Acá solo está la
    traducción de nombre a componente: un tablero es código, no configuración,
@@ -20,7 +21,7 @@ export function Inicio(props) {
     : <InicioComercio {...props} />;
 }
 
-function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar }) {
+function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar, objetivos = null }) {
   const serie = k.diario.slice(-30).map((d) => ({ ...d, ganancia: d.ventas - d.costo }));
   const ganHoy = ventasHoy * k.margen30;
   const urgentes = ins.filter((i) => i.sev === "alta").length;
@@ -64,6 +65,9 @@ function InicioComercio({ k, ins, ventasHoy, ticketsHoy, ir, negocio, aCobrar })
         <Kpi label="Ticket promedio" valor={money(k.ticketProm)} delta={k.ticketPromP > 0 ? k.ticketProm / k.ticketPromP - 1 : null} />
         <Kpi label="Valor del stock" valor={moneyk(k.valorStock)} sub={`${nf.format(k.dormidos.length)} sin rotar`} />
       </div>
+
+      {/* Los objetivos del mes (06/10): solo si el comercio los fijó. */}
+      <ObjetivosDelMes diario={k.diario} objetivos={objetivos} />
 
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-3">

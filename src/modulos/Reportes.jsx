@@ -9,6 +9,7 @@ import { money, moneyk, pct, nf, mediosDe, comisionDe } from "../utils/helpers.j
 import { margen, ganancia, ticketPromedio, porTicket, variacion, puntos, puenteDeRentabilidad, matrizDeProductos, CUADRANTES } from "../utils/metricas.js";
 import { cargarPuente } from "../datos/puente.js";
 import { bajarExcel } from "../utils/planilla.js";
+import { ObjetivosDelMes, hayObjetivos } from "./Objetivos.jsx";
 import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
@@ -265,6 +266,13 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
           {exportando ? "Armando…" : "Exportar a Excel"}
         </Boton>
       </div>
+
+      {/* El mes en curso contra sus objetivos (06/10), sea cual sea el
+          período elegido: el objetivo es del mes. Sin objetivos, una línea
+          que dice dónde se cargan. */}
+      {hayObjetivos(ajustes.objetivos)
+        ? <ObjetivosDelMes diario={k.diario} objetivos={ajustes.objetivos} />
+        : <p className="text-xs text-texto-tenue">¿Querés ver el mes contra un objetivo? Cargalo en Ajustes → Negocio → Objetivos del mes.</p>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label={`Ventas ${dias} días`} valor={money(ventas)} delta={ant ? variacion(ventas, ant.ventas) : null} sub={vsAnterior} />
