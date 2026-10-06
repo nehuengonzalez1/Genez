@@ -5,7 +5,9 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Loader2 } from "lucide-react";
-import { money, moneyk, pct, nf } from "../utils/helpers.js";
+import { money, moneyk, pct, nf, mediosDe, comisionDe } from "../utils/helpers.js";
+import { margen, ganancia, ticketPromedio, porTicket, variacion, puntos, puenteDeRentabilidad, matrizDeProductos, CUADRANTES } from "../utils/metricas.js";
+import { cargarPuente } from "../datos/puente.js";
 import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
@@ -25,7 +27,7 @@ const diasEntre = (a, b) => Math.round((alMediodia(b) - alMediodia(a)) / 8640000
 const paraInput = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const deInput = (v) => (v ? new Date(`${v}T12:00:00`) : null);
 
-export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = { sucursales: [], varias: false } }) {
+export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = { sucursales: [], varias: false }, ajustes = {} }) {
   /* La sucursal que se mira (0108). "" es todas, como siempre. */
   const [sucursal, setSucursal] = useState("");
   /* El período es de una fecha a otra, las dos incluidas. Los atajos son
@@ -108,6 +110,61 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
     return () => { vigente = false; };
   }, [empresaId, rango, sucursal]);
 
+  /* EL PERÍODO ANTERIOR (06/10)
+
+     Cada número se muestra contra el período anterior del mismo largo:
+     "30 días" contra los 30 de antes; "del 1 al 15" contra los 15 días
+     previos. Un número solo no dice si es bueno o malo. */
+  const rangoPrevio = useMemo(() => {
+    const h = new Date(rango.desde); h.setDate(h.getDate() - 1);
+    const d = new Date(h); d.setDate(d.getDate() - (dias - 1));
+    return { desde: d, hasta: h };
+  }, [rango, dias]);
+  const [previo, setPrevio] = useState(null);
+  useEffect(() => {
+    if (!empresaId) return undefined;
+    let vigente = true;
+    setPrevio(null);
+    const p = { desde: rangoPrevio.desde, hasta: rangoPrevio.hasta, sucursal: sucursal || null };
+    Promise.all([cargarSerieDiaria(empresaId, p), cargarVentasPorItem(empresaId, p)])
+      .then(([s, i]) => { if (vigente) setPrevio({ serie: s, porItem: i }); })
+      .catch((e) => { if (vigente) console.error("No se pudo cargar el período anterior:", e); });
+    return () => { vigente = false; };
+  }, [empresaId, rangoPrevio, sucursal]);
+
+  /* El puente de rentabilidad: descuentos, devoluciones, cobros por medio
+     y mermas del período (src/datos/puente.js). */
+  const [puenteDatos, setPuenteDatos] = useState(null);
+  useEffect(() => {
+    if (!empresaId) return undefined;
+    let vigente = true;
+    setPuenteDatos(null);
+    cargarPuente({ empresaId, desde: rango.desde, hasta: rango.hasta, sucursal: sucursal || null })
+      .then((p) => { if (vigente) setPuenteDatos(p); })
+      .catch((e) => { if (vigente) console.error("No se pudo armar el puente:", e); });
+    return () => { vigente = false; };
+  }, [empresaId, rango, sucursal]);
+
+  const tickets = serie.reduce((s, d) => s + (d.tickets || 0), 0);
+  const unidades = porItem.reduce((s, p) => s + p.unidades, 0);
+  const ant = previo && {
+    ventas: previo.serie.reduce((s, d) => s + d.ventas, 0),
+    costo: previo.serie.reduce((s, d) => s + d.costo, 0),
+    tickets: previo.serie.reduce((s, d) => s + (d.tickets || 0), 0),
+    unidades: previo.porItem.reduce((s, p) => s + p.unidades, 0),
+  };
+  const margenAhora = margen(ventas, costo);
+  const margenAntes = ant ? margen(ant.ventas, ant.costo) : null;
+  const comisiones = puenteDatos
+    ? mediosDe(ajustes).reduce((s, m) => s + comisionDe(m, puenteDatos.cobradoPorMedio[m.k] || 0), 0)
+    : 0;
+  const puente = puenteDatos && puenteDeRentabilidad({
+    ventasNetas: ventas, costo, descuentos: puenteDatos.descuentos, devoluciones: puenteDatos.devoluciones,
+    comisiones, mermas: puenteDatos.mermas,
+  });
+  const matriz = useMemo(() => matrizDeProductos(porItem, margen(ventas, costo)), [porItem, ventas, costo]);
+  const vsAnterior = ant ? "vs período anterior" : undefined;
+
   /* Ya viene ordenado por venta desde la base. */
   const topVenta = porItem.slice(0, 10);
   const topGanancia = [...porItem].sort((a, b) => b.ganancia - a.ganancia).slice(0, 10);
@@ -168,11 +225,32 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi label={`Ventas ${dias} días`} valor={money(ventas)} />
-        <Kpi label="Ganancia bruta" valor={money(ventas - costo)} tono="bien" />
-        <Kpi label="Margen" valor={pct(ventas ? (ventas - costo) / ventas : 0)} />
+        <Kpi label={`Ventas ${dias} días`} valor={money(ventas)} delta={ant ? variacion(ventas, ant.ventas) : null} sub={vsAnterior} />
+        <Kpi label="Ganancia bruta" valor={money(ganancia(ventas, costo))} tono="bien"
+          delta={ant ? variacion(ganancia(ventas, costo), ganancia(ant.ventas, ant.costo)) : null} sub={vsAnterior} />
+        {/* El margen se compara en puntos, no en porcentaje del margen: de
+            30% a 33% son "3 puntos", no "+10%". */}
+        <Kpi label="Margen" valor={pct(margenAhora)} delta={ant && ant.ventas ? puntos(margenAhora, margenAntes) : null}
+          sub={ant && ant.ventas ? "puntos vs período anterior" : undefined} />
         <Kpi label="Promedio por día" valor={money(ventas / dias)} />
       </div>
+
+      {/* El ticket (06/10): cuántas ventas, de cuánto y con cuántas cosas.
+          Unidades por ticket mide si se vende de a una o se arma la compra. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi label="Ventas (tickets)" valor={nf.format(tickets)} delta={ant ? variacion(tickets, ant.tickets) : null} sub={vsAnterior} />
+        <Kpi label="Ticket promedio" valor={money(ticketPromedio(ventas, tickets))}
+          delta={ant ? variacion(ticketPromedio(ventas, tickets), ticketPromedio(ant.ventas, ant.tickets)) : null} sub={vsAnterior} />
+        <Kpi label="Unidades por ticket" valor={unidades ? porTicket(unidades, tickets).toFixed(1).replace(".", ",") : "—"}
+          delta={ant ? variacion(porTicket(unidades, tickets), porTicket(ant.unidades, ant.tickets)) : null} sub={vsAnterior} />
+        <Kpi label="Lo que queda" valor={puente ? money(puente.queda) : "…"} tono={puente && puente.queda < 0 ? "mal" : "bien"}
+          sub="después de comisiones y mermas" />
+      </div>
+
+      {puente && <PuenteDeRentabilidad puente={puente} />}
+
+      <MatrizDeProductos matriz={matriz} />
+
 
       {conPedidos && <PorCanal empresaId={empresaId} rango={rango} ir={ir} />}
 
@@ -378,6 +456,89 @@ function PorCanal({ empresaId, rango, ir }) {
           {d.cancelados} pedido{d.cancelados === 1 ? "" : "s"} cancelado{d.cancelados === 1 ? "" : "s"} en el período.
         </p>
       )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   El puente de rentabilidad (06/10)
+
+   De lo que se hubiera cobrado sin descuentos a lo que de verdad queda:
+   dónde se va la plata. Las definiciones están en src/utils/metricas.js.
+   Cada barra es proporcional a las ventas sin descuentos.
+   ------------------------------------------------------------ */
+function PuenteDeRentabilidad({ puente }) {
+  const base = Math.max(1, ...puente.pasos.map((p) => Math.abs(p.valor)));
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">De lo que vendiste a lo que te queda</div>
+      <ul className="mt-3 space-y-1.5">
+        {puente.pasos.map((p) => {
+          const fuerte = p.tipo === "total" || p.tipo === "subtotal";
+          const negativo = p.valor < 0;
+          if (!fuerte && p.valor === 0) return null;
+          return (
+            <li key={p.k} className={`grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm ${fuerte ? "font-semibold" : "text-texto-suave"}`}>
+              <span className="truncate">{p.n}</span>
+              <span className="h-2 bg-superficie-2 rounded-full overflow-hidden">
+                <span className={`block h-full rounded-full ${negativo ? "bg-mal" : p.tipo === "total" ? "bg-acento" : "bg-superficie-3"}`}
+                  style={{ width: `${(Math.abs(p.valor) / base) * 100}%` }} />
+              </span>
+              <span className={`f-m text-right ${negativo ? "text-mal" : ""}`}>{negativo ? "−" : ""}{money(Math.abs(p.valor))}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-xs text-texto-tenue mt-3">
+        Las comisiones se estiman con los medios de pago de Ajustes (con su IVA si lo tienen); las mermas, al costo de hoy.
+        No incluye gastos fijos como alquiler o sueldos.
+      </p>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   La matriz de productos (06/10)
+
+   Cuánto se vende contra cuánto deja, con cortes del propio comercio
+   (ver matrizDeProductos en src/utils/metricas.js).
+   ------------------------------------------------------------ */
+const TONO_CUADRANTE = { estrella: "text-bien", volumen: "text-ojo", rentable: "text-acento", problema: "text-mal" };
+
+function MatrizDeProductos({ matriz }) {
+  const total = Object.values(matriz.grupos).reduce((s, g) => s + g.length, 0);
+  if (!total) return null;
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Tus productos, por lo que venden y lo que dejan</div>
+      <p className="text-xs text-texto-tenue mt-1">
+        "Vende mucho": más de {money(matriz.corteVenta)} en el período (la mitad de arriba). "Deja mucho": margen arriba de {pct(matriz.corteMargen)}, el de todo el período.
+      </p>
+      <div className="grid sm:grid-cols-2 gap-3 mt-3">
+        {CUADRANTES.map((c) => {
+          const g = matriz.grupos[c.k];
+          return (
+            <div key={c.k} className="border border-borde rounded-xl p-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className={`font-semibold ${TONO_CUADRANTE[c.k]}`}>{c.n}</span>
+                <span className="f-m text-sm text-texto-suave">{nf.format(g.length)}</span>
+              </div>
+              <p className="text-xs text-texto-suave mt-0.5">{c.d}</p>
+              {g.length > 0 && (
+                <ul className="mt-2 space-y-1 text-sm">
+                  {g.slice(0, 4).map((p) => (
+                    <li key={p.nombre} className="flex justify-between gap-2">
+                      <span className="truncate">{p.nombre}</span>
+                      <span className="f-m text-xs text-texto-tenue shrink-0">{money(p.venta)} · {pct(p.margen, 0)}</span>
+                    </li>
+                  ))}
+                  {g.length > 4 && <li className="text-xs text-texto-tenue">y {nf.format(g.length - 4)} más</li>}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </Card>
   );
 }
