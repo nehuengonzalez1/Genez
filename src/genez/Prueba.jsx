@@ -118,9 +118,15 @@ export function Contratar({ cuenta }) {
       </div>
 
       <label className="block mt-4">
-        <span className="block text-sm font-medium text-texto-suave mb-1.5">El mail de tu cuenta de Mercado Pago</span>
+        <span className="block text-sm font-medium text-texto-suave mb-1.5">El mail con el que entrás a Mercado Pago</span>
         <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email"
           className="w-full rounded-lg border border-borde-fuerte bg-superficie px-3 py-2.5 text-base outline-none focus:border-acento" />
+        {/* Mercado Pago busca la cuenta por este mail y solo deja autorizar
+            a esa: con otra sesión, el botón de confirmar queda apagado y no
+            dice por qué (probado con cuentas de prueba el 05/10). */}
+        <span className="block text-xs text-texto-tenue mt-1.5">
+          Tiene que ser exactamente el de tu cuenta: Mercado Pago solo deja confirmar a esa cuenta.
+        </span>
       </label>
 
       <div className="mt-4 rounded-xl border border-borde p-3.5 text-sm">
