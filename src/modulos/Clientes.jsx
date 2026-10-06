@@ -4,13 +4,16 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Search, Plus, Check, AlertTriangle } from "lucide-react";
-import { CONDICIONES, FISCAL_INICIAL, condicionNombre, money, letraComprobante, nf } from "../utils/helpers.js";
+import { CONDICIONES, FISCAL_INICIAL, condicionNombre, money, letraComprobante, nf, listasDeCliente } from "../utils/helpers.js";
 import { Modal, Boton, Card, Vacio, Sello, Cargando, ErrorEstado } from "../ui/Base.jsx";
 import { cargarClientesConCuentas } from "../datos/clientes.js";
 import { FichaCliente } from "./FichaCliente.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 
-export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
+/* `listas`: las listas de precio para clientes (06/10). La elegida va en
+   campos_extra.lista: no hace falta una columna para un dato que solo lee
+   el cobro. */
+export function FormCliente({ abierto, inicial, onGuardar, onCerrar, listas = [] }) {
   const [d, setD] = useState({});
   useEffect(() => { if (abierto) setD({ tipoDoc: "CUIT", condicion: "CF", ...(inicial || {}) }); }, [abierto, inicial]);
   if (!abierto) return null;
@@ -47,6 +50,15 @@ export function FormCliente({ abierto, inicial, onGuardar, onCerrar }) {
             <Campo label="Email"><input value={d.email || ""} onChange={(e) => set("email", e.target.value)} className={inputCls} /></Campo>
             <Campo label="Teléfono"><input value={d.tel || ""} onChange={(e) => set("tel", e.target.value)} className={`${inputCls} f-m`} /></Campo>
           </div>
+          {listas.length > 0 && (
+            <Campo label="Lista de precios">
+              <select value={(d.camposExtra && d.camposExtra.lista) || ""} className={inputCls}
+                onChange={(e) => set("camposExtra", { ...(d.camposExtra || {}), lista: e.target.value || null })}>
+                <option value="">Precio general</option>
+                {listas.map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+              </select>
+            </Campo>
+          )}
         </div>
 
         {faltaCuit && (
@@ -191,7 +203,7 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
         </p>
       )}
 
-      <FormCliente abierto={!!alta} inicial={alta} onCerrar={() => setAlta(null)}
+      <FormCliente abierto={!!alta} inicial={alta} onCerrar={() => setAlta(null)} listas={listasDeCliente(ajustes)}
         onGuardar={async (d) => {
           const c = await guardarCliente(d);
           if (c) { setAlta(null); await releer(); }

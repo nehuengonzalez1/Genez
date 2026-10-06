@@ -474,13 +474,14 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           <div>
             <h3 className="f-d text-lg">Listas de precio</h3>
             <p className="text-sm text-texto-suave mt-1">
-              Cada lista tiene una cantidad mínima y se activa sola cuando un renglón del ticket la alcanza, solo en ese renglón.
-              Si un producto entra en varias, se cobra la de mayor cantidad que el cliente alcance.
+              <b className="font-semibold">Por cantidad:</b> se activa sola cuando un renglón del ticket llega al mínimo, solo en ese renglón.{" "}
+              <b className="font-semibold">Para clientes:</b> se le asigna a un cliente (mayorista, revendedor) en su ficha y vale en todo lo que compra.
+              Si entran varias, se cobra la más barata.
             </p>
           </div>
           <Boton size="sm" className="shrink-0" onClick={() => {
             const n = (ajustes.listas || []).length + 2;
-            setAjustes({ ...ajustes, listas: [...(ajustes.listas || []), { id: "l" + uid(), nombre: `Lista ${n}`, umbral: 6, activa: true }] });
+            setAjustes({ ...ajustes, listas: [...(ajustes.listas || []), { id: "l" + uid(), nombre: `Lista ${n}`, tipo: "cantidad", umbral: 6, activa: true }] });
           }}><Plus size={14} /> Nueva lista</Boton>
         </div>
 
@@ -505,12 +506,17 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
                 <div className="flex flex-wrap items-center gap-2">
                   <input value={l.nombre} onChange={(e) => cambiar("nombre", e.target.value)}
                     className="flex-1 min-w-[140px] border border-borde rounded-lg px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-acento" />
-                  <label className="flex items-center gap-1.5 text-xs text-texto-suave">
+                  <select value={l.tipo === "cliente" ? "cliente" : "cantidad"} onChange={(e) => cambiar("tipo", e.target.value)}
+                    className="text-xs border border-borde rounded-lg px-2 py-1.5 bg-superficie outline-none focus:border-acento">
+                    <option value="cantidad">Por cantidad</option>
+                    <option value="cliente">Para clientes</option>
+                  </select>
+                  {l.tipo !== "cliente" && <label className="flex items-center gap-1.5 text-xs text-texto-suave">
                     desde
                     <input value={l.umbral} onChange={(e) => cambiar("umbral", Math.max(1, Number(e.target.value.replace(/\D/g, "")) || 1))}
                       className="f-m w-14 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
                     u
-                  </label>
+                  </label>}
                   <button onClick={() => cambiar("activa", l.activa === false)}
                     className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${l.activa === false ? "border-borde text-texto-tenue" : "border-bien bg-bien-suave text-bien"}`}>
                     {l.activa === false ? "Apagada" : "Activa"}

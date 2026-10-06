@@ -126,18 +126,33 @@ export function esCantidad(t) {
 }
 export const aNumero = (t) => Number(String(t).trim().replace(",", "."));
 
-export function precioAplicado(prod, cantidad, ajustes) {
+/* Dos tipos de lista (06/10). "cantidad", la de siempre: se activa sola
+   cuando el renglón llega a un mínimo. "cliente": no tiene mínimo, se le
+   asigna a un cliente (mayorista, revendedor) y vale en todo lo que
+   compra. Las listas guardadas antes no tienen tipo: son de cantidad. */
+export const esListaDeCliente = (l) => !!l && l.tipo === "cliente";
+export const listasDeCliente = (ajustes) => ((ajustes && ajustes.listas) || []).filter((l) => esListaDeCliente(l) && l.activa !== false);
+
+export function precioAplicado(prod, cantidad, ajustes, listaCliente = null) {
   const base = { precio: prod ? prod.precio : 0, lista: null, nombre: "" };
   if (!prod || !ajustes || !ajustes.listas) return base;
   const precios = prod.precios || {};
   // Gana la lista más exigente que el renglón alcance: si un producto tiene
   // precio desde 3 y desde 12 unidades, con 12 se cobra la de 12.
   const candidatas = ajustes.listas
-    .filter((l) => l.activa !== false && precios[l.id] > 0 && cantidad >= l.umbral)
+    .filter((l) => !esListaDeCliente(l) && l.activa !== false && precios[l.id] > 0 && cantidad >= l.umbral)
     .sort((a, b) => b.umbral - a.umbral);
-  if (!candidatas.length) return base;
-  const l = candidatas[0];
-  return { precio: precios[l.id], lista: l.id, nombre: l.nombre };
+  /* La del cliente compite con la de cantidad y gana la más barata: un
+     mayorista que además lleva mucho no puede terminar pagando más por
+     tener lista. Si el producto no tiene precio en su lista, paga el
+     general, como cualquiera. */
+  const delCliente = listaCliente && ajustes.listas.find((l) => l.id === listaCliente && esListaDeCliente(l) && l.activa !== false);
+  const opciones = [
+    ...(candidatas.length ? [{ precio: precios[candidatas[0].id], lista: candidatas[0].id, nombre: candidatas[0].nombre }] : []),
+    ...(delCliente && precios[delCliente.id] > 0 ? [{ precio: precios[delCliente.id], lista: delCliente.id, nombre: delCliente.nombre }] : []),
+  ];
+  if (!opciones.length) return base;
+  return opciones.reduce((a, b) => (b.precio < a.precio ? b : a));
 }
 
 /* Próxima lista que el renglón podría alcanzar, para poder ofrecerla en el
@@ -146,7 +161,7 @@ export function proximaLista(prod, cantidad, ajustes) {
   if (!prod || !ajustes || !ajustes.listas) return null;
   const precios = prod.precios || {};
   const faltantes = ajustes.listas
-    .filter((l) => l.activa !== false && precios[l.id] > 0 && cantidad < l.umbral)
+    .filter((l) => !esListaDeCliente(l) && l.activa !== false && precios[l.id] > 0 && cantidad < l.umbral)
     .sort((a, b) => a.umbral - b.umbral);
   return faltantes.length ? { ...faltantes[0], precio: precios[faltantes[0].id] } : null;
 }

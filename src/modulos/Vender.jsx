@@ -19,7 +19,7 @@ import { saldoDePuntos } from "../datos/puntos.js";
 import { reglaDePuntos, puntosGanados, canjeMaximo, valorDePuntos } from "../utils/puntos.js";
 import QRCode from "qrcode";
 import {
-  nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
+  nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista, listasDeCliente,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
   condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
   leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE,
@@ -151,7 +151,7 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">{l.nombre}</div>
-                <div className="text-[11px] text-texto-suave">Se cobra a partir de {l.umbral} unidades. Vacío: este producto no entra en esta lista.</div>
+                <div className="text-[11px] text-texto-suave">{l.tipo === "cliente" ? "Para los clientes con esta lista." : `Se cobra a partir de ${l.umbral} unidades.`} Vacío: este producto no entra en esta lista.</div>
               </div>
               <input value={otros[l.id] || ""} onChange={(e) => setOtros((o) => ({ ...o, [l.id]: e.target.value.replace(/\D/g, "") }))}
                 placeholder="opcional" className="f-m w-28 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento shrink-0" />
@@ -445,7 +445,7 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
   );
 }
 
-export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
+export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar, listas = [] }) {
   const [q, setQ] = useState("");
   const [nuevo, setNuevo] = useState(false);
   const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -454,7 +454,7 @@ export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
     : clientes.slice(0, 8);
 
   if (nuevo) {
-    return <FormCliente abierto inicial={{ razonSocial: q }} onCerrar={() => setNuevo(false)} onGuardar={(d) => onCrear(d)} />;
+    return <FormCliente abierto inicial={{ razonSocial: q }} onCerrar={() => setNuevo(false)} onGuardar={(d) => onCrear(d)} listas={listas} />;
   }
 
   return (
@@ -707,6 +707,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [pagos, setPagos] = useState([]);
   const [montoMix, setMontoMix] = useState("");
   const [ticket, setTicket] = useState(null);
+  /* Va acá arriba y no junto a su saldo: el precio de cada renglón ya lo
+     usa (lista del cliente), y leerlo antes de declararlo deja la pantalla
+     en negro (pasó el 29/09 en Sistema). */
+  const [cliente, setCliente] = useState(null);
   /* Con una venta a medio cargar o a medio cobrar, la página no se
      actualiza sola (src/ui/actualizacion.js): se perdería el carrito. Con
      la venta ya cobrada ("fin") sí: la venta está guardada. */
@@ -884,14 +888,20 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const setQty = (lid, qty) => setCart((c) => c.map((l) => (l.lid === lid ? { ...l, qty: Math.max(0, +qty.toFixed(3)) } : l)).filter((l) => l.qty > 0));
   const quitar = (lid) => setCart((c) => c.filter((l) => l.lid !== lid));
 
+  /* La lista del cliente elegido (06/10): cambia el precio de todo el
+     ticket apenas se lo elige. */
+  const listaDelCliente = (cliente && cliente.camposExtra && cliente.camposExtra.lista) || null;
   const conPrecio = cart.map((l) => {
     /* Un precio puesto a mano gana a todo, también al precio por
        cantidad: es lo que decidió quien cobra, para esta venta. */
     if (l.manual != null) {
       return { ...l, unit: l.manual, lista: null, listaNombre: null, proxima: null, importe: l.manual * l.qty, ahorro: 0 };
     }
-    const { precio, lista, nombre } = precioAplicado(l, l.qty, ajustes);
-    return { ...l, unit: precio, lista, listaNombre: nombre, proxima: proximaLista(l, l.qty, ajustes),
+    const { precio, lista, nombre } = precioAplicado(l, l.qty, ajustes, listaDelCliente);
+    /* "Llevando 3 te sale menos" solo si de verdad sale menos: a un
+       mayorista con su lista no se le ofrece una por cantidad más cara. */
+    const px = proximaLista(l, l.qty, ajustes);
+    return { ...l, unit: precio, lista, listaNombre: nombre, proxima: px && px.precio < precio ? px : null,
       importe: precio * l.qty, ahorro: (l.precio - precio) * l.qty };
   });
   /* Las promos (0102) sobre lo que quedó: sin precio a mano, sin precio
@@ -932,7 +942,6 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const medios = mediosDe(ajustes).filter((m) => m.k !== MEDIO_CUENTA_CORRIENTE || permisos.fiar);
   const medio = medios[medioSel] || medios[0];
 
-  const [cliente, setCliente] = useState(null);
   /* Lo que debe el cliente elegido, para decidir si se le fía. Se pregunta
      al elegirlo: sin internet queda en null y la venta sigue, porque
      frenar el mostrador por no poder consultar un saldo es peor que fiar
@@ -1650,7 +1659,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       )}
 
       {buscarCliente && (
-        <BuscarCliente clientes={clientes} onCerrar={() => setBuscarCliente(false)}
+        <BuscarCliente clientes={clientes} onCerrar={() => setBuscarCliente(false)} listas={listasDeCliente(ajustes)}
           onElegir={(c) => { setCliente(c); setBuscarCliente(false); }}
           onCrear={async (d) => {
             /* Se espera el id que devuelve la base antes de seleccionarlo:
@@ -2145,7 +2154,7 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
                 const v = Number((d.precios || {})[l.id]) || 0;
                 return (
                   <label key={l.id} className="block">
-                    <span className="text-[10px] text-texto-suave">{l.nombre} · desde {l.umbral}</span>
+                    <span className="text-[10px] text-texto-suave">{l.nombre} · {l.tipo === "cliente" ? "clientes" : `desde ${l.umbral}`}</span>
                     <input value={(d.precios || {})[l.id] || ""}
                       onChange={(e) => set("precios", { ...(d.precios || {}), [l.id]: e.target.value.replace(/\D/g, "") })}
                       placeholder="—" className={`${inputCls} f-m text-right`} />
