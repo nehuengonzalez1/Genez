@@ -1010,6 +1010,16 @@
 }
 .ln-campo input:focus, .ln-campo textarea:focus, .ln-campo select:focus { border-color: rgb(var(--ln-naranja)); box-shadow: 0 0 0 3px rgb(var(--ln-naranja) / 0.15); }
 .ln-campo input::placeholder, .ln-campo textarea::placeholder { color: rgb(var(--ln-tenue)); }
+/* La contraseña con el ojito adentro del campo. */
+.ln-campo-clave { position: relative; display: block; }
+/* Con .ln-campo delante: las reglas del campo por ancho de pantalla le pisaban el padding. */
+.ln-campo .ln-campo-clave input { width: 100%; padding-right: 48px; }
+.ln-campo-ojo { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border-radius: 8px; color: rgb(var(--ln-suave)); background: none; border: 0; cursor: pointer; }
+.ln-campo-ojo:hover { color: rgb(var(--ln-texto)); }
+.ln-campo-ojo svg { width: 20px; height: 20px; }
+/* La indicación va en el título: adentro del campo, con la letra de 16 px
+   que pide el teléfono, no entraba al lado del ojito. */
+.ln-campo-nota { font-style: normal; font-weight: 500; color: rgb(var(--ln-tenue)); }
 .ln-mas-error { margin-top: 12px; font-size: 14px; font-weight: 600; color: rgb(220 38 38); }
 .ln-mas-enviar { margin-top: 16px; width: 100%; height: 50px; font-size: 15.5px; }
 .ln-mas-enviar:disabled { opacity: 0.6; cursor: default; }

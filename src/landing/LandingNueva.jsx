@@ -31,7 +31,7 @@ import {
   Wallet, Smartphone, QrCode, WifiOff, MessageCircle, Printer,
   ScanBarcode, Boxes, BookOpen, Users, CalendarDays, Settings, ClipboardList, UserCog, Ticket, Landmark,
   LayoutGrid, HeartHandshake, ShieldCheck, ChevronUp, Check, Headphones, Zap, Globe,
-  Network, Puzzle, UserRound, Plus, Minus,
+  Network, Puzzle, UserRound, Plus, Minus, Eye, EyeOff,
 } from "lucide-react";
 import { LogoGenez } from "../ui/Logo.jsx";
 import { RUBROS_DE_FABRICA, cargarRubrosPublicos } from "../datos/landing.js";
@@ -1437,12 +1437,19 @@ const VENTAJAS_REGISTRO = [
   { icono: Zap, texto: "Todo en un solo lugar para hacer crecer tu negocio." },
 ];
 
+/* "Otro" dentro de cada rubro (06/10): la lista de negocios no cubre todo,
+   y el rubro es lo que decide qué módulos trae el sistema. Quien elige
+   "Otro comercio" escribe el suyo y arranca con lo de comercio. */
+const OTRO = "__otro";
+const NOMBRE_OTRO = { minimercado: "Otro comercio", gastronomia: "Otro de gastronomía", servicios: "Otro servicio" };
+
 function Registro({ rubros, tarifas, eleccion }) {
   const [paso, setPaso] = useState(1);
   const [d, setD] = useState({
-    comercio: "", negocio: "", sucursales: "1", provincia: "", problema: "",
+    comercio: "", negocio: "", negocioOtro: "", sucursales: "1", provincia: "", problema: "",
     nombre: "", email: "", telefono: "", plan: "pro", clave: "", acepta: false,
   });
+  const [verClave, setVerClave] = useState(false);
   const [error, setError] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -1452,12 +1459,13 @@ function Registro({ rubros, tarifas, eleccion }) {
     setD((x) => ({
       ...x,
       negocio: eleccion.rubro ? `${eleccion.rubro}|${eleccion.negocio || ""}` : x.negocio,
-      plan: eleccion.plan || x.plan,
     }));
-  }, [eleccion.rubro, eleccion.negocio, eleccion.plan]);
+  }, [eleccion.rubro, eleccion.negocio]);
 
   const cambiar = (campo) => (e) => setD((x) => ({ ...x, [campo]: e.target.value }));
-  const [rubroClave, negocioNombre] = (d.negocio || "|").split("|");
+  const [rubroClave, negocioElegido] = (d.negocio || "|").split("|");
+  const esOtro = negocioElegido === OTRO;
+  const negocioNombre = esOtro ? d.negocioOtro.trim() : negocioElegido;
   const rubro = rubros.find((r) => r.clave === rubroClave) || null;
 
   /* Los módulos y el precio del plan elegido, con las mismas funciones que
@@ -1473,7 +1481,9 @@ function Registro({ rubros, tarifas, eleccion }) {
      el plan elegido: se crea con los módulos de Pro, y el plan elegido
      queda anotado para cobrar cuando termine. */
   const fijos = rubro ? PLANES_FIJOS[rubro.clave] : null;
-  const planFijo = fijos && (d.plan === "start" || d.plan === "pro") ? d.plan : "pro";
+  /* Siempre Pro (06/10): la prueba es de Pro, y elegir Simple acá solo
+     confundía —se probaba Pro igual—. Simple se elige al contratar. */
+  const planFijo = "pro";
   const precioFijo = fijos ? (t.planes || {})[planFijo] : null;
   const modulosDePrueba = fijos ? (((lista.find((p) => p.k === "pro") || {}).armado || {}).elegidos || []) : modulos;
 
@@ -1481,6 +1491,7 @@ function Registro({ rubros, tarifas, eleccion }) {
     e.preventDefault();
     if (d.comercio.trim().length < 2) return setError("Escribí el nombre de tu comercio.");
     if (!rubro) return setError("Elegí qué tipo de negocio es.");
+    if (esOtro && d.negocioOtro.trim().length < 3) return setError("Escribí qué tipo de negocio tenés.");
     if (d.problema.trim().length < 5) return setError("Contanos en una frase qué te complica hoy.");
     setError(null); setPaso(2);
   };
@@ -1578,10 +1589,16 @@ function Registro({ rubros, tarifas, eleccion }) {
                     {rubros.map((r) => (
                       <optgroup key={r.clave} label={NOMBRE_RUBRO_PRECIOS[r.clave] || r.nombre}>
                         {((r.presentacion && r.presentacion.negocios) || []).map((n) => <option key={n} value={`${r.clave}|${n}`}>{n}</option>)}
+                        <option value={`${r.clave}|${OTRO}`}>{NOMBRE_OTRO[r.clave] || "Otro"}</option>
                       </optgroup>
                     ))}
                   </select>
                 </label>
+                {esOtro && (
+                  <label className="ln-campo"><span>¿Qué negocio tenés? <b>*</b></span>
+                    <input value={d.negocioOtro} onChange={cambiar("negocioOtro")} placeholder="Ej: Pinturería, librería, vivero" maxLength={60} autoFocus />
+                  </label>
+                )}
                 <label className="ln-campo"><span>Cantidad de sucursales</span>
                   <select value={d.sucursales} onChange={cambiar("sucursales")}>
                     {SUCURSALES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
@@ -1619,20 +1636,22 @@ function Registro({ rubros, tarifas, eleccion }) {
                   <input value={d.email} onChange={cambiar("email")} type="email" autoComplete="email" />
                 </label>
                 {ALTAS_ABIERTAS && (
-                  <label className="ln-campo"><span>Contraseña <b>*</b></span>
-                    <input value={d.clave} onChange={cambiar("clave")} type="password" autoComplete="new-password" placeholder="Al menos 8 caracteres" />
+                  <label className="ln-campo"><span>Contraseña <b>*</b> <i className="ln-campo-nota">mínimo 8 caracteres</i></span>
+                    {/* El ojito: en un teléfono es fácil escribir mal una
+                        contraseña que no se ve, y después no se puede entrar. */}
+                    <span className="ln-campo-clave">
+                      <input value={d.clave} onChange={cambiar("clave")} type={verClave ? "text" : "password"} autoComplete="new-password" />
+                      <button type="button" onClick={() => setVerClave((v) => !v)} className="ln-campo-ojo"
+                        aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"} aria-pressed={verClave}>
+                        {verClave ? <EyeOff strokeWidth={1.75} /> : <Eye strokeWidth={1.75} />}
+                      </button>
+                    </span>
                   </label>
                 )}
-                <label className="ln-campo"><span>Plan</span>
-                  <select value={fijos ? planFijo : d.plan} onChange={cambiar("plan")}>
-                    {(fijos ? ["start", "pro"] : ["start", "pro", "empresa"]).map((k) => <option key={k} value={k}>{NOMBRE_PLAN[k]}</option>)}
-                    {!fijos && hayAMedida(t) && <option value="medida">A medida</option>}
-                  </select>
-                </label>
               </div>
               <div className="ln-reg-resumen">
                 {fijos ? (
-                  <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[planFijo]} · 10 días gratis de Pro</span>
+                  <span>{negocioNombre || (rubro && rubro.nombre)} · Plan Pro · 10 días gratis</span>
                 ) : (
                   <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[d.plan]} · {modulos.length} módulos</span>
                 )}
