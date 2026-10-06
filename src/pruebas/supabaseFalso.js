@@ -688,7 +688,14 @@ const FUNCIONES = {
       .map((p) => ({ id: p.id, nombre: p.nombre, localidad: p.localidad, telefono: p.telefono, email: p.email, motivo: n(p.nombre) === n(p_nombre) ? "nombre y localidad" : "teléfono", archivado: !!p.archivado_en }));
   },
   ventas_diarias: ({ p_dias = 90 }) => serie(new Date(Date.now() - (p_dias - 1) * 86400000), new Date()),
-  ventas_diarias_rango: ({ p_desde, p_hasta }) => serie(new Date(`${p_desde}T12:00:00`), new Date(`${p_hasta}T12:00:00`)),
+  ventas_diarias_rango: ({ p_desde, p_hasta, p_sucursal }) => {
+    const s = serie(new Date(`${p_desde}T12:00:00`), new Date(`${p_hasta}T12:00:00`));
+    if (!p_sucursal) return s;
+    /* Una sucursal es una parte de todas: la primera, el 65%; la otra, el resto con otro costo. */
+    const primera = (tablaDe("sucursales")[0] || {}).id === p_sucursal;
+    const f = primera ? 0.65 : 0.35, fc = primera ? 0.6 : 0.4;
+    return s.map((d) => ({ ...d, ventas: Math.round(d.ventas * f), costo: Math.round(d.costo * fc), tickets: Math.round(d.tickets * f) }));
+  },
   ventas_por_item: () => [], ventas_por_item_rango: () => [],
   /* Tres casos fijos con los primeros productos (0134): uno que sigue sin
      stock, uno que se repuso, y uno vendido con el stock en cero. */
