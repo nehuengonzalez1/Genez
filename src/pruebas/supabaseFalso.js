@@ -697,6 +697,39 @@ const FUNCIONES = {
     return s.map((d) => ({ ...d, ventas: Math.round(d.ventas * f), costo: Math.round(d.costo * fc), tickets: Math.round(d.tickets * f) }));
   },
   ventas_por_item: () => [], ventas_por_item_rango: () => [],
+  /* El constructor (0135), en chico: ventas inventadas por línea, a partir
+     de los productos de mentira, agrupadas y filtradas como en la base. */
+  reporte_a_medida: ({ p_desde, p_hasta, p_dims, p_filtros = {} }) => {
+    const prods = tablaDe("items").filter((i) => i.tipo === "producto").slice(0, 12);
+    const sucs = tablaDe("sucursales").filter((s) => s.activa !== false);
+    const lineas = [];
+    let n = 0;
+    for (let d = new Date(`${p_desde}T12:00:00`); dia(d) <= p_hasta; d = new Date(d.getTime() + 86400000)) {
+      for (let t = 0; t < 6; t++) {
+        n++;
+        const hora = String(9 + ((n * 7) % 12)).padStart(2, "0");
+        const fila = { dia: dia(d), mes: dia(d).slice(0, 7), hora, dia_semana: String(d.getDay() || 7), semana: dia(new Date(d.getTime() - ((d.getDay() || 7) - 1) * 86400000)),
+          sucursal: (sucs[n % sucs.length] || {}).nombre || "Principal", vendedor: n % 3 ? "Persona de prueba" : "Cajero de prueba", canal: "mostrador",
+          cliente: n % 4 ? "Consumidor final" : "Cliente de prueba", ticket: `0001-${String(n).padStart(8, "0")} · ${dia(d).slice(8, 10)}/${dia(d).slice(5, 7)} ${hora}:15`, op: n };
+        for (let j = 0; j < 1 + (n % 3); j++) {
+          const p = prods[(n + j * 5) % prods.length];
+          if (!p) continue;
+          const cant = 1 + ((n + j) % 3);
+          lineas.push({ ...fila, categoria: p.categoria || "Sin rubro", marca: p.marca || "Sin marca", proveedor: "Sin proveedor", producto: p.nombre,
+            cantidad: cant, total: cant * (Number(p.precio) || 0), costo: cant * (Number(p.costo) || 0) });
+        }
+      }
+    }
+    const filtradas = lineas.filter((l) => Object.entries(p_filtros || {}).every(([k, v]) => v.includes(l[k])));
+    const grupos = new Map();
+    for (const l of filtradas) {
+      const claves = p_dims.map((k) => l[k]);
+      const g = grupos.get(claves.join("|")) || { d1: claves[0] ?? null, d2: claves[1] ?? null, d3: claves[2] ?? null, ventas: 0, costo: 0, unidades: 0, ops: new Set() };
+      g.ventas += l.total; g.costo += l.costo; g.unidades += l.cantidad; g.ops.add(l.op);
+      grupos.set(claves.join("|"), g);
+    }
+    return [...grupos.values()].map(({ ops, ...g }) => ({ ...g, tickets: ops.size })).sort((a, b) => b.ventas - a.ventas);
+  },
   /* Tres casos fijos con los primeros productos (0134): uno que sigue sin
      stock, uno que se repuso, y uno vendido con el stock en cero. */
   quiebres_de_stock: () => {

@@ -13,7 +13,8 @@ import { ObjetivosDelMes, hayObjetivos } from "./Objetivos.jsx";
 import { cargarPagosPorProveedor } from "../datos/facturasProveedor.js";
 import { cargarQuiebres } from "../datos/quiebres.js";
 import { cargarComparativo } from "../datos/sucursales.js";
-import { Kpi, Card, Boton, TablaSimple, Vacio, Sello } from "../ui/Base.jsx";
+import { Kpi, Card, Boton, TablaSimple, Vacio, Sello, Tabs } from "../ui/Base.jsx";
+import { ReporteAMedida } from "./ReporteAMedida.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
 import { tonoCanal } from "../ui/canales.jsx";
@@ -35,6 +36,8 @@ const deInput = (v) => (v ? new Date(`${v}T12:00:00`) : null);
 export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = { sucursales: [], varias: false }, ajustes = {} }) {
   /* La sucursal que se mira (0108). "" es todas, como siempre. */
   const [sucursal, setSucursal] = useState("");
+  /* "Mi reporte" (0135): el constructor, con el mismo período de arriba. */
+  const [vista, setVista] = useState("resumen");
   /* El período es de una fecha a otra, las dos incluidas. Los atajos son
      "los últimos N días hasta hoy"; lo demás se elige con las dos fechas.
      Antes "otros" pedía una cantidad de días hacia atrás desde hoy, y no
@@ -313,10 +316,17 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
 
         {/* Cuántos días son: "del 01/09 al 15/09" no dice solo que son 15. */}
         {!problema && <span className="text-xs text-texto-tenue ml-1">{dias} {dias === 1 ? "día" : "días"}</span>}
-        <Boton size="sm" variant="ghost" className="ml-auto" onClick={exportar} disabled={exportando || !puenteDatos}>
-          {exportando ? "Armando…" : "Exportar a Excel"}
-        </Boton>
+        {vista === "resumen" && (
+          <Boton size="sm" variant="ghost" className="ml-auto" onClick={exportar} disabled={exportando || !puenteDatos}>
+            {exportando ? "Armando…" : "Exportar a Excel"}
+          </Boton>
+        )}
       </div>
+
+      <Tabs value={vista} onChange={setVista} items={[{ k: "resumen", n: "Resumen" }, { k: "medida", n: "Mi reporte" }]} />
+
+      {vista === "medida" ? <ReporteAMedida empresaId={empresaId} rango={rango}
+        sucursal={sucursal ? (lugar.sucursales.find((s) => s.id === sucursal) || {}).nombre : null} /> : (<>
 
       {/* El mes en curso contra sus objetivos (06/10), sea cual sea el
           período elegido: el objetivo es del mes. Sin objetivos, una línea
@@ -473,6 +483,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
           vacio="Ningún costo subió en los últimos 30 días."
         />
       </Card>
+      </>)}
     </div>
   );
 }
