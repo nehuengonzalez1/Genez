@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { money, moneyk, pct, nf, mediosDe, comisionDe } from "../utils/helpers.js";
 import { margen, ganancia, ticketPromedio, porTicket, variacion, puntos, puenteDeRentabilidad, matrizDeProductos, CUADRANTES } from "../utils/metricas.js";
 import { cargarPuente } from "../datos/puente.js";
+import { bajarExcel } from "../utils/planilla.js";
 import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
@@ -165,6 +166,44 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
   const matriz = useMemo(() => matrizDeProductos(porItem, margen(ventas, costo)), [porItem, ventas, costo]);
   const vsAnterior = ant ? "vs período anterior" : undefined;
 
+  /* Exportar (06/10): lo mismo que se ve, en una planilla con una hoja por
+     bloque. Los números van como números, para poder sumar. */
+  const [exportando, setExportando] = useState(false);
+  const exportar = async () => {
+    setExportando(true);
+    try {
+      const periodo = `${paraInput(rango.desde)} al ${paraInput(rango.hasta)}`;
+      const medios = mediosDe(ajustes);
+      const hojas = [
+        { nombre: "Resumen", anchos: [30, 16, 18], filas: [
+          ["Período", periodo, ""],
+          ["", "Este período", "Período anterior"],
+          ["Ventas netas", ventas, ant ? ant.ventas : ""],
+          ["Ganancia bruta", ganancia(ventas, costo), ant ? ganancia(ant.ventas, ant.costo) : ""],
+          ["Margen", +margenAhora.toFixed(4), ant ? +margenAntes.toFixed(4) : ""],
+          ["Tickets", tickets, ant ? ant.tickets : ""],
+          ["Ticket promedio", Math.round(ticketPromedio(ventas, tickets)), ant ? Math.round(ticketPromedio(ant.ventas, ant.tickets)) : ""],
+          ["Unidades por ticket", +porTicket(unidades, tickets).toFixed(2), ant ? +porTicket(ant.unidades, ant.tickets).toFixed(2) : ""],
+        ] },
+        ...(puente ? [{ nombre: "De lo vendido a lo que queda", anchos: [30, 16], filas: [["Concepto", "Importe"], ...puente.pasos.map((p) => [p.n, p.valor])] }] : []),
+        { nombre: "Por día", anchos: [12, 14, 14, 10], filas: [["Fecha", "Ventas", "Costo", "Tickets"], ...serie.map((d) => [d.fecha instanceof Date ? paraInput(d.fecha) : (d.label || ""), d.ventas, d.costo, d.tickets || 0])] },
+        { nombre: "Por producto", anchos: [36, 18, 10, 14, 14, 10], filas: [["Producto", "Rubro", "Unidades", "Venta", "Ganancia", "Margen"],
+          ...porItem.map((p) => [p.nombre, p.categoria, p.unidades, p.venta, p.ganancia, +p.margen.toFixed(4)])] },
+        ...(puenteDatos ? [
+          { nombre: "Por día de la semana", anchos: [12, 14, 10], filas: [["Día", "Ventas", "Tickets"], ...puenteDatos.porDia.map((d) => [NOMBRE_DIA[d.dia], d.ventas, d.tickets])] },
+          { nombre: "Por hora", anchos: [8, 14, 10], filas: [["Hora", "Ventas", "Tickets"], ...puenteDatos.porHora.filter((h) => h.tickets).map((h) => [h.hora, h.ventas, h.tickets])] },
+          { nombre: "Medios de pago", anchos: [22, 14, 14], filas: [["Medio", "Cobrado", "Comisión"],
+            ...Object.entries(puenteDatos.cobradoPorMedio).map(([k, c]) => { const m = medios.find((x) => x.k === k) || { k, n: k }; return [m.n, c, comisionDe(m, c)]; })] },
+          { nombre: "Vendedores", anchos: [24, 14, 10, 14, 12], filas: [["Vendedor", "Ventas", "Tickets", "Descuentos", "Desc. promedio"],
+            ...puenteDatos.vendedores.map((v) => [v.nombre, v.ventas, v.tickets, v.descuentos, +v.descuentoPromedio.toFixed(4)])] },
+        ] : []),
+      ];
+      await bajarExcel(`Genez - reporte ${periodo}`, hojas);
+    } finally {
+      setExportando(false);
+    }
+  };
+
   /* Ya viene ordenado por venta desde la base. */
   const topVenta = porItem.slice(0, 10);
   const topGanancia = [...porItem].sort((a, b) => b.ganancia - a.ganancia).slice(0, 10);
@@ -222,6 +261,9 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
 
         {/* Cuántos días son: "del 01/09 al 15/09" no dice solo que son 15. */}
         {!problema && <span className="text-xs text-texto-tenue ml-1">{dias} {dias === 1 ? "día" : "días"}</span>}
+        <Boton size="sm" variant="ghost" className="ml-auto" onClick={exportar} disabled={exportando || !puenteDatos}>
+          {exportando ? "Armando…" : "Exportar a Excel"}
+        </Boton>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -250,6 +292,10 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
       {puente && <PuenteDeRentabilidad puente={puente} />}
 
       <MatrizDeProductos matriz={matriz} />
+
+      {puenteDatos && <CuandoSeVende porHora={puenteDatos.porHora} porDia={puenteDatos.porDia} />}
+      {puenteDatos && <MediosDelPeriodo cobradoPorMedio={puenteDatos.cobradoPorMedio} ajustes={ajustes} />}
+      {puenteDatos && <PorVendedor vendedores={puenteDatos.vendedores} />}
 
 
       {conPedidos && <PorCanal empresaId={empresaId} rango={rango} ir={ir} />}
@@ -539,6 +585,124 @@ function MatrizDeProductos({ matriz }) {
           );
         })}
       </div>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   Cuándo se vende (06/10)
+
+   Por día de la semana y por hora, en Buenos Aires: para saber cuándo
+   reforzar la caja y cuándo sobra gente. Las horas sin ventas se ocultan
+   en las puntas para que el gráfico no sea medio vacío.
+   ------------------------------------------------------------ */
+const NOMBRE_DIA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+function CuandoSeVende({ porHora, porDia }) {
+  const conVentas = porHora.filter((h) => h.tickets > 0);
+  if (!conVentas.length) return null;
+  const desde = conVentas[0].hora, hasta = conVentas[conVentas.length - 1].hora;
+  const horas = porHora.filter((h) => h.hora >= desde && h.hora <= hasta).map((h) => ({ ...h, label: `${h.hora}h` }));
+  const mejorDia = [...porDia].sort((a, b) => b.ventas - a.ventas)[0];
+  const mejorHora = [...porHora].sort((a, b) => b.ventas - a.ventas)[0];
+  const maxDia = Math.max(1, ...porDia.map((x) => x.ventas));
+  return (
+    <div className="grid lg:grid-cols-2 gap-4">
+      <Card className="p-4">
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Por día de la semana</div>
+        <p className="text-xs text-texto-suave mt-1">El que más vende: <b className="text-texto">{NOMBRE_DIA[mejorDia.dia]}</b>.</p>
+        <ul className="mt-3 space-y-1.5 text-sm">
+          {porDia.map((d) => (
+            <li key={d.dia} className="grid grid-cols-[6rem_1fr_auto] items-center gap-3">
+              <span className="text-texto-suave">{NOMBRE_DIA[d.dia]}</span>
+              <span className="h-2 bg-superficie-2 rounded-full overflow-hidden">
+                <span className="block h-full bg-acento rounded-full" style={{ width: `${(d.ventas / maxDia) * 100}%` }} />
+              </span>
+              <span className="f-m text-right text-xs">
+                {money(d.ventas)} <span className="text-texto-tenue">· {nf.format(d.tickets)} t · {money(d.tickets ? d.ventas / d.tickets : 0)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-[11px] text-texto-tenue mt-2">Ventas · tickets · ticket promedio.</p>
+      </Card>
+      <Card className="p-4">
+        <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Por hora</div>
+        <p className="text-xs text-texto-suave mt-1">La hora más fuerte: <b className="text-texto">de {mejorHora.hora} a {mejorHora.hora + 1}</b>.</p>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={horas} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#a8a29e" }} axisLine={false} tickLine={false} interval={0} />
+            <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} tickFormatter={moneyk} axisLine={false} tickLine={false} width={60} />
+            <Tooltip formatter={(v, n) => [n === "ventas" ? money(v) : v, n === "ventas" ? "Ventas" : "Tickets"]} contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e7e5e4" }} />
+            <Bar dataKey="ventas" fill="#f97316" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------
+   Medios de pago del período (06/10)
+
+   Cuánto entró por cada medio y cuánto se llevó cada uno en comisiones
+   (con su IVA): el costo financiero de cobrar. Con la configuración de
+   Ajustes de hoy.
+   ------------------------------------------------------------ */
+function MediosDelPeriodo({ cobradoPorMedio, ajustes }) {
+  const medios = mediosDe(ajustes);
+  const filas = Object.entries(cobradoPorMedio)
+    .map(([k, cobrado]) => {
+      const m = medios.find((x) => x.k === k) || { k, n: k, tasa: 0 };
+      return { k, n: m.n, cobrado, comision: comisionDe(m, cobrado), dias: m.dias || 0 };
+    })
+    .sort((a, b) => b.cobrado - a.cobrado);
+  if (!filas.length) return null;
+  const total = filas.reduce((s, f) => s + f.cobrado, 0);
+  const comisiones = filas.reduce((s, f) => s + f.comision, 0);
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Cómo te pagaron</div>
+      <p className="text-xs text-texto-suave mt-1">
+        Cobrar te costó <b className="text-texto">{money(comisiones)}</b> en comisiones: el {pct(total ? comisiones / total : 0)} de lo cobrado.
+      </p>
+      <TablaSimple
+        cols={["Medio", "Cobrado", "Del total", "Comisión", "Se acredita"]}
+        filas={filas.map((f) => [
+          f.n,
+          <span key="c" className="f-m">{money(f.cobrado)}</span>,
+          <span key="p" className="f-m">{pct(total ? f.cobrado / total : 0, 0)}</span>,
+          <span key="m" className="f-m">{f.comision ? money(f.comision) : "—"}</span>,
+          f.dias ? `a ${f.dias} días` : "en el día",
+        ])}
+      />
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   Por vendedor (06/10)
+
+   Quién cobró cada venta. El descuento promedio sirve para ver si alguien
+   descuenta mucho más que el resto.
+   ------------------------------------------------------------ */
+function PorVendedor({ vendedores }) {
+  if (vendedores.length < 2) return null;
+  const promedio = vendedores.reduce((s, v) => s + v.descuentos, 0) / Math.max(1, vendedores.reduce((s, v) => s + v.ventas + v.descuentos, 0));
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Por vendedor</div>
+      <p className="text-xs text-texto-suave mt-1">Quién cobró cada venta. Descuento promedio de todos: {pct(promedio)}.</p>
+      <TablaSimple
+        cols={["Vendedor", "Ventas", "Tickets", "Ticket promedio", "Descuento promedio"]}
+        filas={vendedores.map((v) => [
+          v.nombre,
+          <span key="v" className="f-m">{money(v.ventas)}</span>,
+          <span key="t" className="f-m">{nf.format(v.tickets)}</span>,
+          <span key="tp" className="f-m">{money(v.ticketPromedio)}</span>,
+          <span key="d" className={`f-m ${v.descuentoPromedio > promedio * 1.5 && v.descuentoPromedio > 0.02 ? "text-mal font-semibold" : ""}`}>{pct(v.descuentoPromedio)}</span>,
+        ])}
+      />
     </Card>
   );
 }
