@@ -11,7 +11,8 @@ import { cargarPuente } from "../datos/puente.js";
 import { bajarExcel } from "../utils/planilla.js";
 import { ObjetivosDelMes, hayObjetivos } from "./Objetivos.jsx";
 import { cargarPagosPorProveedor } from "../datos/facturasProveedor.js";
-import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
+import { cargarQuiebres } from "../datos/quiebres.js";
+import { Kpi, Card, Boton, TablaSimple, Vacio, Sello } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
 import { tonoCanal } from "../ui/canales.jsx";
@@ -160,6 +161,18 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
     return () => { vigente = false; };
   }, [empresaId, rango]);
 
+  /* Los productos que se quedaron sin stock en el período (0134). */
+  const [quiebres, setQuiebres] = useState(null);
+  useEffect(() => {
+    if (!empresaId) return undefined;
+    let vigente = true;
+    setQuiebres(null);
+    cargarQuiebres(empresaId, rango.desde, rango.hasta)
+      .then((q) => { if (vigente) setQuiebres(q); })
+      .catch((e) => { if (vigente) { console.error("No se pudieron leer los quiebres:", e); setQuiebres([]); } });
+    return () => { vigente = false; };
+  }, [empresaId, rango]);
+
   const tickets = serie.reduce((s, d) => s + (d.tickets || 0), 0);
   const unidades = porItem.reduce((s, p) => s + p.unidades, 0);
   const ant = previo && {
@@ -210,6 +223,10 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
             ...Object.entries(puenteDatos.cobradoPorMedio).map(([k, c]) => { const m = medios.find((x) => x.k === k) || { k, n: k }; return [m.n, c, comisionDe(m, c)]; })] },
           { nombre: "Vendedores", anchos: [24, 14, 10, 14, 12], filas: [["Vendedor", "Ventas", "Tickets", "Descuentos", "Desc. promedio"],
             ...puenteDatos.vendedores.map((v) => [v.nombre, v.ventas, v.tickets, v.descuentos, +v.descuentoPromedio.toFixed(4)])] },
+        ] : []),
+        ...(quiebres && quiebres.length ? [
+          { nombre: "Quiebres de stock", anchos: [36, 12, 12, 14, 14, 14, 14], filas: [["Producto", "Días sin stock", "Venta por día", "Unidades perdidas", "Venta perdida", "Ganancia perdida", "Sin stock desde"],
+            ...quiebres.map((q) => [q.nombre, q.diasSinStock, q.ventaDiaria ?? "", q.perdidas ?? "", q.ventaPerdida ?? "", q.gananciaPerdida ?? "", q.sinStockDesde || ""])] },
         ] : []),
       ];
       await bajarExcel(`Genez - reporte ${periodo}`, hojas);
@@ -313,6 +330,8 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
       {puente && <PuenteDeRentabilidad puente={puente} />}
 
       <MatrizDeProductos matriz={matriz} />
+
+      {quiebres && <QuiebresDeStock quiebres={quiebres} ir={ir} />}
 
       {puenteDatos && <CuandoSeVende porHora={puenteDatos.porHora} porDia={puenteDatos.porDia} />}
       {puenteDatos && <MediosDelPeriodo cobradoPorMedio={puenteDatos.cobradoPorMedio} ajustes={ajustes} />}
@@ -607,6 +626,71 @@ function MatrizDeProductos({ matriz }) {
           );
         })}
       </div>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   Quiebres de stock (0134)
+
+   Lo que se quedó sin stock en el período y cuánto se dejó de vender.
+   Solo los productos con el stock cargado: del resto no se sabe cuándo
+   hubo y cuándo no. Los días que se vendió con el stock en cero no son
+   venta perdida sino un número mal contado, y se avisan aparte.
+   ------------------------------------------------------------ */
+const fechaCortaQ = (f) => f.split("-").reverse().slice(0, 2).join("/");
+
+function QuiebresDeStock({ quiebres, ir }) {
+  const conFalta = quiebres.filter((q) => q.diasSinStock > 0);
+  const malContados = quiebres.filter((q) => q.diasVendiendoEnCero > 0);
+  /* Se terminaron hoy o ayer: todavía no hay un día entero en falta. */
+  const recienAgotados = quiebres.filter((q) => !q.diasSinStock && !q.diasVendiendoEnCero && q.stock <= 0);
+  const perdida = conFalta.reduce((s, q) => s + (q.ventaPerdida || 0), 0);
+  const gananciaPerdida = conFalta.reduce((s, q) => s + (q.gananciaPerdida || 0), 0);
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Quiebres de stock</div>
+          <p className="text-xs text-texto-suave mt-1">
+            {conFalta.length
+              ? <>Productos que estuvieron días enteros sin stock. Se dejaron de vender unos <span className="f-m text-texto">{money(perdida)}</span>{gananciaPerdida ? <>, <span className="f-m text-texto">{money(gananciaPerdida)}</span> de ganancia</> : null}.</>
+              : "Ningún producto estuvo un día entero sin stock en el período."}
+          </p>
+        </div>
+        {ir && <Boton size="sm" variant="quiet" onClick={() => ir("stock")}>Ir a Stock</Boton>}
+      </div>
+      {conFalta.length > 0 && (
+        <div className="mt-3 -mx-4">
+          <TablaSimple
+            cols={["Producto", "Días sin stock", "Vende por día", "Se perdieron", "Venta perdida"]}
+            filas={conFalta.slice(0, 15).map((q) => [
+              <span key="n" className="flex items-center gap-2 min-w-0">
+                <span className="truncate">{q.nombre}</span>
+                {q.sinStockDesde && <Sello tono="mal">sin stock desde {fechaCortaQ(q.sinStockDesde)}</Sello>}
+              </span>,
+              <span key="d" className="f-m">{nf.format(q.diasSinStock)} <span className="text-texto-tenue">de {nf.format(q.diasContados)}</span></span>,
+              <span key="v" className="f-m">{q.ventaDiaria == null ? "—" : q.ventaDiaria.toFixed(1).replace(".", ",")}</span>,
+              <span key="p" className="f-m">{q.perdidas == null ? "—" : `${q.perdidas.toFixed(0)} u`}</span>,
+              <span key="$" className="f-m">{q.ventaPerdida == null ? "—" : money(q.ventaPerdida)}</span>,
+            ])}
+          />
+          {conFalta.length > 15 && <p className="text-xs text-texto-tenue mt-2 px-4">y {nf.format(conFalta.length - 15)} más en la planilla.</p>}
+        </div>
+      )}
+      {recienAgotados.length > 0 && (
+        <p className="text-xs text-texto-suave mt-3">
+          Se terminaron hace poco: {recienAgotados.map((q) => q.nombre).join(", ")}.
+        </p>
+      )}
+      {malContados.length > 0 && (
+        <p className="text-xs text-ojo mt-3">
+          Se vendió con el stock en cero: {malContados.slice(0, 5).map((q) => q.nombre).join(", ")}{malContados.length > 5 ? ` y ${malContados.length - 5} más` : ""}. El producto estaba y el número no: conviene contarlo de nuevo.
+        </p>
+      )}
+      <p className="text-[11px] text-texto-tenue mt-3">
+        Solo cuenta los productos con el stock cargado. La venta perdida es una estimación: días sin stock por lo que se vende un día con stock, al precio de hoy.
+      </p>
     </Card>
   );
 }
