@@ -690,6 +690,18 @@ const FUNCIONES = {
   ventas_diarias: ({ p_dias = 90 }) => serie(new Date(Date.now() - (p_dias - 1) * 86400000), new Date()),
   ventas_diarias_rango: ({ p_desde, p_hasta }) => serie(new Date(`${p_desde}T12:00:00`), new Date(`${p_hasta}T12:00:00`)),
   ventas_por_item: () => [], ventas_por_item_rango: () => [],
+  /* Tres casos fijos con los primeros productos (0134): uno que sigue sin
+     stock, uno que se repuso, y uno vendido con el stock en cero. */
+  quiebres_de_stock: () => {
+    const [a, b, c, d] = tablaDe("items").filter((i) => i.tipo === "producto");
+    const f = (i, x) => i && { item_id: i.id, dias_contados: 30, dias_vendiendo_en_cero: 0, sin_stock_desde: null, stock: 5, ...x };
+    return [
+      f(a, { dias_sin_stock: 4, venta_diaria: 3.5, unidades_perdidas: 14, sin_stock_desde: dia(new Date(Date.now() - 3 * 86400000)), stock: 0 }),
+      f(b, { dias_sin_stock: 2, venta_diaria: 1.2, unidades_perdidas: 2.4 }),
+      f(c, { dias_sin_stock: 0, dias_vendiendo_en_cero: 2, venta_diaria: 0.8, unidades_perdidas: 0, stock: -1 }),
+      f(d, { dias_sin_stock: 0, venta_diaria: 2, unidades_perdidas: 0, stock: 0 }),
+    ].filter(Boolean);
+  },
   reservar_numeros: () => (numero += 50) - 49,
   registrar_venta: ({ venta }) => {
     T.operaciones.push({ ...venta, tipo: "venta", estado: "confirmada" });
