@@ -37,15 +37,15 @@ const MP = "https://api.mercadopago.com";
 export const GRACIA_DIAS = 5;
 const ZONA = "America/Argentina/Buenos_Aires";
 
-const hoy = () => new Date().toLocaleDateString("en-CA", { timeZone: ZONA });
-const masDias = (fecha, n) => {
+export const hoy = () => new Date().toLocaleDateString("en-CA", { timeZone: ZONA });
+export const masDias = (fecha, n) => {
   const d = new Date(`${fecha}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
-const soloFecha = (iso) => (iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: ZONA }) : null);
+export const soloFecha = (iso) => (iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: ZONA }) : null);
 
-async function mp(ruta, { metodo = "GET", cuerpo } = {}) {
+export async function mp(ruta, { metodo = "GET", cuerpo } = {}) {
   const token = process.env.MP_ACCESS_TOKEN;
   if (!token) throw Object.assign(new Error("Falta MP_ACCESS_TOKEN en el servidor."), { codigo: 503 });
   const r = await fetch(`${MP}${ruta}`, {
@@ -62,7 +62,7 @@ async function mp(ruta, { metodo = "GET", cuerpo } = {}) {
   return datos;
 }
 
-async function tarifas(db) {
+export async function tarifas(db) {
   const { data, error } = await db.from("tarifas").select("clave, monto");
   if (error) throw error;
   const t = Object.fromEntries((data || []).map((f) => [f.clave, f.monto == null ? null : Number(f.monto)]));
@@ -84,7 +84,7 @@ export function montoMensual(t, plan, sucursales) {
 
 /* Los módulos de un plan para el rubro del comercio, con el mismo cálculo
    que la landing y el registro. */
-async function modulosDelPlan(db, rubroClave, plan) {
+export async function modulosDelPlan(db, rubroClave, plan) {
   const { data: rubro } = await db.from("rubros").select("clave, nombre, modulos, presentacion").eq("clave", rubroClave).maybeSingle();
   if (!rubro) return null;
   const p = planes({ rubro }).find((x) => x.k === plan);
@@ -113,8 +113,8 @@ export async function contratar(res, db, quien, cuerpo, req) {
     tarifas(db),
   ]);
   if (!empresa) return res.status(404).json({ error: { message: "No encontré el comercio." } });
-  if (previa && previa.estado === "activa") {
-    return res.status(409).json({ error: { message: "Ya tenés una suscripción activa. Para cambiarla, escribinos." } });
+  if (previa && (previa.estado === "activa" || previa.estado === "pausada")) {
+    return res.status(409).json({ error: { message: "Ya tenés una suscripción. Para cambiarla, entrá a Ajustes → Mi plan." } });
   }
 
   const locales = Math.max(1, sucursales || 1);
@@ -161,6 +161,9 @@ export async function contratar(res, db, quien, cuerpo, req) {
     const { error } = await db.from("suscripciones").upsert({
       empresa_id: empresaId, mp_id: creada.id, plan, periodo, monto, sucursales: locales,
       payer_email: email, estado: "pendiente", pago_fallido_desde: null,
+      /* Volver a contratar después de una baja empieza de cero (0130). */
+      baja_codigo: null, baja_pedida_en: null, cambio_mp_id: null, cambio_plan: null, cambio_periodo: null, cambio_monto: null,
+      autorizada_en: null, precio_desde: null, proximo_ajuste: null, ipc_ref_mes: null, ipc_ref: null,
       proximo_cobro: soloFecha(creada.next_payment_date) || (inicio ? inicio.slice(0, 10) : null),
       actualizada_en: new Date().toISOString(),
     }, { onConflict: "empresa_id" });
@@ -217,10 +220,57 @@ async function suscripcionDe(db, mpId) {
   return data;
 }
 
+/* El IPC nivel general del INDEC, por la API de series de datos.gob.ar:
+   el último mes publicado. Lo usa también el ajuste (api/_mi_plan.js). */
+export async function ipcUltimo() {
+  const r = await fetch("https://apis.datos.gob.ar/series/api/series/?ids=148.3_INIVELNAL_DICI_M_26&last=1&format=json");
+  if (!r.ok) throw new Error(`La serie del IPC contestó ${r.status}.`);
+  const datos = await r.json();
+  const [mes, valor] = (datos.data || [])[0] || [];
+  if (!mes || !valor) throw new Error("La serie del IPC vino vacía.");
+  return { mes, valor: Number(valor) };
+}
+
+/* Seis meses de precio congelado desde que MP la autoriza (términos,
+   punto 6). La base del IPC es el último mes publicado ese día; si la
+   serie no contesta queda en null y el ajuste la completa después. */
+export async function arrancarPrecio(db, empresaId, desde) {
+  const ipc = await ipcUltimo().catch(() => null);
+  const seis = new Date(`${desde}T12:00:00Z`);
+  seis.setUTCMonth(seis.getUTCMonth() + 6);
+  await db.from("suscripciones").update({
+    precio_desde: desde, proximo_ajuste: seis.toISOString().slice(0, 10),
+    ipc_ref_mes: ipc ? ipc.mes : null, ipc_ref: ipc ? ipc.valor : null,
+  }).eq("empresa_id", empresaId);
+}
+
+/* Un cambio de período (0130) es otra suscripción de MP. Cuando la nueva
+   se autoriza, la vieja se cancela en MP y la fila pasa a ser la nueva. */
+async function completarCambio(db, s, p) {
+  if (s.mp_id) await mp(`/preapproval/${s.mp_id}`, { metodo: "PUT", cuerpo: { status: "cancelled" } }).catch(() => {});
+  const { data, error } = await db.from("suscripciones").update({
+    mp_id: s.cambio_mp_id, plan: s.cambio_plan, periodo: s.cambio_periodo, monto: s.cambio_monto,
+    cambio_mp_id: null, cambio_plan: null, cambio_periodo: null, cambio_monto: null,
+    estado: "activa", pago_fallido_desde: null,
+    proximo_cobro: soloFecha(p.next_payment_date) || s.proximo_cobro,
+    actualizada_en: new Date().toISOString(),
+  }).eq("empresa_id", s.empresa_id).select("*").single();
+  if (error) throw error;
+  await arrancarPrecio(db, s.empresa_id, hoy());
+  return data;
+}
+
 async function alCambiarSuscripcion(db, mpId) {
   const p = await mp(`/preapproval/${mpId}`);
-  const s = await suscripcionDe(db, mpId);
-  if (!s) return; // una suscripción que no creamos nosotros
+  let s = await suscripcionDe(db, mpId);
+  if (!s) {
+    /* ¿La nueva de un cambio de período? Mientras no se autoriza, cualquier
+       otro estado (pendiente, cancelada desde MP) no toca nada. */
+    const { data: conCambio } = await db.from("suscripciones").select("*").eq("cambio_mp_id", mpId).maybeSingle();
+    if (!conCambio) return; // una suscripción que no creamos nosotros
+    if (p.status !== "authorized") return;
+    s = await completarCambio(db, conCambio, p);
+  }
   const estado = ESTADO_MP[p.status] || s.estado;
   const proximo = soloFecha(p.next_payment_date) || s.proximo_cobro;
   await db.from("suscripciones").update({ estado, proximo_cobro: proximo, actualizada_en: new Date().toISOString() }).eq("empresa_id", s.empresa_id);
@@ -236,6 +286,12 @@ async function alCambiarSuscripcion(db, mpId) {
       prueba_hasta: s.pago_fallido_desde ? masDias(s.pago_fallido_desde, GRACIA_DIAS) : null,
     }).eq("id", s.empresa_id);
     if (s.plan === "start") await dejarSoloAlDueno(db, s.empresa_id);
+    /* La primera autorización: desde acá corren el arrepentimiento y los
+       seis meses de precio congelado. */
+    if (!s.autorizada_en) {
+      await db.from("suscripciones").update({ autorizada_en: new Date().toISOString() }).eq("empresa_id", s.empresa_id);
+      if (!s.precio_desde) await arrancarPrecio(db, s.empresa_id, hoy());
+    }
   } else if (estado === "pausada" || estado === "cancelada") {
     /* Sigue entrando hasta el último día pago; si no hay fecha, hasta hoy. */
     const hasta = proximo ? masDias(proximo, -1) : hoy();

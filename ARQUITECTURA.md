@@ -1918,9 +1918,33 @@ de Vercel que entra por `founder.js?tarea=pruebas`: el plan Hobby deja 12
 funciones y ya están todas. Cada aviso se anota en `pruebas` recién después de
 que Resend lo aceptó; sin `RESEND_API_KEY` no se manda ni se anota nada.
 
-**Contratar** es a mano mientras dure el lanzamiento: la persona pide el link
-por WhatsApp, toca "Ya pagué", y la plataforma activa desde "Pruebas gratis"
-(sacarle el plazo), extiende siete días o suspende.
+**Contratar** es una suscripción de Mercado Pago (0128, `api/_suscripcion.js`):
+el dueño elige plan y período, el servidor crea el preapproval con el precio
+de `tarifas`, y los avisos de MP (firmados, `x-signature`) activan el plan, abren
+cinco días de gracia si un cobro falla, o dejan el acceso hasta el último día
+pago en una baja. `prueba_hasta` hace de "último día de acceso" en los tres
+casos; lo que distingue una prueba de una gracia es que haya suscripción. La
+plataforma todavía puede activar, extender o suspender a mano desde "Pruebas
+gratis".
+
+**El plan se cumple en el servidor** (0129, `api/_planes.js`): ARCA solo en Pro
+y nunca en la prueba, un usuario en Simple, y los topes del asistente contados
+en `uso_ia` por `consumir_ia`. Los comercios `completo` (los de antes de los
+planes) tienen todo.
+
+**Mi plan** (0130, `api/_mi_plan.js`, `src/modulos/MiPlan.jsx`, arriba de
+Ajustes) es lo que prometen los términos (`src/landing/Terminos.jsx`): cambiar a
+cualquier plan (mismo período: se cambia el monto del preapproval; otro
+período: una suscripción nueva que arranca en el próximo cobro y reemplaza a la
+vieja cuando MP la autoriza), dar de baja con código, y el botón de
+arrepentimiento (`/arrepentimiento`, sin sesión por la Res. 424/2020: anota y da
+el código; la plataforma lo resuelve en "Pruebas gratis", cancela y devuelve).
+El cron diario de `founder.js?tarea=pruebas` además ajusta el precio por IPC
+(congelado 6 meses, después cada 3, avisando 10 días antes) y borra los
+comercios de autoservicio que llevan 90 días sin acceso (`borrar_comercio`,
+con los frenos en la base: nunca los de antes de los planes ni los que tienen
+comprobantes fiscales). Pruebas: `probar-mi-plan.mjs` (la base, en
+transacción) y `probar-mi-plan-servidor.mjs` (la lógica, con MP de mentira).
 
 `node scripts/probar-autoservicio.mjs [0127]` lo prueba entero contra la base
 en una transacción que siempre se deshace. En la pantalla de pruebas:

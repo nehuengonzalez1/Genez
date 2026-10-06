@@ -4,6 +4,8 @@ import ReactDOM from "react-dom/client";
    anterior, con el alta en pasos, queda en Landing.jsx hasta publicar. */
 import Landing from "./LandingNueva.jsx";
 import Privacidad from "./Privacidad.jsx";
+import Terminos from "./Terminos.jsx";
+import Arrepentimiento from "./Arrepentimiento.jsx";
 import { iniciarTema } from "./tema.js";
 import "../index.css";
 import "./landing.css";
@@ -19,20 +21,29 @@ iniciarTema();
 
 /* /privacidad llega acá por el rewrite de vercel.json. En desarrollo Vite
    no aplica esos rewrites: ahí se abre con landing.html?privacidad. */
-const esPrivacidad = location.pathname.startsWith("/privacidad")
-  || (import.meta.env.DEV && new URLSearchParams(location.search).has("privacidad"));
+const enDesarrollo = (clave) => import.meta.env.DEV && new URLSearchParams(location.search).has(clave);
+const esPrivacidad = location.pathname.startsWith("/privacidad") || enDesarrollo("privacidad");
 if (esPrivacidad) document.title = "Política de privacidad · Genez";
+
+/* /terminos y /arrepentimiento, igual (0130). */
+const esTerminos = location.pathname.startsWith("/terminos") || enDesarrollo("terminos");
+if (esTerminos) document.title = "Términos y condiciones · Genez";
+const esArrepentimiento = location.pathname.startsWith("/arrepentimiento") || enDesarrollo("arrepentimiento");
+if (esArrepentimiento) document.title = "Botón de arrepentimiento · Genez";
 
 /* /empezar es el registro, en una página aparte (lo mismo: en desarrollo,
    landing.html?empezar). */
-const esRegistro = !esPrivacidad && (location.pathname.startsWith("/empezar")
-  || (import.meta.env.DEV && new URLSearchParams(location.search).has("empezar")));
+const esRegistro = !esPrivacidad && !esTerminos && !esArrepentimiento
+  && (location.pathname.startsWith("/empezar") || enDesarrollo("empezar"));
 if (esRegistro) document.title = "Probalo gratis · Genez";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <div className="min-h-screen bg-fondo text-texto">
-      {esPrivacidad ? <Privacidad /> : <Landing pagina={esRegistro ? "registro" : "principal"} />}
+      {esPrivacidad ? <Privacidad />
+        : esTerminos ? <Terminos />
+        : esArrepentimiento ? <Arrepentimiento />
+        : <Landing pagina={esRegistro ? "registro" : "principal"} />}
     </div>
   </React.StrictMode>
 );
