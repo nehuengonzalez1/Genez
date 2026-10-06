@@ -19,7 +19,7 @@ import { saldoDePuntos } from "../datos/puntos.js";
 import { reglaDePuntos, puntosGanados, canjeMaximo, valorDePuntos } from "../utils/puntos.js";
 import QRCode from "qrcode";
 import {
-  nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista,
+  nf, money, pct, esCantidad, aNumero, precioAplicado, proximaLista, listasDeCliente, comisionDe,
   conRecargo, mediosDe, medioPorK, letraComprobante, FISCAL_INICIAL,
   condicionNombre, faltantesProducto, faltantesProveedor, productoNuevo,
   leerCodigoBalanza, pasoDe, formatoCantidad, nombreUnidad, MEDIO_CUENTA_CORRIENTE,
@@ -151,7 +151,7 @@ function AltaRapida({ abierto, inicial, productos, ajustes, onCrear, onClose }) 
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-bold">{l.nombre}</div>
-                <div className="text-[11px] text-texto-suave">Se cobra a partir de {l.umbral} unidades. Vacío: este producto no entra en esta lista.</div>
+                <div className="text-[11px] text-texto-suave">{l.tipo === "cliente" ? "Para los clientes con esta lista." : `Se cobra a partir de ${l.umbral} unidades.`} Vacío: este producto no entra en esta lista.</div>
               </div>
               <input value={otros[l.id] || ""} onChange={(e) => setOtros((o) => ({ ...o, [l.id]: e.target.value.replace(/\D/g, "") }))}
                 placeholder="opcional" className="f-m w-28 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento shrink-0" />
@@ -445,7 +445,7 @@ export function EscanerCamara({ abierto, onLeer, onCerrar, titulo = "Escaneá el
   );
 }
 
-export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
+export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar, listas = [] }) {
   const [q, setQ] = useState("");
   const [nuevo, setNuevo] = useState(false);
   const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -454,7 +454,7 @@ export function BuscarCliente({ clientes, onElegir, onCrear, onCerrar }) {
     : clientes.slice(0, 8);
 
   if (nuevo) {
-    return <FormCliente abierto inicial={{ razonSocial: q }} onCerrar={() => setNuevo(false)} onGuardar={(d) => onCrear(d)} />;
+    return <FormCliente abierto inicial={{ razonSocial: q }} onCerrar={() => setNuevo(false)} onGuardar={(d) => onCrear(d)} listas={listas} />;
   }
 
   return (
@@ -687,7 +687,11 @@ const ATAJOS = [
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
-export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos,
+/* `descuentoMax` (06/10): el tope de descuento del rol de quien cobra, en
+   porcentaje, o null sin tope (el dueño, la plataforma, o un rol al que no
+   se le puso). Lo fija el comercio en Ajustes → Cobros y facturas. Como
+   el permiso de descontar, lo controla la pantalla y no la base. */
+export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos, descuentoMax = null,
   facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [], cajaMp = null }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → (monto | qr) → fin
   /* Los puntos del cliente elegido y cuántos se usan en esta venta (0112). */
@@ -707,6 +711,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [pagos, setPagos] = useState([]);
   const [montoMix, setMontoMix] = useState("");
   const [ticket, setTicket] = useState(null);
+  /* Va acá arriba y no junto a su saldo: el precio de cada renglón ya lo
+     usa (lista del cliente), y leerlo antes de declararlo deja la pantalla
+     en negro (pasó el 29/09 en Sistema). */
+  const [cliente, setCliente] = useState(null);
   /* Con una venta a medio cargar o a medio cobrar, la página no se
      actualiza sola (src/ui/actualizacion.js): se perdería el carrito. Con
      la venta ya cobrada ("fin") sí: la venta está guardada. */
@@ -878,20 +886,34 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   /* El precio a mano va al renglón, no al producto: si el mismo artículo
      está dos veces, cada uno tiene el suyo. Volver al de lista es poner
      el mismo número o apretar la cruz. */
-  const setPrecioManual = (lid, precio) => setCart((c) => c.map((l) => (
-    l.lid === lid ? { ...l, manual: precio == null || precio === l.precio ? null : precio } : l
-  )));
+  const setPrecioManual = (lid, precio) => {
+    /* Bajar el precio a mano también es descontar: con tope, no puede
+       quedar por debajo de lo que el tope permite. */
+    const linea = cart.find((l) => l.lid === lid);
+    if (descuentoMax != null && precio != null && linea && precio < Math.ceil(linea.precio * (1 - descuentoMax / 100))) {
+      return toast(`Tu usuario puede bajar el precio hasta un ${String(descuentoMax).replace(".", ",")}%: no menos de ${money(Math.ceil(linea.precio * (1 - descuentoMax / 100)))}.`, "mal");
+    }
+    setCart((c) => c.map((l) => (
+      l.lid === lid ? { ...l, manual: precio == null || precio === l.precio ? null : precio } : l
+    )));
+  };
   const setQty = (lid, qty) => setCart((c) => c.map((l) => (l.lid === lid ? { ...l, qty: Math.max(0, +qty.toFixed(3)) } : l)).filter((l) => l.qty > 0));
   const quitar = (lid) => setCart((c) => c.filter((l) => l.lid !== lid));
 
+  /* La lista del cliente elegido (06/10): cambia el precio de todo el
+     ticket apenas se lo elige. */
+  const listaDelCliente = (cliente && cliente.camposExtra && cliente.camposExtra.lista) || null;
   const conPrecio = cart.map((l) => {
     /* Un precio puesto a mano gana a todo, también al precio por
        cantidad: es lo que decidió quien cobra, para esta venta. */
     if (l.manual != null) {
       return { ...l, unit: l.manual, lista: null, listaNombre: null, proxima: null, importe: l.manual * l.qty, ahorro: 0 };
     }
-    const { precio, lista, nombre } = precioAplicado(l, l.qty, ajustes);
-    return { ...l, unit: precio, lista, listaNombre: nombre, proxima: proximaLista(l, l.qty, ajustes),
+    const { precio, lista, nombre } = precioAplicado(l, l.qty, ajustes, listaDelCliente);
+    /* "Llevando 3 te sale menos" solo si de verdad sale menos: a un
+       mayorista con su lista no se le ofrece una por cantidad más cara. */
+    const px = proximaLista(l, l.qty, ajustes);
+    return { ...l, unit: precio, lista, listaNombre: nombre, proxima: px && px.precio < precio ? px : null,
       importe: precio * l.qty, ahorro: (l.precio - precio) * l.qty };
   });
   /* Las promos (0102) sobre lo que quedó: sin precio a mano, sin precio
@@ -914,9 +936,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const rebajaManual = lineas.reduce((s, l) => s + (l.manual != null ? (l.precio - l.manual) * l.qty : 0), 0);
   /* En pesos enteros, como toda la plata del sistema. Un descuento en
      pesos no puede pasar el subtotal: la venta no queda en negativo. */
+  const topeRol = descuentoMax == null ? TOPE_DESCUENTO : Math.min(descuentoMax, TOPE_DESCUENTO);
   const descPedido = desc.modo === "pct"
-    ? Math.round(sub * Math.min(desc.valor, TOPE_DESCUENTO) / 100)
-    : Math.round(desc.valor);
+    ? Math.round(sub * Math.min(desc.valor, topeRol) / 100)
+    : (descuentoMax == null ? Math.round(desc.valor) : Math.min(Math.round(desc.valor), Math.floor(sub * topeRol / 100)));
   /* Los puntos (0112) se canjean como descuento, sumado al del pedido: así
      el total baja en todos lados (pago combinado, vuelto, factura) sin
      tocar cada cuenta. Se guardan aparte en la venta, y la base los resta. */
@@ -932,7 +955,6 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const medios = mediosDe(ajustes).filter((m) => m.k !== MEDIO_CUENTA_CORRIENTE || permisos.fiar);
   const medio = medios[medioSel] || medios[0];
 
-  const [cliente, setCliente] = useState(null);
   /* Lo que debe el cliente elegido, para decidir si se le fía. Se pregunta
      al elegirlo: sin internet queda en null y la venta sigue, porque
      frenar el mostrador por no poder consultar un saldo es peor que fiar
@@ -1476,7 +1498,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-texto-suave">Descuento <Tecla>F4</Tecla></span>
                 <div className="flex items-center gap-1">
-                  {DESC_RAPIDOS.map((d) => (
+                  {DESC_RAPIDOS.filter((d) => d <= topeRol).map((d) => (
                     <button key={d} onClick={() => setDesc({ modo: "pct", valor: d })}
                       className={`f-m text-xs px-2 py-1 rounded-md border ${desc.modo === "pct" && desc.valor === d ? "bg-superficie-3 text-texto border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>{d}%</button>
                   ))}
@@ -1500,8 +1522,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     /* Un porcentaje de más se muestra ya topeado: que el
                        campo diga lo que se va a descontar. */
                     const t = limpiarPorcentaje(e.target.value);
-                    const pasado = Number(t.replace(",", ".")) > TOPE_DESCUENTO;
-                    setDesc({ modo: "pct", valor: leerPorcentaje(t), texto: pasado ? "99,99" : t });
+                    const pasado = Number(t.replace(",", ".")) > topeRol;
+                    if (pasado && descuentoMax != null) toast(`Tu usuario puede descontar hasta un ${String(descuentoMax).replace(".", ",")}%.`, "mal");
+                    setDesc({ modo: "pct", valor: Math.min(leerPorcentaje(t), topeRol), texto: pasado ? String(topeRol).replace(".", ",") : t });
                   }}
                   className="f-m flex-1 min-w-0 border border-borde rounded-md px-2.5 py-1.5 text-sm bg-superficie outline-none focus:border-acento" />
               </div>
@@ -1628,7 +1651,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     })()}
                     {m.tasa > 0 && (
                       <span className="text-xs text-texto-tenue shrink-0">
-                        {m.recargo ? `recargo ${m.tasa}%` : `comisión ${money(total * m.tasa / 100)}`}
+                        {m.recargo ? `recargo ${m.tasa}%` : `comisión ${money(comisionDe(m, total))}`}
                       </span>
                     )}
                     {i === medioSel && <ArrowRight size={16} className="text-acento" />}
@@ -1650,7 +1673,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       )}
 
       {buscarCliente && (
-        <BuscarCliente clientes={clientes} onCerrar={() => setBuscarCliente(false)}
+        <BuscarCliente clientes={clientes} onCerrar={() => setBuscarCliente(false)} listas={listasDeCliente(ajustes)}
           onElegir={(c) => { setCliente(c); setBuscarCliente(false); }}
           onCrear={async (d) => {
             /* Se espera el id que devuelve la base antes de seleccionarlo:
@@ -2145,7 +2168,7 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
                 const v = Number((d.precios || {})[l.id]) || 0;
                 return (
                   <label key={l.id} className="block">
-                    <span className="text-[10px] text-texto-suave">{l.nombre} · desde {l.umbral}</span>
+                    <span className="text-[10px] text-texto-suave">{l.nombre} · {l.tipo === "cliente" ? "clientes" : `desde ${l.umbral}`}</span>
                     <input value={(d.precios || {})[l.id] || ""}
                       onChange={(e) => set("precios", { ...(d.precios || {}), [l.id]: e.target.value.replace(/\D/g, "") })}
                       placeholder="—" className={`${inputCls} f-m text-right`} />

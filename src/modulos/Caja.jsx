@@ -17,7 +17,7 @@ import { pasarACajaGrande } from "../datos/caja.js";
 import { Plus, Wallet, ArrowDownRight, ArrowUpRight, ChevronRight, Landmark, Printer } from "lucide-react";
 import { DetalleMovimiento } from "./DetalleMovimiento.jsx";
 import { CajaGrande } from "./CajaGrande.jsx";
-import { mediosDe, medioPorK, money, nf, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
+import { mediosDe, medioPorK, money, nf, MEDIO_CUENTA_CORRIENTE, comisionDe } from "../utils/helpers.js";
 import { fdatel } from "../datos/generador.js";
 import { Kpi, Card, Boton, Modal, Vacio, Tabs, armarLineas, imprimirComandera } from "../ui/Base.jsx";
 
@@ -165,12 +165,17 @@ function CajaDelDia({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empr
                   <div className="h-1.5 bg-superficie-2 rounded-full mt-1 overflow-hidden">
                     <div className="h-full bg-acento-vivo rounded-full" style={{ width: `${ingresos ? (m.ing / ingresos) * 100 : 0}%` }} />
                   </div>
-                  {m.tasa > 0 && m.ing > 0 && <div className="text-[10px] text-texto-tenue mt-0.5">Comisión estimada {money(m.ing * m.tasa / 100)}</div>}
+                  {m.tasa > 0 && m.ing > 0 && (
+                    <div className="text-[10px] text-texto-tenue mt-0.5">
+                      Comisión estimada {money(comisionDe(m, m.ing))}{m.ivaComision ? " con IVA" : ""}
+                      {m.dias > 0 ? ` · se acredita el ${new Date(Date.now() + m.dias * 86400000).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}` : ""}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
             <div className="border-t border-borde mt-3 pt-3 text-xs text-texto-suave">
-              Las comisiones de tarjeta te descuentan <strong>{money(porMedio.reduce((s, m) => s + m.ing * m.tasa / 100, 0))}</strong> hoy. No aparecen en el ticket pero sí en tu ganancia.
+              Las comisiones de tarjeta te descuentan <strong>{money(porMedio.reduce((s, m) => s + comisionDe(m, m.ing), 0))}</strong> hoy. No aparecen en el ticket pero sí en tu ganancia.
             </div>
           </Card>
 
@@ -244,7 +249,7 @@ function CierreCaja({ caja, porMedio, efectivoEsperado, cerrarCaja, onCerrar }) 
   const fondoN = Number(fondo || 0);
   const filas = [
     { k: "efectivo", n: "Efectivo", esperado: efectivoEsperado, declarado: efectivo },
-    ...otros.map((m) => ({ k: m.k, n: m.n, esperado: m.neto, declarado: dicen[m.k] === "" ? null : Number(dicen[m.k]), tasa: m.tasa || 0 })),
+    ...otros.map((m) => ({ k: m.k, n: m.n, esperado: m.neto, declarado: dicen[m.k] === "" ? null : Number(dicen[m.k]), medio: m })),
   ];
   const fondoMal = efectivo !== null && (fondoN > efectivo);
 
@@ -253,7 +258,7 @@ function CierreCaja({ caja, porMedio, efectivoEsperado, cerrarCaja, onCerrar }) 
   const aGrande = { efectivo: 0, mp: 0, banco: 0 };
   if (efectivo !== null) aGrande.efectivo = Math.max(0, efectivo - fondoN);
   for (const f of filas.slice(1)) {
-    if (f.declarado > 0) aGrande[cuentaDe(f.k)] += f.declarado - Math.round(f.declarado * f.tasa / 100);
+    if (f.declarado > 0) aGrande[cuentaDe(f.k)] += f.declarado - comisionDe(f.medio, f.declarado);
   }
 
   const confirmar = async () => {

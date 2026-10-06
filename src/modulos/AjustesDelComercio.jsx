@@ -160,6 +160,45 @@ export function FondoDeCaja({ ajustes, setAjustes }) {
   );
 }
 
+/* ---------- Cobros: hasta cuánto descuenta cada rol ---------- */
+
+/* El dueño no tiene tope. Los otros tres son los roles de fábrica; uno sin
+   el permiso de hacer descuentos (Permisos) no descuenta nada, tenga tope
+   o no. Va en ajustes y no en los permisos: aquellos son sí o no, y la
+   regla de la base que impide dar lo que uno no tiene (0049) está pensada
+   para eso. */
+const ROLES_CON_TOPE = [["encargado", "Encargado"], ["cajero", "Cajero"], ["repositor", "Repositor"]];
+
+export function DescuentosPorRol({ ajustes, setAjustes }) {
+  const topes = ajustes.descuentoMax || {};
+  const setTope = (rol, texto) => {
+    const limpio = texto.replace(/[^\d]/g, "");
+    const nuevo = { ...topes };
+    if (limpio === "") delete nuevo[rol]; else nuevo[rol] = Math.min(99, Number(limpio));
+    setAjustes({ ...ajustes, descuentoMax: nuevo });
+  };
+  return (
+    <Card className="p-5">
+      <h3 className="f-d text-lg">Descuento máximo por rol</h3>
+      <p className="text-sm text-texto-suave mt-1">
+        Hasta cuánto puede descontar cada uno en el cobro, contando también bajar el precio de un producto a mano. Vacío: sin tope.
+        El dueño nunca tiene tope.
+      </p>
+      <div className="mt-3 space-y-2">
+        {ROLES_CON_TOPE.map(([k, n]) => (
+          <label key={k} className="flex items-center gap-3 text-sm">
+            <span className="w-28">{n}</span>
+            <input value={topes[k] ?? ""} onChange={(e) => setTope(k, e.target.value)} inputMode="numeric" placeholder="sin tope"
+              className={`${inputCls} f-m w-28 text-right`} />
+            <span className="text-texto-suave">%</span>
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-texto-tenue mt-2">Quién puede hacer descuentos, sí o no, se decide en Permisos.</p>
+    </Card>
+  );
+}
+
 /* ---------- Precios y stock: redondeo y venta sin stock ---------- */
 
 export function PreciosYStock({ ajustes, setAjustes }) {

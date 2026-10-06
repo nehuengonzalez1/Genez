@@ -404,8 +404,15 @@ const DISPARADORES = {
 /* Las que no salen de sacarle la "s": automatizaciones no es
    automatizacione_id, y la plantilla va sin el wa_. */
 const CLAVE_EMBEBIDA = { interno_automatizaciones: "automatizacion_id", interno_wa_plantillas: "plantilla_id" };
+/* Al revés, de uno a muchos (06/10): los renglones y los pagos de una
+   operación. Se pegan todos los que apuntan a la fila. */
+const HIJOS = { operacion_lineas: "operacion_id", pagos: "operacion_id" };
 function embeber(filas, embebidos) {
   for (const tabla of embebidos) {
+    if (HIJOS[tabla]) {
+      for (const f of filas) if (f[tabla] === undefined && f.id) f[tabla] = (T[tabla] || []).filter((x) => x[HIJOS[tabla]] === f.id).map((x) => structuredClone(x));
+      continue;
+    }
     const clave = CLAVE_EMBEBIDA[tabla] || tabla.replace(/^interno_/, "").replace(/s$/, "") + "_id";
     for (const f of filas) {
       if (f[tabla] !== undefined || !(clave in f)) continue;

@@ -11,7 +11,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Plus, X, Search, Trash2, FileText, MessageCircle, ArrowRightLeft, Clock } from "lucide-react";
-import { money, pct, precioAplicado, mediosDe, medioPorK, FISCAL_INICIAL, linkWhatsapp, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
+import { money, pct, precioAplicado, listasDeCliente, mediosDe, medioPorK, FISCAL_INICIAL, linkWhatsapp, MEDIO_CUENTA_CORRIENTE } from "../utils/helpers.js";
 import { fdate } from "../datos/generador.js";
 import { Card, Boton, Modal, Vacio, Cargando } from "../ui/Base.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
@@ -227,7 +227,7 @@ function NuevoPresupuesto({ productos, clientes, guardarCliente, ajustes, onClos
       </div>
 
       {buscarCliente && (
-        <BuscarCliente clientes={clientes} onCerrar={() => setBuscarCliente(false)}
+        <BuscarCliente clientes={clientes} onCerrar={() => setBuscarCliente(false)} listas={listasDeCliente(ajustes)}
           onElegir={(c) => { setCliente(c); setBuscarCliente(false); }}
           onCrear={async (d) => {
             const c = await guardarCliente(d);

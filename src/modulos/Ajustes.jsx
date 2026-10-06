@@ -12,7 +12,7 @@ import {
 import { uid } from "../datos/generador.js";
 import {
   FISCAL_INICIAL, CONDICIONES, letraComprobante, discriminaIVA,
-  condicionNombre, mediosDe, conRecargo, money, nf, nf2, pct, hora,
+  condicionNombre, mediosDe, conRecargo, comisionDe, money, nf, nf2, pct, hora,
   MEDIOS_INICIALES, LISTAS_INICIALES, condicionLegal, BALANZA_INICIAL
 } from "../utils/helpers.js";
 import { Card, Boton, Modal, Kpi, Vacio, Tabs } from "../ui/Base.jsx";
@@ -21,7 +21,7 @@ import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
 import { MiPlan } from "./MiPlan.jsx";
-import { DatosDelComercio, TicketDelComercio, Sonidos, FondoDeCaja, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
+import { DatosDelComercio, TicketDelComercio, Sonidos, FondoDeCaja, DescuentosPorRol, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
 import { useLogos } from "../ui/logos.js";
 import { reglaDePuntos, valorDePuntos } from "../utils/puntos.js";
 
@@ -204,6 +204,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
 
       {ver("cobros") && (<>
       <FondoDeCaja ajustes={ajustes} setAjustes={setAjustes} />
+      <DescuentosPorRol ajustes={ajustes} setAjustes={setAjustes} />
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -232,6 +233,21 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
                       className="f-m w-16 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
                     %
                   </label>
+                  {m.tasa > 0 && (
+                    <button onClick={() => cambiar("ivaComision", !m.ivaComision)} title="La comisión lleva IVA (21%)"
+                      className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.ivaComision ? "border-acento bg-acento-suave text-acento" : "border-borde text-texto-suave"}`}>
+                      {m.ivaComision ? "+ IVA" : "Sin IVA"}
+                    </button>
+                  )}
+                  {m.k !== "efectivo" && m.k !== "cuenta_corriente" && (
+                    <label className="flex items-center gap-1.5 text-xs text-texto-suave" title="En cuántos días se acredita la plata">
+                      acredita en
+                      <input value={m.dias ?? ""} placeholder="0" inputMode="numeric"
+                        onChange={(e) => cambiar("dias", e.target.value === "" ? null : Math.min(120, Number(e.target.value.replace(/\D/g, "")) || 0))}
+                        className="f-m w-12 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
+                      días
+                    </label>
+                  )}
                   <button onClick={() => cambiar("recargo", !m.recargo)}
                     className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${m.recargo ? "border-ojo bg-ojo-suave text-ojo" : "border-borde text-texto-suave"}`}>
                     {m.recargo ? "Lo paga el cliente" : "Lo absorbe el negocio"}
@@ -245,11 +261,14 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
                     setAjustes({ ...ajustes, medios: ajustes.medios.filter((_, j) => j !== i) });
                   }} className="text-texto-tenue hover:text-mal p-1.5"><Trash2 size={16} /></button>
                 </div>
-                {m.tasa > 0 && (
+                {(m.tasa > 0 || m.dias > 0) && (
                   <p className="text-[11px] text-texto-tenue mt-1.5">
-                    {m.recargo
-                      ? `Una venta de ${money(10000)} se cobra ${money(conRecargo(10000, m).total)}.`
-                      : `Una venta de ${money(10000)} deja ${money(10000 - 10000 * m.tasa / 100)} después de la comisión.`}
+                    {m.recargo && m.tasa > 0
+                      ? `Una venta de ${money(100000)} se cobra ${money(conRecargo(100000, m).total)}.`
+                      : m.tasa > 0
+                        ? `Una venta de ${money(100000)} deja ${money(100000 - comisionDe(m, 100000))}: comisión ${money(Math.round(100000 * m.tasa / 100))}${m.ivaComision ? ` más IVA ${money(comisionDe(m, 100000) - Math.round(100000 * m.tasa / 100))}` : ""}.`
+                        : ""}
+                    {m.dias > 0 ? ` Se acredita a los ${m.dias} día${m.dias === 1 ? "" : "s"}.` : ""}
                   </p>
                 )}
               </div>
@@ -474,13 +493,14 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
           <div>
             <h3 className="f-d text-lg">Listas de precio</h3>
             <p className="text-sm text-texto-suave mt-1">
-              Cada lista tiene una cantidad mínima y se activa sola cuando un renglón del ticket la alcanza, solo en ese renglón.
-              Si un producto entra en varias, se cobra la de mayor cantidad que el cliente alcance.
+              <b className="font-semibold">Por cantidad:</b> se activa sola cuando un renglón del ticket llega al mínimo, solo en ese renglón.{" "}
+              <b className="font-semibold">Para clientes:</b> se le asigna a un cliente (mayorista, revendedor) en su ficha y vale en todo lo que compra.
+              Si entran varias, se cobra la más barata.
             </p>
           </div>
           <Boton size="sm" className="shrink-0" onClick={() => {
             const n = (ajustes.listas || []).length + 2;
-            setAjustes({ ...ajustes, listas: [...(ajustes.listas || []), { id: "l" + uid(), nombre: `Lista ${n}`, umbral: 6, activa: true }] });
+            setAjustes({ ...ajustes, listas: [...(ajustes.listas || []), { id: "l" + uid(), nombre: `Lista ${n}`, tipo: "cantidad", umbral: 6, activa: true }] });
           }}><Plus size={14} /> Nueva lista</Boton>
         </div>
 
@@ -505,12 +525,17 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
                 <div className="flex flex-wrap items-center gap-2">
                   <input value={l.nombre} onChange={(e) => cambiar("nombre", e.target.value)}
                     className="flex-1 min-w-[140px] border border-borde rounded-lg px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-acento" />
-                  <label className="flex items-center gap-1.5 text-xs text-texto-suave">
+                  <select value={l.tipo === "cliente" ? "cliente" : "cantidad"} onChange={(e) => cambiar("tipo", e.target.value)}
+                    className="text-xs border border-borde rounded-lg px-2 py-1.5 bg-superficie outline-none focus:border-acento">
+                    <option value="cantidad">Por cantidad</option>
+                    <option value="cliente">Para clientes</option>
+                  </select>
+                  {l.tipo !== "cliente" && <label className="flex items-center gap-1.5 text-xs text-texto-suave">
                     desde
                     <input value={l.umbral} onChange={(e) => cambiar("umbral", Math.max(1, Number(e.target.value.replace(/\D/g, "")) || 1))}
                       className="f-m w-14 text-right border border-borde rounded-lg px-2 py-1.5 text-sm outline-none focus:border-acento" />
                     u
-                  </label>
+                  </label>}
                   <button onClick={() => cambiar("activa", l.activa === false)}
                     className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${l.activa === false ? "border-borde text-texto-tenue" : "border-bien bg-bien-suave text-bien"}`}>
                     {l.activa === false ? "Apagada" : "Activa"}

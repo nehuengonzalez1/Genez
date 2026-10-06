@@ -109,18 +109,33 @@ export async function registrarCompra({ empresaId, proveedorId, sucursalId, comp
 
 const ESTADO_EN_PANTALLA = { pendiente: "pendiente", recibida: "recibido", cancelada: "cancelado" };
 
-const aOrden = (o) => ({
-  id: o.id,
-  nro: o.numero || "OC",
-  prov: (o.proveedores && o.proveedores.nombre) || (o.campos_extra && o.campos_extra.proveedor) || "Sin proveedor",
-  fecha: new Date(o.fecha),
-  estado: ESTADO_EN_PANTALLA[o.estado] || o.estado,
-  items: (o.operacion_lineas || []).map((l) => ({
-    pid: l.item_id, nombre: l.descripcion, barcode: (l.items && l.items.barcode) || "",
-    cant: Number(l.cantidad) || 0, costo: Number(l.costo_unitario) || 0,
-  })),
-  total: Number(o.total) || 0,
-});
+/* La recepción parcial (06/10): pediste 100 y llegaron 98. Lo que llegó
+   de cada producto se acumula en campos_extra.recibido; la orden sigue
+   pendiente hasta que llegue todo o se la cierre a mano, y la próxima
+   recepción propone solo lo que falta. Va en campos_extra porque el
+   estado de una operación no admite "parcial", y una orden con algo
+   recibido sigue siendo una orden pendiente. */
+const aOrden = (o) => {
+  const recibido = (o.campos_extra && o.campos_extra.recibido) || {};
+  const items = (o.operacion_lineas || []).map((l) => {
+    const cant = Number(l.cantidad) || 0;
+    const rec = Number(recibido[l.item_id]) || 0;
+    return {
+      pid: l.item_id, nombre: l.descripcion, barcode: (l.items && l.items.barcode) || "",
+      cant, costo: Number(l.costo_unitario) || 0, recibido: rec, falta: Math.max(0, +(cant - rec).toFixed(3)),
+    };
+  });
+  return {
+    id: o.id,
+    nro: o.numero || "OC",
+    prov: (o.proveedores && o.proveedores.nombre) || (o.campos_extra && o.campos_extra.proveedor) || "Sin proveedor",
+    fecha: new Date(o.fecha),
+    estado: ESTADO_EN_PANTALLA[o.estado] || o.estado,
+    items,
+    parcial: Object.keys(recibido).length > 0,
+    total: Number(o.total) || 0,
+  };
+};
 
 export async function cargarOrdenes(empresaId) {
   if (!empresaId) throw new Error("cargarOrdenes necesita la empresa.");
@@ -166,6 +181,38 @@ export async function crearOrden({ empresaId, sucursalId = null, proveedorId = n
     throw e2;
   }
   return { id, numero, total };
+}
+
+/* Una recepción, total o parcial (06/10): suma lo que llegó a lo que ya
+   había llegado. Si ya llegó todo, o si `cerrar` (lo que falta no va a
+   venir), la orden queda recibida con el total de todo lo recibido; si
+   no, sigue pendiente. lineas: [{ pid, cant, costo }]. Devuelve
+   { estado, faltan } (cuántos productos siguen faltando). */
+export async function registrarRecepcion(id, lineas, { compraId = null, cerrar = false } = {}) {
+  const { data: actual, error: e0 } = await supabase.from("operaciones")
+    .select("campos_extra, operacion_lineas(item_id, cantidad)").eq("id", id).single();
+  if (e0) throw e0;
+  const extra = actual.campos_extra || {};
+  const recibido = { ...(extra.recibido || {}) };
+  for (const l of lineas) {
+    if (!(Number(l.cant) > 0)) continue;
+    recibido[l.pid] = +((Number(recibido[l.pid]) || 0) + Number(l.cant)).toFixed(3);
+  }
+  const faltan = (actual.operacion_lineas || []).filter((l) => (Number(recibido[l.item_id]) || 0) < Number(l.cantidad)).length;
+  const totalRecibido = Math.round((Number(extra.totalRecibido) || 0) + lineas.reduce((s, l) => s + (Number(l.cant) || 0) * (Number(l.costo) || 0), 0));
+  const completa = faltan === 0 || cerrar;
+  const cambios = {
+    campos_extra: {
+      ...extra, recibido, totalRecibido,
+      compras: [...(extra.compras || []), ...(compraId ? [compraId] : [])],
+      ...(compraId ? { compra: compraId } : {}),
+      ...(cerrar && faltan > 0 ? { cerradaConFaltante: true } : {}),
+    },
+    ...(completa ? { estado: "recibida", cerrada_en: new Date().toISOString(), total: totalRecibido } : {}),
+  };
+  const { error } = await supabase.from("operaciones").update(cambios).eq("id", id);
+  if (error) throw error;
+  return { estado: completa ? "recibido" : "pendiente", faltan: completa ? 0 : faltan, totalRecibido };
 }
 
 /* 'recibida' (con la compra que la recibió) o 'cancelada'. */

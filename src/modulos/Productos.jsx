@@ -543,7 +543,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
                   <th className="px-2 py-2.5 font-semibold text-right w-32">General</th>
                   {(ajustes.listas || []).filter((l) => l.activa !== false).map((l) => (
                     <th key={l.id} className="px-2 py-2.5 font-semibold text-right w-32">
-                      {l.nombre}<div className="font-normal normal-case text-[10px] text-texto-tenue">desde {l.umbral} u</div>
+                      {l.nombre}<div className="font-normal normal-case text-[10px] text-texto-tenue">{l.tipo === "cliente" ? "para clientes" : `desde ${l.umbral} u`}</div>
                     </th>
                   ))}
                 </tr>
@@ -1173,7 +1173,7 @@ function FichaProducto({ p, onClose, actualizar, editar, ajustes, productos, emp
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium">{l.nombre}</div>
                       <div className="text-[11px] text-texto-tenue">
-                        desde {l.umbral} u
+                        {l.tipo === "cliente" ? "para clientes" : `desde ${l.umbral} u`}
                         {mv != null && <span className={mv < 0.08 ? " text-mal" : ""}> · margen {pct(mv, 0)}</span>}
                         {!v && p.precio > 0 && (
                           <button onClick={() => actualizar(p.id, { precios: { ...(p.precios || {}), [l.id]: sug } }, `${l.nombre}: ${money(sug)}`)}
