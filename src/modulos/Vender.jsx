@@ -770,6 +770,21 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
        importe que escribió el cajero —son 300 g de jamón, no "una unidad
        de jamón"— y multiplicarlo por el paso de la unidad lo falsearía. */
     const cantidad = p.precioAbierto ? 1 : (qty != null ? qty : pasoDe(p.unidad));
+    /* Vender sin stock (Ajustes → Precios y stock, 06/10). De fábrica se
+       deja, como siempre. No se mira un producto que no controla stock ni
+       uno al que nunca se le cargó (0110): ahí el número no dice nada. */
+    const regla = ajustes.sinStock || "permitir";
+    if (regla !== "permitir" && p.controlaStock !== false && p.stockCargado !== false && typeof p.stock === "number") {
+      const yaEnTicket = cart.filter((l) => l.pid === p.id).reduce((s, l) => s + Number(l.qty || 0), 0);
+      const quedan = p.stock - yaEnTicket;
+      if (quedan - cantidad < 0) {
+        if (regla === "bloquear") {
+          beep(false, ajustes.sonido);
+          return toast(quedan > 0 ? `De ${p.nombre} quedan ${formatoCantidad(p.unidad, quedan)}: no alcanza.` : `${p.nombre} no tiene stock.`, "mal");
+        }
+        toast(quedan > 0 ? `De ${p.nombre} quedan ${formatoCantidad(p.unidad, quedan)}.` : `${p.nombre} no tiene stock: el stock queda en negativo.`, "mal");
+      }
+    }
     setCart((c) => {
       /* Dos renglones de precio abierto del mismo producto NO se juntan:
          son dos cortes distintos con dos importes distintos, y sumarlos

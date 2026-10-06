@@ -417,13 +417,17 @@ function CajaCerradaDe({ caja, abrirCaja, bajada, ajustes, toast, puesto }) {
   const nombre = nombreDeCaja(puesto);
   const ultimo = caja.cierres.length > 0 ? caja.cierres[0] : null;
   /* La apertura propone el fondo que dejó el último cierre (0095): es la
-     plata que quedó en el cajón. */
-  const [apertura, setApertura] = useState(ultimo && ultimo.fondo !== null && ultimo.fondo !== undefined ? String(Math.round(ultimo.fondo)) : "50000");
+     plata que quedó en el cajón. Salvo que el comercio haya fijado un
+     monto en Ajustes → Cobros (fondoCaja, 06/10): ese manda. */
+  const fijo = ajustes && ajustes.fondoCaja != null ? Math.round(Number(ajustes.fondoCaja) || 0) : null;
+  const delCierre = ultimo && ultimo.fondo !== null && ultimo.fondo !== undefined ? Math.round(ultimo.fondo) : null;
+  const propuesto = fijo != null ? fijo : delCierre != null ? delCierre : 50000;
+  const [apertura, setApertura] = useState(String(propuesto));
   const [tocada, setTocada] = useState(false);
   const [abriendo, setAbriendo] = useState(false);
   useEffect(() => {
-    if (!tocada && ultimo && ultimo.fondo !== null && ultimo.fondo !== undefined) setApertura(String(Math.round(ultimo.fondo)));
-  }, [ultimo && ultimo.id]);
+    if (!tocada) setApertura(String(propuesto));
+  }, [ultimo && ultimo.id, fijo]);
 
   return (
     <Card className="p-8 text-center max-w-md mx-auto">

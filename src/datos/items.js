@@ -61,6 +61,9 @@ function aProducto(f, historial) {
     /* Si alguna vez se contó, se compró o se cargó (0110). Sin eso el stock
        es lo vendido en negativo. Sin la columna (antes de 0110), como antes. */
     stockCargado: f.stock_cargado !== false,
+    /* Para la regla de venta sin stock (06/10): un producto que no lleva
+       stock se vende siempre. */
+    controlaStock: f.controla_stock !== false,
     ultimaVenta: fecha(f.ultima_venta),
     descripcion: f.descripcion || "",
     /* La foto es del producto y no de la pantalla que lo muestra: la

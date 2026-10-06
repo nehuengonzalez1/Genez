@@ -1890,7 +1890,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 recargarCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }} />
             ) : (
               <div className="py-8">
-                <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia} puesto={puesto}
+                <CajaCerrada caja={caja} abrirCaja={abrirCajaDelDia} puesto={puesto} ajustes={ajustes}
                   bajada="No se puede cobrar sin caja abierta. Cargá el efectivo que hay en el cajón y arrancá el turno." />
               </div>
             )}

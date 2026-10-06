@@ -21,6 +21,7 @@ import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
 import { MiPlan } from "./MiPlan.jsx";
+import { DatosDelComercio, TicketDelComercio, Sonidos, FondoDeCaja, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
 import { useLogos } from "../ui/logos.js";
 import { reglaDePuntos, valorDePuntos } from "../utils/puntos.js";
 
@@ -70,7 +71,7 @@ const APARTADOS = [
   { k: "equipos", n: "Equipos" },
   { k: "precios", n: "Precios y stock" },
   { k: "clientes", n: "Clientes" },
-  { k: "plan", n: "Mi plan" },
+  { k: "plan", n: "Mi cuenta" },
 ];
 const APARTADO_GUARDADO = "genez.ajustes.apartado";
 
@@ -96,13 +97,18 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
   return (
     <div className="max-w-2xl space-y-4">
       {/* Por apartado (06/10): eran diecisiete tarjetas una abajo de la otra y no
-          se sabía dónde estaba cada cosa. "Mi plan" es el nombre que usan los
-          términos ("Ajustes → Mi plan"); si se cambia, se cambia allá también. */}
+          se sabía dónde estaba cada cosa. "Mi cuenta" es el nombre que usan los
+          términos ("Ajustes → Mi cuenta"); si se cambia, se cambia allá también. */}
       <Tabs items={APARTADOS} value={seccion} onChange={elegirSeccion} />
 
-      {ver("plan") && <MiPlan toast={toast} />}
+      {ver("plan") && (<>
+      <MiPlan toast={toast} />
+      <MiContrasena toast={toast} />
+      <DescargarDatos empresaId={empresaId} productos={productos} toast={toast} />
+      </>)}
 
       {ver("negocio") && (<>
+      <DatosDelComercio ajustes={ajustes} setAjustes={setAjustes} empresaId={empresaId} toast={toast} />
       <Card className="p-5">
         <h3 className="f-d text-lg">Datos fiscales</h3>
         <p className="text-sm text-texto-suave mt-1">
@@ -160,11 +166,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
               <input value={f.domicilio || ""} onChange={(e) => setFiscal({ domicilio: e.target.value })} className={inputCls} />
             </Campo>
           </div>
-          <div className="md:col-span-2">
-            <Campo label="Nombre en pantalla (no sale en los comprobantes)">
-              <input value={ajustes.negocio} onChange={(e) => setAjustes({ ...ajustes, negocio: e.target.value })} className={inputCls} />
-            </Campo>
-          </div>
+          {/* Acá estaba "Nombre en pantalla": editaba ajustes.negocio, que
+              guardarAjustes no guarda (es empresas.nombre), así que el cambio
+              se perdía al refrescar. Ahora es "Tu comercio", arriba (0132). */}
         </div>
 
         <div className="mt-4 rounded-xl border border-borde bg-superficie-2 p-3 text-sm">
@@ -199,6 +203,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
       </>)}
 
       {ver("cobros") && (<>
+      <FondoDeCaja ajustes={ajustes} setAjustes={setAjustes} />
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -314,6 +319,8 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
       </>)}
 
       {ver("equipos") && (<>
+      <TicketDelComercio ajustes={ajustes} setAjustes={setAjustes} />
+      <Sonidos ajustes={ajustes} setAjustes={setAjustes} />
       <ImpresionDirecta ajustes={ajustes} toast={toast} />
 
       <Card className="p-5">
@@ -357,11 +364,6 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
         {ajustes.impresionPdf === true && (
           <p className="text-xs text-texto-tenue mt-1">Si el ticket sale corrido a la derecha o cortado, la impresora tiene configurado en Windows un papel más ancho que el rollo: apagalo.</p>
         )}
-        <button onClick={() => setAjustes({ ...ajustes, sonido: !ajustes.sonido })}
-          className="flex items-center gap-2 text-sm text-texto-suave mt-3 hover:text-texto">
-          {ajustes.sonido ? <Volume2 size={16} className="text-acento" /> : <VolumeX size={16} />}
-          Beep al escanear: <strong>{ajustes.sonido ? "activado" : "silenciado"}</strong>
-        </button>
         <p className="text-xs text-texto-tenue mt-3">
           La pistola funciona como un teclado. El sistema reconoce la ráfaga de tecleo y el Enter final, así que se puede disparar sin clickear ningún campo.
         </p>
@@ -466,6 +468,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
       </>)}
 
       {ver("precios") && (<>
+      <PreciosYStock ajustes={ajustes} setAjustes={setAjustes} />
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -569,17 +572,6 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
       </Card>
       </>)}
 
-      {ver("negocio") && (<>
-      <Card className="p-5">
-        <h3 className="f-d text-lg">Datos de la demo</h3>
-        <ul className="text-sm text-texto-suave mt-2 space-y-1">
-          <li>{nf.format(productos.length)} productos con costo, precio, stock, proveedor y vencimiento</li>
-          <li>90 días de historial de ventas y hasta 5 cambios de costo por producto</li>
-          <li>{Object.keys(provs).length} proveedores con condiciones de pago y día de entrega</li>
-        </ul>
-        <Boton variant="ghost" className="mt-4" onClick={() => { window.location.reload(); toast("Recargando…"); }}>Reiniciar la demo</Boton>
-      </Card>
-      </>)}
     </div>
   );
 }

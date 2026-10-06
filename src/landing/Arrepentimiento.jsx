@@ -68,7 +68,7 @@ export default function Arrepentimiento() {
           de baja la suscripción y te devolvemos lo que se haya cobrado por el mismo medio de pago. No hace falta entrar al sistema.
         </p>
         <p className="text-sm text-texto-tenue mt-2">
-          Ley 24.240, art. 34 · Resolución 424/2020. Más de 10 días: podés darte de baja cuando quieras desde Ajustes → Mi plan (ver
+          Ley 24.240, art. 34 · Resolución 424/2020. Más de 10 días: podés darte de baja cuando quieras desde Ajustes → Mi cuenta (ver
           los <a href="/terminos" className="text-acento hover:underline">términos</a>).
         </p>
 
