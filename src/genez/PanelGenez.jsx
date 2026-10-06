@@ -2174,7 +2174,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               k={k} ins={ins} ventasHoy={ventasHoy} ticketsHoy={ticketsHoy}
               datos={tablero} cargando={esTableroDeServicios && !tablero}
               usuario={sesion.nombre} puedeVer={puedeVer}
-              ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} />
+              ir={ir} negocio={ajustes.negocio} aCobrar={cobrar_} objetivos={ajustes.objetivos} />
           )}
           {tab === "comandas" && (
             <Comandas empresaId={empresaId} config={config} ajustes={ajustes}

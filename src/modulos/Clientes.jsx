@@ -6,7 +6,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Search, Plus, Check, AlertTriangle } from "lucide-react";
 import { CONDICIONES, FISCAL_INICIAL, condicionNombre, money, letraComprobante, nf, listasDeCliente } from "../utils/helpers.js";
 import { Modal, Boton, Card, Vacio, Sello, Cargando, ErrorEstado } from "../ui/Base.jsx";
-import { cargarClientesConCuentas } from "../datos/clientes.js";
+import { cargarClientesConCuentas, cargarComprasPorCliente } from "../datos/clientes.js";
+import { SEGMENTOS, segmentoRfm, corteVip } from "../utils/metricas.js";
 import { FichaCliente } from "./FichaCliente.jsx";
 import { Campo, inputCls } from "../ui/Campos.jsx";
 
@@ -99,9 +100,14 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
+  /* Las compras del último año de cada uno, para el segmento (06/10). Si
+     no llegan, la lista se muestra igual, sin segmentos. */
+  const [compras, setCompras] = useState(null);
+  const [segmento, setSegmento] = useState(null);
   const releer = useCallback(async () => {
     const xs = await cargarClientesConCuentas(empresaId);
     setLista(xs);
+    cargarComprasPorCliente(empresaId).then(setCompras).catch(() => setCompras(null));
   }, [empresaId]);
 
   useEffect(() => {
@@ -123,9 +129,32 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
   }
 
   const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const filtrados = q.trim().length >= 2
+  /* El segmento de cada uno: cuándo compró por última vez (o tuvo un
+     turno, en servicios), cuántas veces y cuánto en el último año. */
+  const ahora = Date.now();
+  const diasDesde = (f) => (f ? Math.floor((ahora - new Date(f).getTime()) / 86400000) : null);
+  const vip = compras ? corteVip([...compras.values()].map((x) => x.gastado)) : Infinity;
+  /* Con menos de 60 días de ventas con cliente, todos son "nuevos" para el
+     sistema: no se marca a nadie así hasta que haya historia. */
+  const primeraDeTodas = compras ? Math.min(...[...compras.values()].map((x) => new Date(x.primera).getTime())) : ahora;
+  const hayHistoria = (ahora - primeraDeTodas) / 86400000 >= 60;
+  /* La última vez que vino: la compra o el turno más reciente. Antes la
+     lista miraba solo los turnos y un cliente de almacén que compró ayer
+     decía "nunca vino". */
+  const ultimaDe = (c) => {
+    const x = compras && compras.get(c.id);
+    return [x && x.ultima, c.ultima].filter(Boolean).sort((a, b) => new Date(b) - new Date(a))[0] || null;
+  };
+  const segmentoDe = new Map(compras ? lista.map((c) => {
+    const x = compras.get(c.id);
+    const ultima = ultimaDe(c);
+    return [c.id, segmentoRfm({ dias: diasDesde(ultima), diasPrimera: x ? diasDesde(x.primera) : null, compras: x ? x.compras : (c.asistio || 0), gastado: x ? x.gastado : 0 }, vip, hayHistoria)];
+  }) : []);
+  const cuantos = Object.fromEntries(SEGMENTOS.map((s) => [s.k, lista.filter((c) => segmentoDe.get(c.id) === s.k).length]));
+  const porBusqueda = q.trim().length >= 2
     ? lista.filter((c) => norm(c.razonSocial).includes(norm(q)) || String(c.doc || "").includes(q.trim()) || String(c.tel || "").includes(q.trim()))
     : lista;
+  const filtrados = segmento ? porBusqueda.filter((c) => segmentoDe.get(c.id) === segmento) : porBusqueda;
 
   const emisor = (ajustes.fiscal || FISCAL_INICIAL).condicion;
   const clase = (ajustes.fiscal || FISCAL_INICIAL).claseInscripto;
@@ -141,6 +170,23 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
         </div>
         <Boton size="sm" onClick={() => setAlta({})}><Plus size={14} /> Nuevo cliente</Boton>
       </div>
+
+      {compras && lista.length > 0 && (
+        <div>
+          <div className="flex flex-wrap gap-1.5">
+            {SEGMENTOS.filter((s) => cuantos[s.k] > 0).map((s) => (
+              <button key={s.k} type="button" onClick={() => setSegmento((x) => (x === s.k ? null : s.k))} title={s.d}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${segmento === s.k ? "bg-superficie-3 text-texto border-superficie-3" : "bg-superficie border-borde text-texto-suave hover:bg-superficie-2"}`}>
+                {s.n} <span className="f-m text-texto-tenue">{nf.format(cuantos[s.k])}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-texto-tenue mt-1.5">
+            {segmento ? SEGMENTOS.find((s) => s.k === segmento).d + ". " : ""}
+            Según cuándo compraron, cuántas veces y cuánto en el último año. Solo cuentan las ventas con el cliente elegido.
+          </p>
+        </div>
+      )}
 
       <Card className="overflow-hidden">
         {error ? (
@@ -177,9 +223,13 @@ export function Clientes({ clientes, guardarCliente, tickets, ajustes, empresaId
                     </div>
 
                     {c.abonosActivos > 0 && <Sello tono="bien">{c.abonosActivos} abono{c.abonosActivos > 1 ? "s" : ""}</Sello>}
+                    {(() => {
+                      const s = SEGMENTOS.find((x) => x.k === segmentoDe.get(c.id));
+                      return s && s.k !== "sin" && s.k !== "ocasional" ? <Sello tono={s.tono}>{s.uno}</Sello> : null;
+                    })()}
 
                     <div className="text-right shrink-0 w-28">
-                      <div className="f-m text-xs text-texto-suave">{haceCuanto(c.ultima)}</div>
+                      <div className="f-m text-xs text-texto-suave">{haceCuanto(ultimaDe(c))}</div>
                       {c.gastado > 0 && <div className="f-m text-[11px] text-texto-tenue">{money(c.gastado)}</div>}
                     </div>
 
