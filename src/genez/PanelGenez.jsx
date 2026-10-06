@@ -1884,6 +1884,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
+                descuentoMax={sesion.tipo === "plataforma" || sesion.comoAdmin || sesion.rol === "dueno" ? null : ((ajustes.descuentoMax || {})[sesion.rol] ?? null)}
                 facturacion={facturacion} facturas={facturas} pedirCAEs={pedirCAEs}
                 empresaId={empresaId} caja={caja} agregarProducto={agregarProducto} promos={promos}
                 cajaMp={((cajas || []).find((c) => c.id === cajaId) || {}).mpCaja || null}

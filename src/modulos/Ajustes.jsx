@@ -21,7 +21,7 @@ import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
 import { MiPlan } from "./MiPlan.jsx";
-import { DatosDelComercio, TicketDelComercio, Sonidos, FondoDeCaja, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
+import { DatosDelComercio, TicketDelComercio, Sonidos, FondoDeCaja, DescuentosPorRol, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
 import { useLogos } from "../ui/logos.js";
 import { reglaDePuntos, valorDePuntos } from "../utils/puntos.js";
 
@@ -204,6 +204,7 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
 
       {ver("cobros") && (<>
       <FondoDeCaja ajustes={ajustes} setAjustes={setAjustes} />
+      <DescuentosPorRol ajustes={ajustes} setAjustes={setAjustes} />
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>

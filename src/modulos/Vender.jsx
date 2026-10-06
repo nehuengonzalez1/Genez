@@ -687,7 +687,11 @@ const ATAJOS = [
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
-export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos,
+/* `descuentoMax` (06/10): el tope de descuento del rol de quien cobra, en
+   porcentaje, o null sin tope (el dueño, la plataforma, o un rol al que no
+   se le puso). Lo fija el comercio en Ajustes → Cobros y facturas. Como
+   el permiso de descontar, lo controla la pantalla y no la base. */
+export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos, descuentoMax = null,
   facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [], cajaMp = null }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → (monto | qr) → fin
   /* Los puntos del cliente elegido y cuántos se usan en esta venta (0112). */
@@ -882,9 +886,17 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   /* El precio a mano va al renglón, no al producto: si el mismo artículo
      está dos veces, cada uno tiene el suyo. Volver al de lista es poner
      el mismo número o apretar la cruz. */
-  const setPrecioManual = (lid, precio) => setCart((c) => c.map((l) => (
-    l.lid === lid ? { ...l, manual: precio == null || precio === l.precio ? null : precio } : l
-  )));
+  const setPrecioManual = (lid, precio) => {
+    /* Bajar el precio a mano también es descontar: con tope, no puede
+       quedar por debajo de lo que el tope permite. */
+    const linea = cart.find((l) => l.lid === lid);
+    if (descuentoMax != null && precio != null && linea && precio < Math.ceil(linea.precio * (1 - descuentoMax / 100))) {
+      return toast(`Tu usuario puede bajar el precio hasta un ${String(descuentoMax).replace(".", ",")}%: no menos de ${money(Math.ceil(linea.precio * (1 - descuentoMax / 100)))}.`, "mal");
+    }
+    setCart((c) => c.map((l) => (
+      l.lid === lid ? { ...l, manual: precio == null || precio === l.precio ? null : precio } : l
+    )));
+  };
   const setQty = (lid, qty) => setCart((c) => c.map((l) => (l.lid === lid ? { ...l, qty: Math.max(0, +qty.toFixed(3)) } : l)).filter((l) => l.qty > 0));
   const quitar = (lid) => setCart((c) => c.filter((l) => l.lid !== lid));
 
@@ -924,9 +936,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const rebajaManual = lineas.reduce((s, l) => s + (l.manual != null ? (l.precio - l.manual) * l.qty : 0), 0);
   /* En pesos enteros, como toda la plata del sistema. Un descuento en
      pesos no puede pasar el subtotal: la venta no queda en negativo. */
+  const topeRol = descuentoMax == null ? TOPE_DESCUENTO : Math.min(descuentoMax, TOPE_DESCUENTO);
   const descPedido = desc.modo === "pct"
-    ? Math.round(sub * Math.min(desc.valor, TOPE_DESCUENTO) / 100)
-    : Math.round(desc.valor);
+    ? Math.round(sub * Math.min(desc.valor, topeRol) / 100)
+    : (descuentoMax == null ? Math.round(desc.valor) : Math.min(Math.round(desc.valor), Math.floor(sub * topeRol / 100)));
   /* Los puntos (0112) se canjean como descuento, sumado al del pedido: así
      el total baja en todos lados (pago combinado, vuelto, factura) sin
      tocar cada cuenta. Se guardan aparte en la venta, y la base los resta. */
@@ -1485,7 +1498,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-texto-suave">Descuento <Tecla>F4</Tecla></span>
                 <div className="flex items-center gap-1">
-                  {DESC_RAPIDOS.map((d) => (
+                  {DESC_RAPIDOS.filter((d) => d <= topeRol).map((d) => (
                     <button key={d} onClick={() => setDesc({ modo: "pct", valor: d })}
                       className={`f-m text-xs px-2 py-1 rounded-md border ${desc.modo === "pct" && desc.valor === d ? "bg-superficie-3 text-texto border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>{d}%</button>
                   ))}
@@ -1509,8 +1522,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                     /* Un porcentaje de más se muestra ya topeado: que el
                        campo diga lo que se va a descontar. */
                     const t = limpiarPorcentaje(e.target.value);
-                    const pasado = Number(t.replace(",", ".")) > TOPE_DESCUENTO;
-                    setDesc({ modo: "pct", valor: leerPorcentaje(t), texto: pasado ? "99,99" : t });
+                    const pasado = Number(t.replace(",", ".")) > topeRol;
+                    if (pasado && descuentoMax != null) toast(`Tu usuario puede descontar hasta un ${String(descuentoMax).replace(".", ",")}%.`, "mal");
+                    setDesc({ modo: "pct", valor: Math.min(leerPorcentaje(t), topeRol), texto: pasado ? String(topeRol).replace(".", ",") : t });
                   }}
                   className="f-m flex-1 min-w-0 border border-borde rounded-md px-2.5 py-1.5 text-sm bg-superficie outline-none focus:border-acento" />
               </div>

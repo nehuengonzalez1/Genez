@@ -201,11 +201,16 @@ export function armarDatos(rubro, sesion = "comercio") {
 
   const empresa = {
     id: EMPRESA, nombre: `Comercio de prueba · ${r.nombre}`, rubro: r.clave, plan: "completo", modulos: r.modulos || [],
-    config: { negocio: "Comercio de prueba", fiscal: { condicion: "MONOTRIBUTO", razonSocial: "Comercio de prueba" } },
+    /* ?tope=10: el descuento máximo de los roles que no son dueño (06/10),
+       para probarlo con ?rol=encargado, que no entra a Ajustes. */
+    config: { negocio: "Comercio de prueba", fiscal: { condicion: "MONOTRIBUTO", razonSocial: "Comercio de prueba" },
+      ...((typeof location !== "undefined" && new URLSearchParams(location.search).get("tope"))
+        ? { descuentoMax: Object.fromEntries(["encargado", "cajero", "repositor"].map((k) => [k, Number(new URLSearchParams(location.search).get("tope"))])) } : {}) },
     activa: true, creada_en: hace(90), slug: "comercio-de-prueba",
   };
   const perfil = {
-    id: USUARIO.id, nombre: "Persona de prueba", rol: "dueno", es_plataforma: false, activo: true, empresa_id: EMPRESA,
+    /* ?rol=cajero (encargado, repositor): para ver lo que ve otro rol (06/10). */
+    id: USUARIO.id, nombre: "Persona de prueba", rol: (typeof location !== "undefined" && new URLSearchParams(location.search).get("rol")) || "dueno", es_plataforma: false, activo: true, empresa_id: EMPRESA,
     debe_cambiar_clave: false, invitado_en: null, email: USUARIO.email, permisos: {},
   };
   empresa.perfiles = [perfil];
