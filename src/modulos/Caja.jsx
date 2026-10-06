@@ -17,6 +17,7 @@ import { pasarACajaGrande } from "../datos/caja.js";
 import { Plus, Wallet, ArrowDownRight, ArrowUpRight, ChevronRight, Landmark, Printer } from "lucide-react";
 import { DetalleMovimiento } from "./DetalleMovimiento.jsx";
 import { CajaGrande } from "./CajaGrande.jsx";
+import { FacturasAPagar } from "./FacturasAPagar.jsx";
 import { mediosDe, medioPorK, money, nf, MEDIO_CUENTA_CORRIENTE, comisionDe } from "../utils/helpers.js";
 import { fdatel } from "../datos/generador.js";
 import { Kpi, Card, Boton, Modal, Vacio, Tabs, armarLineas, imprimirComandera } from "../ui/Base.jsx";
@@ -34,8 +35,12 @@ export function Caja(props) {
   if (!permisos.cajaGrande) return <CajaDelDia {...props} />;
   return (
     <div className="space-y-4">
-      <Tabs value={vista} onChange={setVista} items={[{ k: "dia", n: "Caja del día" }, { k: "grande", n: "Caja grande" }]} />
-      {vista === "dia" ? <CajaDelDia {...props} /> : <CajaGrande empresaId={props.empresaId} toast={props.toast} />}
+      {/* "A pagar" (0133): las facturas de proveedores. Con el mismo permiso
+          que la caja grande, porque se pagan desde ahí. */}
+      <Tabs value={vista} onChange={setVista} items={[{ k: "dia", n: "Caja del día" }, { k: "grande", n: "Caja grande" }, { k: "pagar", n: "A pagar" }]} />
+      {vista === "dia" ? <CajaDelDia {...props} />
+        : vista === "grande" ? <CajaGrande empresaId={props.empresaId} toast={props.toast} />
+        : <FacturasAPagar empresaId={props.empresaId} toast={props.toast} />}
     </div>
   );
 }
