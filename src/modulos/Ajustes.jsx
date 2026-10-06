@@ -20,6 +20,7 @@ import { Campo, inputCls } from "../ui/Campos.jsx";
 import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
+import { MiPlan } from "./MiPlan.jsx";
 import { useLogos } from "../ui/logos.js";
 import { reglaDePuntos, valorDePuntos } from "../utils/puntos.js";
 
@@ -69,6 +70,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
   const setBalanza = (cambios) => setAjustes({ ...ajustes, balanza: { ...bal, ...cambios } });
   return (
     <div className="max-w-2xl space-y-4">
+      {/* Primero: es lo que los términos mandan a buscar acá (0130). */}
+      <MiPlan toast={toast} />
+
       <Card className="p-5">
         <h3 className="f-d text-lg">Datos fiscales</h3>
         <p className="text-sm text-texto-suave mt-1">

@@ -29,7 +29,8 @@ const T = datos.tablas;
    ?sesion=plataforma, el panel trae tres pruebas inventadas.
    La suscripción (0128): "gracia" es un cobro rechazado con 3 días por
    delante, "gracia-vencida" la gracia terminada, y "baja" una suscripción
-   cancelada con días pagos todavía. */
+   cancelada con días pagos todavía. "pagando" (0130) es una suscripción
+   activa de Pro, contratada hace 3 días: para ver Mi plan en Ajustes. */
 const prueba = params.get("prueba");
 const hoyFalso = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
 const aHoyMas = (n) => { const [a, m, d] = hoyFalso().split("-").map(Number); return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10); };
@@ -38,7 +39,7 @@ if (prueba && datos.perfil.empresa_id) {
   datos.empresa.plan = "pro";
   datos.empresa.prueba_hasta = prueba === "vencida" || prueba === "gracia-vencida" ? aHoyMas(-1)
     : prueba === "suspendida" ? null
-    : prueba === "gracia" ? aHoyMas(3) : prueba === "baja" ? aHoyMas(12)
+    : prueba === "gracia" ? aHoyMas(3) : prueba === "baja" ? aHoyMas(12) : prueba === "pagando" ? null
     : aHoyMas((Number(prueba) || 10) - 1);
   if (prueba === "suspendida") datos.empresa.activa = false;
   if (prueba === "vencida" || prueba === "suspendida" || prueba === "gracia-vencida") T.empresas = [];
@@ -46,6 +47,12 @@ if (prueba && datos.perfil.empresa_id) {
     estadoPrueba.suscripcion = {
       plan: "pro", periodo: "mensual", monto: 59900, estado: prueba === "baja" ? "cancelada" : "activa",
       pago_fallido_desde: prueba === "baja" ? null : aHoyMas(prueba === "gracia" ? -2 : -6), proximo_cobro: aHoyMas(13),
+    };
+  }
+  if (prueba === "pagando") {
+    estadoPrueba.suscripcion = {
+      plan: "pro", periodo: "mensual", monto: 59900, estado: "activa", pago_fallido_desde: null, proximo_cobro: aHoyMas(27),
+      autorizada_en: new Date(Date.now() - 3 * 86400000).toISOString(), proximo_ajuste: aHoyMas(177),
     };
   }
 }
@@ -61,6 +68,11 @@ if (!datos.perfil.empresa_id) {
     { empresa_id: otras[0].id, creada_en: alta(4), email: "laesquina@genez.test", nombre: "Marta Gómez", telefono: "5491155550001", plan: "pro", negocio: "Almacén", provincia: "Buenos Aires", sucursales: "1", problema: "No sé cuánto stock tengo.", aviso_por_vencer_en: null, aviso_vencida_en: null, pago_avisado_en: null, ejemplos_borrados_en: alta(3) },
     { empresa_id: otras[1].id, creada_en: alta(12), email: "bodegon@genez.test", nombre: "Julián Pérez", telefono: "5491155550002", plan: "start", negocio: "Restaurante", provincia: "Santa Fe", sucursales: "1", problema: "Las comandas se pierden.", aviso_por_vencer_en: alta(5), aviso_vencida_en: alta(1), pago_avisado_en: alta(0), ejemplos_borrados_en: null },
     { empresa_id: otras[2].id, creada_en: alta(9), email: "pilates@genez.test", nombre: "Sofía Ruiz", telefono: "5491155550003", plan: "empresa", negocio: "Estudio", provincia: "Córdoba", sucursales: "2", problema: "Los turnos los llevo en un cuaderno.", aviso_por_vencer_en: alta(1), aviso_vencida_en: null, pago_avisado_en: null, ejemplos_borrados_en: null },
+  ];
+  /* El botón de arrepentimiento (0130): uno sin resolver y uno resuelto. */
+  T.arrepentimientos = [
+    { id: crypto.randomUUID(), codigo: "A-7KQ2MX9P", nombre: "Marta Gómez", email: "laesquina@genez.test", comercio: "La Esquina", telefono: null, motivo: "Me queda grande por ahora.", empresa_id: otras[0].id, estado: "recibido", creado_en: alta(0), resuelto_en: null, nota: null, empresas: { nombre: otras[0].nombre } },
+    { id: crypto.randomUUID(), codigo: "A-3HW8RT2C", nombre: "Pedro Sosa", email: "pedro@genez.test", comercio: null, telefono: null, motivo: null, empresa_id: null, estado: "resuelto", creado_en: alta(6), resuelto_en: alta(5), nota: "Sin comercio asociado: no había nada que cancelar.", empresas: null },
   ];
 }
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
@@ -649,7 +661,8 @@ const FUNCIONES = {
     const e = datos.empresa;
     return { id: e.id, nombre: e.nombre, rubro: e.rubro, plan: e.plan, modulos: e.modulos, activa: e.activa !== false,
       prueba_hasta: e.prueba_hasta || null, hoy: hoyFalso(), pago_avisado_en: estadoPrueba.pago, ejemplos: !estadoPrueba.borrados,
-      plan_elegido: "start", suscripcion: estadoPrueba.suscripcion || null };
+      plan_elegido: "start", suscripcion: estadoPrueba.suscripcion || null,
+      mi_rol: params.get("rol") || "dueno", autoservicio: !!prueba };
   },
   crear_comercio_de_prueba: ({ p }) => { T.altaDePrueba = p; return datos.empresa.id; },
   borrar_ejemplos: () => { estadoPrueba.borrados = true; return null; },
@@ -805,6 +818,35 @@ if (typeof window !== "undefined" && !window.__genezFounderFalso) {
       const monto = (precios[cuerpo.plan] || 0) * (cuerpo.periodo === "anual" ? 10 : 1);
       estadoPrueba.suscripcion = { plan: cuerpo.plan, periodo: cuerpo.periodo, monto, estado: "pendiente", pago_fallido_desde: null, proximo_cobro: null };
       return json({ link: `${location.pathname}${location.search}${location.search ? "&" : "?"}suscripcion=volvio`, monto, periodo: cuerpo.periodo, plan: cuerpo.plan });
+    }
+    /* Mi plan (0130): lo mismo que contestaría el servidor. */
+    if (cuerpo.accion === "cambiarPlan") {
+      const sus = estadoPrueba.suscripcion;
+      const monto = ({ start: 29900, pro: 59900 }[cuerpo.plan] || 0) * (cuerpo.periodo === "anual" ? 10 : 1);
+      if (!sus || sus.estado !== "activa") return json({ error: { message: "Para cambiar de plan primero tenés que tener una suscripción activa." } }, 409);
+      if (cuerpo.periodo !== sus.periodo) {
+        Object.assign(sus, { cambio_plan: cuerpo.plan, cambio_periodo: cuerpo.periodo, cambio_monto: monto });
+        return json({ link: `${location.pathname}${location.search}`, plan: cuerpo.plan, periodo: cuerpo.periodo, monto });
+      }
+      Object.assign(sus, { plan: cuerpo.plan, monto });
+      datos.empresa.plan = cuerpo.plan;
+      return json({ ok: true, plan: cuerpo.plan, periodo: cuerpo.periodo, monto, desde: sus.proximo_cobro });
+    }
+    if (cuerpo.accion === "arrepentimiento") {
+      const a = (T.arrepentimientos || []).find((x) => x.id === cuerpo.id);
+      if (!a) return json({ error: { message: "No existe ese pedido." } }, 404);
+      a.estado = cuerpo.decision === "descartar" ? "descartado" : "resuelto";
+      a.resuelto_en = new Date().toISOString();
+      a.nota = a.estado === "resuelto" ? "Devuelto: $ 59.900." : null;
+      return json({ ok: true, resumen: a.nota });
+    }
+    if (cuerpo.accion === "baja") {
+      const sus = estadoPrueba.suscripcion;
+      if (!sus || sus.estado === "cancelada") return json({ error: { message: "No tenés una suscripción para dar de baja." } }, 409);
+      const hasta = sus.proximo_cobro ? aHoyMas(26) : null;
+      Object.assign(sus, { estado: "cancelada", baja_codigo: "B-PRUEBA23", baja_pedida_en: new Date().toISOString() });
+      if (hasta) datos.empresa.prueba_hasta = hasta;
+      return json({ codigo: "B-PRUEBA23", hasta });
     }
     if (cuerpo.accion === "enviar") {
       const c = tablaDe("interno_wa_conversaciones").find((x) => x.id === cuerpo.conversacion);

@@ -72,6 +72,10 @@ export async function miCuenta() {
     pagoAvisado: data.pago_avisado_en || null,
     ejemplos: !!data.ejemplos,
     planElegido: data.plan_elegido || null,
+    /* 0130: quién soy en el comercio (solo el dueño cambia el plan) y si el
+       comercio se dio de alta solo (los de antes no tienen Mi plan). */
+    miRol: data.mi_rol || null,
+    autoservicio: !!data.autoservicio,
     /* La de Mercado Pago (0128), o null si nunca contrató. Las fechas
        quedan como texto AAAA-MM-DD, igual que pruebaHasta. */
     suscripcion: data.suscripcion ? {
@@ -81,6 +85,15 @@ export async function miCuenta() {
       estado: data.suscripcion.estado,
       pagoFallidoDesde: data.suscripcion.pago_fallido_desde || null,
       proximoCobro: data.suscripcion.proximo_cobro || null,
+      autorizadaEn: data.suscripcion.autorizada_en || null,
+      proximoAjuste: data.suscripcion.proximo_ajuste || null,
+      montoAnterior: data.suscripcion.monto_anterior == null ? null : Number(data.suscripcion.monto_anterior),
+      ajustadoEn: data.suscripcion.ajustado_en || null,
+      bajaCodigo: data.suscripcion.baja_codigo || null,
+      bajaPedidaEn: data.suscripcion.baja_pedida_en || null,
+      cambio: data.suscripcion.cambio_plan ? {
+        plan: data.suscripcion.cambio_plan, periodo: data.suscripcion.cambio_periodo, monto: Number(data.suscripcion.cambio_monto),
+      } : null,
     } : null,
   };
 }
@@ -90,6 +103,13 @@ export async function miCuenta() {
    manda el navegador: solo el plan, el período y el mail de la cuenta de
    Mercado Pago de quien paga. */
 export async function contratarSuscripcion({ plan, periodo, email }) {
+  const respuesta = await alServidor({ accion: "contratar", plan, periodo, email }, "No se pudo armar el pago. Probá de nuevo.");
+  if (!respuesta.link) throw new Error("No se pudo armar el pago. Probá de nuevo.");
+  return respuesta;
+}
+
+/* Lo que le pide a api/founder.js el dueño (o la plataforma), con su token. */
+async function alServidor(cuerpo, siFalla) {
   const { data } = await supabase.auth.getSession();
   const token = data && data.session ? data.session.access_token : null;
   if (!token) throw new Error("Se venció la sesión. Volvé a entrar.");
@@ -98,18 +118,40 @@ export async function contratarSuscripcion({ plan, periodo, email }) {
     r = await fetch("/api/founder", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ accion: "contratar", plan, periodo, email }),
+      body: JSON.stringify(cuerpo),
     });
   } catch {
     throw new Error("No se pudo hablar con el servidor. Revisá la conexión.");
   }
   let respuesta = null;
   try { respuesta = await r.json(); } catch { /* sin cuerpo */ }
-  if (!r.ok || !respuesta || !respuesta.link) {
-    throw new Error((respuesta && respuesta.error && respuesta.error.message) || "No se pudo armar el pago. Probá de nuevo.");
-  }
+  if (!r.ok || !respuesta) throw new Error((respuesta && respuesta.error && respuesta.error.message) || siFalla);
   return respuesta;
 }
+
+/* Mi plan (0130). Cambiar en el mismo período contesta { ok }; a otro
+   período contesta { link } para autorizar la suscripción nueva en MP. */
+export const cambiarPlan = ({ plan, periodo }) =>
+  alServidor({ accion: "cambiarPlan", plan, periodo }, "No se pudo cambiar el plan.");
+
+/* Devuelve { codigo, hasta }: el código de baja y el último día de uso. */
+export const darDeBaja = () => alServidor({ accion: "baja" }, "No se pudo dar de baja. Escribinos por WhatsApp.");
+
+/* Los pedidos del botón de arrepentimiento, para la plataforma. */
+export async function cargarArrepentimientos() {
+  const { data, error } = await supabase.from("arrepentimientos")
+    .select("id, codigo, nombre, email, comercio, telefono, motivo, empresa_id, estado, creado_en, resuelto_en, nota, empresas(nombre)")
+    .order("creado_en", { ascending: false }).limit(50);
+  if (error) throw error;
+  return (data || []).map((a) => ({
+    id: a.id, codigo: a.codigo, nombre: a.nombre, email: a.email, comercioDicho: a.comercio, telefono: a.telefono,
+    motivo: a.motivo, empresaId: a.empresa_id, comercio: a.empresas ? a.empresas.nombre : null,
+    estado: a.estado, creadoEn: a.creado_en, resueltoEn: a.resuelto_en, nota: a.nota,
+  }));
+}
+
+export const resolverArrepentimiento = (id, decision = "resolver") =>
+  alServidor({ accion: "arrepentimiento", id, decision }, "No se pudo resolver.");
 
 /* Donde el que paga administra su suscripción: cambiar la tarjeta o darla
    de baja es de Mercado Pago, no de Genez. */

@@ -15,6 +15,9 @@
          Cómo la ve Mercado Pago y cómo la interpretaría el sistema: el
          estado de la suscripción y el de cada cobro.
      node scripts/probar-mp-suscripcion.mjs cancelar <id>
+     node scripts/probar-mp-suscripcion.mjs monto <id> <monto>
+         Cambia el monto como lo hacen el cambio de plan y el ajuste por
+         IPC (0130) y muestra cómo quedó.
 
    Lo que se quiere saber (05/10): si MP acepta el pedido tal cual lo arma
    el sistema, si el pagador tiene que entrar con el mismo mail, qué
@@ -54,7 +57,7 @@ const interpretarCobro = (a) => {
   return "en proceso → espera el próximo aviso";
 };
 
-const [accion, arg] = process.argv.slice(2);
+const [accion, arg, arg2] = process.argv.slice(2);
 
 if (accion === "crear") {
   const periodo = arg === "anual" ? "anual" : "mensual";
@@ -104,6 +107,13 @@ if (accion === "crear") {
 } else if (accion === "cancelar" && arg) {
   const r = await mp(`/preapproval/${arg}`, { metodo: "PUT", cuerpo: { status: "cancelled" } });
   console.log(r.ok ? `Cancelada: ${r.datos.status}` : `HTTP ${r.estado} ${JSON.stringify(r.datos)}`);
+} else if (accion === "monto" && arg && Number(arg2) > 0) {
+  const r = await mp(`/preapproval/${arg}`, { metodo: "PUT", cuerpo: {
+    reason: "Genez Simple (mensual) · prueba de cambio", auto_recurring: { transaction_amount: Number(arg2), currency_id: "ARS" },
+  } });
+  if (!r.ok) { console.log(`MP no aceptó (HTTP ${r.estado}):`, JSON.stringify(r.datos, null, 2)); process.exit(1); }
+  const v = await mp(`/preapproval/${arg}`);
+  console.log(`Aceptado. Ahora: ${v.datos.auto_recurring.transaction_amount} · "${v.datos.reason}" · estado ${v.datos.status}`);
 } else {
-  console.log("Uso: crear [mensual|anual] · ver <id> · cancelar <id>");
+  console.log("Uso: crear [mensual|anual] · ver <id> · cancelar <id> · monto <id> <monto>");
 }

@@ -27,7 +27,7 @@ function sumarDias(fecha, dias) {
   return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
 }
 
-const escapar = (t) => String(t || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+export const escapar = (t) => String(t || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function armarMail({ tipo, nombre, comercio, vence }) {
   const quien = (nombre || "").trim().split(" ")[0] || "Hola";
@@ -54,7 +54,7 @@ ${cuerpo.map((p) => `<p>${escapar(p)}</p>`).join("\n")}
   return { asunto, texto, html };
 }
 
-async function mandar({ para, asunto, texto, html }) {
+export async function mandar({ para, asunto, texto, html }) {
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },

@@ -11,10 +11,12 @@
  *   GET  ?tarea=pruebas         el cron de Vercel: los mails de la prueba gratis (0127).
  *   POST con X-Hub-Signature-256  Meta avisando mensajes y estados.
  *   POST con X-Signature        Mercado Pago avisando la suscripción de un comercio (0128).
+ *   POST ?publico=arrepentimiento  el botón de arrepentimiento, sin sesión (0130).
  *   POST con X-Genez-Llave      el reloj de la base (0122): mandar la cola.
  *   POST con Authorization      Founder: enviar, borrador, automatizaciones,
  *                               plantilla, sincronizar, estado, registrar, suscribir.
- *                               Y el dueño de un comercio: contratar (0128).
+ *                               Y el dueño de un comercio: contratar (0128), cambiarPlan
+ *                               y baja (0130). La plataforma: arrepentimiento (0130).
  *
  * Lo próximo de Founder que necesite servidor va acá también, como otra
  * `accion`, hasta que el plan cambie.
@@ -45,6 +47,7 @@ import { generar, pideUnaPersona, conAviso, errorLegible } from "./_bot.js";
 import { plantillaParaMeta, mensajeDePlantilla, estadoDeMeta, reintentable, textoDeError } from "./_automatizaciones.js";
 import { avisosDePrueba } from "./_pruebas.js";
 import { contratar, webhookMP } from "./_suscripcion.js";
+import { cambiarPlan, darDeBaja, pedirArrepentimiento, resolverArrepentimiento, tareasDiarias } from "./_mi_plan.js";
 
 /* En Vercel (y en Next) esto deja el cuerpo sin leer, que es lo que la
    firma necesita. */
@@ -95,6 +98,7 @@ export default async function handler(req, res) {
 
   if (req.headers["x-hub-signature-256"]) return webhook(req, res);
   if (req.headers["x-signature"]) return avisoDeMercadoPago(req, res, query);
+  if (query.publico === "arrepentimiento") return arrepentimiento(req, res);
   if (req.headers["x-genez-llave"]) return llamadaDelReloj(req, res);
   return accionDeFounder(req, res);
 }
@@ -110,11 +114,13 @@ async function tareaDePruebas(req, res) {
   const maestra = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!maestra) return error(res, 503, "Falta SUPABASE_SERVICE_ROLE_KEY en el servidor.");
   const admin = createClient(url, maestra, { auth: { persistSession: false, autoRefreshToken: false } });
-  try {
-    return res.status(200).json(await avisosDePrueba(admin));
-  } catch (e) {
-    return error(res, 500, e.message || "No se pudieron mandar los avisos.");
-  }
+  /* El mismo cron hace también el ajuste por IPC y el borrado a los 90
+     días (0130): Hobby deja dos crons y los dos están usados. Cada parte
+     por separado, para que una que falla no deje sin hacer a la otra. */
+  const resultado = {};
+  try { resultado.avisos = await avisosDePrueba(admin); } catch (e) { resultado.avisos = { error: e.message }; }
+  try { resultado.miPlan = await tareasDiarias(admin); } catch (e) { resultado.miPlan = { error: e.message }; }
+  return res.status(200).json(resultado);
 }
 
 
@@ -195,8 +201,29 @@ async function accionDeFounder(req, res) {
     case "registrar":
     case "suscribir": return alta(res, db, quien, cuerpo.accion);
     case "contratar": return contratar(res, db, quien, cuerpo, req);
+    case "cambiarPlan": return cambiarPlan(res, db, quien, cuerpo, req);
+    case "baja": return darDeBaja(res, db, quien);
+    case "arrepentimiento": return resolverArrepentimiento(res, db, quien, cuerpo);
     default: return error(res, 400, "Acción desconocida.");
   }
+}
+
+/* ---------- El botón de arrepentimiento (0130) ---------- */
+/* Sin sesión a propósito (Res. 424/2020): no se puede pedir que entre.
+   Lo que protege es que solo anota; resolverlo es de la plataforma. */
+async function arrepentimiento(req, res) {
+  if (!origenValido(req)) return error(res, 403, "Origen no autorizado.");
+  const db = maestra();
+  if (!db) return error(res, 503, "Falta SUPABASE_SERVICE_ROLE_KEY en el servidor.");
+  let cuerpo;
+  try {
+    cuerpo = typeof req.body === "object" && req.body && !Buffer.isBuffer(req.body)
+      ? req.body
+      : JSON.parse((await leerCrudo(req, 16 * 1024)).toString("utf8") || "{}");
+  } catch {
+    return error(res, 400, "El cuerpo no es JSON.");
+  }
+  return pedirArrepentimiento(res, db, cuerpo);
 }
 
 /* ---------- Lo que manda Mercado Pago (0128) ---------- */

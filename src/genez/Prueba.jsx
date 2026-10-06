@@ -143,8 +143,12 @@ export function Contratar({ cuenta }) {
           <span className="f-m text-lg">{total != null ? money(total) : "—"} <span className="text-sm text-texto-suave">/ {periodo === "anual" ? "año" : "mes"}</span></span>
         </div>
         <p className="text-xs text-texto-suave mt-1.5">
-          {enPrueba ? `El primer cobro es cuando termina tu prueba, el ${fechaCorta(cuenta.pruebaHasta, 1)}. ` : ""}
-          Se cobra solo con Mercado Pago. Sin permanencia: la das de baja cuando quieras desde tu cuenta de Mercado Pago.
+          {/* Después de una baja, prueba_hasta es el último día pago: no es una prueba. */}
+          {enPrueba ? (cuenta.suscripcion && cuenta.suscripcion.estado === "cancelada"
+            ? `El primer cobro es el ${fechaCorta(cuenta.pruebaHasta, 1)}, cuando termina lo que ya pagaste. `
+            : `El primer cobro es cuando termina tu prueba, el ${fechaCorta(cuenta.pruebaHasta, 1)}. `) : ""}
+          Se cobra solo con Mercado Pago. Sin permanencia: la das de baja cuando quieras desde Ajustes → Mi plan, y si te arrepentís
+          dentro de los 10 días te devolvemos todo.
           {tarifas && tarifas.congeladoMeses ? ` El precio queda congelado ${tarifas.congeladoMeses} meses; después se ajusta por inflación cada 3 meses.` : ""}
         </p>
       </div>
