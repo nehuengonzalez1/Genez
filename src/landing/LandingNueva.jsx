@@ -829,7 +829,7 @@ const PLANES_COMERCIO = [
   {
     k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
     subtitulo: "Para el kiosco o el almacén que atiende una persona.",
-    boton: "Empezar con Simple",
+    boton: "Probar gratis",
     items: [
       [ScanBarcode, "Punto de venta con lector y ticketera"],
       [Boxes, "Control de stock y vencimientos"],
@@ -896,7 +896,7 @@ const PLANES_GASTRONOMIA = [
   {
     k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
     subtitulo: "Para el café, la rotisería o el take away que atiende una persona.",
-    boton: "Empezar con Simple",
+    boton: "Probar gratis",
     items: [
       [Coffee, "Mostrador y take away con ticketera"],
       [ChefHat, "Comandas a cocina y barra, impresas o en pantalla"],
@@ -939,7 +939,7 @@ const PLANES_SERVICIOS = [
   {
     k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
     subtitulo: "Para el profesional o el estudio que atiende solo.",
-    boton: "Empezar con Simple",
+    boton: "Probar gratis",
     items: [
       [CalendarDays, "Agenda de turnos y clases"],
       [ClipboardList, "Servicios, salas y profesionales"],
