@@ -175,12 +175,21 @@ const PRIMERO = {
 
 export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
   const [paso, setPaso] = useState(0);
+  /* La pantalla de los ejemplos, solo si el comercio los tiene: uno armado
+     a mano por Genez arranca vacío. Mientras no se sabe, no se muestra. */
+  const [conEjemplos, setConEjemplos] = useState(false);
+  useEffect(() => {
+    if (!configura) return undefined;
+    let vigente = true;
+    miCuenta().then((c) => { if (vigente) setConEjemplos(!!(c && c.ejemplos)); }).catch(() => {});
+    return () => { vigente = false; };
+  }, [configura]);
   const quien = String(nombre || "").trim().split(" ")[0];
   const pantallas = configura ? [
     { t: `Hola${quien ? `, ${quien}` : ""}. Bienvenido a Genez`, d: [
       `Este es el sistema de ${comercio}: cobrar, controlar el stock, la caja y ver cómo te va, todo en un lugar.`,
       "Te mostramos en un minuto cómo está organizado." ] },
-    { t: "Lo que ves son datos de ejemplo", d: [
+    conEjemplos && { t: "Lo que ves son datos de ejemplo", d: [
       "Cargamos productos, clientes y ventas de muestra para que veas cómo se ve con datos. Probá todo: nada de eso es real.",
       "Cuando quieras, los borrás con \"Borrar ejemplos\" en el aviso de arriba. Lo que cargues vos queda." ] },
     { t: "Cómo está organizado", d: [
@@ -189,7 +198,7 @@ export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
     { t: "Por dónde empezar", d: [
       `En Inicio vas a ver tus primeros pasos: lo que conviene dejar listo, empezando por ${PRIMERO[rubro] || PRIMERO.minimercado}. Se tildan solos a medida que los hacés.`,
       "Si te trabás, escribinos por WhatsApp desde la ayuda." ] },
-  ] : [
+  ].filter(Boolean) : [
     { t: `Hola${quien ? `, ${quien}` : ""}. Bienvenido a Genez`, d: [
       `Este es el sistema de ${comercio}. Ves las secciones que tu rol tiene habilitadas.`,
       "Arriba de cada pantalla, \"¿Cómo se usa?\" te explica qué se hace ahí, paso a paso." ] },

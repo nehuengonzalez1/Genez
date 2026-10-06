@@ -21,10 +21,19 @@ export async function marcarOnboarding(clave, valor = true) {
   return data || {};
 }
 
-/* Un comercio es nuevo durante sus primeros 60 días: después, los
-   primeros pasos ya no tienen sentido y la bienvenida tampoco. */
+/* Un comercio (o una persona) es nuevo durante sus primeros 60 días:
+   después, los primeros pasos ya no tienen sentido y la bienvenida
+   tampoco. Y solo desde que existe el onboarding (06/10): Genez arrancó
+   en septiembre, así que todos los comercios tenían menos de 60 días, y
+   Super 25 iba a recibir "lo que ves son datos de ejemplo" sobre sus
+   ventas reales. */
 const DIAS_DE_ARRANQUE = 60;
-export const esNuevo = (fecha) => !!fecha && Date.now() - new Date(fecha).getTime() < DIAS_DE_ARRANQUE * 86400000;
+const DESDE_EL_ONBOARDING = Date.UTC(2026, 9, 6, 3); // 06/10/2026, 0 h de Buenos Aires
+export const esNuevo = (fecha) => {
+  if (!fecha) return false;
+  const t = new Date(fecha).getTime();
+  return t >= DESDE_EL_ONBOARDING && Date.now() - t < DIAS_DE_ARRANQUE * 86400000;
+};
 
 const cuenta = async (q) => { const { count, error } = await q; return error ? null : count || 0; };
 
