@@ -8,7 +8,8 @@
  * según quién lo manda, sin rutas nuevas ni rewrites.
  *
  *   GET  con hub.mode           Meta verificando el webhook.
- *   GET  ?tarea=pruebas         el cron de Vercel: los mails de la prueba gratis (0127).
+ *   GET  ?tarea=pruebas         el cron de Vercel: los mails de la prueba gratis (0127),
+ *                               Mi plan (0130) y los reportes por mail (0136).
  *   POST con X-Hub-Signature-256  Meta avisando mensajes y estados.
  *   POST con X-Signature        Mercado Pago avisando la suscripción de un comercio (0128).
  *   POST ?publico=arrepentimiento  el botón de arrepentimiento, sin sesión (0130).
@@ -17,6 +18,7 @@
  *                               plantilla, sincronizar, estado, registrar, suscribir.
  *                               Y el dueño de un comercio: contratar (0128), cambiarPlan
  *                               y baja (0130). La plataforma: arrepentimiento (0130).
+ *                               Cualquiera de un comercio: reportePrueba (0136).
  *
  * Lo próximo de Founder que necesite servidor va acá también, como otra
  * `accion`, hasta que el plan cambie.
@@ -48,6 +50,7 @@ import { plantillaParaMeta, mensajeDePlantilla, estadoDeMeta, reintentable, text
 import { avisosDePrueba } from "./_pruebas.js";
 import { contratar, webhookMP } from "./_suscripcion.js";
 import { cambiarPlan, darDeBaja, pedirArrepentimiento, resolverArrepentimiento, tareasDiarias } from "./_mi_plan.js";
+import { reportesProgramados, mandarmeUnReporte } from "./_reportes.js";
 
 /* En Vercel (y en Next) esto deja el cuerpo sin leer, que es lo que la
    firma necesita. */
@@ -120,6 +123,8 @@ async function tareaDePruebas(req, res) {
   const resultado = {};
   try { resultado.avisos = await avisosDePrueba(admin); } catch (e) { resultado.avisos = { error: e.message }; }
   try { resultado.miPlan = await tareasDiarias(admin); } catch (e) { resultado.miPlan = { error: e.message }; }
+  /* Los reportes por mail (0136), también del mismo cron. */
+  try { resultado.reportes = await reportesProgramados(admin); } catch (e) { resultado.reportes = { error: e.message }; }
   return res.status(200).json(resultado);
 }
 
@@ -204,6 +209,7 @@ async function accionDeFounder(req, res) {
     case "cambiarPlan": return cambiarPlan(res, db, quien, cuerpo, req);
     case "baja": return darDeBaja(res, db, quien);
     case "arrepentimiento": return resolverArrepentimiento(res, db, quien, cuerpo);
+    case "reportePrueba": return mandarmeUnReporte(res, quien, cuerpo);
     default: return error(res, 400, "Acción desconocida.");
   }
 }

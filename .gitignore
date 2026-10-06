@@ -41,3 +41,6 @@ fotos/*
 
 # copias de seguridad de datos de clientes: nunca al repositorio
 respaldos/
+
+# Lo que dejan las pruebas para mirar (el mail de probar-reportes-por-mail).
+scripts/salida/

@@ -2250,7 +2250,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             </div>
           )}
           {tab === "reportes" && (
-            <Reportes k={k} ir={ir} lugar={lugar} ajustes={ajustes}
+            <Reportes k={k} ir={ir} lugar={lugar} ajustes={ajustes} permisos={permisos}
               empresaId={empresaId} conPedidos={modulos.includes("comandas")} />
           )}
           {tab === "informes" && <Informes empresaId={empresaId} ir={ir} lugar={lugar} />}

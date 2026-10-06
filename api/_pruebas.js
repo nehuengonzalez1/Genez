@@ -58,7 +58,7 @@ export async function mandar({ para, asunto, texto, html }) {
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: DESDE(), to: [para], subject: asunto, text: texto, html }),
+    body: JSON.stringify({ from: DESDE(), to: Array.isArray(para) ? para : [para], subject: asunto, text: texto, html }),
   });
   if (!r.ok) {
     let detalle = "";

@@ -109,7 +109,7 @@ export async function contratarSuscripcion({ plan, periodo, email }) {
 }
 
 /* Lo que le pide a api/founder.js el dueño (o la plataforma), con su token. */
-async function alServidor(cuerpo, siFalla) {
+export async function alServidor(cuerpo, siFalla) {
   const { data } = await supabase.auth.getSession();
   const token = data && data.session ? data.session.access_token : null;
   if (!token) throw new Error("Se venció la sesión. Volvé a entrar.");
