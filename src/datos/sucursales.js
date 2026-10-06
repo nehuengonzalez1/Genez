@@ -9,6 +9,8 @@
    ============================================================ */
 
 import { supabase } from "./supabase.js";
+import { cargarSerieDiaria } from "./ventas.js";
+import { traerTodo } from "./items.js";
 
 const aSucursal = (f) => ({ id: f.id, nombre: f.nombre, domicilio: f.domicilio || "", activa: f.activa !== false });
 
@@ -90,4 +92,37 @@ export async function guardarConteoLote(filas, { sucursalId = null, motivo = nul
     for (const r of data || []) hechos.push({ itemId: r.item_id, antes: Number(r.antes) || 0, diferencia: Number(r.diferencia) || 0 });
   }
   return hechos;
+}
+
+/* EL COMPARATIVO DE SUCURSALES (06/10)
+
+   Cada sucursal en el período y en el anterior del mismo largo, con la
+   misma serie que el resto de Informes (ventas_diarias_rango con
+   p_sucursal): así la suma de las sucursales da lo que dice "Todas". Una
+   consulta por sucursal y período: son pocas, y no hace falta otra
+   función en la base.
+
+   El stock de cada una se valoriza al costo de hoy, con stock_actual. Lo
+   negativo no resta: un stock en menos es un número mal contado, no
+   mercadería que se debe. */
+export async function cargarComparativo(empresaId, sucursales, actual, previo) {
+  const sumar = (serie) => serie.reduce((s, d) => ({ ventas: s.ventas + d.ventas, costo: s.costo + d.costo, tickets: s.tickets + d.tickets }), { ventas: 0, costo: 0, tickets: 0 });
+  const [series, stock, costos] = await Promise.all([
+    Promise.all(sucursales.map((s) => Promise.all([
+      cargarSerieDiaria(empresaId, { ...actual, sucursal: s.id }),
+      cargarSerieDiaria(empresaId, { ...previo, sucursal: s.id }),
+    ]))),
+    cargarStockPorSucursal(empresaId).catch(() => new Map()),
+    traerTodo("items", "id, costo", (q) => q.eq("empresa_id", empresaId)).catch(() => []),
+  ]);
+  const costoDe = new Map(costos.map((i) => [i.id, Number(i.costo) || 0]));
+  const valor = {};
+  for (const [item, porSuc] of stock) {
+    for (const [suc, n] of Object.entries(porSuc)) if (n > 0) valor[suc] = (valor[suc] || 0) + n * (costoDe.get(item) || 0);
+  }
+  return sucursales.map((s, i) => ({
+    id: s.id, nombre: s.nombre,
+    ahora: sumar(series[i][0]), antes: sumar(series[i][1]),
+    stock: Math.round(valor[s.id] || 0),
+  }));
 }

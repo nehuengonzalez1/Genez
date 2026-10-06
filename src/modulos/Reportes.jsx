@@ -12,6 +12,7 @@ import { bajarExcel } from "../utils/planilla.js";
 import { ObjetivosDelMes, hayObjetivos } from "./Objetivos.jsx";
 import { cargarPagosPorProveedor } from "../datos/facturasProveedor.js";
 import { cargarQuiebres } from "../datos/quiebres.js";
+import { cargarComparativo } from "../datos/sucursales.js";
 import { Kpi, Card, Boton, TablaSimple, Vacio, Sello } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
@@ -161,6 +162,22 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
     return () => { vigente = false; };
   }, [empresaId, rango]);
 
+  /* Las sucursales lado a lado (06/10): solo con más de una, mirando
+     todas. Mirando una sola, el comparativo no tiene contra qué. */
+  const [comparativo, setComparativo] = useState(null);
+  const activas = lugar.sucursales.filter((s) => s.activa !== false);
+  const claveSucursales = activas.map((s) => s.id).join(",");
+  useEffect(() => {
+    if (!empresaId || !lugar.varias || sucursal) { setComparativo(null); return undefined; }
+    let vigente = true;
+    setComparativo(null);
+    cargarComparativo(empresaId, activas, { desde: rango.desde, hasta: rango.hasta }, rangoPrevio)
+      .then((c) => { if (vigente) setComparativo(c); })
+      .catch((e) => { if (vigente) console.error("No se pudo armar el comparativo de sucursales:", e); });
+    return () => { vigente = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaId, lugar.varias, sucursal, rango, rangoPrevio, claveSucursales]);
+
   /* Los productos que se quedaron sin stock en el período (0134). */
   const [quiebres, setQuiebres] = useState(null);
   useEffect(() => {
@@ -223,6 +240,10 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
             ...Object.entries(puenteDatos.cobradoPorMedio).map(([k, c]) => { const m = medios.find((x) => x.k === k) || { k, n: k }; return [m.n, c, comisionDe(m, c)]; })] },
           { nombre: "Vendedores", anchos: [24, 14, 10, 14, 12], filas: [["Vendedor", "Ventas", "Tickets", "Descuentos", "Desc. promedio"],
             ...puenteDatos.vendedores.map((v) => [v.nombre, v.ventas, v.tickets, v.descuentos, +v.descuentoPromedio.toFixed(4)])] },
+        ] : []),
+        ...(comparativo ? [
+          { nombre: "Por sucursal", anchos: [24, 14, 14, 14, 10, 10, 14, 14], filas: [["Sucursal", "Ventas", "Período anterior", "Ganancia", "Margen", "Tickets", "Ticket promedio", "Stock al costo"],
+            ...comparativo.map((s) => [s.nombre, s.ahora.ventas, s.antes.ventas, ganancia(s.ahora.ventas, s.ahora.costo), +margen(s.ahora.ventas, s.ahora.costo).toFixed(4), s.ahora.tickets, Math.round(ticketPromedio(s.ahora.ventas, s.ahora.tickets)), s.stock])] },
         ] : []),
         ...(quiebres && quiebres.length ? [
           { nombre: "Quiebres de stock", anchos: [36, 12, 12, 14, 14, 14, 14], filas: [["Producto", "Días sin stock", "Venta por día", "Unidades perdidas", "Venta perdida", "Ganancia perdida", "Sin stock desde"],
@@ -326,6 +347,8 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
         <Kpi label="Lo que queda" valor={puente ? money(puente.queda) : "…"} tono={puente && puente.queda < 0 ? "mal" : "bien"}
           sub="después de comisiones y mermas" />
       </div>
+
+      {comparativo && <PorSucursal sucursales={comparativo} elegir={setSucursal} />}
 
       {puente && <PuenteDeRentabilidad puente={puente} />}
 
@@ -626,6 +649,57 @@ function MatrizDeProductos({ matriz }) {
           );
         })}
       </div>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   Por sucursal (06/10)
+
+   Cada sucursal en el período, contra su período anterior y contra las
+   otras: cuánto vende, cuánto deja, cuántos tickets y de cuánto, y cuánta
+   plata tiene parada en mercadería. La barra es su parte de lo vendido.
+   Tocar una la elige en el filtro de arriba, para ver todo lo demás de
+   esa sola.
+   ------------------------------------------------------------ */
+function PorSucursal({ sucursales, elegir }) {
+  const total = sucursales.reduce((s, x) => s + x.ahora.ventas, 0);
+  const margenTotal = margen(total, sucursales.reduce((s, x) => s + x.ahora.costo, 0));
+  const mejor = [...sucursales].sort((a, b) => b.ahora.ventas - a.ahora.ventas)[0];
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Por sucursal</div>
+      <p className="text-xs text-texto-suave mt-1">
+        {total ? <>La que más vende es {mejor.nombre}, con el {pct(mejor.ahora.ventas / total, 0)} del total. Tocá una para ver el resto del informe de esa sola.</> : "Ninguna sucursal vendió en el período."}
+      </p>
+      <div className="mt-3 -mx-4">
+        <TablaSimple
+          cols={["Sucursal", "Ventas", "vs anterior", "Ganancia", "Margen", "Tickets", "Ticket promedio", "Stock al costo"]}
+          filas={sucursales.map((s) => {
+            const v = variacion(s.ahora.ventas, s.antes.ventas);
+            const m = margen(s.ahora.ventas, s.ahora.costo);
+            const parte = total ? s.ahora.ventas / total : 0;
+            return [
+              <button key="n" type="button" onClick={() => elegir(s.id)} className="text-left w-full min-w-[9rem]">
+                <span className="block font-medium hover:text-acento">{s.nombre}</span>
+                <span className="mt-1 block h-1.5 bg-superficie-2 rounded-full overflow-hidden">
+                  <span className="block h-full bg-superficie-3 rounded-full" style={{ width: `${parte * 100}%` }} />
+                </span>
+              </button>,
+              <span key="v" className="f-m">{money(s.ahora.ventas)}</span>,
+              <span key="d" className={`f-m text-xs ${v == null ? "text-texto-tenue" : v >= 0 ? "text-bien" : "text-mal"}`}>{v == null ? "—" : `${v >= 0 ? "+" : "−"}${pct(Math.abs(v), 0)}`}</span>,
+              <span key="g" className="f-m">{money(ganancia(s.ahora.ventas, s.ahora.costo))}</span>,
+              <span key="m" className={`f-m ${s.ahora.ventas && m < margenTotal - 0.03 ? "text-mal" : ""}`}>{s.ahora.ventas ? pct(m) : "—"}</span>,
+              <span key="t" className="f-m">{nf.format(s.ahora.tickets)}</span>,
+              <span key="tp" className="f-m">{s.ahora.tickets ? money(ticketPromedio(s.ahora.ventas, s.ahora.tickets)) : "—"}</span>,
+              <span key="s" className="f-m text-texto-suave">{money(s.stock)}</span>,
+            ];
+          })}
+        />
+      </div>
+      <p className="text-[11px] text-texto-tenue mt-2">
+        Margen en rojo: más de 3 puntos abajo del de todo el comercio ({pct(margenTotal)}). El stock se valoriza al costo de hoy.
+      </p>
     </Card>
   );
 }
