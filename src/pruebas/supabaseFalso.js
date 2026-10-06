@@ -738,6 +738,32 @@ export const supabase = {
 };
 
 /* ============================================================
+   api/arca/conexion.js de mentira: solo "estado"
+   ============================================================
+   Para ver Ajustes como lo ve cada plan (api/_planes.js). Con ?prueba=
+   de días, el comercio está en la prueba gratis y ARCA no se ofrece; con
+   ?plan=start, es Simple. Si no, un comercio sin conectar todavía. Las
+   otras acciones contestan que en pruebas no se conecta nada. */
+if (typeof window !== "undefined" && !window.__genezArcaFalso) {
+  window.__genezArcaFalso = true;
+  const anterior = window.fetch;
+  const json = (o, status = 200) => Promise.resolve(new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json" } }));
+  window.fetch = (url, opciones = {}) => {
+    if (!String(url).startsWith("/api/arca/conexion")) return anterior(url, opciones);
+    const cuerpo = JSON.parse(opciones.body || "{}");
+    registro.push({ api: "arca", accion: cuerpo.accion });
+    if (cuerpo.accion !== "estado") return json({ error: { message: "En la pantalla de pruebas no se conecta ARCA." } }, 400);
+    const enPrueba = !!prueba && !["gracia", "gracia-vencida", "baja", "suspendida"].includes(prueba);
+    const simple = params.get("plan") === "start";
+    const delPlan = enPrueba
+      ? { puede: false, motivo: "Durante la prueba gratis no se conecta ARCA: los comprobantes serían reales. Se habilita cuando contratás el plan Pro." }
+      : simple ? { puede: false, motivo: "La factura electrónica viene con el plan Pro." } : { puede: true, motivo: null };
+    return json({ comercio: { nombre: "Comercio de prueba", cuit: "", razonSocial: "", condicion: "" },
+      conexion: null, certificado: null, pedido: null, prueba: null, sinCAE: 0, caea: null, delPlan });
+  };
+}
+
+/* ============================================================
    OpenStreetMap de mentira
    ============================================================
    El prospector le pide a Overpass desde el navegador. En la pantalla

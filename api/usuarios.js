@@ -37,6 +37,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { origenValido } from "./_comun.js";
+import { reglasDe } from "./_planes.js";
 
 const ACCIONES = ["invitar", "crear", "clave"];
 const CLAVE_MINIMA = 8;
@@ -197,6 +198,17 @@ export default async function handler(req, res) {
   /* ------------------------------------------------------------
      El alta
      ------------------------------------------------------------ */
+
+  /* Simple es de un usuario (api/_planes.js). Se cuentan los activos: uno
+     dado de baja no ocupa lugar. La prueba es Pro, así que ahí no frena. */
+  const reglas = await reglasDe(admin, empresaId);
+  if (reglas.unSoloUsuario) {
+    const { count } = await admin.from("perfiles").select("id", { count: "exact", head: true })
+      .eq("empresa_id", empresaId).eq("activo", true);
+    if ((count || 0) >= 1) {
+      return error(res, 403, "El plan Simple es para una sola persona. Para sumar a tu equipo, pasate a Pro.");
+    }
+  }
 
   const correo = String(email || "").trim().toLowerCase();
   if (!correo || !correo.includes("@")) return error(res, 400, "Falta un correo válido.");

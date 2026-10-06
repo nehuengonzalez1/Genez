@@ -145,7 +145,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
       const ok = nuevas.filter((l) => l.pid).length;
       toast(`Leí ${items.length} renglones: ${ok} reconocidos, ${items.length - ok} para dar de alta.`);
     } catch (e) {
-      setErrorFoto(`No pude leer el remito: ${e.message}. Podés cargarlo con la pistola mientras tanto.`);
+      setErrorFoto(`No pude leer el remito: ${String(e.message || "").replace(/.$/, "")}. Podés cargarlo con la pistola mientras tanto.`);
     }
     setLeyendo(false);
   };

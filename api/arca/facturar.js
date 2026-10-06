@@ -21,6 +21,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { origenValido, quienLlama } from "../_comun.js";
 import { facturarPendientes, ErrorArca } from "./_arca.js";
+import { reglasDe, MENSAJE_ARCA } from "../_planes.js";
 
 const error = (res, estado, message) => res.status(estado).json({ error: { message } });
 
@@ -47,6 +48,11 @@ export default async function handler(req, res) {
   const admin = createClient(url, maestra, { auth: { persistSession: false, autoRefreshToken: false } });
 
   try {
+    /* Una conexión hecha antes de bajar a Simple, o cargada a mano en la
+       base, no tiene que seguir pidiendo CAE: el freno va acá también y no
+       solo al conectar. */
+    const reglas = await reglasDe(admin, empresaId);
+    if (!reglas.arca) return error(res, 403, reglas.enPrueba ? MENSAJE_ARCA.prueba : MENSAJE_ARCA.plan);
     return res.status(200).json(await facturarPendientes({ admin, empresaId, usuarioId: quien.id }));
   } catch (e) {
     if (e instanceof ErrorArca) return error(res, e.estado, e.message);

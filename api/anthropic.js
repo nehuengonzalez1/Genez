@@ -30,7 +30,9 @@
  * quien lo usa.
  */
 
+import { createClient } from "@supabase/supabase-js";
 import { origenValido, quienLlama } from "./_comun.js";
+import { reglasDe } from "./_planes.js";
 
 /* EL TECHO DE LA RESPUESTA
 
@@ -49,6 +51,44 @@ import { origenValido, quienLlama } from "./_comun.js";
    pasa de 2 a 8 centavos de dólar, que sigue siendo un techo razonable
    para algo que requiere sesión iniciada. */
 const MAX_TOKENS = 8000;
+
+/* EL TOPE DEL MES (0129)
+
+   El techo de arriba acota una petición; esto acota el mes. Los planes
+   prometen un número de preguntas y de remitos (api/_planes.js), y sin
+   contarlos un comercio podía gastar lo que pagan diez.
+
+   Pregunta o remito se decide por lo que viaja: si hay una imagen es un
+   remito. No hace falta que el navegador lo diga, y si lo dijera se podría
+   mentir. */
+const esRemito = (cuerpo) => (cuerpo.messages || []).some((m) =>
+  Array.isArray(m.content) && m.content.some((b) => b && (b.type === "image" || b.type === "document")));
+
+/* El mes de Buenos Aires, no el de UTC: a las 22 del 31 todavía es el mes
+   que el comercio está pagando. */
+const mesActual = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).slice(0, 7);
+
+const NOMBRE_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+  "septiembre", "octubre", "noviembre", "diciembre"];
+
+function mensajeDeTope(reglas, tipo, tope) {
+  const cosa = tipo === "remito" ? "remitos por foto" : "preguntas al asistente";
+  if (!tope) return "El asistente con IA y los remitos por foto vienen con el plan Pro.";
+  if (reglas.enPrueba) return `Usaste las ${tope} ${cosa} de la prueba gratis. Al contratar Pro tenés más cada mes.`;
+  const [a, m] = mesActual().split("-").map(Number);
+  const proximo = NOMBRE_MES[m % 12];
+  return `Usaste las ${tope} ${cosa} de este mes. Se renuevan el 1 de ${proximo}${m === 12 ? ` de ${a + 1}` : ""}.`;
+}
+
+/* Lo que contesta Anthropic cuando el problema es de Genez y no del
+   comercio. En inglés y con detalles de la cuenta, no le sirve a nadie
+   adelante de la caja. */
+function errorDeAnthropic(estado, data) {
+  const texto = String((data && data.error && data.error.message) || "");
+  if (/credit balance/i.test(texto)) return "El asistente no está disponible en este momento. Ya le avisamos a Genez.";
+  if (estado === 429 || estado === 529 || /overloaded/i.test(texto)) return "El asistente está saturado. Probá de nuevo en un minuto.";
+  return "El asistente no pudo contestar. Probá de nuevo en un rato.";
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -81,9 +121,38 @@ export default async function handler(req, res) {
     });
   }
 
+  let cuenta = null;   // lo que se consumió, para devolverlo si Anthropic falla
+  let admin = null;
   try {
     const cuerpo = typeof req.body === "string" ? JSON.parse(req.body) : { ...(req.body || {}) };
     cuerpo.max_tokens = Math.min(Number(cuerpo.max_tokens) || 1000, MAX_TOKENS);
+
+    /* La plataforma no tiene comercio y no tiene tope: es Genez probando. */
+    if (!yo.es_plataforma) {
+      const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+      const maestra = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!maestra) {
+        return res.status(503).json({ error: { message: "Falta SUPABASE_SERVICE_ROLE_KEY en el servidor." } });
+      }
+      admin = createClient(url, maestra, { auth: { persistSession: false, autoRefreshToken: false } });
+      const reglas = await reglasDe(admin, yo.empresa_id);
+      const tipo = esRemito(cuerpo) ? "remito" : "pregunta";
+      const tope = reglas.topesIA[tipo];
+      const periodo = reglas.enPrueba ? "prueba" : mesActual();
+      const { data: quedan, error: eUso } = await admin.rpc("consumir_ia", {
+        p_empresa: yo.empresa_id, p_periodo: periodo, p_tipo: tipo, p_tope: tope,
+      });
+      if (eUso) {
+        /* Sin la 0129 aplicada la función no existe: se deja pasar en vez
+           de apagarle el asistente a todos. Cualquier otro error, no. */
+        if (eUso.code !== "PGRST202") throw eUso;
+        console.error("consumir_ia no existe: falta aplicar 0129");
+      } else if (quedan === null) {
+        return res.status(429).json({ error: { message: mensajeDeTope(reglas, tipo, tope) } });
+      } else {
+        cuenta = { p_empresa: yo.empresa_id, p_periodo: periodo, p_tipo: tipo };
+      }
+    }
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -96,8 +165,14 @@ export default async function handler(req, res) {
     });
 
     const data = await r.json();
+    if (!r.ok) {
+      console.error("Anthropic contestó", r.status, data && data.error);
+      if (cuenta) await admin.rpc("devolver_ia", cuenta);
+      return res.status(502).json({ error: { message: errorDeAnthropic(r.status, data) } });
+    }
     return res.status(r.status).json(data);
   } catch (e) {
+    if (cuenta) await admin.rpc("devolver_ia", cuenta).catch(() => {});
     return res.status(502).json({ error: { message: `No se pudo contactar a la API: ${e.message}` } });
   }
 }
