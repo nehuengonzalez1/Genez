@@ -368,6 +368,16 @@ export const FISCAL_INICIAL = {
    enteros es $1.500 y deja la venta en cero. `topeDescuento` es lo máximo
    que se puede descontar de un subtotal, siempre por debajo de él. */
 export const TOPE_DESCUENTO = 99.99;
+
+/* El tope de descuento de quien está cobrando (Ajustes → Cobros y
+   facturas, 06/10), en porcentaje, o null sin tope: el dueño, la
+   plataforma (también "entrando como") y un rol al que no se le puso. Lo
+   usan el cobro y las comandas: una sola regla para los dos. */
+export function descuentoMaxDe(sesion, ajustes) {
+  if (!sesion || sesion.tipo === "plataforma" || sesion.comoAdmin || sesion.rol === "dueno") return null;
+  const v = ((ajustes && ajustes.descuentoMax) || {})[sesion.rol];
+  return v == null || v === "" ? null : Number(v);
+}
 export const topeDescuento = (sub) => Math.max(0, Math.floor(sub * TOPE_DESCUENTO / 100));
 
 /* El porcentaje se escribe con coma, como se escribe acá: "99,99". El
