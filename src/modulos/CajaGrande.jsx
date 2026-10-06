@@ -19,6 +19,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ArrowDownRight, ArrowUpRight, ArrowLeftRight, Plus } from "lucide-react";
 import { CUENTAS, CATEGORIAS, nombreCuenta, cargarSaldos, cargarMovimientosGrandes, moverCajaGrande, transferirCajaGrande } from "../datos/cajaGrande.js";
+import { proveedoresConocidos } from "../datos/facturasProveedor.js";
 import { money } from "../utils/helpers.js";
 import { fdatel } from "../datos/generador.js";
 import { Kpi, Card, Boton, Modal, Vacio, Cargando } from "../ui/Base.jsx";
@@ -119,6 +120,11 @@ function Movimiento({ accion, empresaId, saldos, toast, onCerrar, onHecho }) {
   const [hacia, setHacia] = useState("banco");
   const [monto, setMonto] = useState("");
   const [detalle, setDetalle] = useState("");
+  const [aQuien, setAQuien] = useState("");
+  const [nombres, setNombres] = useState([]);
+  useEffect(() => {
+    if (accion.k === "pago") proveedoresConocidos(empresaId).then(setNombres).catch(() => setNombres([]));
+  }, [accion.k, empresaId]);
   /* Un ajuste se carga como el saldo real de la cuenta, que es lo que la
      persona tiene en la mano (el resumen del banco, lo que contó): la
      diferencia contra el saldo del sistema la calcula esto. */
@@ -140,7 +146,10 @@ function Movimiento({ accion, empresaId, saldos, toast, onCerrar, onHecho }) {
         });
         toast(`${nombreCuenta(cuenta)} quedó en ${money(Number(real))}.`);
       } else {
-        await moverCajaGrande({ empresaId, cuenta, tipo: accion.tipo, monto: Number(monto), categoria: accion.k, detalle: detalle.trim() });
+        /* Un pago es "a quién · detalle" (06/10): la primera parte es la que
+           agrupa los pagos por proveedor en Reportes. */
+        const texto = accion.k === "pago" ? [aQuien.trim(), detalle.trim()].filter(Boolean).join(" · ") : detalle.trim();
+        await moverCajaGrande({ empresaId, cuenta, tipo: accion.tipo, monto: Number(monto), categoria: accion.k, detalle: texto });
         toast(`${accion.n} registrado.`);
       }
       await onHecho();
@@ -151,7 +160,7 @@ function Movimiento({ accion, empresaId, saldos, toast, onCerrar, onHecho }) {
   };
 
   const listo = esAjuste ? diferencia !== null && diferencia !== 0
-    : Number(monto) > 0 && (esPase ? cuenta !== hacia : detalle.trim().length > 0);
+    : Number(monto) > 0 && (esPase ? cuenta !== hacia : accion.k === "pago" ? aQuien.trim().length > 0 : detalle.trim().length > 0);
 
   const Selector = ({ valor, onChange, excluir }) => (
     <select value={valor} onChange={(e) => onChange(e.target.value)} className={campoCls}>
@@ -197,10 +206,18 @@ function Movimiento({ accion, empresaId, saldos, toast, onCerrar, onHecho }) {
           </label>
         )}
 
+        {accion.k === "pago" && (
+          <label className="block text-sm mt-3">
+            <span className="block text-xs text-texto-suave mb-1">A quién</span>
+            <input value={aQuien} onChange={(e) => setAQuien(e.target.value)} list="a-quien-pagos" placeholder="Coca, Maxiconsumo, la luz…" className={campoCls} />
+            <datalist id="a-quien-pagos">{nombres.map((n) => <option key={n} value={n} />)}</datalist>
+            <span className="block text-[11px] text-texto-tenue mt-1">Con el mismo nombre de siempre, Reportes suma lo que le pagás a cada uno.</span>
+          </label>
+        )}
         <label className="block text-sm mt-3">
-          <span className="block text-xs text-texto-suave mb-1">Detalle{esPase || esAjuste ? " (opcional)" : ""}</span>
+          <span className="block text-xs text-texto-suave mb-1">Detalle{esPase || esAjuste || accion.k === "pago" ? " (opcional)" : ""}</span>
           <input value={detalle} onChange={(e) => setDetalle(e.target.value)}
-            placeholder={accion.k === "pago" ? "Coca-Cola, factura 1234" : accion.k === "retiro" ? "Para qué" : ""} className={campoCls} />
+            placeholder={accion.k === "pago" ? "Factura 1234" : accion.k === "retiro" ? "Para qué" : ""} className={campoCls} />
         </label>
 
         <div className="flex justify-end gap-2 mt-6">

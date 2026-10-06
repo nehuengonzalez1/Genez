@@ -10,6 +10,7 @@ import { margen, ganancia, ticketPromedio, porTicket, variacion, puntos, puenteD
 import { cargarPuente } from "../datos/puente.js";
 import { bajarExcel } from "../utils/planilla.js";
 import { ObjetivosDelMes, hayObjetivos } from "./Objetivos.jsx";
+import { cargarPagosPorProveedor } from "../datos/facturasProveedor.js";
 import { Kpi, Card, Boton, TablaSimple, Vacio } from "../ui/Base.jsx";
 import { estadisticas } from "../datos/pedidos.js";
 import { cargarSerieDiaria, cargarVentasPorItem } from "../datos/ventas.js";
@@ -146,6 +147,18 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
       .catch((e) => { if (vigente) console.error("No se pudo armar el puente:", e); });
     return () => { vigente = false; };
   }, [empresaId, rango, sucursal]);
+
+  /* Lo pagado a cada proveedor en el período (pagos de la caja grande).
+     Sin el permiso de la caja grande, RLS devuelve vacío y no se muestra. */
+  const [pagosProv, setPagosProv] = useState([]);
+  useEffect(() => {
+    if (!empresaId) return undefined;
+    let vigente = true;
+    cargarPagosPorProveedor(empresaId, rango.desde, rango.hasta)
+      .then((p) => { if (vigente) setPagosProv(p); })
+      .catch(() => { if (vigente) setPagosProv([]); });
+    return () => { vigente = false; };
+  }, [empresaId, rango]);
 
   const tickets = serie.reduce((s, d) => s + (d.tickets || 0), 0);
   const unidades = porItem.reduce((s, p) => s + p.unidades, 0);
@@ -304,6 +317,7 @@ export function Reportes({ k, ir, empresaId = null, conPedidos = false, lugar = 
       {puenteDatos && <CuandoSeVende porHora={puenteDatos.porHora} porDia={puenteDatos.porDia} />}
       {puenteDatos && <MediosDelPeriodo cobradoPorMedio={puenteDatos.cobradoPorMedio} ajustes={ajustes} />}
       {puenteDatos && <PorVendedor vendedores={puenteDatos.vendedores} />}
+      <PagosAProveedores pagos={pagosProv} ventas={ventas} />
 
 
       {conPedidos && <PorCanal empresaId={empresaId} rango={rango} ir={ir} />}
@@ -711,6 +725,39 @@ function PorVendedor({ vendedores }) {
           <span key="d" className={`f-m ${v.descuentoPromedio > promedio * 1.5 && v.descuentoPromedio > 0.02 ? "text-mal font-semibold" : ""}`}>{pct(v.descuentoPromedio)}</span>,
         ])}
       />
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------
+   A quién le pagaste (06/10)
+
+   Los pagos de la caja grande del período, por a quién: proveedores y
+   también servicios (la luz, el alquiler). Agrupa por el nombre, sin
+   mayúsculas ni tildes: "Coca" y "coca" son el mismo.
+   ------------------------------------------------------------ */
+function PagosAProveedores({ pagos, ventas }) {
+  if (!pagos.length) return null;
+  const total = pagos.reduce((s, p) => s + p.total, 0);
+  const max = pagos[0].total || 1;
+  return (
+    <Card className="p-4">
+      <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">A quién le pagaste</div>
+      <p className="text-xs text-texto-suave mt-1">
+        Pagos de la caja grande en el período: {money(total)}{ventas ? `, el ${pct(total / ventas, 0)} de lo vendido` : ""}.
+      </p>
+      <ul className="mt-3 space-y-1.5 text-sm">
+        {pagos.slice(0, 12).map((p) => (
+          <li key={p.nombre} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3">
+            <span className="truncate capitalize">{p.nombre}</span>
+            <span className="h-2 bg-superficie-2 rounded-full overflow-hidden">
+              <span className="block h-full bg-superficie-3 rounded-full" style={{ width: `${(p.total / max) * 100}%` }} />
+            </span>
+            <span className="f-m text-right text-xs">{money(p.total)} <span className="text-texto-tenue">· {p.pagos} pago{p.pagos === 1 ? "" : "s"}</span></span>
+          </li>
+        ))}
+      </ul>
+      {pagos.length > 12 && <p className="text-xs text-texto-tenue mt-2">y {pagos.length - 12} más.</p>}
     </Card>
   );
 }
