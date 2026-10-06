@@ -816,6 +816,254 @@ function Precio({ pre, calculando }) {
   );
 }
 
+/* Comercio se vende por lo que hace y no por módulos (05/10): así lo
+   muestran Ventario, Vendi, Cobrando y Kubo, y "Cuenta corriente" o
+   "Permisos" no le dicen nada a quien atiende un almacén. Precios fijos,
+   congelados por 6 meses; el anual es 10 meses (2 de regalo). Empresa es
+   a medida. ARCA solo desde Pro, un usuario en Simple, productos sin
+   tope en todos. Gastronomía y Servicios, igual: ver más abajo.
+
+   Cada renglón tiene que ser algo que el sistema ya hace, salvo lo
+   marcado `pronto`. */
+const PLANES_COMERCIO = [
+  {
+    k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
+    subtitulo: "Para el kiosco o el almacén que atiende una persona.",
+    boton: "Empezar con Simple",
+    items: [
+      [ScanBarcode, "Punto de venta con lector y ticketera"],
+      [Boxes, "Control de stock y vencimientos"],
+      [Wallet, "Caja diaria con arqueo y cierre"],
+      [BookOpen, "Fiado y cuenta corriente"],
+      [Tag, "Listas de precios y promociones (2x1, 3x2, %)"],
+      [Percent, "Cambio de precios masivo y etiquetas de góndola"],
+      [ClipboardList, "Carga por Excel y 79 mil productos precargados"],
+      [WifiOff, "Funciona sin internet"],
+      [BarChart3, "Reportes de ventas y margen"],
+      [MessageCircle, "Respuestas al toque: por qué bajó tu ganancia, qué comprar", true],
+      [UserRound, "1 usuario · productos ilimitados"],
+    ],
+  },
+  {
+    k: "pro", n: "Pro", tono: "naranja", etiqueta: "Más elegido",
+    subtitulo: "Para el minimercado con empleados que quiere crecer.",
+    boton: "Empezar con Pro", todo: "Simple",
+    items: [
+      [FileText, "Factura electrónica ARCA (A, B y C)"],
+      [Truck, "Compras y proveedores, con el remito por foto (30 por mes)"],
+      [Sparkles, "Asistente con IA: preguntale lo que quieras (150 por mes)"],
+      [ShoppingCart, "Te dice qué comprar antes de que falte"],
+      [TrendingDown, "Te avisa si te subieron un costo o perdés margen"],
+      [Users, "Multiusuario, con roles y permisos"],
+      [Network, "Multisucursal y varias cajas"],
+      [QrCode, "Cobro con QR de Mercado Pago"],
+      [ClipboardList, "Pedidos para preparar o enviar"],
+      [Landmark, "Planillas para tu contador"],
+      [Globe, "Tienda online", true],
+    ],
+  },
+  {
+    k: "empresa", n: "Empresa", tono: "azul", etiqueta: "Para cadenas",
+    subtitulo: "Para cadenas y franquicias, armado con vos.",
+    boton: "Hablar con nosotros", todo: "Pro",
+    items: [
+      [Sparkles, "Asistente con IA (1.000 por mes) y remitos por foto (200 por mes)"],
+      [UserCog, "Equipo: horarios y liquidaciones"],
+      [Smartphone, "App propia con tu marca y tu dominio"],
+      [Puzzle, "Automatizaciones e integraciones a medida"],
+      [HeartHandshake, "Te acompañamos a arrancar"],
+      [Headphones, "Soporte prioritario por WhatsApp"],
+    ],
+  },
+];
+/* Gastronomía y Servicios con el mismo formato que Comercio (05/10, para
+   ver cómo queda): mismos precios, ARCA desde Pro, un usuario en Simple,
+   varios usuarios y sucursales en Pro, Empresa a medida. Lo que se nombra
+   existe; lo que no, va como `pronto`. */
+const EMPRESA_A_MEDIDA = (subtitulo, propios) => ({
+  k: "empresa", n: "Empresa", tono: "azul", etiqueta: "Para cadenas",
+  subtitulo, boton: "Hablar con nosotros", todo: "Pro",
+  items: [
+    ...propios,
+    [Smartphone, "App propia con tu marca y tu dominio"],
+    [Puzzle, "Automatizaciones e integraciones a medida"],
+    [HeartHandshake, "Te acompañamos a arrancar"],
+    [Headphones, "Soporte prioritario por WhatsApp"],
+  ],
+});
+
+const PLANES_GASTRONOMIA = [
+  {
+    k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
+    subtitulo: "Para el café, la rotisería o el take away que atiende una persona.",
+    boton: "Empezar con Simple",
+    items: [
+      [Coffee, "Mostrador y take away con ticketera"],
+      [ChefHat, "Comandas a cocina y barra, impresas o en pantalla"],
+      [BookOpen, "Tu carta por categorías, con happy hour"],
+      [Tag, "Promociones (2x1, 3x2, %)"],
+      [Wallet, "Caja diaria con arqueo y cierre"],
+      [WifiOff, "Funciona sin internet"],
+      [BarChart3, "Reportes de ventas por día y por producto"],
+      [MessageCircle, "Respuestas al toque: por qué bajó tu ganancia, qué comprar", true],
+      [UserRound, "1 usuario · productos ilimitados"],
+    ],
+  },
+  {
+    k: "pro", n: "Pro", tono: "naranja", etiqueta: "Más elegido",
+    subtitulo: "Para el bar o el restaurante con salón y equipo.",
+    boton: "Empezar con Pro", todo: "Simple",
+    items: [
+      [FileText, "Factura electrónica ARCA (A, B y C)"],
+      [UtensilsCrossed, "Salón con plano de mesas: juntar, separar y dividir la cuenta"],
+      [CalendarDays, "Reservas de mesas"],
+      [QrCode, "Carta QR en cada mesa"],
+      [ShoppingBag, "Centro de pedidos: delivery y take away"],
+      [Coins, "Costo por receta y margen de cada plato"],
+      [Sparkles, "Asistente con IA: preguntale lo que quieras (150 por mes)"],
+      [Boxes, "Stock de insumos y compras a proveedores"],
+      [Users, "Multiusuario: mozos y cajeros, cada uno con su rol"],
+      [Network, "Multisucursal y varias cajas"],
+      [Smartphone, "Cobro con QR de Mercado Pago"],
+      [Landmark, "Planillas para tu contador"],
+      [Globe, "Pedidos online desde tu carta", true],
+    ],
+  },
+  EMPRESA_A_MEDIDA("Para cadenas y franquicias gastronómicas, armado con vos.", [
+    [Sparkles, "Asistente con IA (1.000 por mes) y remitos por foto (200 por mes)"],
+    [UserCog, "Equipo: horarios y liquidaciones"],
+  ]),
+];
+
+const PLANES_SERVICIOS = [
+  {
+    k: "start", n: "Simple", tono: "verde", etiqueta: "Ideal para empezar",
+    subtitulo: "Para el profesional o el estudio que atiende solo.",
+    boton: "Empezar con Simple",
+    items: [
+      [CalendarDays, "Agenda de turnos y clases"],
+      [ClipboardList, "Servicios, salas y profesionales"],
+      [BookOpen, "Ficha de cada cliente con su historial"],
+      [Wallet, "Cobro y caja diaria"],
+      [BarChart3, "Informes de ingresos, ocupación y asistencia"],
+      [WifiOff, "Funciona sin internet"],
+      [UserRound, "1 usuario · clientes ilimitados"],
+    ],
+  },
+  {
+    k: "pro", n: "Pro", tono: "naranja", etiqueta: "Más elegido",
+    subtitulo: "Para el centro, el gimnasio o el consultorio con equipo.",
+    boton: "Empezar con Pro", todo: "Simple",
+    items: [
+      [FileText, "Factura electrónica ARCA (A, B y C)"],
+      [Ticket, "Abonos, packs y planes"],
+      [Smartphone, "App para tus clientes con tu marca: reservan y ven su plan"],
+      [BellRing, "Recordatorios de turno por WhatsApp, listos para enviar"],
+      [Zap, "Lista de espera y huecos libres para vender"],
+      [Users, "Multiusuario: cada profesional con su rol"],
+      [Network, "Multisucursal"],
+      [QrCode, "Cobro con QR de Mercado Pago"],
+      [Landmark, "Planillas para tu contador"],
+    ],
+  },
+  EMPRESA_A_MEDIDA("Para redes de centros y franquicias, armado con vos.", [
+    [MessageCircle, "Seguimiento: a quién conviene escribirle, y por qué"],
+    [UserCog, "Equipo: horarios y liquidaciones"],
+    [PieChart, "Finanzas: ingresos, egresos y sueldos"],
+  ]),
+];
+
+const PLANES_FIJOS = { minimercado: PLANES_COMERCIO, gastronomia: PLANES_GASTRONOMIA, servicios: PLANES_SERVICIOS };
+
+
+/* El símbolo de cada plan: dibujado acá, de línea con un relleno suave
+   del mismo color, y no el dibujo en 3D de los otros rubros, que con los
+   renglones de línea cargaba la tarjeta (05/10). Cuentan lo mismo que el
+   plan: un local, un negocio que crece, una cadena. */
+const SIMBOLO_PLAN = {
+  start: (
+    <>
+      <path className="ln-relleno" d="M9 11.5h30l2.5 7.5h-35z" />
+      <path d="M9 11.5h30l2.5 7.5h-35z" />
+      <path d="M6.5 19c0 2.2 1.6 3.6 3.6 3.6s3.6-1.4 3.6-3.6c0 2.2 1.6 3.6 3.6 3.6s3.6-1.4 3.6-3.6c0 2.2 1.6 3.6 3.6 3.6s3.6-1.4 3.6-3.6c0 2.2 1.6 3.6 3.6 3.6s3.6-1.4 3.6-3.6c0 2.2 1.6 3.6 3.6 3.6s3.4-1.4 3.4-3.6" />
+      <path d="M10 23v15.5h28V23" />
+      <path className="ln-relleno" d="M20.5 38.5v-9a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v9" />
+      <path d="M20.5 38.5v-9a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v9" />
+      <rect x="13" y="27" width="4.5" height="4.5" rx="1" />
+      <rect x="30.5" y="27" width="4.5" height="4.5" rx="1" />
+    </>
+  ),
+  pro: (
+    <>
+      <rect className="ln-relleno" x="30" y="20" width="7" height="18.5" rx="1.5" />
+      <rect x="9" y="29" width="7" height="9.5" rx="1.5" />
+      <rect x="19.5" y="24.5" width="7" height="14" rx="1.5" />
+      <rect x="30" y="20" width="7" height="18.5" rx="1.5" />
+      <path d="M8.5 21.5 17 14l6 4.5L38.5 8" />
+      <path d="M32 8h6.5v6.5" />
+    </>
+  ),
+  empresa: (
+    <>
+      <path className="ln-relleno" d="M21.5 38.5V10.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v28" />
+      <path d="M21.5 38.5V10.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v28" />
+      <path d="M21.5 20H12.5a2 2 0 0 0-2 2v16.5" />
+      <path d="M6.5 38.5h35" />
+      <path d="M26.5 14.5h1M31.5 14.5h1M26.5 20.5h1M31.5 20.5h1M26.5 26.5h1M31.5 26.5h1M15 26h1.5M15 31.5h1.5" />
+      <path d="M27.5 38.5v-5h4v5" />
+    </>
+  ),
+};
+
+/* El precio sale de las tarifas (plan:start, plan:pro): lo mismo que lee
+   el registro y lo que va a cobrar la suscripción. Sin fila, "Consultar":
+   nunca se inventa un número. Empresa no tiene precio, es a medida. */
+function PlanComercio({ p, t, onElegir }) {
+  const precio = p.k === "empresa" ? null : (t.planes || {})[p.k];
+  const congelado = t.congeladoMeses, anual = t.anualMeses;
+  return (
+    <li className={`ln-plan ln-plan-${p.k}`}>
+      <div className="ln-plan-cabeza">
+        <svg viewBox="0 0 48 48" className={`ln-plan-simbolo ln-color-${p.tono}`} aria-hidden="true"
+          fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {SIMBOLO_PLAN[p.k]}
+        </svg>
+        <span className={`ln-plan-etiqueta ln-tono-${p.tono}`}>{p.etiqueta}</span>
+      </div>
+      <h3 className="ln-plan-nombre">{p.n}</h3>
+      <p className="ln-plan-subtitulo">{p.subtitulo}</p>
+      {precio != null ? (
+        <div className="ln-plan-precio">
+          <span className="ln-plan-monto">{pesos(precio)}</span>
+          <span className="ln-plan-mes">/ mes</span>
+          {congelado ? <span className="ln-plan-congelado">Precio congelado por {congelado} meses</span> : null}
+          {anual && anual < 12 ? <span className="ln-plan-anual">O pagá {pesos(precio * anual)} al año: {12 - anual === 1 ? "1 mes gratis" : `${12 - anual} meses gratis`}.</span> : null}
+        </div>
+      ) : p.k !== "empresa" ? (
+        <div className="ln-plan-precio"><span className="ln-plan-monto">Consultar</span></div>
+      ) : (
+        <div className="ln-plan-precio">
+          <span className="ln-plan-monto">A medida</span>
+          <span className="ln-plan-anual">Según tus sucursales y lo que necesites.</span>
+        </div>
+      )}
+      {p.todo && <div className="ln-plan-todo">Todo {p.todo}, más:</div>}
+      <ul className="ln-plan-items ln-plan-lineas">
+        {p.items.map(([I, texto, pronto]) => (
+          <li key={texto} className={`ln-plan-linea ln-texto-${p.tono}`}>
+            <I strokeWidth={1.8} aria-hidden="true" />
+            <span>{texto}{pronto && <span className="ln-plan-pronto">Próximamente</span>}</span>
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={() => onElegir(p)}
+        className={`ln-boton ln-plan-boton ${p.k === "pro" ? "ln-boton-lleno" : "ln-plan-boton-gris"}`}>
+        {p.boton} <ArrowRight className="ln-flecha" strokeWidth={2} />
+      </button>
+    </li>
+  );
+}
+
 function ItemModulo({ k, tono }) {
   const m = moduloPorClave(k) || { n: k, d: "" };
   const I = ICONO_MODULO[k] || LayoutGrid;
@@ -837,6 +1085,8 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
   const t = tarifas || TARIFAS_VACIAS;
 
   const lista = rubro ? planes({ rubro }) : [];
+  const fijos = rubro ? PLANES_FIJOS[rubro.clave] : null;
+  const planesFijos = !!fijos;
   const [medidaAbierta, setMedidaAbierta] = useState(false);
   const universo = lista.length ? lista[lista.length - 1].armado.elegidos : [];
   const [medida, setMedida] = useState(null);
@@ -863,13 +1113,24 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
         </div>
         <div className="ln-rotulo ln-precios-rotulo">Precio claro</div>
         <h2 className="ln-precios-titulo">Pagás por lo que{" "}<br /><span className="ln-naranja">necesitás.</span></h2>
+        {planesFijos ? (
+        <p className="ln-precios-parrafo">
+          {t.congeladoMeses ? <>Precio de lanzamiento: <strong>congelado por {t.congeladoMeses} meses</strong>; después, se ajusta por inflación cada 3 meses.<br className="ln-solo-ancho" />{" "}</> : null}
+          Precio final por mes, sin permanencia:{" "}<br className="ln-solo-ancho" />cancelás cuando quieras.
+        </p>
+        ) : (
         <p className="ln-precios-parrafo">
           {descuento ? <>Precio de lanzamiento: <strong>{textoDescuento(descuento)}</strong>.<br className="ln-solo-ancho" />{" "}</> : null}
           Precio final por mes, sin permanencia:{" "}<br className="ln-solo-ancho" />cancelás cuando quieras.
         </p>
+        )}
 
         <ul className="ln-planes">
-          {lista.map((p, i) => {
+          {planesFijos && fijos.map((p) => (
+            <PlanComercio key={p.k} p={p} t={t}
+              onElegir={(x) => (x.k !== "empresa" ? onElegir(rubro.clave, x.k) : irA("hacemos-mas")())} />
+          ))}
+          {!planesFijos && lista.map((p, i) => {
             const e = ESTILO_PLAN[p.k];
             const pre = presupuestar(t, p.armado.elegidos);
             const anterior = i > 0 ? lista[i - 1].armado.elegidos : [];
@@ -901,7 +1162,7 @@ function Precios({ rubros, tarifas, rubroElegido, onElegir }) {
           })}
         </ul>
 
-        {hayAMedida(t) && universo.length > 0 && (
+        {!planesFijos && hayAMedida(t) && universo.length > 0 && (
           <div className="ln-medida">
             <div className="ln-medida-cabeza">
               <div>
@@ -994,7 +1255,7 @@ function HacemosMas({ tarifas }) {
   };
 
   return (
-    <section className="ln-mas">
+    <section id="hacemos-mas" className="ln-mas">
       <div className="ln-mas-lienzo">
         <div className="ln-mas-texto">
           <div className="ln-rotulo">Hacemos más</div>
@@ -1072,7 +1333,19 @@ function HacemosMas({ tarifas }) {
    "Varias sucursales" no se promete entera: cada local tiene sus cajas y
    su stock, pero verlos juntos todavía está en camino. */
 function respuestaDelPrecio(tarifas) {
-  const { descuento, puestaEnMarcha } = presupuestar(tarifas || TARIFAS_VACIAS, []);
+  /* Con los planes de precio fijo (05/10), la respuesta dice esos números
+     y no la base más módulos. Sin precios cargados, la de antes. */
+  const t = tarifas || TARIFAS_VACIAS;
+  const { start, pro } = t.planes || {};
+  if (start != null && pro != null) {
+    return [
+      `Simple cuesta ${pesos(start)} y Pro ${pesos(pro)} por mes, lo mismo en todos los rubros; Empresa se arma a medida.`,
+      t.congeladoMeses ? `Por el lanzamiento, el precio queda congelado ${t.congeladoMeses} meses y después se ajusta por inflación cada 3 meses.` : "",
+      t.anualMeses && t.anualMeses < 12 ? `Si pagás el año, pagás ${t.anualMeses} meses.` : "",
+      "Antes, probás Pro 10 días gratis, sin tarjeta. No hay permanencia: cancelás cuando quieras.",
+    ].filter(Boolean).join(" ");
+  }
+  const { descuento, puestaEnMarcha } = presupuestar(t, []);
   const cuando = !descuento || !descuento.meses ? "" : descuento.meses === 1 ? "el primer mes " : `los primeros ${descuento.meses} meses `;
   return [
     "Una base por mes que incluye cobro, caja y ajustes, más los módulos de tu plan. Lo ves arriba, por rubro, antes de registrarte.",
@@ -1157,7 +1430,7 @@ const PROVINCIAS = [
   "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
 ];
 const SUCURSALES = [["1", "Una"], ["2", "Dos o tres"], ["4", "Cuatro o más"]];
-const NOMBRE_PLAN = { start: "Start", pro: "Pro", empresa: "Empresa", medida: "A medida" };
+const NOMBRE_PLAN = { start: "Simple", pro: "Pro", empresa: "Empresa", medida: "A medida" };
 const VENTAJAS_REGISTRO = [
   { icono: BarChart3, texto: "Una configuración a tu medida." },
   { icono: Puzzle, texto: "Soluciones para tus problemas reales." },
@@ -1195,6 +1468,14 @@ function Registro({ rubros, tarifas, eleccion }) {
     ? (eleccion.plan === "medida" && eleccion.modulos ? eleccion.modulos : (lista[0] ? lista[0].armado.elegidos : []))
     : ((lista.find((p) => p.k === d.plan) || {}).armado || {}).elegidos || [];
   const pre = presupuestar(d.plan === "medida" ? tarifasAMedida(t) : t, modulos);
+  /* Con planes de precio fijo (05/10) se elige Simple o Pro: Empresa es a
+     medida y se habla. La prueba es siempre de Pro, sin ARCA, sea cual sea
+     el plan elegido: se crea con los módulos de Pro, y el plan elegido
+     queda anotado para cobrar cuando termine. */
+  const fijos = rubro ? PLANES_FIJOS[rubro.clave] : null;
+  const planFijo = fijos && (d.plan === "start" || d.plan === "pro") ? d.plan : "pro";
+  const precioFijo = fijos ? (t.planes || {})[planFijo] : null;
+  const modulosDePrueba = fijos ? (((lista.find((p) => p.k === "pro") || {}).armado || {}).elegidos || []) : modulos;
 
   const seguir = (e) => {
     e.preventDefault();
@@ -1219,12 +1500,12 @@ function Registro({ rubros, tarifas, eleccion }) {
         escala: d.sucursales,
         respuestas: [
           { k: "comercio", n: d.comercio.trim() },
-          { k: "plan", n: `Plan ${NOMBRE_PLAN[d.plan] || d.plan}` },
+          { k: "plan", n: `Plan ${NOMBRE_PLAN[fijos ? planFijo : d.plan] || d.plan}` },
           ...(d.provincia ? [{ k: "provincia", n: d.provincia }] : []),
-          ...(pre.conDescuento != null ? [{ k: "descuento", n: `${pesos(pre.conDescuento)} por mes, ${textoDescuento(pre.descuento)}` }] : []),
+          ...(!fijos && pre.conDescuento != null ? [{ k: "descuento", n: `${pesos(pre.conDescuento)} por mes, ${textoDescuento(pre.descuento)}` }] : []),
         ],
-        modulos,
-        mensual: pre.mensual,
+        modulos: modulosDePrueba,
+        mensual: fijos ? precioFijo : pre.mensual,
         nombre: d.nombre, telefono: d.telefono, email: d.email,
         mensaje: d.problema,
         origen: ALTAS_ABIERTAS ? "registro-prueba" : "registro-landing",
@@ -1244,7 +1525,7 @@ function Registro({ rubros, tarifas, eleccion }) {
         registro: {
           comercio: d.comercio.trim(), rubro: rubroClave, negocio: negocioNombre || null,
           sucursales: d.sucursales, provincia: d.provincia || null, problema: d.problema.trim(),
-          nombre: d.nombre.trim(), telefono: d.telefono, plan: d.plan, modulos,
+          nombre: d.nombre.trim(), telefono: d.telefono, plan: fijos ? planFijo : d.plan, modulos: modulosDePrueba,
         },
       });
       setPaso(3);
@@ -1343,15 +1624,21 @@ function Registro({ rubros, tarifas, eleccion }) {
                   </label>
                 )}
                 <label className="ln-campo"><span>Plan</span>
-                  <select value={d.plan} onChange={cambiar("plan")}>
-                    {["start", "pro", "empresa"].map((k) => <option key={k} value={k}>{NOMBRE_PLAN[k]}</option>)}
-                    {hayAMedida(t) && <option value="medida">A medida</option>}
+                  <select value={fijos ? planFijo : d.plan} onChange={cambiar("plan")}>
+                    {(fijos ? ["start", "pro"] : ["start", "pro", "empresa"]).map((k) => <option key={k} value={k}>{NOMBRE_PLAN[k]}</option>)}
+                    {!fijos && hayAMedida(t) && <option value="medida">A medida</option>}
                   </select>
                 </label>
               </div>
               <div className="ln-reg-resumen">
-                <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[d.plan]} · {modulos.length} módulos</span>
-                {pre.mensual != null && (
+                {fijos ? (
+                  <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[planFijo]} · 10 días gratis de Pro</span>
+                ) : (
+                  <span>{negocioNombre || (rubro && rubro.nombre)} · Plan {NOMBRE_PLAN[d.plan]} · {modulos.length} módulos</span>
+                )}
+                {fijos ? (precioFijo != null && (
+                  <span className="ln-reg-resumen-precio">después <b>{pesos(precioFijo)}</b> / mes</span>
+                )) : pre.mensual != null && (
                   <span className="ln-reg-resumen-precio">
                     {pre.conDescuento != null && <s>{pesos(pre.mensual)}</s>} <b>{pesos(pre.conDescuento != null ? pre.conDescuento : pre.mensual)}</b> / mes
                   </span>

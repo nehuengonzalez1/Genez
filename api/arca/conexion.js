@@ -33,6 +33,7 @@ import { generarPedido, leerCertificado, aliasDe } from "./_certificados.js";
 import { cifrar, descifrar } from "./_cifrado.js";
 import { clienteDeProduccion, clienteArca, cuitDe, ErrorArca } from "./_arca.js";
 import { ponerAlDia, caeaDeHoy } from "./_caea.js";
+import { reglasDe, MENSAJE_ARCA } from "../_planes.js";
 
 const error = (res, estado, message) => res.status(estado).json({ error: { message } });
 
@@ -86,6 +87,12 @@ export default async function handler(req, res) {
     const acciones = { estado, generar, certificado, probar, activar, caea };
     const hacer = acciones[cuerpo.accion];
     if (!hacer) return error(res, 400, "Acción desconocida.");
+    /* Mirar el estado se puede siempre: es lo que le muestra a Simple por
+       qué no tiene ARCA. Lo que conecta, no (ver api/_planes.js). */
+    if (cuerpo.accion !== "estado") {
+      const reglas = await reglasDe(admin, empresaId);
+      if (!reglas.arca) return error(res, 403, reglas.enPrueba ? MENSAJE_ARCA.prueba : MENSAJE_ARCA.plan);
+    }
     return res.status(200).json(await hacer({ admin, empresaId, cuerpo, quien: { id: sesion.user.id, plataforma: !!yo.es_plataforma } }));
   } catch (e) {
     return error(res, e.estado || (e instanceof ErrorArca ? e.estado : 502), e.message || "No se pudo completar.");
@@ -102,6 +109,11 @@ async function leer(admin, empresaId) {
   ]);
   for (const r of [cred, con, emp]) if (r.error) throw r.error;
   return { cred: cred.data, con: con.data, emp: emp.data };
+}
+
+async function delPlan(admin, empresaId) {
+  const r = await reglasDe(admin, empresaId);
+  return { puede: r.arca, motivo: r.arca ? null : r.enPrueba ? MENSAJE_ARCA.prueba : MENSAJE_ARCA.plan };
 }
 
 const fiscalDe = (emp) => (emp && emp.config && emp.config.fiscal) || {};
@@ -125,6 +137,9 @@ async function estado({ admin, empresaId }) {
     prueba: cred ? cred.prueba : null,
     sinCAE: count || 0,
     caea: con && con.punto_venta_caea ? await estadoCAEA(admin, con) : null,
+    /* Si el plan no la incluye, la pantalla lo dice en vez de mostrar los
+       pasos: la regla es la misma que frena las otras acciones. */
+    delPlan: await delPlan(admin, empresaId),
   };
 }
 

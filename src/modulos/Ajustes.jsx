@@ -255,11 +255,14 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
               <div className="flex items-center gap-2">
                 <span className="text-[10px] uppercase tracking-widest font-bold text-texto-suave">Fase 2</span>
                 <span className="font-semibold text-sm">Factura electrónica (ARCA)</span>
-                <span className="ml-auto text-[10px] uppercase tracking-widest font-bold text-texto-tenue">Próximamente</span>
+                <span className="ml-auto text-[10px] uppercase tracking-widest font-bold text-texto-tenue">Sin conectar</span>
               </div>
+              {/* Decía "Próximamente" y "conectamos", de cuando la conexión la
+                  hacía Genez a mano. Hoy la hace el comercio acá abajo, si su
+                  plan la incluye; si no, abajo dice por qué. */}
               <p className="text-sm text-texto-suave mt-1">
                 La misma venta emite la factura que te corresponde según tu condición, con su CAE. Se activa cuando
-                conectamos tu CUIT y tu punto de venta con ARCA; el flujo de caja no cambia.
+                conectás tu CUIT y tu punto de venta con ARCA, más abajo; el flujo de caja no cambia.
               </p>
             </div>
           )}

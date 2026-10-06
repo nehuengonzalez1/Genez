@@ -30,7 +30,7 @@
    tiene nombre.
    ============================================================ */
 
-import { MODULOS, MODULOS_BASE, NIVELES, moduloPorClave } from "./modulos.js";
+import { MODULOS, MODULOS_BASE, NIVELES, moduloPorClave, nivelEnRubro } from "./modulos.js";
 
 const unicos = (xs) => Array.from(new Set(xs));
 const conocido = (k) => !!moduloPorClave(k);
@@ -155,7 +155,7 @@ export function planes({ rubro, respuestas = {}, sacados = [], sumados = [], esc
   const universo = unicos([...necesidad.propuestos, ...necesidad.elegidos, ...necesidad.sumables]);
   const orden = (k) => MODULOS.findIndex((m) => m.k === k);
   const rango = Object.fromEntries(NIVELES.map((n, i) => [n.k, i]));
-  const nivelDelModulo = (k) => rango[(moduloPorClave(k) || {}).nivel] ?? rango.empresa;
+  const nivelDelModulo = (k) => rango[nivelEnRubro(k, rubro && rubro.clave)] ?? rango.empresa;
 
   const lista = NIVELES.map((nivel) => {
     const conjunto = universo

@@ -47,6 +47,16 @@ export const MODULOS = [
 
 export const MODULOS_BASE = MODULOS.filter((m) => m.base).map((m) => m.k);
 
+/* El nivel de un módulo puede cambiar según el rubro. En Comercio, el
+   stock y el fiado van desde Start (es lo primero que mira un almacén,
+   y toda la competencia los pone en el plan de entrada), y Permisos baja
+   a Pro, que es donde se venden los varios usuarios con roles (05/10).
+   Gastronomía y Servicios siguen con el nivel del catálogo. */
+export const NIVELES_POR_RUBRO = {
+  minimercado: { stock: "start", cuentas: "start", permisos: "pro" },
+};
+export const nivelEnRubro = (k, rubro) => ((NIVELES_POR_RUBRO[rubro] || {})[k]) || (moduloPorClave(k) || {}).nivel;
+
 export const moduloPorClave = (k) => MODULOS.find((m) => m.k === k) || null;
 
 /* Los tres planes, de menor a mayor. Cada uno contiene al anterior. */

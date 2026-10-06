@@ -129,6 +129,17 @@ export function ConexionArca({ empresaId, toast, alCambiar }) {
     return <Card className="p-5"><h3 className="f-d text-lg">Factura electrónica</h3><p className="text-sm text-texto-tenue mt-2">Cargando…</p></Card>;
   }
 
+  /* El plan no la incluye (Simple, o la prueba gratis): no se muestran
+     pasos que el servidor va a rechazar (ver api/_planes.js). */
+  if (est.delPlan && !est.delPlan.puede) {
+    return (
+      <Card className="p-5">
+        <h3 className="f-d text-lg">Factura electrónica</h3>
+        <p className="text-sm text-texto-suave mt-2">{est.delPlan.motivo}</p>
+      </Card>
+    );
+  }
+
   const enProduccion = est.conexion && est.conexion.modo === "produccion";
   const cert = est.certificado;
   const pedido = est.pedido;

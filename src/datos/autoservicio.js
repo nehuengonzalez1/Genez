@@ -71,8 +71,49 @@ export async function miCuenta() {
     hoy: data.hoy,
     pagoAvisado: data.pago_avisado_en || null,
     ejemplos: !!data.ejemplos,
+    planElegido: data.plan_elegido || null,
+    /* La de Mercado Pago (0128), o null si nunca contrató. Las fechas
+       quedan como texto AAAA-MM-DD, igual que pruebaHasta. */
+    suscripcion: data.suscripcion ? {
+      plan: data.suscripcion.plan,
+      periodo: data.suscripcion.periodo,
+      monto: Number(data.suscripcion.monto),
+      estado: data.suscripcion.estado,
+      pagoFallidoDesde: data.suscripcion.pago_fallido_desde || null,
+      proximoCobro: data.suscripcion.proximo_cobro || null,
+    } : null,
   };
 }
+
+/* Contratar (0128): el servidor crea la suscripción en Mercado Pago con el
+   precio de `tarifas` y devuelve el link para autorizarla. El precio no lo
+   manda el navegador: solo el plan, el período y el mail de la cuenta de
+   Mercado Pago de quien paga. */
+export async function contratarSuscripcion({ plan, periodo, email }) {
+  const { data } = await supabase.auth.getSession();
+  const token = data && data.session ? data.session.access_token : null;
+  if (!token) throw new Error("Se venció la sesión. Volvé a entrar.");
+  let r;
+  try {
+    r = await fetch("/api/founder", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ accion: "contratar", plan, periodo, email }),
+    });
+  } catch {
+    throw new Error("No se pudo hablar con el servidor. Revisá la conexión.");
+  }
+  let respuesta = null;
+  try { respuesta = await r.json(); } catch { /* sin cuerpo */ }
+  if (!r.ok || !respuesta || !respuesta.link) {
+    throw new Error((respuesta && respuesta.error && respuesta.error.message) || "No se pudo armar el pago. Probá de nuevo.");
+  }
+  return respuesta;
+}
+
+/* Donde el que paga administra su suscripción: cambiar la tarjeta o darla
+   de baja es de Mercado Pago, no de Genez. */
+export const MP_MIS_SUSCRIPCIONES = "https://www.mercadopago.com.ar/subscriptions";
 
 /* Días que le quedan contando hoy: el último día también se usa. Las
    fechas van como texto AAAA-MM-DD; como Date caen al día anterior en
