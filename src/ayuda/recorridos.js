@@ -40,7 +40,7 @@ export const RECORRIDOS = [
     /* Se muestra, no se hace (07/10): "que diga seguir, no que te haga
        cargar cosas". Una venta de verdad se hace después, sola. */
     pasos: [
-      { donde: "cobro", en: B(/^Abrir caja con/), opcional: true,
+      { donde: "cobro", en: B(/^Abrir caja con/), alternativa: true,
         t: "Abrí la caja", d: "Cada día se empieza abriendo la caja con el efectivo que hay en el cajón. Sin caja abierta no se puede cobrar." },
       { en: Entrada("Escaneá o escribí"), opcional: true,
         t: "Buscá el producto", d: "Escribí el nombre o escaneá el código de barras y apretá Enter: se suma a la venta. Para cambiar la cantidad del último, escribí el número y Enter." },
@@ -56,14 +56,15 @@ export const RECORRIDOS = [
     titulo: "Cargar un producto",
     d: "Nombre, costo, precio y stock.",
     pasos: [
-      { donde: "productos", en: B(/^(Nuevo producto|Nuevo)$/), avanza: "clic",
-        t: "Nuevo producto", d: "Desde acá se carga uno por uno. También se abre solo si escaneás un código que no existe." },
+      /* Antes de abrir el formulario: después queda tapado. */
+      { donde: "productos", en: B(/^Importar$/), opcional: true,
+        t: "¿Tenés muchos?", d: "Con Exportar bajás una planilla con el formato exacto. La completás y la subís con Importar: te muestra qué va a crear y qué va a cambiar antes de aplicar." },
+      { en: B(/^(Nuevo producto|Nuevo)$/), avanza: "clic",
+        t: "O de a uno", d: "Desde acá se carga uno por uno. También se abre solo si escaneás un código que no existe." },
       { en: Campo("Nombre"), t: "El nombre", d: "Como lo vas a buscar en la caja. Si tiene código de barras, escanealo en el campo de abajo." },
       { en: Campo("Costo"), t: "Costo y precio", d: "Cargá lo que te cuesta y el precio de venta: el margen se calcula solo. Si ponés el margen, calcula el precio." },
       { en: Campo("Stock actual"), opcional: true, t: "El stock", d: "Cuántos tenés y el mínimo: cuando baje de ahí, aparece en \"Para reponer\"." },
       { en: B(/^Crear producto$/), t: "Guardalo", d: "Con Crear producto queda listo para vender. Si no querés cargarlo ahora, cerrá el formulario." },
-      { en: B(/^Importar$/), opcional: true,
-        t: "¿Tenés muchos?", d: "Con Exportar bajás una planilla con el formato exacto. La completás y la subís con Importar: te muestra qué va a crear y qué va a cambiar antes de aplicar." },
     ],
   },
   {
@@ -134,7 +135,7 @@ export const RECORRIDOS = [
     pasos: [
       { donde: "caja", en: B(/^Caja del día$/), avanza: "clic", opcional: true, t: "La caja del día", d: "" },
       /* Gasto y Cerrar caja aparecen recién con la caja abierta. */
-      { en: B(/^Abrir caja con/), opcional: true,
+      { en: B(/^Abrir caja con/), alternativa: true,
         t: "Abrí la caja", d: "Al empezar el día, con el efectivo que hay en el cajón." },
       { en: B(/^Gasto$/), opcional: true, t: "Gastos y retiros", d: "Si pagás algo con plata del cajón, es un gasto; si sacás plata para guardarla, un retiro. Así el arqueo cierra." },
       { en: B(/Cerrar caja del día/), opcional: true,
@@ -218,21 +219,30 @@ const AYUDA_ACA = { en: B(/¿Cómo se usa\?/), opcional: true,
   t: "Cuando quieras repasar", d: "Acá está la ayuda de esta pantalla, con el paso a paso de cada cosa que se hace en ella." };
 
 export const PANTALLAS = {
+  /* `alternativa`: uno de dos que dicen lo mismo según la pantalla (el
+     menú de la computadora o el del celular; la caja cerrada o abierta).
+     El que no está se saltea sin mostrarse. */
   inicio: [
-    { en: Css("aside nav"), opcional: true, t: "El menú", d: "Cada sección hace una cosa: vender, productos, stock, caja, informes. Ahora te mostramos las principales." },
+    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Cada sección hace una cosa: vender, productos, stock, caja, informes. Ahora te mostramos las principales." },
     /* En el celular el menú está abajo: las primeras secciones y "Más". */
-    { en: B(/^Más$/), opcional: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. Ahora te mostramos las principales." },
+    { en: B(/^Más$/), alternativa: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. Ahora te mostramos las principales." },
     { en: Algo(/^Lo que tenés que saber$/i), opcional: true, t: "Lo que tenés que saber", d: "El sistema mira tus datos y te avisa lo importante: lo que se está por acabar, los costos que subieron, los márgenes que bajaron." },
     { en: Css("button[aria-label='Ayuda']"), opcional: true, t: "La ayuda", d: "Todas las guías y los paso a paso, con un buscador y nuestro WhatsApp." },
-    { t: "Para vender", d: "El botón de arriba del menú (o F10) te lleva a la pantalla de la caja." },
+  ],
+  /* El inicio de un negocio de servicios es otro tablero: el día de la
+     agenda y las acciones rápidas. */
+  inicioServicios: [
+    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Cada sección hace una cosa: agenda, clientes, servicios, finanzas. Ahora te mostramos las principales." },
+    { en: B(/^Más$/), alternativa: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. Ahora te mostramos las principales." },
+    { en: Algo(/^Acciones rápidas$/i), opcional: true, t: "Tu día", d: "Los turnos de hoy, lo que falta confirmar y las acciones rápidas: un turno nuevo sin entrar a la agenda." },
+    { en: Css("button[aria-label='Ayuda']"), opcional: true, t: "La ayuda", d: "Todas las guías y los paso a paso, con un buscador y nuestro WhatsApp." },
   ],
   cobro: [
-    /* Con la caja cerrada, la pantalla de cobro es solo esto. */
-    { en: B(/^Abrir caja con/), opcional: true, t: "Primero, la caja", d: "Cada día se empieza abriendo la caja con el efectivo que hay en el cajón. Sin caja abierta no se puede cobrar." },
-    { en: Entrada("Escaneá o escribí"), opcional: true, t: "Acá se busca", d: "Escribí el nombre o escaneá el código y Enter: el producto se suma a la venta." },
-    { en: B(/^Catálogo$/), opcional: true, t: "Catálogo y clientes", d: "Para buscar mirando, o para elegir a quién le vendés (con su lista de precios o a cuenta)." },
-    { en: B(/^Cobrar \$/), opcional: true, t: "El total y cobrar", d: "Acá se ve el total. Cobrar (o F2) pide el medio de pago." },
-    /* Con la caja cerrada no se ve nada de esto: se cuenta igual. */
+    /* Con la caja cerrada, la pantalla de cobro es solo el botón de
+       abrirla; con la caja abierta, el buscador y el total. */
+    { en: B(/^Abrir caja con/), alternativa: true, t: "Primero, la caja", d: "Cada día se empieza abriendo la caja con el efectivo que hay en el cajón. Sin caja abierta no se puede cobrar." },
+    { en: Entrada("Escaneá o escribí"), alternativa: true, t: "Acá se busca", d: "Escribí el nombre o escaneá el código y Enter: el producto se suma a la venta." },
+    { en: B(/^Cobrar \$/), alternativa: true, t: "El total y cobrar", d: "Acá se ve el total. Cobrar (o F2) pide el medio de pago." },
     { t: "Así es una venta", d: "Buscás o escaneás cada producto, Cobrar, elegís cómo paga (efectivo calcula el vuelto, Mercado Pago muestra el QR) y entregás el ticket: impreso, por WhatsApp o por mail. El stock baja solo." },
     { t: "Todo con el teclado", d: "F1 muestra los atajos: F2 cobrar, F3 últimas ventas, F7 quitar el último, F8 anular, F10 ir al panel." },
   ],
@@ -356,7 +366,8 @@ export const PANTALLAS = {
     AYUDA_ACA,
   ],
   informes: [
-    { t: "Informes", d: "Ingresos, ocupación, asistencia y clientes, por día, semana o mes." },
+    { en: Pestana("Resumen general"), opcional: true, t: "Cómo viene el negocio", d: "Ingresos, ocupación, asistencia y clientes, contra el período anterior." },
+    { en: Pestana("Turnos"), opcional: true, t: "Cada tema por separado", d: "Turnos, finanzas, servicios, profesionales, salas y clientes: cada uno con su detalle." },
     AYUDA_ACA,
   ],
 };
@@ -399,7 +410,8 @@ export function recorridoGeneral(rubro, menu, vende) {
   ];
   for (const k of secciones) {
     const sec = k === "cobro" ? "Cobrar" : k === "comanda" ? "Tomar pedidos" : nombre[k];
-    PANTALLAS[k].filter((p) => p !== AYUDA_ACA).forEach((p, i) => {
+    const pantalla = k === "inicio" && rubro === "servicios" ? PANTALLAS.inicioServicios : PANTALLAS[k];
+    pantalla.filter((p) => p !== AYUDA_ACA).forEach((p, i) => {
       pasos.push({ ...p, sec, ...(i === 0 ? { donde: k === "cobro" || k === "comanda" ? "cobro" : k } : {}) });
     });
   }

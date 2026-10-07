@@ -89,11 +89,16 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
      (tocar "Abrir caja" hace aparecer el buscador), y avanzar dos veces
      salteaba el paso del medio. */
   const yaAvanzo = useRef(-1);
+  /* Para qué lado se iba: una alternativa que no está se saltea en la
+     misma dirección, así "Atrás" no rebota contra ella. */
+  const haciaAtras = useRef(false);
   const siguiente = () => {
     if (yaAvanzo.current === i) return;
     yaAvanzo.current = i;
+    haciaAtras.current = false;
     if (ultimo) onSalir(true); else setI((x) => x + 1);
   };
+  const atras = () => { yaAvanzo.current = -1; haciaAtras.current = true; setI((x) => Math.max(0, x - 1)); };
 
   /* Ir a la pantalla del paso, una vez al entrar al paso. */
   useEffect(() => { if (paso && paso.donde) navegar(paso.donde); }, [i]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -122,8 +127,17 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
       } else {
         setCaja(null);
         const pasaron = Date.now() - arranque;
-        if (paso.opcional && pasaron > 1800) { siguiente(); return; }
-        if (pasaron > 5000) setPerdido(true);
+        /* Ningún paso se saltea sin mostrarse (Nehuen, 07/10: "se saltan
+           solos, no muestran nada"). El cartel ya está en pantalla, al
+           medio. Solo las alternativas se saltean, y rápido: el menú de la
+           computadora o el del celular, la caja cerrada o abierta. Lo
+           opcional que no está queda explicado al medio, sin aviso; lo
+           demás avisa que no se encuentra. */
+        if (paso.alternativa && pasaron > 700) {
+          if (haciaAtras.current && i > 0) { yaAvanzo.current = -1; setI((x) => Math.max(0, x - 1)); } else siguiente();
+          return;
+        }
+        if (!paso.opcional && !paso.alternativa && pasaron > 3000) setPerdido(true);
       }
     };
     tic();
@@ -142,13 +156,28 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
 
   if (!r || !paso) return null;
 
+  /* El recorrido general cuenta secciones, no pasos: "Stock · 4 de 10".
+     Así una alternativa salteada no hace saltar el número. */
+  const secciones = [...new Set(r.pasos.map((p) => p.sec).filter(Boolean))];
+  const cabecera = paso.sec ? `${paso.sec} · ${secciones.indexOf(paso.sec) + 1} de ${secciones.length}`
+    : secciones.length ? r.titulo : `${r.titulo} · ${i + 1} de ${r.pasos.length}`;
+  /* Mientras busca, una alternativa no muestra su cartel: si no está, se
+     saltea, y verlo un instante y que desaparezca confunde. */
+  const esperandoAlternativa = paso.alternativa && !caja;
+
   const vw = window.innerWidth, vh = window.innerHeight;
   const hueco = caja && { x: Math.max(0, caja.x - MARGEN), y: Math.max(0, caja.y - MARGEN), w: caja.w + MARGEN * 2, h: caja.h + MARGEN * 2 };
   /* Todo se hace con "Seguir" (07/10): lo de afuera del hueco no se toca. */
   const mascara = "fixed z-[200] bg-black/60";
   /* "Seguir" en un paso que abre algo (una pestaña, el formulario) lo
      abre por la persona: el clic llega al botón y el escuchador avanza. */
-  const seguir = () => { if (paso.avanza === "clic" && elRef.current && !perdido) elRef.current.click(); else siguiente(); };
+  const seguir = () => {
+    /* Avanza acá mismo y no esperando al escuchador del clic: abrir una
+       pestaña que ya estaba abierta no cambia nada, y el recorrido se
+       quedaba esperando. */
+    if (paso.avanza === "clic" && elRef.current && !perdido) elRef.current.click();
+    siguiente();
+  };
   /* El cartel abajo del hueco si entra, si no arriba; sin hueco, al medio. */
   const ancho = Math.min(340, vw - 24);
   const pos = hueco
@@ -172,9 +201,9 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
         <div className={`${mascara} inset-0`} />
       )}
 
-      <div className="fixed z-[201] bg-superficie border border-borde rounded-xl shadow-lg p-4" style={{ ...pos, width: ancho }}>
+      <div className={`fixed z-[201] bg-superficie border border-borde rounded-xl shadow-lg p-4 ${esperandoAlternativa ? "invisible" : ""}`} style={{ ...pos, width: ancho }}>
         <div className="flex items-start justify-between gap-2">
-          <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">{paso.sec || r.titulo} · {i + 1} de {r.pasos.length}</span>
+          <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">{cabecera}</span>
           <button type="button" onClick={() => onSalir(false)} className="text-texto-tenue hover:text-texto -mt-0.5" aria-label="Salir del recorrido"><X size={16} /></button>
         </div>
         <div className="f-d text-base mt-1">{paso.t}</div>
@@ -184,9 +213,8 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
             No encuentro esto en tu pantalla: puede que tu usuario no lo vea, o que esté en otro lado. Seguí con el próximo paso o salí.
           </p>
         )}
-        {paso.en && !perdido && !caja && <p className="text-xs text-texto-tenue mt-2">Buscando…</p>}
         <div className="flex items-center justify-between gap-2 mt-3">
-          <button type="button" onClick={() => { yaAvanzo.current = -1; setI((x) => Math.max(0, x - 1)); }} disabled={i === 0}
+          <button type="button" onClick={atras} disabled={i === 0}
             className="text-xs text-texto-tenue hover:text-texto disabled:opacity-30">Atrás</button>
           <Boton size="sm" onClick={seguir}>{ultimo ? "Terminar" : "Seguir"}</Boton>
         </div>

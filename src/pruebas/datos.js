@@ -200,7 +200,11 @@ export function armarDatos(rubro, sesion = "comercio") {
   });
 
   const empresa = {
-    id: EMPRESA, nombre: `Comercio de prueba · ${r.nombre}`, rubro: r.clave, plan: "completo", modulos: r.modulos || [],
+    id: EMPRESA, nombre: `Comercio de prueba · ${r.nombre}`, rubro: r.clave, plan: "completo",
+    /* ?todo=1: todas las secciones del menú del rubro, para revisar el
+       recorrido general entero (servicios de prueba no tiene la agenda). */
+    modulos: (typeof location !== "undefined" && new URLSearchParams(location.search).get("todo"))
+      ? [...new Set([...(r.modulos || []), ...(r.menu || []).flatMap((g) => g.modulos.map((m) => m.k))])] : r.modulos || [],
     /* ?tope=10: el descuento máximo de los roles que no son dueño (06/10),
        para probarlo con ?rol=encargado, que no entra a Ajustes. */
     config: { negocio: "Comercio de prueba", fiscal: { condicion: "MONOTRIBUTO", razonSocial: "Comercio de prueba" },
