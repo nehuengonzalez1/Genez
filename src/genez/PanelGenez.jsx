@@ -41,6 +41,8 @@ import { PruebasPanel } from "./PruebasPanel.jsx";
 import { AvisoDePrueba } from "./Prueba.jsx";
 import { Bienvenida, PrimerosPasos, BotonAyuda, CentroDeAyuda } from "../ayuda/Onboarding.jsx";
 import { esNuevo, marcarOnboarding } from "../datos/onboarding.js";
+import { Recorrido, RecorridoCtx } from "../ayuda/Recorrido.jsx";
+import { recorridosDe } from "../ayuda/recorridos.js";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
@@ -860,6 +862,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      Arriba por lo mismo que empresaId: lo leen funciones de más abajo. */
   const [onboarding, setOnboarding] = useState(sesion.onboarding || {});
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
+  const [recorrido, setRecorrido] = useState(null);   // el id del recorrido guiado en curso
 
   /* La configuración del comercio se lee directo de la sesión. `ajustes`
      todavía arranca con valores fijos del minimercado, así que para lo que
@@ -1816,6 +1819,11 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const comercioNuevo = esNuevo(sesion.comercio.creadaEn);
   const verBienvenida = !sesion.comoAdmin && !onboarding.bienvenida && (comercioNuevo || esNuevo(sesion.perfilCreado));
   const verPrimerosPasos = !sesion.comoAdmin && configura && comercioNuevo && !onboarding.pasos_ocultos;
+  /* Los recorridos guiados (07/10): los que este comercio puede hacer, y
+     cómo se llega a cada pantalla. */
+  const navegar = (d) => (d === "cobro" ? cobrar_() : ir(d));
+  const recorridos = recorridosDe(rubroClave, secciones, vender === "cobro");
+  const ctxRecorridos = { disponibles: recorridos, iniciar: (id) => { setAyudaAbierta(false); setRecorrido(id); } };
   const terminarBienvenida = (destino) => {
     /* Se marca antes de esperar a la base: si no se guarda, vuelve a salir
        la próxima vez, que es mejor que dejarla trabada en pantalla. */
@@ -1826,6 +1834,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   };
 
   return (
+    <RecorridoCtx.Provider value={ctxRecorridos}>
     <ScanCtx.Provider value={{ push }}>
     <div className="f-ui min-h-screen bg-superficie-2 text-texto">
       <style>{`
@@ -1856,6 +1865,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         <Bienvenida nombre={sesion.nombre} comercio={sesion.comercio.nombre} rubro={rubroClave}
           configura={configura} alListo={terminarBienvenida} />
       )}
+      {recorrido && <Recorrido key={recorrido} id={recorrido} navegar={navegar} onSalir={() => setRecorrido(null)} />}
       {ayudaAbierta && <CentroDeAyuda rubro={rubroClave} secciones={vender === "cobro" ? ["cobro", ...secciones] : secciones}
         ir={(k) => (k === "cobro" ? cobrar_() : ir(k))} onCerrar={() => setAyudaAbierta(false)} />}
 
@@ -2346,6 +2356,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       </div>
     </div>
     </ScanCtx.Provider>
+    </RecorridoCtx.Provider>
   );
 }
 

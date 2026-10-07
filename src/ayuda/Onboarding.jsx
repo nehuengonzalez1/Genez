@@ -21,12 +21,33 @@
    ============================================================ */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, CircleHelp, Search, X, MessageCircle, Sparkles } from "lucide-react";
+import { Check, ChevronRight, CircleHelp, Search, X, MessageCircle, Sparkles, PlayCircle } from "lucide-react";
 import { Boton, Card, Modal } from "../ui/Base.jsx";
 import { GUIAS, GENERALES, guiaDe } from "./guias.js";
 import { marcarOnboarding, cargarProgreso } from "../datos/onboarding.js";
 import { miCuenta } from "../datos/autoservicio.js";
 import { cargarTarifasPublicas } from "../datos/tarifas.js";
+import { useRecorridos } from "./Recorrido.jsx";
+
+/* Los recorridos guiados de una lista, como botones "Mostrame cómo". */
+function Mostrame({ lista, iniciar, alIniciar }) {
+  if (!lista.length) return null;
+  return (
+    <div className="mt-4 border border-borde rounded-lg divide-y divide-borde">
+      {lista.map((r) => (
+        <button key={r.id} type="button" onClick={() => { if (alIniciar) alIniciar(); iniciar(r.id); }}
+          className="w-full text-left px-3 py-2.5 hover:bg-superficie-2 flex items-center gap-3">
+          <PlayCircle size={18} className="text-acento shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Mostrame cómo: {r.titulo.charAt(0).toLowerCase() + r.titulo.slice(1)}</span>
+            <span className="block text-xs text-texto-suave">{r.d} Paso a paso, en tu pantalla.</span>
+          </span>
+          <ChevronRight size={15} className="text-texto-tenue shrink-0" />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /* ---------- La guía de una sección, en un panel ---------- */
 
@@ -58,8 +79,10 @@ function Guia({ g }) {
 
 export function BotonAyuda({ k, rubro }) {
   const [abierto, setAbierto] = useState(false);
+  const { disponibles, iniciar } = useRecorridos();
   const g = guiaDe(k, rubro);
   if (!g) return null;
+  const deAca = disponibles.filter((r) => r.modulo === k);
   return (
     <>
       <button type="button" onClick={() => setAbierto(true)}
@@ -74,6 +97,7 @@ export function BotonAyuda({ k, rubro }) {
               <button type="button" onClick={() => setAbierto(false)} className="text-texto-tenue hover:text-texto" aria-label="Cerrar"><X size={18} /></button>
             </div>
             <div className="mt-3"><Guia g={g} /></div>
+            <Mostrame lista={deAca} iniciar={iniciar} alIniciar={() => setAbierto(false)} />
           </div>
         </Modal>
       )}
@@ -87,6 +111,7 @@ const normal = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[�
 const textoDe = (g) => normal([g.titulo, g.para, ...(g.pasos || []).flatMap((p) => [p.t, p.d]), ...(g.consejos || [])].join(" "));
 
 export function CentroDeAyuda({ rubro, secciones, ir, onCerrar }) {
+  const { disponibles, iniciar } = useRecorridos();
   const [busca, setBusca] = useState("");
   const [abierta, setAbierta] = useState(null);
   const [whatsapp, setWhatsapp] = useState(null);
@@ -118,6 +143,7 @@ export function CentroDeAyuda({ rubro, secciones, ir, onCerrar }) {
         {guia ? (
           <div className="mt-3">
             <Guia g={guia} />
+            <Mostrame lista={disponibles.filter((r) => r.modulo === guia.k)} iniciar={iniciar} />
             <div className="flex flex-wrap gap-2 mt-5">
               <Boton size="sm" variant="ghost" onClick={() => setAbierta(null)}>Volver a la ayuda</Boton>
               {GUIAS[guia.k] && <Boton size="sm" onClick={() => { onCerrar(); ir(guia.k); }}>Ir a {guia.titulo} <ChevronRight size={14} /></Boton>}
@@ -130,6 +156,24 @@ export function CentroDeAyuda({ rubro, secciones, ir, onCerrar }) {
               <input value={busca} onChange={(e) => setBusca(e.target.value)} autoFocus placeholder="Buscá: stock, impresora, factura, descuento…"
                 className="flex-1 bg-transparent outline-none text-sm" />
             </label>
+            {!q && disponibles.length > 0 && (
+              <div className="mt-4">
+                <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Paso a paso, en tu pantalla</div>
+                <div className="mt-2 grid sm:grid-cols-2 gap-2">
+                  {disponibles.map((r) => (
+                    <button key={r.id} type="button" onClick={() => iniciar(r.id)}
+                      className="text-left border border-borde rounded-lg px-3 py-2 hover:bg-superficie-2 flex items-center gap-2.5">
+                      <PlayCircle size={17} className="text-acento shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold truncate">{r.titulo}</span>
+                        <span className="block text-xs text-texto-suave truncate">{r.d}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mt-4">Las guías</div>
+              </div>
+            )}
             <ul className="mt-3 divide-y divide-borde border border-borde rounded-lg max-h-[50vh] overflow-y-auto">
               {lista.map((g) => (
                 <li key={g.k}>
@@ -267,7 +311,15 @@ function pasosDe(rubro, ctx) {
 }
 
 /* `cobrar` abre la pantalla de cobro, que no es una sección del menú. */
+/* Qué recorrido guiado enseña cada paso (07/10). */
+const RECORRIDO_DEL_PASO = { productos: "cargar-producto", stock: "contar-stock", turno: "dar-turno", equipo: "sumar-equipo" };
+
 export function PrimerosPasos({ empresaId, creadaEn, rubro, ajustes, onboarding, setOnboarding, ir, cobrar, secciones }) {
+  const { disponibles, iniciar } = useRecorridos();
+  const recorridoDe = (k) => {
+    const id = k === "venta" ? (rubro === "gastronomia" ? "tomar-pedido" : "primera-venta") : RECORRIDO_DEL_PASO[k];
+    return id && disponibles.some((r) => r.id === id) ? id : null;
+  };
   const [progreso, setProgreso] = useState(null);
   const [ejemplos, setEjemplos] = useState(null);
   useEffect(() => {
@@ -324,6 +376,7 @@ export function PrimerosPasos({ empresaId, creadaEn, rubro, ajustes, onboarding,
             {!p.listo && (
               <div className="flex gap-1.5 shrink-0">
                 {p.manual && <Boton size="sm" variant="quiet" onClick={() => tildar(p.k)}>Ya lo hice</Boton>}
+                {recorridoDe(p.k) && <Boton size="sm" variant="quiet" onClick={() => iniciar(recorridoDe(p.k))}><PlayCircle size={14} /> Mostrame</Boton>}
                 {p.ir && <Boton size="sm" variant="ghost" onClick={() => (p.ir === "cobro" ? cobrar() : ir(p.ir))}>Ir</Boton>}
                 {p.accion === "ejemplos" && <span className="text-[11px] text-texto-tenue self-center">En el aviso de arriba</span>}
               </div>
