@@ -692,7 +692,8 @@ const ATAJOS = [
    se le puso). Lo fija el comercio en Ajustes → Cobros y facturas. Como
    el permiso de descontar, lo controla la pantalla y no la base. */
 export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos, descuentoMax = null,
-  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [], cajaMp = null }) {
+  facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [], cajaMp = null,
+  muestra = false }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → (monto | qr) → fin
   /* Los puntos del cliente elegido y cuántos se usan en esta venta (0112). */
   const [puntosCliente, setPuntosCliente] = useState(null);
@@ -1002,6 +1003,17 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const totalFinal = rec.total;
   // El vuelto se calcula sobre el total con recargo, así que va después.
   const vuelto = recibe ? Number(recibe) - totalFinal : 0;
+
+  /* Modo muestra (07/10): el recorrido guiado muestra la venta con la
+     caja cerrada. Se carga un producto de ejemplo para que se vean el
+     total, Cobrar y los medios de pago. El cobro que llega en este modo
+     no guarda nada (ver cobrarMuestra en Sistema). */
+  useEffect(() => {
+    if (!muestra || cart.length) return;
+    const p = productos.find((x) => Number(x.precio) > 0 && !x.precioAbierto);
+    if (p) setCart([{ lid: uid(), pid: p.id, qty: 1, precio: p.precio, precios: p.precios || {}, costo: p.costo, nombre: p.nombre,
+      unidad: p.unidad, precioAbierto: false, iva: p.iva, ivaCondicion: p.ivaCondicion }]);
+  }, [muestra]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const irAPago = () => {
     if (!cart.length) return;
@@ -1362,7 +1374,8 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           {cart.length === 0 ? <Vacio>El ticket está vacío. Escaneá el primer producto.</Vacio> : (
           <>
             {/* En celular no entra una tabla de cinco columnas: va como lista */}
-            <ul className="md:hidden divide-y divide-borde">
+            {/* data-guia: lo que señala el recorrido guiado ("La venta"). */}
+            <ul data-guia="venta" className="md:hidden divide-y divide-borde">
               {lineas.map((l, i) => (
                 <li key={l.lid} className={`px-3 py-2.5 ${i === lineas.length - 1 ? "bg-acento-suave/40" : ""}`}>
                   <div className="flex items-start gap-2">
@@ -1387,7 +1400,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                 </li>
               ))}
             </ul>
-            <table className="hidden md:table w-full text-sm">
+            <table data-guia="venta" className="hidden md:table w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-texto-tenue border-b border-borde">
                   <th className="px-4 py-2 font-semibold">Producto</th>
@@ -1632,7 +1645,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                 )}
               </div>
             )}
-            <ul className="space-y-1.5">
+            <ul data-guia="medios" className="space-y-1.5">
               {medios.map((m, i) => (
                 <li key={m.k}>
                   <button onClick={() => { setMedioSel(i); m.k === "efectivo" ? setPaso("monto") : cobrarCon(m.k); }}

@@ -20,13 +20,35 @@
    otra computadora.
    ============================================================ */
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, CircleHelp, Search, X, MessageCircle, Sparkles } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronRight, CircleHelp, Search, X, MessageCircle, Sparkles, PlayCircle } from "lucide-react";
 import { Boton, Card, Modal } from "../ui/Base.jsx";
 import { GUIAS, GENERALES, guiaDe } from "./guias.js";
 import { marcarOnboarding, cargarProgreso } from "../datos/onboarding.js";
 import { miCuenta } from "../datos/autoservicio.js";
 import { cargarTarifasPublicas } from "../datos/tarifas.js";
+import { useRecorridos } from "./Recorrido.jsx";
+import { PANTALLAS } from "./recorridos.js";
+
+/* Los recorridos guiados de una lista, como botones "Mostrame cómo". */
+function Mostrame({ lista, iniciar, alIniciar }) {
+  if (!lista.length) return null;
+  return (
+    <div className="mt-4 border border-borde rounded-lg divide-y divide-borde">
+      {lista.map((r) => (
+        <button key={r.id} type="button" onClick={() => { if (alIniciar) alIniciar(); iniciar(r.id); }}
+          className="w-full text-left px-3 py-2.5 hover:bg-superficie-2 flex items-center gap-3">
+          <PlayCircle size={18} className="text-acento shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Mostrame cómo: {r.titulo.charAt(0).toLowerCase() + r.titulo.slice(1)}</span>
+            <span className="block text-xs text-texto-suave">{r.d} Paso a paso, en tu pantalla.</span>
+          </span>
+          <ChevronRight size={15} className="text-texto-tenue shrink-0" />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /* ---------- La guía de una sección, en un panel ---------- */
 
@@ -58,8 +80,15 @@ function Guia({ g }) {
 
 export function BotonAyuda({ k, rubro }) {
   const [abierto, setAbierto] = useState(false);
+  const { disponibles, iniciar } = useRecorridos();
   const g = guiaDe(k, rubro);
   if (!g) return null;
+  /* Primero el recorrido de la pantalla (todas lo tienen), después los de
+     las tareas que se hacen en ella. */
+  const deAca = [
+    ...(PANTALLAS[k] ? [{ id: `pantalla-${k}`, titulo: "Recorrer esta pantalla", d: "Qué es cada parte." }] : []),
+    ...disponibles.filter((r) => r.modulo === k),
+  ];
   return (
     <>
       <button type="button" onClick={() => setAbierto(true)}
@@ -74,6 +103,7 @@ export function BotonAyuda({ k, rubro }) {
               <button type="button" onClick={() => setAbierto(false)} className="text-texto-tenue hover:text-texto" aria-label="Cerrar"><X size={18} /></button>
             </div>
             <div className="mt-3"><Guia g={g} /></div>
+            <Mostrame lista={deAca} iniciar={iniciar} alIniciar={() => setAbierto(false)} />
           </div>
         </Modal>
       )}
@@ -87,6 +117,7 @@ const normal = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[�
 const textoDe = (g) => normal([g.titulo, g.para, ...(g.pasos || []).flatMap((p) => [p.t, p.d]), ...(g.consejos || [])].join(" "));
 
 export function CentroDeAyuda({ rubro, secciones, ir, onCerrar }) {
+  const { disponibles, iniciar } = useRecorridos();
   const [busca, setBusca] = useState("");
   const [abierta, setAbierta] = useState(null);
   const [whatsapp, setWhatsapp] = useState(null);
@@ -118,6 +149,7 @@ export function CentroDeAyuda({ rubro, secciones, ir, onCerrar }) {
         {guia ? (
           <div className="mt-3">
             <Guia g={guia} />
+            <Mostrame lista={disponibles.filter((r) => r.modulo === guia.k)} iniciar={iniciar} />
             <div className="flex flex-wrap gap-2 mt-5">
               <Boton size="sm" variant="ghost" onClick={() => setAbierta(null)}>Volver a la ayuda</Boton>
               {GUIAS[guia.k] && <Boton size="sm" onClick={() => { onCerrar(); ir(guia.k); }}>Ir a {guia.titulo} <ChevronRight size={14} /></Boton>}
@@ -130,6 +162,24 @@ export function CentroDeAyuda({ rubro, secciones, ir, onCerrar }) {
               <input value={busca} onChange={(e) => setBusca(e.target.value)} autoFocus placeholder="Buscá: stock, impresora, factura, descuento…"
                 className="flex-1 bg-transparent outline-none text-sm" />
             </label>
+            {!q && disponibles.length > 0 && (
+              <div className="mt-4">
+                <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">Paso a paso, en tu pantalla</div>
+                <div className="mt-2 grid sm:grid-cols-2 gap-2">
+                  {disponibles.map((r) => (
+                    <button key={r.id} type="button" onClick={() => iniciar(r.id)}
+                      className="text-left border border-borde rounded-lg px-3 py-2 hover:bg-superficie-2 flex items-center gap-2.5">
+                      <PlayCircle size={17} className="text-acento shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold truncate">{r.titulo}</span>
+                        <span className="block text-xs text-texto-suave truncate">{r.d}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold mt-4">Las guías</div>
+              </div>
+            )}
             <ul className="mt-3 divide-y divide-borde border border-borde rounded-lg max-h-[50vh] overflow-y-auto">
               {lista.map((g) => (
                 <li key={g.k}>
@@ -193,11 +243,11 @@ export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
       "Cargamos productos, clientes y ventas de muestra para que veas cómo se ve con datos. Probá todo: nada de eso es real.",
       "Cuando quieras, los borrás con \"Borrar ejemplos\" en el aviso de arriba. Lo que cargues vos queda." ] },
     { t: "Cómo está organizado", d: [
-      "A la izquierda está el menú, una sección por tarea. Arriba de cada una, \"¿Cómo se usa?\" te explica qué se hace ahí, paso a paso.",
+      "El menú tiene una sección por tarea. Arriba de cada pantalla, \"¿Cómo se usa?\" te la explica cuando quieras.",
       "El botón naranja de arriba es para cobrar. Y el signo de pregunta, junto a tu nombre, abre toda la ayuda." ] },
-    { t: "Por dónde empezar", d: [
-      `En Inicio vas a ver tus primeros pasos: lo que conviene dejar listo, empezando por ${PRIMERO[rubro] || PRIMERO.minimercado}. Se tildan solos a medida que los hacés.`,
-      "Si te trabás, escribinos por WhatsApp desde la ayuda." ] },
+    { t: "Ahora, un recorrido", d: [
+      "Te mostramos el sistema de punta a punta, sección por sección. Solo tocá Seguir: no se carga nada.",
+      `Después, en Inicio vas a ver tus primeros pasos, empezando por ${PRIMERO[rubro] || PRIMERO.minimercado}. Se tildan solos a medida que los hacés.` ] },
   ].filter(Boolean) : [
     { t: `Hola${quien ? `, ${quien}` : ""}. Bienvenido a Genez`, d: [
       `Este es el sistema de ${comercio}. Ves las secciones que tu rol tiene habilitadas.`,
@@ -208,6 +258,20 @@ export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
   ];
   const p = pantallas[paso];
   const ultima = paso === pantallas.length - 1;
+  /* Enter sigue, como en el recorrido (07/10); en la última, lo empieza. */
+  const teclas = useRef({});
+  teclas.current = { ultima, total: pantallas.length };
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key !== "Enter" && e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (e.repeat) return;
+      if (e.key === "ArrowLeft") { setPaso((x) => Math.max(0, x - 1)); return; }
+      if (teclas.current.ultima) alListo("recorrido"); else setPaso((x) => Math.min(teclas.current.total - 1, x + 1));
+    };
+    window.addEventListener("keydown", h, true);
+    return () => window.removeEventListener("keydown", h, true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Modal open onClose={() => alListo(null)} ancho="max-w-md">
       <div className="p-6">
@@ -219,9 +283,8 @@ export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
           <div className="flex gap-2">
             {paso > 0 && <Boton variant="ghost" onClick={() => setPaso(paso - 1)}>Atrás</Boton>}
             {!ultima && <Boton onClick={() => setPaso(paso + 1)}>Seguir</Boton>}
-            {ultima && configura && <Boton variant="ghost" onClick={() => alListo("cobro")}>Ir a cobrar</Boton>}
-            {/* Un empleado se queda donde entró: puede no tener Inicio. */}
-            {ultima && <Boton onClick={() => alListo(configura ? "inicio" : null)}>{configura ? "Ver mis primeros pasos" : "Empezar"}</Boton>}
+            {/* Al terminar, el recorrido general (07/10): de corrido, con Seguir. */}
+            {ultima && <Boton onClick={() => alListo("recorrido")}>Empezar el recorrido</Boton>}
           </div>
         </div>
       </div>
@@ -267,7 +330,15 @@ function pasosDe(rubro, ctx) {
 }
 
 /* `cobrar` abre la pantalla de cobro, que no es una sección del menú. */
+/* Qué recorrido guiado enseña cada paso (07/10). */
+const RECORRIDO_DEL_PASO = { productos: "cargar-producto", stock: "contar-stock", turno: "dar-turno", equipo: "sumar-equipo" };
+
 export function PrimerosPasos({ empresaId, creadaEn, rubro, ajustes, onboarding, setOnboarding, ir, cobrar, secciones }) {
+  const { disponibles, iniciar } = useRecorridos();
+  const recorridoDe = (k) => {
+    const id = k === "venta" ? (rubro === "gastronomia" ? "tomar-pedido" : "primera-venta") : RECORRIDO_DEL_PASO[k];
+    return id && disponibles.some((r) => r.id === id) ? id : null;
+  };
   const [progreso, setProgreso] = useState(null);
   const [ejemplos, setEjemplos] = useState(null);
   useEffect(() => {
@@ -324,6 +395,7 @@ export function PrimerosPasos({ empresaId, creadaEn, rubro, ajustes, onboarding,
             {!p.listo && (
               <div className="flex gap-1.5 shrink-0">
                 {p.manual && <Boton size="sm" variant="quiet" onClick={() => tildar(p.k)}>Ya lo hice</Boton>}
+                {recorridoDe(p.k) && <Boton size="sm" variant="quiet" onClick={() => iniciar(recorridoDe(p.k))}><PlayCircle size={14} /> Mostrame</Boton>}
                 {p.ir && <Boton size="sm" variant="ghost" onClick={() => (p.ir === "cobro" ? cobrar() : ir(p.ir))}>Ir</Boton>}
                 {p.accion === "ejemplos" && <span className="text-[11px] text-texto-tenue self-center">En el aviso de arriba</span>}
               </div>

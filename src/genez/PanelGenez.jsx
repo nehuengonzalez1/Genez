@@ -41,6 +41,8 @@ import { PruebasPanel } from "./PruebasPanel.jsx";
 import { AvisoDePrueba } from "./Prueba.jsx";
 import { Bienvenida, PrimerosPasos, BotonAyuda, CentroDeAyuda } from "../ayuda/Onboarding.jsx";
 import { esNuevo, marcarOnboarding } from "../datos/onboarding.js";
+import { Recorrido, RecorridoCtx } from "../ayuda/Recorrido.jsx";
+import { recorridosDe, recorridoGeneral } from "../ayuda/recorridos.js";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
@@ -860,6 +862,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      Arriba por lo mismo que empresaId: lo leen funciones de más abajo. */
   const [onboarding, setOnboarding] = useState(sesion.onboarding || {});
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
+  const [recorrido, setRecorrido] = useState(null);   // el id del recorrido guiado en curso
 
   /* La configuración del comercio se lee directo de la sesión. `ajustes`
      todavía arranca con valores fijos del minimercado, así que para lo que
@@ -1816,16 +1819,34 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const comercioNuevo = esNuevo(sesion.comercio.creadaEn);
   const verBienvenida = !sesion.comoAdmin && !onboarding.bienvenida && (comercioNuevo || esNuevo(sesion.perfilCreado));
   const verPrimerosPasos = !sesion.comoAdmin && configura && comercioNuevo && !onboarding.pasos_ocultos;
+  /* Los recorridos guiados (07/10): los que este comercio puede hacer, y
+     cómo se llega a cada pantalla. */
+  const navegar = (d) => (d === "cobro" ? cobrar_() : ir(d));
+  /* El recorrido general (07/10): de corrido, por las secciones
+     principales del rubro, solo con "Seguir". Arranca al terminar la
+     bienvenida y queda en la ayuda para volver a verlo. */
+  const general = recorridoGeneral(rubroClave, grupos.flatMap((g) => g.modulos.map((m) => ({ k: m.k, n: m.n }))), vender);
+  const recorridos = [general, ...recorridosDe(rubroClave, secciones, vender === "cobro")];
+  const ctxRecorridos = { disponibles: recorridos, iniciar: (id) => { setAyudaAbierta(false); setRecorrido(id); } };
+  /* La venta en modo muestra (07/10, Nehuen: "la parte de venta, que es
+     la más importante, no te la muestra; no tiene que estar la caja
+     cerrada si están viendo el sistema"). Durante los recorridos que
+     pasan por la venta, con la caja cerrada se muestra el cobro igual,
+     con un producto de ejemplo. No se abre la caja y no se guarda nada:
+     el cobro de la muestra solo avisa. Con la caja abierta, el de verdad. */
+  const muestraVenta = !caja.abierta && (recorrido === "general" || recorrido === "primera-venta");
+  const cobrarMuestra = () => { toast("Es una muestra del recorrido: no se guardó ninguna venta.", "ok"); return null; };
+
   const terminarBienvenida = (destino) => {
     /* Se marca antes de esperar a la base: si no se guarda, vuelve a salir
        la próxima vez, que es mejor que dejarla trabada en pantalla. */
     setOnboarding((o) => ({ ...o, bienvenida: new Date().toISOString() }));
     marcarOnboarding("bienvenida", new Date().toISOString()).then(setOnboarding).catch(() => {});
-    if (destino === "inicio") ir("inicio");
-    else if (destino === "cobro" && accion) cobrar_();
+    if (destino === "recorrido") setRecorrido("general");
   };
 
   return (
+    <RecorridoCtx.Provider value={ctxRecorridos}>
     <ScanCtx.Provider value={{ push }}>
     <div className="f-ui min-h-screen bg-superficie-2 text-texto">
       <style>{`
@@ -1856,6 +1877,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         <Bienvenida nombre={sesion.nombre} comercio={sesion.comercio.nombre} rubro={rubroClave}
           configura={configura} alListo={terminarBienvenida} />
       )}
+      {recorrido && <Recorrido key={recorrido} id={recorrido} datos={recorrido === "general" ? general : undefined}
+        navegar={navegar} onSalir={() => setRecorrido(null)} />}
       {ayudaAbierta && <CentroDeAyuda rubro={rubroClave} secciones={vender === "cobro" ? ["cobro", ...secciones] : secciones}
         ir={(k) => (k === "cobro" ? cobrar_() : ir(k))} onCerrar={() => setAyudaAbierta(false)} />}
 
@@ -1912,8 +1935,13 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 venta sin sesión, así que dejar armar el carrito termina en un
                 ticket impreso de una venta que el servidor nunca aceptó. */}
             <Barrera key="cobro" nombre="Cobro">
-            {caja.abierta ? (
-              <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
+            {muestraVenta && (
+              <div className="mx-3 md:mx-4 mt-3 text-xs text-ojo border border-ojo rounded-lg px-3 py-2 bg-ojo-suave">
+                Modo muestra del recorrido: la caja no está abierta y nada de lo que se haga acá se guarda.
+              </div>
+            )}
+            {caja.abierta || muestraVenta ? (
+              <POS productos={productos} setProductos={setProductos} cobrar={muestraVenta ? cobrarMuestra : cobrar} ajustes={ajustes} muestra={muestraVenta}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
                 descuentoMax={descuentoMaxDe(sesion, ajustes)}
@@ -2346,6 +2374,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       </div>
     </div>
     </ScanCtx.Provider>
+    </RecorridoCtx.Provider>
   );
 }
 
