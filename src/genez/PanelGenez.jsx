@@ -1828,6 +1828,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const general = recorridoGeneral(rubroClave, grupos.flatMap((g) => g.modulos.map((m) => ({ k: m.k, n: m.n }))), vender);
   const recorridos = [general, ...recorridosDe(rubroClave, secciones, vender === "cobro")];
   const ctxRecorridos = { disponibles: recorridos, iniciar: (id) => { setAyudaAbierta(false); setRecorrido(id); } };
+  /* La venta en modo muestra (07/10, Nehuen: "la parte de venta, que es
+     la más importante, no te la muestra; no tiene que estar la caja
+     cerrada si están viendo el sistema"). Durante los recorridos que
+     pasan por la venta, con la caja cerrada se muestra el cobro igual,
+     con un producto de ejemplo. No se abre la caja y no se guarda nada:
+     el cobro de la muestra solo avisa. Con la caja abierta, el de verdad. */
+  const muestraVenta = !caja.abierta && (recorrido === "general" || recorrido === "primera-venta");
+  const cobrarMuestra = () => { toast("Es una muestra del recorrido: no se guardó ninguna venta.", "ok"); return null; };
+
   const terminarBienvenida = (destino) => {
     /* Se marca antes de esperar a la base: si no se guarda, vuelve a salir
        la próxima vez, que es mejor que dejarla trabada en pantalla. */
@@ -1926,8 +1935,13 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 venta sin sesión, así que dejar armar el carrito termina en un
                 ticket impreso de una venta que el servidor nunca aceptó. */}
             <Barrera key="cobro" nombre="Cobro">
-            {caja.abierta ? (
-              <POS productos={productos} setProductos={setProductos} cobrar={cobrar} ajustes={ajustes}
+            {muestraVenta && (
+              <div className="mx-3 md:mx-4 mt-3 text-xs text-ojo border border-ojo rounded-lg px-3 py-2 bg-ojo-suave">
+                Modo muestra del recorrido: la caja no está abierta y nada de lo que se haga acá se guarda.
+              </div>
+            )}
+            {caja.abierta || muestraVenta ? (
+              <POS productos={productos} setProductos={setProductos} cobrar={muestraVenta ? cobrarMuestra : cobrar} ajustes={ajustes} muestra={muestraVenta}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
                 descuentoMax={descuentoMaxDe(sesion, ajustes)}

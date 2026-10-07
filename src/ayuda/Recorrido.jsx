@@ -101,7 +101,13 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
   const atras = () => { yaAvanzo.current = -1; haciaAtras.current = true; setI((x) => Math.max(0, x - 1)); };
 
   /* Ir a la pantalla del paso, una vez al entrar al paso. */
-  useEffect(() => { if (paso && paso.donde) navegar(paso.donde); }, [i]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Volviendo con "Atrás" a un paso de otra sección, se vuelve también a
+     su pantalla: la del paso más cercano que dice a dónde ir. */
+  useEffect(() => {
+    if (!paso) return;
+    const d = paso.donde || (haciaAtras.current ? (r.pasos.slice(0, i).reverse().find((p) => p.donde) || {}).donde : null);
+    if (d) navegar(d);
+  }, [i]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Buscar el elemento sin parar mientras dura el paso. */
   useLayoutEffect(() => {

@@ -32,24 +32,29 @@ const Campo = (campo) => ({ campo });
 const Entrada = (placeholder) => ({ placeholder });
 const Algo = (texto) => ({ texto, en: "*" });
 
+/* LA VENTA, como se muestra en los recorridos (07/10). Con la caja
+   cerrada, Sistema monta el cobro en modo muestra con un producto de
+   ejemplo: se ve todo y no se guarda nada. "Seguir" en Cobrar abre los
+   medios de pago, que tampoco guardan nada hasta confirmar. */
+const PASOS_VENTA = [
+  { t: "Primero, la caja", d: "Cada día empieza abriendo la caja con el efectivo que hay en el cajón. Para este recorrido te mostramos la venta como si estuviera abierta: nada de lo que veas acá se guarda." },
+  { en: Entrada("Escaneá o escribí"), t: "Buscá el producto", d: "Escribí el nombre o escaneá el código de barras y apretá Enter: se suma a la venta. Para cambiar la cantidad del último, escribí el número y Enter." },
+  { en: { css: "[data-guia='venta']" }, opcional: true, t: "La venta", d: "Lo que vas cargando aparece acá, con cantidad y precio. Te cargamos un producto de ejemplo." },
+  { en: B(/^Cobrar \$/), avanza: "clic", opcional: true, t: "Cobrar", d: "Con todo cargado, Cobrar (o Enter con el campo vacío, o F2). Tocá Seguir y te mostramos cómo se elige el pago." },
+  /* La lista entera, no un medio: el cartel tapaba los de abajo. */
+  { en: { css: "[data-guia='medios']" }, opcional: true, t: "Cómo paga", d: "Cada medio tiene su número (1 efectivo, 2 débito…). Efectivo te pregunta con cuánto paga y calcula el vuelto; Mercado Pago muestra el QR; Cuenta corriente lo deja como deuda del cliente." },
+  { en: B(/Pago combinado/), opcional: true, t: "Parte y parte", d: "Para cobrar una parte en efectivo y otra con tarjeta." },
+  { t: "El ticket", d: "Al confirmar, la venta queda guardada y el stock baja solo. Imprimís el ticket (I), lo mandás por WhatsApp (W) o por mail (E), y Nueva venta (Enter) empieza la próxima." },
+  { t: "Todo con el teclado", d: "F1 muestra los atajos: F2 cobrar, F3 últimas ventas, F7 quitar el último, F8 anular, F10 ir al panel." },
+];
+
 export const RECORRIDOS = [
   {
     id: "primera-venta", modulo: "cobro", rubros: ["minimercado"],
     titulo: "Hacer una venta",
     d: "De abrir la caja a entregar el ticket.",
-    /* Se muestra, no se hace (07/10): "que diga seguir, no que te haga
-       cargar cosas". Una venta de verdad se hace después, sola. */
-    pasos: [
-      { donde: "cobro", en: B(/^Abrir caja con/), alternativa: true,
-        t: "Abrí la caja", d: "Cada día se empieza abriendo la caja con el efectivo que hay en el cajón. Sin caja abierta no se puede cobrar." },
-      { en: Entrada("Escaneá o escribí"), opcional: true,
-        t: "Buscá el producto", d: "Escribí el nombre o escaneá el código de barras y apretá Enter: se suma a la venta. Para cambiar la cantidad del último, escribí el número y Enter." },
-      /* El botón dice el total: "Cobrar $4.800 F2". */
-      { en: B(/^Cobrar \$/), opcional: true,
-        t: "Cobrá", d: "Con todo cargado, Cobrar (o Enter con el campo vacío, o F2)." },
-      { t: "Elegí cómo paga", d: "Aparecen los medios de pago: tocás uno o apretás su número (1 efectivo, 2 débito…). Con 6 combinás dos. Efectivo te pregunta con cuánto paga y calcula el vuelto; Mercado Pago muestra el QR." },
-      { t: "El ticket", d: "Confirmado el cobro, la venta queda guardada y descuenta el stock. Imprimís el ticket (I), lo mandás por WhatsApp (W) o por mail (E), y Nueva venta (Enter) empieza la próxima. F3 muestra las últimas ventas, F8 anula." },
-    ],
+    /* Los mismos pasos que el recorrido general. */
+    pasos: PASOS_VENTA.map((p, i) => (i === 0 ? { ...p, donde: "cobro" } : p)),
   },
   {
     id: "cargar-producto", modulo: "productos",
@@ -237,15 +242,7 @@ export const PANTALLAS = {
     { en: Algo(/^Acciones rápidas$/i), opcional: true, t: "Tu día", d: "Los turnos de hoy, lo que falta confirmar y las acciones rápidas: un turno nuevo sin entrar a la agenda." },
     { en: Css("button[aria-label='Ayuda']"), opcional: true, t: "La ayuda", d: "Todas las guías y los paso a paso, con un buscador y nuestro WhatsApp." },
   ],
-  cobro: [
-    /* Con la caja cerrada, la pantalla de cobro es solo el botón de
-       abrirla; con la caja abierta, el buscador y el total. */
-    { en: B(/^Abrir caja con/), alternativa: true, t: "Primero, la caja", d: "Cada día se empieza abriendo la caja con el efectivo que hay en el cajón. Sin caja abierta no se puede cobrar." },
-    { en: Entrada("Escaneá o escribí"), alternativa: true, t: "Acá se busca", d: "Escribí el nombre o escaneá el código y Enter: el producto se suma a la venta." },
-    { en: B(/^Cobrar \$/), alternativa: true, t: "El total y cobrar", d: "Acá se ve el total. Cobrar (o F2) pide el medio de pago." },
-    { t: "Así es una venta", d: "Buscás o escaneás cada producto, Cobrar, elegís cómo paga (efectivo calcula el vuelto, Mercado Pago muestra el QR) y entregás el ticket: impreso, por WhatsApp o por mail. El stock baja solo." },
-    { t: "Todo con el teclado", d: "F1 muestra los atajos: F2 cobrar, F3 últimas ventas, F7 quitar el último, F8 anular, F10 ir al panel." },
-  ],
+  cobro: PASOS_VENTA,
   comanda: [
     { en: Algo(/^Tomar un pedido$/i), opcional: true, t: "Tomar un pedido", d: "Por mostrador, delivery o aplicaciones: cada canal abre un pedido." },
     { en: Algo(/^Salón$/i), opcional: true, t: "El salón", d: "Las mesas en el plano. Tocá una para abrir o seguir su pedido." },
