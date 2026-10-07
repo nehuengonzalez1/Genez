@@ -151,6 +151,35 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
     return () => clearInterval(h);
   }, [i]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* El teclado (Nehuen, 07/10: "que el Enter sea como apretar Seguir, así
+     no tengo que andar siguiendo el cartel"): Enter o → sigue, ← vuelve,
+     Esc sale. En la fase de captura de la ventana, antes que nadie, y sin
+     dejarlo pasar: abajo está la caja, y un Enter que llegara al cobro
+     agregaría un producto o cobraría. */
+  const accionesRef = useRef({});
+  useEffect(() => {
+    const h = (e) => {
+      const a = accionesRef.current;
+      const tecla = e.key;
+      if (!["Enter", "ArrowRight", "ArrowLeft", "Escape"].includes(tecla)) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (e.repeat) return;
+      if (tecla === "Enter" || tecla === "ArrowRight") a.seguir && a.seguir();
+      else if (tecla === "ArrowLeft") a.atras && a.atras();
+      else onSalir(false);
+    };
+    window.addEventListener("keydown", h, true);
+    return () => window.removeEventListener("keydown", h, true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* El alto del cartel, medido: para ubicarlo sin tapar lo resaltado. */
+  const cartelRef = useRef(null);
+  const [altoCartel, setAltoCartel] = useState(180);
+  useLayoutEffect(() => {
+    const h = cartelRef.current ? cartelRef.current.offsetHeight : 0;
+    if (h && Math.abs(h - altoCartel) > 2) setAltoCartel(h);
+  });
+
   /* Avanzar con el clic en lo resaltado. En captura y sin frenarlo: el
      clic tiene que hacer lo suyo (abrir el modal, cobrar). */
   useEffect(() => {
@@ -174,7 +203,7 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
   const vw = window.innerWidth, vh = window.innerHeight;
   const hueco = caja && { x: Math.max(0, caja.x - MARGEN), y: Math.max(0, caja.y - MARGEN), w: caja.w + MARGEN * 2, h: caja.h + MARGEN * 2 };
   /* Todo se hace con "Seguir" (07/10): lo de afuera del hueco no se toca. */
-  const mascara = "fixed z-[200] bg-black/60";
+  const mascara = "fixed z-[200] bg-black/60 transition-all duration-200 ease-out";
   /* "Seguir" en un paso que abre algo (una pestaña, el formulario) lo
      abre por la persona: el clic llega al botón y el escuchador avanza. */
   const seguir = () => {
@@ -184,14 +213,26 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
     if (paso.avanza === "clic" && elRef.current && !perdido) elRef.current.click();
     siguiente();
   };
-  /* El cartel abajo del hueco si entra, si no arriba; sin hueco, al medio. */
-  const ancho = Math.min(340, vw - 24);
-  const pos = hueco
-    ? (() => {
-      const left = Math.min(Math.max(12, hueco.x), vw - ancho - 12);
-      return hueco.y + hueco.h + 190 < vh ? { left, top: hueco.y + hueco.h + 10 } : { left, top: Math.max(12, hueco.y - 200) };
-    })()
-    : { left: (vw - ancho) / 2, top: Math.max(24, vh / 2 - 120) };
+  accionesRef.current = { seguir, atras: () => { if (i > 0) atras(); } };
+  /* Dónde va el cartel, sin tapar lo resaltado: abajo, arriba, a la
+     derecha o a la izquierda, lo primero que entre entero. Si no entra en
+     ningún lado (lo resaltado ocupa casi toda la pantalla), abajo de todo.
+     Sin nada resaltado, al medio. */
+  const ancho = Math.min(360, vw - 24);
+  const H = altoCartel, M = 12;
+  const entre = (v, min, max) => Math.min(Math.max(v, min), Math.max(min, max));
+  const pos = (() => {
+    if (!hueco) return { left: (vw - ancho) / 2, top: Math.max(24, vh / 2 - H / 2) };
+    const x = entre(hueco.x, M, vw - ancho - M);
+    if (hueco.y + hueco.h + M + H <= vh - M) return { left: x, top: hueco.y + hueco.h + M };
+    if (hueco.y - M - H >= M) return { left: x, top: hueco.y - M - H };
+    const y = entre(hueco.y, M, vh - H - M);
+    if (hueco.x + hueco.w + M + ancho <= vw - M) return { left: hueco.x + hueco.w + M, top: y };
+    if (hueco.x - M - ancho >= M) return { left: hueco.x - M - ancho, top: y };
+    return { left: (vw - ancho) / 2, top: vh - H - M };
+  })();
+  const suave = "transition-all duration-200 ease-out";
+  const nSeccion = paso.sec ? secciones.indexOf(paso.sec) + 1 : 0;
 
   return (
     <div data-recorrido>
@@ -201,17 +242,22 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
           <div className={mascara} style={{ left: 0, top: hueco.y + hueco.h, width: vw, height: Math.max(0, vh - hueco.y - hueco.h) }} />
           <div className={mascara} style={{ left: 0, top: hueco.y, width: hueco.x, height: hueco.h }} />
           <div className={mascara} style={{ left: hueco.x + hueco.w, top: hueco.y, width: Math.max(0, vw - hueco.x - hueco.w), height: hueco.h }} />
-          <div className="fixed z-[200] rounded-lg ring-2 ring-acento pointer-events-none" style={{ left: hueco.x, top: hueco.y, width: hueco.w, height: hueco.h }} />
+          <div className="fixed z-[200] rounded-lg ring-2 ring-acento pointer-events-none transition-all duration-200 ease-out" style={{ left: hueco.x, top: hueco.y, width: hueco.w, height: hueco.h }} />
         </>
       ) : (
         <div className={`${mascara} inset-0`} />
       )}
 
-      <div className={`fixed z-[201] bg-superficie border border-borde rounded-xl shadow-lg p-4 ${esperandoAlternativa ? "invisible" : ""}`} style={{ ...pos, width: ancho }}>
+      <div ref={cartelRef} className={`fixed z-[201] bg-superficie border border-borde rounded-xl shadow-lg p-4 ${suave} ${esperandoAlternativa ? "invisible" : ""}`} style={{ ...pos, width: ancho }}>
         <div className="flex items-start justify-between gap-2">
           <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">{cabecera}</span>
           <button type="button" onClick={() => onSalir(false)} className="text-texto-tenue hover:text-texto -mt-0.5" aria-label="Salir del recorrido"><X size={16} /></button>
         </div>
+        {secciones.length > 0 && (
+          <div className="mt-2 h-1 bg-superficie-2 rounded-full overflow-hidden">
+            <div className={`h-full bg-acento rounded-full ${suave}`} style={{ width: `${(ultimo ? 1 : nSeccion / (secciones.length + 1)) * 100}%` }} />
+          </div>
+        )}
         <div className="f-d text-base mt-1">{paso.t}</div>
         {paso.d && <p className="text-sm text-texto-suave mt-1">{paso.d}</p>}
         {perdido && (
@@ -222,7 +268,8 @@ export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
         <div className="flex items-center justify-between gap-2 mt-3">
           <button type="button" onClick={atras} disabled={i === 0}
             className="text-xs text-texto-tenue hover:text-texto disabled:opacity-30">Atrás</button>
-          <Boton size="sm" onClick={seguir}>{ultimo ? "Terminar" : "Seguir"}</Boton>
+          <span className="hidden md:inline text-[11px] text-texto-tenue ml-auto">← → para moverte · Esc para salir</span>
+          <Boton size="sm" onClick={seguir}>{ultimo ? "Terminar" : "Seguir"} <span className="text-[10px] opacity-70">↵</span></Boton>
         </div>
       </div>
     </div>

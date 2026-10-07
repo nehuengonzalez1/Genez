@@ -20,7 +20,7 @@
    otra computadora.
    ============================================================ */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, CircleHelp, Search, X, MessageCircle, Sparkles, PlayCircle } from "lucide-react";
 import { Boton, Card, Modal } from "../ui/Base.jsx";
 import { GUIAS, GENERALES, guiaDe } from "./guias.js";
@@ -258,6 +258,20 @@ export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
   ];
   const p = pantallas[paso];
   const ultima = paso === pantallas.length - 1;
+  /* Enter sigue, como en el recorrido (07/10); en la última, lo empieza. */
+  const teclas = useRef({});
+  teclas.current = { ultima, total: pantallas.length };
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key !== "Enter" && e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (e.repeat) return;
+      if (e.key === "ArrowLeft") { setPaso((x) => Math.max(0, x - 1)); return; }
+      if (teclas.current.ultima) alListo("recorrido"); else setPaso((x) => Math.min(teclas.current.total - 1, x + 1));
+    };
+    window.addEventListener("keydown", h, true);
+    return () => window.removeEventListener("keydown", h, true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Modal open onClose={() => alListo(null)} ancho="max-w-md">
       <div className="p-6">
