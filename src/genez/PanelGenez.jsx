@@ -42,7 +42,7 @@ import { AvisoDePrueba } from "./Prueba.jsx";
 import { Bienvenida, PrimerosPasos, BotonAyuda, CentroDeAyuda } from "../ayuda/Onboarding.jsx";
 import { esNuevo, marcarOnboarding } from "../datos/onboarding.js";
 import { Recorrido, RecorridoCtx } from "../ayuda/Recorrido.jsx";
-import { recorridosDe } from "../ayuda/recorridos.js";
+import { recorridosDe, PANTALLAS } from "../ayuda/recorridos.js";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
 import { useLogos } from "../ui/logos.js";
@@ -1824,6 +1824,23 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const navegar = (d) => (d === "cobro" ? cobrar_() : ir(d));
   const recorridos = recorridosDe(rubroClave, secciones, vender === "cobro");
   const ctxRecorridos = { disponibles: recorridos, iniciar: (id) => { setAyudaAbierta(false); setRecorrido(id); } };
+  /* El recorrido de cada pantalla, solo, la primera vez que la persona
+     entra (07/10, Nehuen: "no tenés que ir a darle iniciar"). Mientras
+     dura el onboarding (lo mismo que la bienvenida) y después de la
+     bienvenida, de a uno: si hay un recorrido en curso, la pantalla a la
+     que lleva queda como vista, para no encimarle otro al terminar. */
+  const pantallaActual = vista === "panel" ? tab : vista === "comanda" ? "comanda" : "cobro";
+  const enOnboarding = !sesion.comoAdmin && (comercioNuevo || esNuevo(sesion.perfilCreado));
+  const pantallasVistas = Array.isArray(onboarding.pantallas_vistas) ? onboarding.pantallas_vistas : [];
+  useEffect(() => {
+    if (!enOnboarding || !onboarding.bienvenida || ayudaAbierta) return;
+    if (pantallasVistas.includes(pantallaActual) || !PANTALLAS[pantallaActual]) return;
+    const vistas = [...pantallasVistas, pantallaActual];
+    setOnboarding((o) => ({ ...o, pantallas_vistas: vistas }));
+    marcarOnboarding("pantallas_vistas", vistas).then(setOnboarding).catch(() => {});
+    if (!recorrido) setRecorrido(`pantalla-${pantallaActual}`);
+  }, [pantallaActual, enOnboarding, onboarding.bienvenida, recorrido, ayudaAbierta]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const terminarBienvenida = (destino) => {
     /* Se marca antes de esperar a la base: si no se guarda, vuelve a salir
        la próxima vez, que es mejor que dejarla trabada en pantalla. */
@@ -1865,7 +1882,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         <Bienvenida nombre={sesion.nombre} comercio={sesion.comercio.nombre} rubro={rubroClave}
           configura={configura} alListo={terminarBienvenida} />
       )}
-      {recorrido && <Recorrido key={recorrido} id={recorrido} navegar={navegar} onSalir={() => setRecorrido(null)} />}
+      {recorrido && <Recorrido key={recorrido} id={recorrido} navegar={navegar} onSalir={() => setRecorrido(null)}
+        titulo={recorrido.startsWith("pantalla-") && pantallaActual === "inicio" ? "Bienvenido" : recorrido.startsWith("pantalla-") && vista === "panel" ? titulo : undefined} />}
       {ayudaAbierta && <CentroDeAyuda rubro={rubroClave} secciones={vender === "cobro" ? ["cobro", ...secciones] : secciones}
         ir={(k) => (k === "cobro" ? cobrar_() : ir(k))} onCerrar={() => setAyudaAbierta(false)} />}
 

@@ -28,6 +28,7 @@ import { marcarOnboarding, cargarProgreso } from "../datos/onboarding.js";
 import { miCuenta } from "../datos/autoservicio.js";
 import { cargarTarifasPublicas } from "../datos/tarifas.js";
 import { useRecorridos } from "./Recorrido.jsx";
+import { PANTALLAS } from "./recorridos.js";
 
 /* Los recorridos guiados de una lista, como botones "Mostrame cómo". */
 function Mostrame({ lista, iniciar, alIniciar }) {
@@ -82,7 +83,12 @@ export function BotonAyuda({ k, rubro }) {
   const { disponibles, iniciar } = useRecorridos();
   const g = guiaDe(k, rubro);
   if (!g) return null;
-  const deAca = disponibles.filter((r) => r.modulo === k);
+  /* Primero el recorrido de la pantalla (todas lo tienen), después los de
+     las tareas que se hacen en ella. */
+  const deAca = [
+    ...(PANTALLAS[k] ? [{ id: `pantalla-${k}`, titulo: "Recorrer esta pantalla", d: "Qué es cada parte." }] : []),
+    ...disponibles.filter((r) => r.modulo === k),
+  ];
   return (
     <>
       <button type="button" onClick={() => setAbierto(true)}
@@ -237,7 +243,7 @@ export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
       "Cargamos productos, clientes y ventas de muestra para que veas cómo se ve con datos. Probá todo: nada de eso es real.",
       "Cuando quieras, los borrás con \"Borrar ejemplos\" en el aviso de arriba. Lo que cargues vos queda." ] },
     { t: "Cómo está organizado", d: [
-      "A la izquierda está el menú, una sección por tarea. Arriba de cada una, \"¿Cómo se usa?\" te explica qué se hace ahí, paso a paso.",
+      "El menú tiene una sección por tarea. La primera vez que entres a cada una, te la mostramos paso a paso, sola. Después, \"¿Cómo se usa?\" arriba de cada pantalla te la vuelve a explicar cuando quieras.",
       "El botón naranja de arriba es para cobrar. Y el signo de pregunta, junto a tu nombre, abre toda la ayuda." ] },
     { t: "Por dónde empezar", d: [
       `En Inicio vas a ver tus primeros pasos: lo que conviene dejar listo, empezando por ${PRIMERO[rubro] || PRIMERO.minimercado}. Se tildan solos a medida que los hacés.`,

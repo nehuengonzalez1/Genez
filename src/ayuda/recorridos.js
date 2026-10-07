@@ -197,3 +197,172 @@ export function recorridosDe(rubro, secciones, conCobro) {
   return RECORRIDOS.filter((r) => (!r.rubros || r.rubros.includes(rubro))
     && (r.modulo === "cobro" ? conCobro : secciones.includes(r.modulo)));
 }
+
+/* ============================================================
+   LOS RECORRIDOS DE CADA PANTALLA (07/10)
+   ============================================================
+
+   Nehuen: "a cada pantalla que entrás por primera vez, hacerlo". Uno por
+   sección del menú, que arranca solo la primera vez que la persona entra
+   (Sistema, con perfiles.onboarding.pantallas_vistas). No hacen nada:
+   muestran las partes de la pantalla con "Seguir", y terminan en "¿Cómo
+   se usa?", que es donde queda la ayuda para después.
+
+   La clave es la sección (`k` del menú); "cobro" y "comanda" son las
+   pantallas de vender, que no son secciones. Un paso que no aparece en
+   esta pantalla (otro rubro, otro rol) es opcional y se saltea.
+   ============================================================ */
+
+/* Algunas pestañas llevan un contador pegado: "Reponer1", "Auditoría0". */
+const Pestana = (n) => B(new RegExp(`^${n}\\s*\\d*$`));
+const Css = (css) => ({ css });
+const AYUDA_ACA = { en: B(/¿Cómo se usa\?/), opcional: true,
+  t: "Cuando quieras repasar", d: "Acá está la ayuda de esta pantalla, con el paso a paso de cada cosa que se hace en ella." };
+
+export const PANTALLAS = {
+  inicio: [
+    { en: Css("aside nav"), opcional: true, t: "El menú", d: "Cada sección hace una cosa: vender, productos, stock, caja, informes. La primera vez que entres a cada una, te mostramos cómo es." },
+    /* En el celular el menú está abajo: las primeras secciones y "Más". */
+    { en: B(/^Más$/), opcional: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. La primera vez que entres a cada una, te mostramos cómo es." },
+    { en: Algo(/^Lo que tenés que saber$/i), opcional: true, t: "Lo que tenés que saber", d: "El sistema mira tus datos y te avisa lo importante: lo que se está por acabar, los costos que subieron, los márgenes que bajaron." },
+    { en: Css("button[aria-label='Ayuda']"), opcional: true, t: "La ayuda", d: "Todas las guías y los paso a paso, con un buscador y nuestro WhatsApp." },
+    { t: "Para vender", d: "El botón de arriba del menú (o F10) te lleva a la pantalla de la caja." },
+  ],
+  cobro: [
+    { en: Entrada("Escaneá o escribí"), t: "Acá se busca", d: "Escribí el nombre o escaneá el código y Enter: el producto se suma a la venta." },
+    { en: B(/^Catálogo$/), opcional: true, t: "Catálogo y clientes", d: "Para buscar mirando, o para elegir a quién le vendés (con su lista de precios o a cuenta)." },
+    { en: B(/^Cobrar \$/), opcional: true, t: "El total y cobrar", d: "Acá se ve el total. Cobrar (o F2) pide el medio de pago." },
+    { t: "Todo con el teclado", d: "F1 muestra los atajos: F2 cobrar, F3 últimas ventas, F7 quitar el último, F8 anular, F10 ir al panel." },
+  ],
+  comanda: [
+    { en: Algo(/^Tomar un pedido$/i), opcional: true, t: "Tomar un pedido", d: "Por mostrador, delivery o aplicaciones: cada canal abre un pedido." },
+    { en: Algo(/^Salón$/i), opcional: true, t: "El salón", d: "Las mesas en el plano. Tocá una para abrir o seguir su pedido." },
+    { t: "De la mesa a la cocina", d: "En el pedido cargás platos y bebidas, y \"A cocina\" los manda a la cocina o la barra. Al final se cobra desde el mismo pedido." },
+  ],
+  productos: [
+    { en: Pestana("Catálogo"), opcional: true, t: "Tu catálogo", d: "Todo lo que vendés, con costo, precio y margen." },
+    { en: B(/^(Nuevo producto|Nuevo)$/), opcional: true, t: "Cargar productos", d: "De a uno desde acá, o escaneando un código que no existe." },
+    { en: B(/^Importar$/), opcional: true, t: "O muchos de una vez", d: "Exportar baja la planilla con el formato; la completás y la subís con Importar." },
+    { en: B(/Editar en tabla/), opcional: true, t: "Cambiar precios rápido", d: "Costo y precio de muchos productos a la vez, viendo el margen." },
+    { en: Pestana("Promociones"), opcional: true, t: "Promociones, códigos y etiquetas", d: "2x1, 3x2; códigos de barras para lo que no trae; etiquetas de góndola para imprimir." },
+    AYUDA_ACA,
+  ],
+  stock: [
+    { en: Pestana("Reponer"), opcional: true, t: "Qué reponer", d: "Lo que está por debajo del mínimo o se va a terminar según lo que vendés." },
+    { en: Pestana("Vencimientos"), opcional: true, t: "Vencimientos y lo que no se mueve", d: "Lo que vence pronto, y lo que hace mucho que no se vende." },
+    { en: Pestana("Conteo de inventario"), opcional: true, t: "Contar", d: "Cargás lo que hay de verdad y el sistema guarda la diferencia." },
+    { en: Pestana("Mermas"), opcional: true, t: "Mermas", d: "Lo roto, vencido o perdido, con su motivo: así el stock no miente." },
+    AYUDA_ACA,
+  ],
+  compras: [
+    { en: Pestana("Cargar compra"), opcional: true, t: "Cargar lo que llega", d: "Escaneando o con una foto del remito: suma stock y actualiza costos." },
+    { en: Pestana("Pedido sugerido"), opcional: true, t: "Qué pedir", d: "Calcula cuánto pedir de cada cosa según lo que vendés." },
+    { en: Pestana("Órdenes de compra"), opcional: true, t: "Órdenes de compra", d: "El pedido al proveedor, y lo que fue llegando." },
+    { en: Pestana("Proveedores"), opcional: true, t: "Proveedores", d: "Sus datos y qué te vende cada uno." },
+    AYUDA_ACA,
+  ],
+  caja: [
+    { en: Pestana("Caja del día"), opcional: true, t: "La caja del día", d: "Apertura, ventas, gastos, retiros y el cierre con arqueo." },
+    { en: Pestana("Caja grande"), opcional: true, t: "La caja grande", d: "La plata del negocio: banco, Mercado Pago, efectivo guardado. Pagos a proveedores y retiros del dueño." },
+    { en: Pestana("A pagar"), opcional: true, t: "A pagar", d: "Las facturas de proveedores que vencen, y si te alcanza la plata." },
+    AYUDA_ACA,
+  ],
+  clientes: [
+    { en: B(/Nuevo cliente/), opcional: true, t: "Tus clientes", d: "Cargá a los que te compran seguido o a los que les facturás." },
+    { t: "Los segmentos", d: "Arriba de la lista, los grupos: los mejores, los que están por perderse, los nuevos. Tocá uno para ver quiénes son." },
+    AYUDA_ACA,
+  ],
+  cuentas: [
+    { en: Algo(/^Quién debe$/i), opcional: true, t: "Quién debe", d: "Cada cliente con cuenta, cuánto debe y desde cuándo." },
+    { en: B(/Abrir la cuenta de un cliente/), opcional: true, t: "Abrir una cuenta", d: "Para venderle a cuenta; también podés ponerle un límite." },
+    { t: "Cobrar y corregir", d: "En cada cuenta: Cobrar (todo o una parte), Cargar deuda y Descontar deuda. Las ventas a cuenta del cobro se suman solas." },
+    AYUDA_ACA,
+  ],
+  pedidos: [
+    { t: "Pedidos de clientes", d: "Para preparar pedidos con la pistola: cargás lo que pidió, escaneás al juntarlo, marcás lo que falta y lo cobrás." },
+    AYUDA_ACA,
+  ],
+  presupuestos: [
+    { en: B(/Nuevo presupuesto/), opcional: true, t: "Presupuestos", d: "Cotizar sin vender: no toca stock ni caja." },
+    { t: "Mandarlo y convertirlo", d: "Se manda por WhatsApp y, cuando el cliente confirma, se convierte en venta." },
+    AYUDA_ACA,
+  ],
+  equipo: [
+    { en: B(/Sumar a alguien/), opcional: true, t: "Tu equipo", d: "Quién trabaja con vos: datos, horarios y qué hace cada uno." },
+    { t: "Equipo no es acceso", d: "Para que alguien entre al sistema con su usuario, se da de alta en Permisos → Personas." },
+    AYUDA_ACA,
+  ],
+  permisos: [
+    { en: Pestana("Roles"), opcional: true, t: "Roles", d: "Qué ve y qué puede hacer cada rol: cajero, encargado…" },
+    { en: Pestana("Personas"), opcional: true, t: "Personas", d: "Quién entra al sistema, con qué rol." },
+    { en: Pestana("Auditoría"), opcional: true, t: "Auditoría", d: "Quién cambió qué y cuándo." },
+    AYUDA_ACA,
+  ],
+  reportes: [
+    { en: B(/^30 días$/), opcional: true, t: "El período", d: "Elegí de cuándo a cuándo. Todo se compara con el período anterior." },
+    { en: Pestana("Resumen"), opcional: true, t: "El resumen", d: "Ventas, ganancia, margen y tickets; tus productos; los quiebres de stock." },
+    { en: Pestana("Mi reporte"), opcional: true, t: "Mi reporte", d: "Tu propio cuadro: por rubro, mes, vendedor… y tocando una fila llegás al ticket." },
+    { en: Pestana("Por mail"), opcional: true, t: "Por mail", d: "Un resumen que te llega solo, cada día, semana o mes." },
+    AYUDA_ACA,
+  ],
+  asistente: [
+    { en: Entrada("Escribí tu pregunta"), opcional: true, t: "Preguntale a tu negocio", d: "\"¿Qué me conviene reponer?\", \"¿por qué bajó el margen?\": responde mirando tus datos." },
+    AYUDA_ACA,
+  ],
+  ajustes: [
+    { en: Pestana("Negocio"), opcional: true, t: "Tu negocio", d: "Nombre, logo, contacto, datos fiscales y objetivos del mes." },
+    { en: Pestana("Cobros y facturas"), opcional: true, t: "Cobros y facturas", d: "Medios de pago y comisiones, Mercado Pago y factura electrónica." },
+    { en: Pestana("Equipos"), opcional: true, t: "Equipos", d: "La impresora, el ticket, la comandera y los sonidos." },
+    { en: Pestana("Precios y stock"), opcional: true, t: "Precios y stock", d: "Listas de precios, redondeo y descuentos por rol." },
+    { en: Pestana("Mi cuenta"), opcional: true, t: "Mi cuenta", d: "Tu contraseña, tu plan y la descarga de tus datos." },
+    AYUDA_ACA,
+  ],
+  comandas: [
+    { t: "El salón", d: "El plano con las mesas: libres, ocupadas y cuánto hace que esperan. Tocá una para abrir o seguir su pedido." },
+    AYUDA_ACA,
+  ],
+  cocina: [
+    { t: "La pantalla de la cocina", d: "Para colgar en la pared: lo que hay que preparar en el orden en que se pidió. Se marca lo que sale y el salón lo ve enseguida." },
+    AYUDA_ACA,
+  ],
+  agenda: [
+    { en: B(/Nuevo turno/), opcional: true, t: "La agenda", d: "Los turnos del día: quién atiende, en qué sala y a quién." },
+    { en: Pestana("Lista"), opcional: true, t: "Calendario o lista", d: "Como te quede más cómodo." },
+    AYUDA_ACA,
+  ],
+  servicios: [
+    { en: Pestana("Servicios"), opcional: true, t: "Lo que ofrecés", d: "Cada servicio con su duración, precio y quién lo da." },
+    { en: Pestana("Salas y recursos"), opcional: true, t: "Salas y recursos", d: "Los lugares y equipos que se usan, para que la agenda no los superponga." },
+    AYUDA_ACA,
+  ],
+  ventas: [
+    { en: Pestana("Abonos"), opcional: true, t: "Abonos", d: "Los que compró cada cliente y cuántas clases le quedan." },
+    { en: Pestana("Planes"), opcional: true, t: "Planes", d: "Cuántas clases, cuántos días y el tope por semana." },
+    AYUDA_ACA,
+  ],
+  finanzas: [
+    { en: Pestana("Resumen"), opcional: true, t: "El mes", d: "Cuánto entró y cuánto salió." },
+    { en: Pestana("Liquidaciones"), opcional: true, t: "Lo que se le paga al equipo", d: "Según sus horas o sus servicios." },
+    AYUDA_ACA,
+  ],
+  crm: [
+    { en: Pestana("Para hacer"), opcional: true, t: "A quién escribirle", d: "Los que dejaron de venir o se les vence el abono, con el mensaje ya escrito." },
+    AYUDA_ACA,
+  ],
+  comunicaciones: [
+    { en: Pestana("Por avisar"), opcional: true, t: "Los avisos de mañana", d: "Una cola por hora: mandás cada recordatorio y desaparece." },
+    AYUDA_ACA,
+  ],
+  informes: [
+    { t: "Informes", d: "Ingresos, ocupación, asistencia y clientes, por día, semana o mes." },
+    AYUDA_ACA,
+  ],
+};
+
+const NOMBRE_PANTALLA = { cobro: "La caja", comanda: "Tomar pedidos" };
+/* El recorrido de una pantalla, con la forma de los otros. */
+export function pantallaDe(k, titulo) {
+  const pasos = PANTALLAS[k];
+  return pasos ? { id: `pantalla-${k}`, modulo: k, titulo: titulo || NOMBRE_PANTALLA[k] || "Esta pantalla", pasos } : null;
+}
+export const recorridoPorId = (id) => (id && id.startsWith("pantalla-") ? pantallaDe(id.slice(9)) : RECORRIDOS.find((r) => r.id === id));

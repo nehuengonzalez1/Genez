@@ -13,7 +13,8 @@
      en el campo resaltado. Cuando el paso es tocar un botón, lo de afuera
      no se puede tocar: un clic suelto en otro lado dejaba el recorrido
      perdido. Cuando el paso es usar la pantalla (buscar un producto,
-     completar un formulario) la máscara es más suave y deja tocar todo:
+     completar un formulario) la máscara deja tocar todo (igual de oscura:
+     al 30% no se notaba en el tema oscuro):
      la lista de resultados de la búsqueda queda fuera del hueco.
    - El elemento se busca por lo que se ve (texto, placeholder, rótulo),
      una y otra vez mientras dura el paso: las pantallas cargan de a
@@ -29,7 +30,7 @@
 import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { Boton } from "../ui/Base.jsx";
-import { RECORRIDOS } from "./recorridos.js";
+import { recorridoPorId } from "./recorridos.js";
 
 export const RecorridoCtx = createContext({ iniciar: () => {}, disponibles: [] });
 export const useRecorridos = () => useContext(RecorridoCtx);
@@ -52,7 +53,10 @@ const textoPropio = (e) => normal([...e.childNodes].filter((n) => n.nodeType ===
 export function buscar(spec) {
   if (!spec) return null;
   let candidatos = [];
-  if (spec.placeholder) {
+  if (spec.css) {
+    /* Para lo que no tiene texto propio: el menú, el botón de ayuda. */
+    candidatos = [...document.querySelectorAll(spec.css)];
+  } else if (spec.placeholder) {
     candidatos = [...document.querySelectorAll("input, textarea")].filter((i) => (i.placeholder || "").startsWith(spec.placeholder));
   } else if (spec.campo) {
     candidatos = [...document.querySelectorAll("label, span, div, p")]
@@ -72,8 +76,9 @@ export function buscar(spec) {
 
 const MARGEN = 6;
 
-export function Recorrido({ id, navegar, onSalir }) {
-  const r = RECORRIDOS.find((x) => x.id === id);
+export function Recorrido({ id, navegar, onSalir, titulo }) {
+  const encontrado = recorridoPorId(id);
+  const r = encontrado && titulo ? { ...encontrado, titulo } : encontrado;
   const [i, setI] = useState(0);
   const [caja, setCaja] = useState(null);       // el rectángulo del hueco
   const [perdido, setPerdido] = useState(false);
@@ -140,7 +145,7 @@ export function Recorrido({ id, navegar, onSalir }) {
   const vw = window.innerWidth, vh = window.innerHeight;
   const hueco = caja && { x: Math.max(0, caja.x - MARGEN), y: Math.max(0, caja.y - MARGEN), w: caja.w + MARGEN * 2, h: caja.h + MARGEN * 2 };
   const bloquea = paso.avanza === "clic";
-  const mascara = `fixed z-[200] ${bloquea ? "bg-black/60" : "bg-black/30 pointer-events-none"}`;
+  const mascara = `fixed z-[200] ${bloquea ? "bg-black/60" : "bg-black/60 pointer-events-none"}`;
   /* El cartel abajo del hueco si entra, si no arriba; sin hueco, al medio. */
   const ancho = Math.min(340, vw - 24);
   const pos = hueco
