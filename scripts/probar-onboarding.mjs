@@ -7,7 +7,6 @@
 
      node scripts/probar-onboarding.mjs
      node scripts/probar-onboarding.mjs supabase/migrations/0137_onboarding.sql
-     node scripts/probar-onboarding.mjs supabase/migrations/0138_pantallas_vistas.sql
 
    Lo que mira:
    - Cada uno marca lo suyo (bienvenida, pasos ocultos, pasos hechos) y
@@ -62,8 +61,6 @@ try {
   decir(!h.e && JSON.stringify(h.r.rows[0].v.pasos_hechos) === '["ticket","stock"]', "marca pasos a mano");
   const o = await como(yo.id, "select marcar_onboarding('pasos_ocultos') v");
   decir(!o.e && o.r.rows[0].v.pasos_ocultos === true && o.r.rows[0].v.bienvenida, "oculta los pasos sin perder lo anterior");
-  const pv = await como(yo.id, `select marcar_onboarding('pantallas_vistas', '["inicio","cobro"]'::jsonb) v`);
-  decir(!pv.e && JSON.stringify(pv.r.rows[0].v.pantallas_vistas) === '["inicio","cobro"]', `marca las pantallas vistas (0138) (${pv.e || "ok"})`);
   const leido = await como(yo.id, "select onboarding from perfiles where id = $1", [yo.id]);
   decir(leido.r && leido.r.rows[0].onboarding.pasos_ocultos === true, "lo lee de vuelta desde su perfil");
 

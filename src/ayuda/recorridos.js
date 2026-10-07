@@ -37,20 +37,18 @@ export const RECORRIDOS = [
     id: "primera-venta", modulo: "cobro", rubros: ["minimercado"],
     titulo: "Hacer una venta",
     d: "De abrir la caja a entregar el ticket.",
+    /* Se muestra, no se hace (07/10): "que diga seguir, no que te haga
+       cargar cosas". Una venta de verdad se hace después, sola. */
     pasos: [
-      { donde: "cobro", en: B(/^Abrir caja con/), avanza: "clic", opcional: true, espera: [Entrada("Escaneá o escribí")],
-        t: "Abrí la caja", d: "Antes de la primera venta del día, contá el efectivo del cajón y abrí la caja con ese monto." },
-      { en: Entrada("Escaneá o escribí"),
-        t: "Buscá el producto", d: "Escribí el nombre o escaneá el código de barras y apretá Enter: se suma a la venta. Para cambiar la cantidad del último, escribí el número y Enter. Cuando tengas todo, tocá Seguir." },
+      { donde: "cobro", en: B(/^Abrir caja con/), opcional: true,
+        t: "Abrí la caja", d: "Cada día se empieza abriendo la caja con el efectivo que hay en el cajón. Sin caja abierta no se puede cobrar." },
+      { en: Entrada("Escaneá o escribí"), opcional: true,
+        t: "Buscá el producto", d: "Escribí el nombre o escaneá el código de barras y apretá Enter: se suma a la venta. Para cambiar la cantidad del último, escribí el número y Enter." },
       /* El botón dice el total: "Cobrar $4.800 F2". */
-      { en: B(/^Cobrar $/), avanza: "clic", espera: [B(/Efectivo/)],
-        t: "Cobrá", d: "Tocá Cobrar (o Enter con el campo vacío, o F2)." },
-      { en: B(/Efectivo/), espera: [B(/Confirmar cobro/), B(/Nueva venta/)],
-        t: "Elegí cómo paga", d: "Tocá el medio de pago o apretá su número. Con 6 combinás dos medios. Mercado Pago muestra el QR; efectivo te pregunta con cuánto paga." },
-      { en: B(/Confirmar cobro/), avanza: "clic", opcional: true,
-        t: "Confirmá", d: "Si te dice con cuánto paga, el sistema calcula el vuelto. Si paga justo, dejalo vacío y confirmá." },
-      { en: B(/Nueva venta/),
-        t: "¡Venta hecha!", d: "Quedó guardada y descontó el stock. Desde acá imprimís el ticket (I), lo mandás por WhatsApp (W) o por mail (E). Nueva venta (Enter) empieza la próxima. Si te equivocaste, F3 muestra las últimas ventas." },
+      { en: B(/^Cobrar \$/), opcional: true,
+        t: "Cobrá", d: "Con todo cargado, Cobrar (o Enter con el campo vacío, o F2)." },
+      { t: "Elegí cómo paga", d: "Aparecen los medios de pago: tocás uno o apretás su número (1 efectivo, 2 débito…). Con 6 combinás dos. Efectivo te pregunta con cuánto paga y calcula el vuelto; Mercado Pago muestra el QR." },
+      { t: "El ticket", d: "Confirmado el cobro, la venta queda guardada y descuenta el stock. Imprimís el ticket (I), lo mandás por WhatsApp (W) o por mail (E), y Nueva venta (Enter) empieza la próxima. F3 muestra las últimas ventas, F8 anula." },
     ],
   },
   {
@@ -63,7 +61,7 @@ export const RECORRIDOS = [
       { en: Campo("Nombre"), t: "El nombre", d: "Como lo vas a buscar en la caja. Si tiene código de barras, escanealo en el campo de abajo." },
       { en: Campo("Costo"), t: "Costo y precio", d: "Cargá lo que te cuesta y el precio de venta: el margen se calcula solo. Si ponés el margen, calcula el precio." },
       { en: Campo("Stock actual"), opcional: true, t: "El stock", d: "Cuántos tenés y el mínimo: cuando baje de ahí, aparece en \"Para reponer\"." },
-      { en: B(/^Crear producto$/), avanza: "clic", t: "Guardalo", d: "Listo para vender." },
+      { en: B(/^Crear producto$/), t: "Guardalo", d: "Con Crear producto queda listo para vender. Si no querés cargarlo ahora, cerrá el formulario." },
       { en: B(/^Importar$/), opcional: true,
         t: "¿Tenés muchos?", d: "Con Exportar bajás una planilla con el formato exacto. La completás y la subís con Importar: te muestra qué va a crear y qué va a cambiar antes de aplicar." },
     ],
@@ -76,7 +74,7 @@ export const RECORRIDOS = [
       { donde: "compras", en: B(/^Proveedores$/), avanza: "clic", t: "Proveedores", d: "Los que te venden, con sus datos." },
       { en: B(/Nuevo proveedor/), avanza: "clic", t: "Nuevo proveedor", d: "" },
       { en: Campo("Nombre"), t: "Los datos", d: "El nombre como lo conocés (\"Coca\", \"Maxiconsumo\"), el CUIT, el teléfono, cómo le pagás y qué días entrega." },
-      { en: B(/^Guardar$/), avanza: "clic", t: "Guardalo", d: "Ya lo podés elegir al cargar una compra." },
+      { en: B(/^Guardar$/), t: "Guardalo", d: "Ya lo podés elegir al cargar una compra." },
     ],
   },
   {
@@ -101,7 +99,7 @@ export const RECORRIDOS = [
       { en: B(/Cargar factura/), avanza: "clic", t: "Cargar factura", d: "" },
       { en: Campo("Proveedor"), t: "De quién", d: "Con el mismo nombre de siempre: así Informes suma todo lo de cada uno." },
       { en: Campo("Monto"), t: "Cuánto y cuándo vence", d: "El monto y la fecha de vencimiento. El número es opcional." },
-      { en: B(/^Guardar$/), avanza: "clic", t: "Guardala", d: "" },
+      { en: B(/^Guardar$/), t: "Guardala", d: "" },
       { t: "Y cuando la pagues", d: "Tocá Pagar en la factura: elegís de qué cuenta sale y queda anotada en la caja grande. Arriba ves lo vencido, lo que vence en la semana y si te alcanza la plata." },
     ],
   },
@@ -136,7 +134,7 @@ export const RECORRIDOS = [
     pasos: [
       { donde: "caja", en: B(/^Caja del día$/), avanza: "clic", opcional: true, t: "La caja del día", d: "" },
       /* Gasto y Cerrar caja aparecen recién con la caja abierta. */
-      { en: B(/^Abrir caja con/), avanza: "clic", opcional: true, espera: [B(/^Gasto$/)],
+      { en: B(/^Abrir caja con/), opcional: true,
         t: "Abrí la caja", d: "Al empezar el día, con el efectivo que hay en el cajón." },
       { en: B(/^Gasto$/), opcional: true, t: "Gastos y retiros", d: "Si pagás algo con plata del cajón, es un gasto; si sacás plata para guardarla, un retiro. Así el arqueo cierra." },
       { en: B(/Cerrar caja del día/), opcional: true,
@@ -151,7 +149,7 @@ export const RECORRIDOS = [
     pasos: [
       { donde: "clientes", en: B(/Nuevo cliente/), avanza: "clic", t: "Nuevo cliente", d: "" },
       { en: Campo("Razón social o nombre"), t: "Sus datos", d: "El nombre alcanza. Para factura A, el CUIT y la condición frente al IVA." },
-      { en: B(/^Guardar$/), avanza: "clic", t: "Guardalo", d: "" },
+      { en: B(/^Guardar$/), t: "Guardalo", d: "" },
       { t: "Venderle a cuenta", d: "En el cobro, elegí el cliente y pagá con \"Cuenta corriente\": la venta queda como deuda. En Cuenta corriente ves quién debe y le cobrás todo o una parte." },
     ],
   },
@@ -186,7 +184,7 @@ export const RECORRIDOS = [
     pasos: [
       { donde: "agenda", en: B(/Nuevo turno/), avanza: "clic", t: "Nuevo turno", d: "O tocá un horario libre del calendario." },
       { en: Campo("Cliente"), t: "El turno", d: "El cliente, el servicio, quién lo da, el día y la hora. Si choca con otro turno o está fuera de horario, te avisa." },
-      { en: B(/Guardar turno/), avanza: "clic", t: "Guardalo", d: "Queda en la agenda, y si tiene abono, descuenta la clase." },
+      { en: B(/Guardar turno/), t: "Guardalo", d: "Queda en la agenda, y si tiene abono, descuenta la clase." },
     ],
   },
 ];
@@ -221,17 +219,21 @@ const AYUDA_ACA = { en: B(/¿Cómo se usa\?/), opcional: true,
 
 export const PANTALLAS = {
   inicio: [
-    { en: Css("aside nav"), opcional: true, t: "El menú", d: "Cada sección hace una cosa: vender, productos, stock, caja, informes. La primera vez que entres a cada una, te mostramos cómo es." },
+    { en: Css("aside nav"), opcional: true, t: "El menú", d: "Cada sección hace una cosa: vender, productos, stock, caja, informes. Ahora te mostramos las principales." },
     /* En el celular el menú está abajo: las primeras secciones y "Más". */
-    { en: B(/^Más$/), opcional: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. La primera vez que entres a cada una, te mostramos cómo es." },
+    { en: B(/^Más$/), opcional: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. Ahora te mostramos las principales." },
     { en: Algo(/^Lo que tenés que saber$/i), opcional: true, t: "Lo que tenés que saber", d: "El sistema mira tus datos y te avisa lo importante: lo que se está por acabar, los costos que subieron, los márgenes que bajaron." },
     { en: Css("button[aria-label='Ayuda']"), opcional: true, t: "La ayuda", d: "Todas las guías y los paso a paso, con un buscador y nuestro WhatsApp." },
     { t: "Para vender", d: "El botón de arriba del menú (o F10) te lleva a la pantalla de la caja." },
   ],
   cobro: [
-    { en: Entrada("Escaneá o escribí"), t: "Acá se busca", d: "Escribí el nombre o escaneá el código y Enter: el producto se suma a la venta." },
+    /* Con la caja cerrada, la pantalla de cobro es solo esto. */
+    { en: B(/^Abrir caja con/), opcional: true, t: "Primero, la caja", d: "Cada día se empieza abriendo la caja con el efectivo que hay en el cajón. Sin caja abierta no se puede cobrar." },
+    { en: Entrada("Escaneá o escribí"), opcional: true, t: "Acá se busca", d: "Escribí el nombre o escaneá el código y Enter: el producto se suma a la venta." },
     { en: B(/^Catálogo$/), opcional: true, t: "Catálogo y clientes", d: "Para buscar mirando, o para elegir a quién le vendés (con su lista de precios o a cuenta)." },
     { en: B(/^Cobrar \$/), opcional: true, t: "El total y cobrar", d: "Acá se ve el total. Cobrar (o F2) pide el medio de pago." },
+    /* Con la caja cerrada no se ve nada de esto: se cuenta igual. */
+    { t: "Así es una venta", d: "Buscás o escaneás cada producto, Cobrar, elegís cómo paga (efectivo calcula el vuelto, Mercado Pago muestra el QR) y entregás el ticket: impreso, por WhatsApp o por mail. El stock baja solo." },
     { t: "Todo con el teclado", d: "F1 muestra los atajos: F2 cobrar, F3 últimas ventas, F7 quitar el último, F8 anular, F10 ir al panel." },
   ],
   comanda: [
@@ -366,3 +368,47 @@ export function pantallaDe(k, titulo) {
   return pasos ? { id: `pantalla-${k}`, modulo: k, titulo: titulo || NOMBRE_PANTALLA[k] || "Esta pantalla", pasos } : null;
 }
 export const recorridoPorId = (id) => (id && id.startsWith("pantalla-") ? pantallaDe(id.slice(9)) : RECORRIDOS.find((r) => r.id === id));
+
+
+/* ============================================================
+   EL RECORRIDO GENERAL (07/10)
+   ============================================================
+
+   Nehuen: "el recorrido tiene que ser de corrido, no entrando a cada
+   módulo la persona; que diga seguir, no que te haga cargar cosas; que
+   vaya mostrando los módulos primordiales". Uno solo, que arranca al
+   terminar la bienvenida y va pasando él por las secciones principales
+   del rubro, en el orden en que se usan, con lo que muestra cada
+   pantalla (PANTALLAS). Solo las que el comercio tiene.
+   ============================================================ */
+
+const ORDEN = {
+  minimercado: ["inicio", "cobro", "productos", "stock", "compras", "caja", "clientes", "cuentas", "reportes", "ajustes"],
+  gastronomia: ["inicio", "comanda", "cocina", "productos", "stock", "caja", "reportes", "ajustes"],
+  servicios: ["inicio", "agenda", "clientes", "servicios", "ventas", "finanzas", "informes", "ajustes"],
+};
+
+/* `menu`: las secciones del comercio, [{ k, n }]. `vende`: "cobro",
+   "comandas" o nada (las pantallas de vender no están en el menú). */
+export function recorridoGeneral(rubro, menu, vende) {
+  const nombre = Object.fromEntries(menu.map((m) => [m.k, m.n]));
+  const hay = (k) => (k === "cobro" ? vende === "cobro" : k === "comanda" ? vende === "comandas" : !!nombre[k]);
+  const secciones = (ORDEN[rubro] || ORDEN.minimercado).filter((k) => hay(k) && PANTALLAS[k]);
+  const pasos = [
+    { t: "Te mostramos Genez", d: "Vamos a pasar por las secciones principales y ver qué se hace en cada una. Solo tocá Seguir: no se carga nada." },
+  ];
+  for (const k of secciones) {
+    const sec = k === "cobro" ? "Cobrar" : k === "comanda" ? "Tomar pedidos" : nombre[k];
+    PANTALLAS[k].filter((p) => p !== AYUDA_ACA).forEach((p, i) => {
+      pasos.push({ ...p, sec, ...(i === 0 ? { donde: k === "cobro" || k === "comanda" ? "cobro" : k } : {}) });
+    });
+  }
+  pasos.push(
+    { donde: "inicio", en: Css("button[aria-label='Ayuda']"), opcional: true, sec: "La ayuda",
+      t: "Cuando lo necesites", d: "Acá están todas las guías y los paso a paso de cada tarea (cargar un producto, un proveedor, una factura…), con un buscador y nuestro WhatsApp." },
+    { en: B(/¿Cómo se usa\?/), opcional: true, sec: "La ayuda",
+      t: "Y en cada pantalla", d: "\"¿Cómo se usa?\" te explica la pantalla en la que estás y te la vuelve a mostrar." },
+    { t: "¡Listo!", d: "Ya viste todo. Te recomendamos arrancar por los primeros pasos de Inicio: tus datos, tus productos y tu primera venta." },
+  );
+  return { id: "general", titulo: "Recorrido general", d: "Todo el sistema, de punta a punta.", pasos };
+}

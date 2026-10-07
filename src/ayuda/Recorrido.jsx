@@ -9,13 +9,11 @@
    Por qué así:
    - La máscara son cuatro rectángulos alrededor del hueco, no uno con un
      agujero: el hueco no tiene nada encima, así que el clic llega al
-     botón de verdad (aunque esté adentro de un modal) y se puede escribir
-     en el campo resaltado. Cuando el paso es tocar un botón, lo de afuera
-     no se puede tocar: un clic suelto en otro lado dejaba el recorrido
-     perdido. Cuando el paso es usar la pantalla (buscar un producto,
-     completar un formulario) la máscara deja tocar todo (igual de oscura:
-     al 30% no se notaba en el tema oscuro):
-     la lista de resultados de la búsqueda queda fuera del hueco.
+     botón de verdad (aunque esté adentro de un modal). Lo de afuera no se
+     puede tocar: un clic suelto en otro lado dejaba el recorrido perdido.
+   - Se avanza con "Seguir" (Nehuen, 07/10: "que diga seguir, no que te
+     haga cargar cosas"). Si el paso abre algo, "Seguir" lo abre; nunca
+     se completa ni se guarda nada por la persona.
    - El elemento se busca por lo que se ve (texto, placeholder, rótulo),
      una y otra vez mientras dura el paso: las pantallas cargan de a
      poco, los modales aparecen después del clic, y el hueco sigue al
@@ -76,8 +74,10 @@ export function buscar(spec) {
 
 const MARGEN = 6;
 
-export function Recorrido({ id, navegar, onSalir, titulo }) {
-  const encontrado = recorridoPorId(id);
+/* `datos`: un recorrido armado en el momento (el general, que depende de
+   las secciones del comercio). Si no, se busca por `id`. */
+export function Recorrido({ id, datos, navegar, onSalir, titulo }) {
+  const encontrado = datos || recorridoPorId(id);
   const r = encontrado && titulo ? { ...encontrado, titulo } : encontrado;
   const [i, setI] = useState(0);
   const [caja, setCaja] = useState(null);       // el rectángulo del hueco
@@ -144,8 +144,11 @@ export function Recorrido({ id, navegar, onSalir, titulo }) {
 
   const vw = window.innerWidth, vh = window.innerHeight;
   const hueco = caja && { x: Math.max(0, caja.x - MARGEN), y: Math.max(0, caja.y - MARGEN), w: caja.w + MARGEN * 2, h: caja.h + MARGEN * 2 };
-  const bloquea = paso.avanza === "clic";
-  const mascara = `fixed z-[200] ${bloquea ? "bg-black/60" : "bg-black/60 pointer-events-none"}`;
+  /* Todo se hace con "Seguir" (07/10): lo de afuera del hueco no se toca. */
+  const mascara = "fixed z-[200] bg-black/60";
+  /* "Seguir" en un paso que abre algo (una pestaña, el formulario) lo
+     abre por la persona: el clic llega al botón y el escuchador avanza. */
+  const seguir = () => { if (paso.avanza === "clic" && elRef.current && !perdido) elRef.current.click(); else siguiente(); };
   /* El cartel abajo del hueco si entra, si no arriba; sin hueco, al medio. */
   const ancho = Math.min(340, vw - 24);
   const pos = hueco
@@ -171,7 +174,7 @@ export function Recorrido({ id, navegar, onSalir, titulo }) {
 
       <div className="fixed z-[201] bg-superficie border border-borde rounded-xl shadow-lg p-4" style={{ ...pos, width: ancho }}>
         <div className="flex items-start justify-between gap-2">
-          <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">{r.titulo} · {i + 1} de {r.pasos.length}</span>
+          <span className="text-[11px] uppercase tracking-widest text-texto-tenue font-semibold">{paso.sec || r.titulo} · {i + 1} de {r.pasos.length}</span>
           <button type="button" onClick={() => onSalir(false)} className="text-texto-tenue hover:text-texto -mt-0.5" aria-label="Salir del recorrido"><X size={16} /></button>
         </div>
         <div className="f-d text-base mt-1">{paso.t}</div>
@@ -185,9 +188,7 @@ export function Recorrido({ id, navegar, onSalir, titulo }) {
         <div className="flex items-center justify-between gap-2 mt-3">
           <button type="button" onClick={() => { yaAvanzo.current = -1; setI((x) => Math.max(0, x - 1)); }} disabled={i === 0}
             className="text-xs text-texto-tenue hover:text-texto disabled:opacity-30">Atrás</button>
-          {paso.avanza === "clic" && caja && !perdido
-            ? <span className="text-xs text-acento font-semibold">Tocá lo resaltado</span>
-            : <Boton size="sm" onClick={siguiente}>{ultimo ? "Terminar" : "Seguir"}</Boton>}
+          <Boton size="sm" onClick={seguir}>{ultimo ? "Terminar" : "Seguir"}</Boton>
         </div>
       </div>
     </div>

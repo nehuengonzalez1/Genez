@@ -243,11 +243,11 @@ export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
       "Cargamos productos, clientes y ventas de muestra para que veas cómo se ve con datos. Probá todo: nada de eso es real.",
       "Cuando quieras, los borrás con \"Borrar ejemplos\" en el aviso de arriba. Lo que cargues vos queda." ] },
     { t: "Cómo está organizado", d: [
-      "El menú tiene una sección por tarea. La primera vez que entres a cada una, te la mostramos paso a paso, sola. Después, \"¿Cómo se usa?\" arriba de cada pantalla te la vuelve a explicar cuando quieras.",
+      "El menú tiene una sección por tarea. Arriba de cada pantalla, \"¿Cómo se usa?\" te la explica cuando quieras.",
       "El botón naranja de arriba es para cobrar. Y el signo de pregunta, junto a tu nombre, abre toda la ayuda." ] },
-    { t: "Por dónde empezar", d: [
-      `En Inicio vas a ver tus primeros pasos: lo que conviene dejar listo, empezando por ${PRIMERO[rubro] || PRIMERO.minimercado}. Se tildan solos a medida que los hacés.`,
-      "Si te trabás, escribinos por WhatsApp desde la ayuda." ] },
+    { t: "Ahora, un recorrido", d: [
+      "Te mostramos el sistema de punta a punta, sección por sección. Solo tocá Seguir: no se carga nada.",
+      `Después, en Inicio vas a ver tus primeros pasos, empezando por ${PRIMERO[rubro] || PRIMERO.minimercado}. Se tildan solos a medida que los hacés.` ] },
   ].filter(Boolean) : [
     { t: `Hola${quien ? `, ${quien}` : ""}. Bienvenido a Genez`, d: [
       `Este es el sistema de ${comercio}. Ves las secciones que tu rol tiene habilitadas.`,
@@ -269,9 +269,8 @@ export function Bienvenida({ nombre, comercio, rubro, configura, alListo }) {
           <div className="flex gap-2">
             {paso > 0 && <Boton variant="ghost" onClick={() => setPaso(paso - 1)}>Atrás</Boton>}
             {!ultima && <Boton onClick={() => setPaso(paso + 1)}>Seguir</Boton>}
-            {ultima && configura && <Boton variant="ghost" onClick={() => alListo("cobro")}>Ir a cobrar</Boton>}
-            {/* Un empleado se queda donde entró: puede no tener Inicio. */}
-            {ultima && <Boton onClick={() => alListo(configura ? "inicio" : null)}>{configura ? "Ver mis primeros pasos" : "Empezar"}</Boton>}
+            {/* Al terminar, el recorrido general (07/10): de corrido, con Seguir. */}
+            {ultima && <Boton onClick={() => alListo("recorrido")}>Empezar el recorrido</Boton>}
           </div>
         </div>
       </div>
