@@ -6,6 +6,23 @@
     <meta name="theme-color" content="#1c1917" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Genez · Sistema de gestión</title>
+    <!-- Instalable como aplicación (08/10). Manifiesto fijo y no el de
+         api/manifest.js: ese es por comercio, para la app del cliente; el
+         sistema de gestión es Genez para todos. Los íconos los arma
+         scripts/armar-iconos.mjs. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/iconos/genez-192.png" />
+    <link rel="apple-touch-icon" href="/iconos/genez-180.png" />
+    <script>
+      // Chrome avisa una sola vez que el sistema se puede instalar, y a
+      // veces antes de que React esté montado. Se guarda acá y se anuncia;
+      // el botón de la barra lateral lo levanta (src/ui/instalar.js).
+      window.addEventListener("beforeinstallprompt", function (e) {
+        e.preventDefault();
+        window.__avisoInstalar = e;
+        window.dispatchEvent(new Event("genez:instalable"));
+      });
+    </script>
     <script>
       // Una ruta del propio sitio, no la API de Anthropic: la atiende
       // api/anthropic.js, que es donde vive la credencial. En desarrollo la
