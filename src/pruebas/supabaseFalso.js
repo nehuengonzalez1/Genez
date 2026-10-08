@@ -18,6 +18,7 @@
 
 import { armarDatos, USUARIO } from "./datos.js";
 import { normTel } from "../utils/importarProspectos.js";
+import { presenciaDesdeConfig } from "../cliente/vidriera.js";
 
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 const datos = armarDatos(params.get("rubro") || "minimercado", params.get("sesion") || "comercio");
@@ -528,6 +529,18 @@ function convertir({ p_oportunidad, p_datos = {} }) {
 const palabras = (t) => [...new Set(String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length >= 4))];
 
 const FUNCIONES = {
+  /* La página pública del comercio (0052, 0140): cliente.html?c=comercio-de-prueba&sesion=ninguna. */
+  marca_de: ({ p_slug }) => {
+    const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);
+    if (!e) return [];
+    const m = (e.config && e.config.marca) || {};
+    return [{ slug: e.slug, nombre: e.nombre, rubro: e.rubro, tema: m.tema || "auto", lema: m.lema || "", bajada: m.bajada || "",
+      logo: m.logo || m.logoParaClaro || m.logoParaOscuro || null, portada: m.portada || null, autoregistro: false }];
+  },
+  presencia_de: ({ p_slug }) => {
+    const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);
+    return e ? presenciaDesdeConfig(e.config || {}) : null;
+  },
   interno_convertir_en_cliente: convertir,
   /* 0123, en chico: los informes cuentan lo que hay en las tablas de
      mentira, sin mirar fechas (la prueba de verdad es la de la base). */
