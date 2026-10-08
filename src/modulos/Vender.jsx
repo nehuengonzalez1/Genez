@@ -6,7 +6,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Barcode, ScanLine, Camera as Cam, CameraOff, Zap, ZapOff, Loader2,
   Minus, Plus, Trash2, Printer, FileText, MessageCircle, Mail, QrCode,
-  ArrowRight, Check, X, Percent, Users, Search, History
+  ArrowRight, Check, X, Percent, Users, Search, History, PauseCircle, Tag
 } from "lucide-react";
 import { uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
@@ -682,10 +682,95 @@ function CobroQr({ monto, referencia, cajaMp, empresaId, sonido, onPagado, onVol
   );
 }
 
+/* VENTAS EN ESPERA (08/10)
+
+   El de adelante se olvidó algo y va a buscarlo, o paga con una
+   transferencia que no llega: hasta ahora había que anular el ticket o
+   tener a toda la fila esperando. Ventario lo resuelve con "poner en
+   espera" y Nehuen lo pidió para Genez.
+
+   Se guarda el ticket tal como está (renglones, descuento, cliente, si va
+   con factura) y el total de ese momento, para mostrarlo en la ficha. Va
+   a la memoria del navegador y no a la base: es trabajo en curso de esta
+   caja, como el ticket que se está armando, y no tiene por qué verlo otra
+   computadora. Pero no se pierde con un refresco ni con un corte de luz,
+   que es justo cuando más se necesita. Por comercio, para que el modo
+   "entrando como" de la plataforma no mezcle tickets de dos negocios. */
+const MAX_EN_ESPERA = 6;
+const claveEspera = (empresaId) => `genez:en-espera:${empresaId || "local"}`;
+function leerEspera(empresaId) {
+  try { const v = JSON.parse(localStorage.getItem(claveEspera(empresaId)) || "[]"); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function guardarEspera(empresaId, lista) {
+  try { localStorage.setItem(claveEspera(empresaId), JSON.stringify(lista)); } catch { /* sin espacio: queda en memoria */ }
+}
+
 const ATAJOS = [
-  ["F2", "Cobrar"], ["F3", "Últimas ventas"], ["F4", "Descuento"], ["F7", "Quitar último"], ["F8", "Anular venta"],
-  ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
+  ["F2", "Cobrar"], ["F3", "Últimas ventas"], ["F4", "Descuento"], ["F6", "Venta en espera"], ["F7", "Quitar último"], ["F8", "Anular venta"],
+  ["F9", "Salón"], ["F10", "Panel"], ["Alt P", "Consultar precio"], ["F1", "Ayuda"],
 ];
+
+/* CONSULTAR UN PRECIO SIN TOCAR EL TICKET (08/10)
+
+   "¿Cuánto sale esto?" mientras se está cobrando a otro: hasta ahora había
+   que escanearlo (y entraba al ticket) o salir a Productos. Acá se escanea
+   o se escribe y se ve el precio, las listas y el stock; no se agrega nada.
+   Mientras está abierto, el lector escribe en su buscador y no en el del
+   ticket. */
+function ConsultarPrecio({ productos, ajustes, onCerrar }) {
+  const [q, setQ] = useState("");
+  const [visto, setVisto] = useState(null);
+  const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const activos = productos.filter((p) => p.activo !== false);
+  const t = q.trim();
+  const res = t.length >= 2
+    ? (activos.find((p) => p.barcode === t) ? [activos.find((p) => p.barcode === t)]
+      : activos.filter((p) => norm(p.nombre).includes(norm(t)) || (p.sku || "").toLowerCase().includes(t.toLowerCase())).slice(0, 8))
+    : [];
+  const elegir = (p) => { setVisto(p); setQ(""); };
+  const listas = (ajustes.listas || []).filter((l) => visto && visto.precios && visto.precios[l.id] > 0);
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5">
+        <h3 className="f-d text-lg flex items-center gap-2"><Tag size={18} className="text-acento" /> Consultar un precio</h3>
+        <p className="text-xs text-texto-tenue mt-0.5">Escaneá o escribí el nombre. No se agrega al ticket.</p>
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Código o nombre"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && res.length) { e.preventDefault(); elegir(res[0]); }
+            if (e.key === "Enter" && !res.length && t.length >= 6) { e.preventDefault(); setVisto({ noEsta: t }); setQ(""); }
+          }}
+          className="f-m w-full border border-borde rounded-xl px-3 py-2 text-sm mt-3 outline-none focus:border-acento bg-superficie" />
+        {res.length > 0 && (
+          <ul className="mt-2 border border-borde rounded-xl divide-y divide-borde max-h-60 overflow-auto">
+            {res.map((p) => (
+              <li key={p.id}>
+                <button onClick={() => elegir(p)} className="w-full text-left px-3 py-2 hover:bg-superficie-2 flex items-center gap-3">
+                  <span className="flex-1 min-w-0 text-sm truncate">{p.nombre}</span>
+                  <span className="f-m text-sm font-semibold">{p.precio ? money(p.precio) : "sin precio"}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {visto && visto.noEsta && (
+          <div className="mt-4 text-sm text-ojo bg-ojo-suave border border-ojo rounded-xl p-3">El código <span className="f-m">{visto.noEsta}</span> no está en el catálogo.</div>
+        )}
+        {visto && !visto.noEsta && (
+          <div className="mt-4 border border-borde rounded-xl p-4">
+            <div className="text-sm text-texto-suave">{visto.nombre}</div>
+            <div className="f-d text-3xl mt-1">{visto.precioAbierto ? "Precio abierto" : visto.precio ? money(visto.precio) : "Sin precio"}</div>
+            {listas.map((l) => (
+              <div key={l.id} className="flex justify-between text-sm mt-1"><span className="text-texto-suave">{l.nombre}</span><span className="f-m">{money(visto.precios[l.id])}</span></div>
+            ))}
+            <div className="f-m text-xs text-texto-tenue mt-2">{visto.barcode || "sin código"} · stock {formatoCantidad(visto.unidad, visto.stock)}</div>
+          </div>
+        )}
+        <div className="flex justify-end mt-4"><Boton variant="quiet" onClick={onCerrar}>Volver al ticket <Tecla>Esc</Tecla></Boton></div>
+      </div>
+    </Modal>
+  );
+}
 
 /* `descuentoMax` (06/10): el tope de descuento del rol de quien cobra, en
    porcentaje, o null sin tope (el dueño, la plataforma, o un rol al que no
@@ -693,7 +778,7 @@ const ATAJOS = [
    el permiso de descontar, lo controla la pantalla y no la base. */
 export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos, descuentoMax = null,
   facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [], cajaMp = null,
-  muestra = false }) {
+  muestra = false, alPrimerProducto = null }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → (monto | qr) → fin
   /* Los puntos del cliente elegido y cuántos se usan en esta venta (0112). */
   const [puntosCliente, setPuntosCliente] = useState(null);
@@ -709,8 +794,12 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [desc, setDesc] = useState(SIN_DESC);
   const [medioSel, setMedioSel] = useState(0);
   const [recibe, setRecibe] = useState("");
-  const [pagos, setPagos] = useState([]);
-  const [montoMix, setMontoMix] = useState("");
+  /* El pago combinado (08/10, como el modo rápido de Vendi): una casilla
+     por medio, todas a la vista, en vez de agregar un pago por vez. Lo que
+     se cobra sale de lo que hay escrito en las casillas. `setPagos([])`
+     sigue siendo "empezar de cero" para los que ya lo llamaban. */
+  const [montos, setMontos] = useState({});
+  const setPagos = () => setMontos({});
   const [ticket, setTicket] = useState(null);
   /* Va acá arriba y no junto a su saldo: el precio de cada renglón ya lo
      usa (lista del cliente), y leerlo antes de declararlo deja la pantalla
@@ -719,7 +808,10 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   /* Con una venta a medio cargar o a medio cobrar, la página no se
      actualiza sola (src/ui/actualizacion.js): se perdería el carrito. Con
      la venta ya cobrada ("fin") sí: la venta está guardada. */
-  useOcupado(paso !== "fin" && (cart.length > 0 || pagos.length > 0));
+  useOcupado(paso !== "fin" && (cart.length > 0 || Object.values(montos).some((v) => Number(v) > 0)));
+  /* Con la caja cerrada y "abrir sola" prendido (Sistema), el primer
+     producto que entra la abre. */
+  useEffect(() => { if (cart.length > 0 && alPrimerProducto) alPrimerProducto(); }, [cart.length > 0, !!alPrimerProducto]); // eslint-disable-line react-hooks/exhaustive-deps
   /* El ticket que se muestra, con la factura si ARCA ya la autorizó. El
      CAE llega después del cobro —a veces mucho después—, así que no se
      guarda en `ticket`: se mira cada vez en lo que va llegando. */
@@ -734,14 +826,17 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [ultimo, setUltimo] = useState(null);
   const [camara, setCamara] = useState(false);
   const [verTodo, setVerTodo] = useState(false);
+  const [consultando, setConsultando] = useState(false);
   const inp = useRef(null);
   const inpMonto = useRef(null);
-  const inpMix = useRef(null);
+  const casillasRef = useRef({});
 
   const enCarga = paso === "carga";
   useEffect(() => { if (enCarga && inp.current) inp.current.focus(); }, [enCarga, cart.length, ticket]);
   useEffect(() => { if (paso === "monto" && inpMonto.current) inpMonto.current.focus(); }, [paso]);
-  useEffect(() => { if (paso === "mixto" && inpMix.current) inpMix.current.focus(); }, [paso, pagos.length]);
+  /* Al abrir el combinado, el cursor en el efectivo: es por donde empieza
+     casi siempre ("me das 5.000 y el resto con tarjeta"). */
+  useEffect(() => { if (paso === "mixto" && casillasRef.current.efectivo) casillasRef.current.efectivo.focus(); }, [paso]);
 
   const norm = (t) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   /* "Ver todo" es para el mostrador sin pistola: la mayor\u00eda de estos
@@ -758,6 +853,23 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
      formulario de alta necesita ver también los dados de baja para avisar
      que un código de barras ya está usado. */
   const vendibles = useMemo(() => productos.filter((p) => p.activo !== false), [productos]);
+
+  /* LOS MÁS VENDIDOS, A UN TOQUE (08/10)
+
+     Vendi los muestra debajo del carrito con un atajo cada uno, y en un
+     kiosco es lo que más se cobra: la gaseosa, los cigarrillos, el pan, que
+     muchas veces no se escanean. Salen solos de lo vendido en los últimos
+     30 días (`u30`): no hay nada que configurar, y un comercio que recién
+     empieza no ve una fila vacía. Con precio, o de precio abierto (abre su
+     cuadro igual que siempre).
+
+     El atajo es Alt + número y no Alt + letra como en Vendi: en Chrome,
+     Alt+E y Alt+F abren el menú del navegador. Los números solos ya son la
+     cantidad del último producto, así que van con Alt. */
+  const masVendidos = useMemo(() => vendibles
+    .filter((p) => (p.u30 || 0) > 0 && (p.precio > 0 || p.precioAbierto))
+    .sort((a, b) => (b.u30 || 0) - (a.u30 || 0))
+    .slice(0, 8), [vendibles]);
 
   const res = useMemo(() => {
     if (verTodo && q.trim().length < 2) return [...vendibles].sort((a, b) => (b.u30 || 0) - (a.u30 || 0)).slice(0, 60);
@@ -833,7 +945,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     const p = vendibles.find((x) => x.barcode === cod);
     if (p) { add(p); beep(true, ajustes.sonido); }
     else { beep(false, ajustes.sonido); setAlta({ barcode: cod }); }
-  }, enCarga && !alta && !camara && !precioAbierto);
+  }, enCarga && !alta && !camara && !precioAbierto && !consultando);
 
   useEffect(() => {
     if (!pendiente) return;
@@ -1000,7 +1112,18 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
      recargo se calcula sobre lo que se cobra de verdad. */
   const promoMedio = descuentoPorMedio(promos, medio && medio.k, total);
   const rec = conRecargo(total - (promoMedio ? promoMedio.monto : 0), medio);
-  const totalFinal = rec.total;
+  /* REDONDEO DEL EFECTIVO (08/10, como en Ventario)
+
+     Con los billetes que circulan, cobrar $7.380 es buscar monedas que no
+     hay. El comercio elige en Ajustes → Precios y stock redondear a $10,
+     $50 o $100 cuando se cobra en efectivo. Siempre hacia abajo, a favor
+     del cliente: nadie discute que le cobren menos. Con tarjeta, QR o
+     transferencia se cobra exacto, y un pago combinado tampoco se redondea
+     (no hay un solo medio al que aplicarlo). La diferencia va como
+     descuento con su nombre en el ticket, así la caja cuadra. */
+  const pasoRedondeo = Number(ajustes.redondeoEfectivo) || 0;
+  const redondeoDe = (monto, k) => (pasoRedondeo > 1 && k === "efectivo" ? monto - Math.floor(monto / pasoRedondeo) * pasoRedondeo : 0);
+  const totalFinal = rec.total - redondeoDe(rec.total, medio && medio.k);
   // El vuelto se calcula sobre el total con recargo, así que va después.
   const vuelto = recibe ? Number(recibe) - totalFinal : 0;
 
@@ -1017,32 +1140,41 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
 
   const irAPago = () => {
     if (!cart.length) return;
-    setMedioSel(0); setRecibe(""); setPagos([]); setMontoMix("");
+    setMedioSel(0); setRecibe(""); setPagos([]);
     setFiscal(arrancaFactura); setCliente(null);
     setPaso("pago");
   };
 
   // ---- Pago combinado ----
-  const cubierto = pagos.reduce((s2, p) => s2 + p.monto, 0);
+  const montoDe = (k) => Number(montos[k]) || 0;
+  const cubierto = medios.reduce((s2, m) => s2 + montoDe(m.k), 0);
   const falta = Math.max(0, total - cubierto);
-  const vueltoMix = pagos.reduce((s2, p) => s2 + (p.exceso || 0), 0);
-  const efectivoEntregado = pagos.filter((p) => p.medio === "efectivo").reduce((s2, p) => s2 + p.monto + (p.exceso || 0), 0);
+  const sobra = Math.max(0, cubierto - total);
+  /* Solo el efectivo puede pasarse: lo que sobra es el vuelto. Con tarjeta
+     o transferencia se cobra exacto. */
+  const efectivoEntregado = montoDe("efectivo");
+  const vueltoMix = Math.min(sobra, efectivoEntregado);
+  const sobraSinEfectivo = sobra - vueltoMix;
+  const pagos = medios.filter((m) => montoDe(m.k) > 0).map((m) => ({
+    medio: m.k, monto: m.k === "efectivo" ? montoDe(m.k) - vueltoMix : montoDe(m.k),
+  })).filter((p) => p.monto > 0);
 
-  const agregarPago = () => {
-    const m = medios[medioSel];
-    const entrada = Number(montoMix) || falta;
-    if (entrada <= 0 || falta <= 0) return;
-    const aplicado = Math.min(entrada, falta);
-    const exceso = m.k === "efectivo" ? Math.max(0, entrada - falta) : 0;
-    if (m.k !== "efectivo" && entrada > falta) return toast("Con tarjeta o transferencia no puede sobrar: cobrá el importe exacto.", "mal");
-    setPagos((ps) => [...ps, { medio: m.k, monto: aplicado, exceso }]);
-    setMontoMix("");
-    beep(true, ajustes.sonido);
+  /* "+" en una casilla: se lleva lo que falta (lo que no cubren las otras). */
+  const completarCasilla = (k) => {
+    const resto = total - (cubierto - montoDe(k));
+    setMontos((ms) => ({ ...ms, [k]: String(Math.max(0, resto)) }));
+  };
+  const moverCasilla = (desde, paso_) => {
+    const i = medios.findIndex((m) => m.k === desde);
+    const m = medios[(i + paso_ + medios.length) % medios.length];
+    if (m && casillasRef.current[m.k]) casillasRef.current[m.k].focus();
   };
 
   const finalizarMixto = () => {
-    if (cubierto < total) return toast(`Todavía faltan ${money(falta)}.`, "mal");
-    finalizar(pagos[0].medio, efectivoEntregado || null, pagos.map((p) => ({ medio: p.medio, monto: p.monto })), vueltoMix);
+    if (falta > 0) return toast(`Todavía faltan ${money(falta)}.`, "mal");
+    if (sobraSinEfectivo > 0) return toast("Con tarjeta, QR o transferencia no puede sobrar: lo que se pasa del total tiene que ser efectivo.", "mal");
+    if (!pagos.length) return;
+    finalizar(pagos[0].medio, efectivoEntregado || null, pagos, vueltoMix);
   };
 
   /* Con "extra.antesDeCobrar" hace todas las verificaciones y la cuenta
@@ -1108,9 +1240,13 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     }
     const descPromo = pm ? { nombre: pm.promo.nombre, monto: pm.monto } : null;
     if (extra.antesDeCobrar) return extra.antesDeCobrar(r.total);
-    const t = cobrar({ items, sub, desc: descMonto + (pm ? pm.monto : 0), total: r.total, medio: k, ganancia: ganancia - (pm ? pm.monto : 0) + r.recargo,
+    /* El redondeo del efectivo (ver redondeoDe): solo con un medio. */
+    const red = listaPagos ? 0 : redondeoDe(r.total, k);
+    const cobrado = r.total - red;
+    const t = cobrar({ items, sub, desc: descMonto + (pm ? pm.monto : 0) + red, total: cobrado, medio: k, ganancia: ganancia - (pm ? pm.monto : 0) + r.recargo - red,
+      redondeo: red,
       puntos: puntosUsados && cliente ? { usados: puntosUsados, monto: montoCanje } : null,
-      puntosSumados: cliente ? puntosGanados(r.total, regla) : 0,
+      puntosSumados: cliente ? puntosGanados(cobrado, regla) : 0,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
       fiscal: fiscal && facturacion.puede, cliente, descPromo, mp: extra.mp || null,
       promos: pm ? [...promoCalc.aplicadas, { id: pm.promo.id, nombre: pm.promo.nombre, descuento: pm.monto }] : promoCalc.aplicadas });
@@ -1147,9 +1283,75 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   };
 
   const nuevaVenta = () => {
-    setCart([]); setDesc(SIN_DESC); setRecibe(""); setMedioSel(0); setPagos([]); setMontoMix(""); setUltimo(null); setCliente(null);
+    setCart([]); setDesc(SIN_DESC); setRecibe(""); setMedioSel(0); setPagos([]); setUltimo(null); setCliente(null);
     setTicket(null); setVerTicket(false); setPaso("carga");
   };
+
+  /* ---- Ventas en espera (ver MAX_EN_ESPERA) ---- */
+  const [enEspera, setEnEspera] = useState(() => (muestra ? [] : leerEspera(empresaId)));
+  const cambiarEspera = (f) => setEnEspera((l) => { const n = f(l); guardarEspera(empresaId, n); return n; });
+  const fotoDelTicket = () => ({
+    id: uid(), hora: new Date().toISOString(), cart, desc, cliente, fiscal,
+    total, articulos: cart.reduce((s, l) => s + (l.precioAbierto ? 1 : Number(l.qty) || 0), 0),
+  });
+  const vaciarTicket = () => {
+    setCart([]); setDesc(SIN_DESC); setCliente(null); setCanje(0); setUltimo(null); setQ(""); setPagos([]); setRecibe("");
+    setFiscal(arrancaFactura); setPaso("carga");
+  };
+  /* Se puede en medio del cobro también: el que paga sigue trayendo
+     cosas, o se fue a buscar la tarjeta, y hay que atender al de atrás.
+     Lo que se había empezado a cobrar se descarta (no se cobró nada) y el
+     ticket queda en espera entero. Con un QR esperando no: el pago puede
+     estar llegando. */
+  const ponerEnEspera = () => {
+    if (muestra || !cart.length) return;
+    if (paso === "qr") return toast("Hay un cobro con QR esperando: terminalo o cancelalo antes.", "mal");
+    if (paso === "fin") return;
+    if (enEspera.length >= MAX_EN_ESPERA) return toast(`Ya hay ${MAX_EN_ESPERA} ventas en espera: cobrá o anulá alguna antes.`, "mal");
+    const f = fotoDelTicket();
+    cambiarEspera((l) => [...l, f]);
+    vaciarTicket();
+    toast(`Venta de ${money(f.total)} en espera. Se retoma tocándola arriba del ticket o con F6.`);
+  };
+  /* Si hay otra venta a medias, se intercambian: la de ahora pasa a
+     espera y no se pierde ninguna. */
+  const retomar = (id) => {
+    const e = enEspera.find((x) => x.id === id);
+    if (!e) return;
+    if (paso === "qr") return toast("Hay un cobro con QR esperando: terminalo o cancelalo antes.", "mal");
+    const actual = cart.length ? fotoDelTicket() : null;
+    cambiarEspera((l) => [...l.filter((x) => x.id !== id), ...(actual ? [actual] : [])]);
+    vaciarTicket();
+    setCart(e.cart || []); setDesc(e.desc || SIN_DESC); setCliente(e.cliente || null); setFiscal(e.fiscal != null ? e.fiscal : arrancaFactura);
+    if (actual) toast(`La venta de ${money(actual.total)} quedó en espera.`);
+  };
+  const descartarEspera = (id) => cambiarEspera((l) => l.filter((x) => x.id !== id));
+
+  /* EL TICKET EN CURSO NO SE PIERDE (08/10)
+
+     Al ir al panel la caja se desarma y el ticket a medias se perdía:
+     Nehuen lo vio vendiendo. Se guarda en la memoria del navegador
+     mientras se arma y se recupera al volver (también después de un
+     refresco o un corte de luz). Se borra cuando la venta se cobra o se
+     queda vacía. El modo muestra del recorrido no guarda nada. */
+  const claveTicket = `genez:ticket-en-curso:${empresaId || "local"}`;
+  useEffect(() => {
+    if (muestra) return;
+    try {
+      const t = JSON.parse(localStorage.getItem(claveTicket) || "null");
+      if (t && Array.isArray(t.cart) && t.cart.length) {
+        setCart(t.cart); setDesc(t.desc || SIN_DESC); setCliente(t.cliente || null);
+        if (t.fiscal != null) setFiscal(t.fiscal);
+      }
+    } catch { /* sin memoria del navegador: arranca vacío, como antes */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (muestra) return;
+    try {
+      if (paso === "fin" || !cart.length) localStorage.removeItem(claveTicket);
+      else localStorage.setItem(claveTicket, JSON.stringify({ cart, desc, cliente, fiscal }));
+    } catch { /* sin lugar: queda solo en pantalla */ }
+  }, [cart, desc, cliente, fiscal, paso]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Teclado ----
   useEffect(() => {
@@ -1157,14 +1359,33 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       /* Con las últimas ventas abiertas, las teclas son de esa ventana
          (1 a 5 imprime, Esc cierra); F3 la vuelve a cerrar. */
       if (ultimas) { if (e.key === "F3") { e.preventDefault(); setUltimas(false); } return; }
-      if (alta || camara || buscarCliente) return;
+      if (alta || camara || buscarCliente || consultando) return;
       if (e.key === "F1") { e.preventDefault(); return setAyuda((a) => !a); }
+      /* Consultar un precio: desde cualquier paso, sin tocar el ticket. */
+      if (e.altKey && e.code === "KeyP") { e.preventDefault(); return setConsultando(true); }
+      /* F6 en cualquier paso salvo con la venta ya cobrada: con algo en
+         el ticket lo pone en espera; vacío, retoma la que hace más que
+         espera. */
+      if (e.key === "F6" && paso !== "fin") {
+        e.preventDefault();
+        if (cart.length) return ponerEnEspera();
+        if (enEspera.length) return retomar(enEspera[0].id);
+        return;
+      }
       /* F3 desde cualquier paso: el cliente vuelve a pedir el papel
          también mientras se está cobrando al siguiente. */
       if (e.key === "F3" && empresaId) { e.preventDefault(); return setUltimas(true); }
       if (ayuda) { if (e.key === "Escape") { e.preventDefault(); setAyuda(false); } return; }
 
       if (paso === "carga") {
+        /* Alt + 1 a 8: los más vendidos. Por `code` y no por `key`: con
+           Alt, algunos teclados devuelven otro carácter para el número. */
+        if (e.altKey && !e.ctrlKey && /^(Digit|Numpad)[1-8]$/.test(e.code || "")) {
+          e.preventDefault();
+          const p = masVendidos[Number(e.code.slice(-1)) - 1];
+          if (p) { add(p); setQ(""); }
+          return;
+        }
         if (e.key === "F2") { e.preventDefault(); return irAPago(); }
         if (e.key === "F4") {
           e.preventDefault();
@@ -1194,7 +1415,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
         if (e.key === "Escape") return setPaso("carga");
         if (e.key === "ArrowDown") return setMedioSel((i) => (i + 1) % medios.length);
         if (e.key === "ArrowUp") return setMedioSel((i) => (i - 1 + medios.length) % medios.length);
-        if (e.key === "6" || e.key.toLowerCase() === "c") { setMedioSel(0); setMontoMix(""); return setPaso("mixto"); }
+        if (e.key === "6" || e.key.toLowerCase() === "c") { setMedioSel(0); setPagos([]); return setPaso("mixto"); }
         if (/^[1-9]$/.test(e.key) && Number(e.key) <= medios.length) {
           const i = Number(e.key) - 1;
           setMedioSel(i);
@@ -1220,14 +1441,15 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
 
       if (paso === "mixto") {
         if (e.key === "Escape") { e.preventDefault(); setPagos([]); return setPaso("pago"); }
-        if (e.key === "ArrowDown") { e.preventDefault(); return setMedioSel((i) => (i + 1) % medios.length); }
-        if (e.key === "ArrowUp") { e.preventDefault(); return setMedioSel((i) => (i - 1 + medios.length) % medios.length); }
-        if (e.key === "Delete") { e.preventDefault(); return setPagos((ps) => ps.slice(0, -1)); }
-        if (e.key === "Enter") {
+        /* Alt + número: a la casilla de ese medio (los números solos son
+           el importe que se está escribiendo). */
+        if (e.altKey && /^(Digit|Numpad)[1-9]$/.test(e.code || "")) {
           e.preventDefault();
-          if (falta <= 0) return finalizarMixto();
-          return agregarPago();
+          const m = medios[Number(e.code.slice(-1)) - 1];
+          if (m && casillasRef.current[m.k]) casillasRef.current[m.k].focus();
+          return;
         }
+        if (e.key === "Enter") { e.preventDefault(); return finalizarMixto(); }
         return;
       }
 
@@ -1243,7 +1465,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, montos, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId, enEspera, desc, consultando, masVendidos]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -1313,6 +1535,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               title="Buscar tocando, para lo que no tiene código de barras">
               <Search size={16} className={verTodo ? "" : "text-acento-vivo"} /> <span className="hidden sm:inline">Catálogo</span>
             </button>
+            <button onClick={() => setConsultando(true)}
+              className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/10 active:bg-superficie/20 border border-borde-fuerte rounded-xl px-2.5 py-2"
+              title="Consultar un precio sin agregarlo al ticket (Alt+P)">
+              <Tag size={16} className="text-acento-vivo" /> <span className="hidden sm:inline">Precio</span>
+            </button>
             <button onClick={() => setCamara(true)}
               className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/10 active:bg-superficie/20 border border-borde-fuerte rounded-xl px-2.5 py-2"
               title="Leer con la cámara">
@@ -1369,6 +1596,28 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             </ul>
           )}
         </Card>
+
+        {!muestra && (cart.length > 0 || enEspera.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={ponerEnEspera} disabled={!cart.length || paso === "qr" || paso === "fin"}
+              title="Guardar este ticket para atender al que sigue"
+              className="flex items-center gap-1.5 text-xs font-semibold border border-borde rounded-xl px-2.5 py-2 text-texto-suave hover:text-texto hover:border-borde-fuerte disabled:opacity-40 disabled:pointer-events-none">
+              <PauseCircle size={15} className="text-acento-vivo" /> Poner en espera <Tecla>F6</Tecla>
+            </button>
+            {enEspera.map((e) => (
+              <span key={e.id} className="inline-flex items-stretch rounded-xl border border-acento/50 bg-acento-suave overflow-hidden">
+                <button onClick={() => retomar(e.id)} title="Retomar esta venta"
+                  className="flex items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-acento-suave">
+                  <span className="f-m text-texto-tenue">{new Date(e.hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+                  <span className="text-texto">{e.cliente ? e.cliente.razonSocial : `${formatoCantidad("un", e.articulos)} art.`}</span>
+                  <span className="f-m font-semibold text-texto">{money(e.total)}</span>
+                </button>
+                <button onClick={() => descartarEspera(e.id)} title="Descartar esta venta en espera" aria-label="Descartar esta venta en espera"
+                  className="px-1.5 border-l border-acento/30 text-texto-tenue hover:text-mal"><X size={13} /></button>
+              </span>
+            ))}
+          </div>
+        )}
 
         <Card className="overflow-hidden">
           {cart.length === 0 ? <Vacio>El ticket está vacío. Escaneá el primer producto.</Vacio> : (
@@ -1460,6 +1709,25 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           </>
           )}
         </Card>
+
+        {masVendidos.length > 0 && (
+          <div>
+            <div className="px-1 mb-1.5 text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Los más vendidos</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {masVendidos.map((p, i) => (
+                <button key={p.id} onClick={() => { add(p); setQ(""); inp.current && inp.current.focus(); }}
+                  title={`Agregar ${p.nombre} (Alt+${i + 1})`}
+                  className="flex items-center gap-2 text-left rounded-xl border border-borde bg-superficie hover:border-acento hover:bg-acento-suave px-2.5 py-2 min-w-0">
+                  <span className="solo-teclado hidden md:inline"><Tecla>{`Alt ${i + 1}`}</Tecla></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-medium text-texto truncate">{p.nombre}</span>
+                    <span className="block f-m text-[11px] text-texto-tenue">{p.precioAbierto ? "precio abierto" : money(p.precio)}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {activo && !cantidadPendiente && (
           <p className="text-xs text-texto-tenue px-1 -mt-1">
@@ -1672,7 +1940,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                 </li>
               ))}
             </ul>
-            <button onClick={() => { setMedioSel(0); setMontoMix(""); setPaso("mixto"); }}
+            <button onClick={() => { setMedioSel(0); setPagos([]); setPaso("mixto"); }}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed border-borde-fuerte hover:bg-superficie-2 text-left mt-1.5">
               <Tecla>6</Tecla>
               <span className="font-semibold flex-1">Pago combinado</span>
@@ -1712,6 +1980,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           <div className="bg-superficie-3 text-texto px-6 py-4">
             <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Efectivo · total</div>
             <div className="f-d text-4xl mt-0.5">{money(totalFinal)}</div>
+            {totalFinal !== rec.total && (
+              <div className="text-xs text-texto-suave mt-1">Redondeado de {money(rec.total)} (−{money(rec.total - totalFinal)})</div>
+            )}
           </div>
           <div className="p-5">
             <label className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Con cuánto paga?</label>
@@ -1756,54 +2027,40 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           </div>
 
           <div className="p-5">
-            {pagos.length > 0 && (
-              <ul className="mb-4 border border-borde rounded-xl divide-y divide-borde">
-                {pagos.map((p, i) => (
-                  <li key={i} className="flex items-center gap-3 px-3 py-2 text-sm">
-                    <Check size={14} className="text-bien shrink-0" />
-                    <span className="flex-1">{medioPorK(ajustes, p.medio).n}</span>
-                    <span className="f-m">{money(p.monto)}</span>
-                    {p.exceso > 0 && <span className="f-m text-[11px] text-texto-tenue">+{money(p.exceso)} vuelto</span>}
-                    <button onClick={() => setPagos((ps) => ps.filter((_, j) => j !== i))} className="text-texto-tenue hover:text-mal"><Trash2 size={14} /></button>
-                  </li>
-                ))}
-              </ul>
+            <div className="space-y-1.5">
+              {medios.map((m, i) => (
+                <label key={m.k} className={`flex items-center gap-3 px-3 py-1.5 rounded-xl border ${montoDe(m.k) > 0 ? "border-acento bg-acento-suave" : "border-borde"}`}>
+                  <span className="solo-teclado"><Tecla>{`Alt ${i + 1}`}</Tecla></span>
+                  <span className="flex-1 text-sm font-semibold">{m.n}</span>
+                  <span className="text-texto-tenue">$</span>
+                  <input ref={(el) => { casillasRef.current[m.k] = el; }} value={montos[m.k] || ""} inputMode="numeric" placeholder="0"
+                    onChange={(e) => setMontos((ms) => ({ ...ms, [m.k]: e.target.value.replace(/\D/g, "") }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "+") { e.preventDefault(); completarCasilla(m.k); }
+                      else if (e.key === "ArrowDown") { e.preventDefault(); moverCasilla(m.k, 1); }
+                      else if (e.key === "ArrowUp") { e.preventDefault(); moverCasilla(m.k, -1); }
+                    }}
+                    className="f-m w-32 text-right text-lg border border-borde rounded-lg px-2 py-1 bg-superficie outline-none focus:border-acento" />
+                  <button type="button" onClick={() => completarCasilla(m.k)} title="Que esta casilla se lleve lo que falta (+)"
+                    className="f-m text-xs font-bold w-7 h-7 rounded-lg border border-borde text-texto-suave hover:border-acento hover:text-acento">+</button>
+                </label>
+              ))}
+            </div>
+            <p className="solo-teclado text-xs text-texto-tenue mt-2 flex items-center gap-1.5 flex-wrap">
+              <Tecla>+</Tecla> la casilla se lleva lo que falta · <Tecla>↑</Tecla><Tecla>↓</Tecla> o <Tecla>Alt</Tecla>+número para moverse · <Tecla>Enter</Tecla> cobrar
+            </p>
+            {vueltoMix > 0 && (
+              <div className="bg-bien-suave rounded-xl p-3 text-center mt-3">
+                <div className="text-[11px] uppercase tracking-widest font-bold text-texto-suave">Vuelto</div>
+                <div className="f-d text-3xl text-bien">{money(vueltoMix)}</div>
+              </div>
             )}
-
-            {falta > 0 ? (
-              <>
-                <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Con qué paga esta parte?</div>
-                <div className="grid grid-cols-2 gap-1.5 mt-2">
-                  {medios.map((m, i) => (
-                    <button key={m.k} onClick={() => setMedioSel(i)}
-                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-sm font-semibold ${i === medioSel ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
-                      <Tecla>{i + 1}</Tecla> {m.n}
-                    </button>
-                  ))}
-                </div>
-                <label className="block text-[11px] uppercase tracking-widest text-texto-tenue font-bold mt-4">Importe</label>
-                <input ref={inpMix} value={montoMix} onChange={(e) => setMontoMix(e.target.value.replace(/\D/g, ""))}
-                  placeholder={`${money(falta)} (todo lo que falta)`}
-                  className="f-m w-full text-right text-2xl border-2 border-borde rounded-xl px-4 py-2.5 mt-1 outline-none focus:border-acento" />
-                <p className="text-xs text-texto-tenue mt-2 flex items-center gap-1.5 flex-wrap">
-                  <span className="solo-teclado"><Tecla>↑</Tecla><Tecla>↓</Tecla> medio · <Tecla>Enter</Tecla> agregar · <Tecla>Supr</Tecla> borrar el último · </span>
-                  vacío toma {money(falta)}
-                </p>
-                <Boton size="lg" className="w-full mt-3" onClick={agregarPago}>
-                  Agregar {money(Number(montoMix) || falta)} en {medios[medioSel].n} <Tecla>Enter</Tecla>
-                </Boton>
-              </>
-            ) : (
-              <>
-                {vueltoMix > 0 && (
-                  <div className="bg-bien-suave rounded-xl p-3 text-center mb-3">
-                    <div className="text-[11px] uppercase tracking-widest font-bold text-texto-suave">Vuelto</div>
-                    <div className="f-d text-3xl text-bien">{money(vueltoMix)}</div>
-                  </div>
-                )}
-                <Boton size="lg" className="w-full" onClick={finalizarMixto}>Confirmar cobro <Tecla>Enter</Tecla></Boton>
-              </>
+            {sobraSinEfectivo > 0 && (
+              <p className="text-xs text-mal mt-2">Se pasa del total por {money(sobraSinEfectivo)} y no es efectivo: con tarjeta, QR o transferencia se cobra exacto.</p>
             )}
+            <Boton size="lg" className="w-full mt-3" onClick={finalizarMixto} disabled={falta > 0 || sobraSinEfectivo > 0}>
+              {falta > 0 ? `Faltan ${money(falta)}` : "Confirmar cobro"} <Tecla>Enter</Tecla>
+            </Boton>
           </div>
         </Overlay>
       )}
@@ -1891,6 +2148,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           add(p, qty, importe);
           beep(true, ajustes.sonido);
         }} />
+
+      {consultando && (
+        <ConsultarPrecio productos={productos} ajustes={ajustes}
+          onCerrar={() => { setConsultando(false); inp.current && inp.current.focus(); }} />
+      )}
 
       {ultimas && (
         <UltimasVentas empresaId={empresaId} ajustes={ajustes} toast={toast}
@@ -2209,6 +2471,16 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Campo label="Stock actual">
             <input value={d.stock || ""} onChange={(e) => set("stock", e.target.value.replace(/[^\d.]/g, ""))} className={`${inputCls} f-m text-right`} />
+            {/* Stock en negativo: se vendió más de lo que se cargó. Antes de
+                cargar lo que hay, se lo lleva a cero (08/10, Nehuen); al
+                guardar entra como ajuste, igual que cualquier corrección
+                de stock desde la ficha. */}
+            {Number(d.stock) < 0 && (
+              <button type="button" onClick={() => set("stock", "0")}
+                className="mt-1 text-[11px] font-semibold text-acento hover:underline">
+                Está en negativo: ponerlo en 0
+              </button>
+            )}
           </Campo>
           <Campo label="Stock mínimo">
             <input value={d.stockMin || ""} onChange={(e) => set("stockMin", e.target.value.replace(/[^\d.]/g, ""))} className={`${inputCls} f-m text-right`} />

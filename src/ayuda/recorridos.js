@@ -228,7 +228,7 @@ export const PANTALLAS = {
      menú de la computadora o el del celular; la caja cerrada o abierta).
      El que no está se saltea sin mostrarse. */
   inicio: [
-    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Cada sección hace una cosa: vender, productos, stock, caja, informes. Ahora te mostramos las principales." },
+    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Está agrupado por tema: lo que vendés, la mercadería y los números. Equipo, permisos y ajustes están abajo de todo, en Administración. Ahora te mostramos las principales." },
     /* En el celular el menú está abajo: las primeras secciones y "Más". */
     { en: B(/^Más$/), alternativa: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. Ahora te mostramos las principales." },
     { en: Algo(/^Lo que tenés que saber$/i), opcional: true, t: "Lo que tenés que saber", d: "El sistema mira tus datos y te avisa lo importante: lo que se está por acabar, los costos que subieron, los márgenes que bajaron." },
@@ -237,7 +237,7 @@ export const PANTALLAS = {
   /* El inicio de un negocio de servicios es otro tablero: el día de la
      agenda y las acciones rápidas. */
   inicioServicios: [
-    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Cada sección hace una cosa: agenda, clientes, servicios, finanzas. Ahora te mostramos las principales." },
+    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Cada sección hace una cosa: agenda, clientes, servicios, finanzas. Ajustes y permisos están abajo de todo, en Administración. Ahora te mostramos las principales." },
     { en: B(/^Más$/), alternativa: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. Ahora te mostramos las principales." },
     { en: Algo(/^Acciones rápidas$/i), opcional: true, t: "Tu día", d: "Los turnos de hoy, lo que falta confirmar y las acciones rápidas: un turno nuevo sin entrar a la agenda." },
     { en: Css("button[aria-label='Ayuda']"), opcional: true, t: "La ayuda", d: "Todas las guías y los paso a paso, con un buscador y nuestro WhatsApp." },

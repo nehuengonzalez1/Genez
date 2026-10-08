@@ -8,7 +8,7 @@ import {
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft,
   ArrowRight, Store, CalendarDays, CircleHelp, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
-  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X, ShieldCheck, UserCog
+  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X, ShieldCheck, UserCog, MonitorDown
 } from "lucide-react";
 import { MarcoEntrada, CabezaEntrada, PieEntrada, CampoEntrada } from "./Entrada.jsx";
 import { uid, fdatel } from "../datos/generador.js";
@@ -45,6 +45,7 @@ import { Recorrido, RecorridoCtx } from "../ayuda/Recorrido.jsx";
 import { recorridosDe, recorridoGeneral } from "../ayuda/recorridos.js";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
+import { useInstalar } from "../ui/instalar.js";
 import { useLogos } from "../ui/logos.js";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { ParaElContador } from "../modulos/ParaElContador.jsx";
@@ -1446,7 +1447,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const abrirCajaDelDia = async (montoInicial) => {
+  const abrirCajaDelDia = async (montoInicial, aviso = "Caja abierta.") => {
     try {
       if (!cajaId) { toast("Elegí primero qué caja es esta computadora.", "mal"); return; }
       await abrirCajaEnBase({ empresaId, cajaId, sucursalId: null, montoInicial });
@@ -1454,7 +1455,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
          abierta desde otro equipo, `abrirCaja` devuelve esa y sus movimientos
          tienen que aparecer igual. */
       setCaja(await leerCaja());
-      toast("Caja abierta.");
+      toast(aviso);
     } catch (e) {
       toast(e.message || "No se pudo abrir la caja.", "mal");
     }
@@ -1475,7 +1476,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null, mp = null, puntos = null, puntosSumados = 0 }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null, mp = null, puntos = null, puntosSumados = 0, redondeo = 0 }) => {
     /* El POS ya no se monta con la caja cerrada, pero no es el único que
        cobra: los pedidos preparados entran por acá también. La condición
        se verifica en el único lugar por el que pasan todos, así que un
@@ -1537,6 +1538,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       /* El descuento por medio de pago (0103), aparte del manual en el
          papel: el cliente tiene que ver por qué pagó menos. */
       descPromo,
+      /* El redondeo del efectivo: va dentro de `desc`, y aparte para que
+         el papel lo diga con su nombre. */
+      redondeo: redondeo || 0,
       cliente: cliente || null, sincronizada: null,
       /* Para el papel (0112): el canje, y lo que suma. Lo que suma lo
          calcula la base igual; acá es para que el cliente lo lea. */
@@ -1752,6 +1756,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     else { beep(false, ajustes.sonido); setAltaProd({ barcode: cod }); }
   }, true);
 
+  /* Instalar el sistema como aplicación (08/10): el botón aparece solo
+     si el navegador lo ofrece y todavía no está instalado. */
+  const { puede: puedeInstalar, instalar } = useInstalar();
   const ventasHoy = resumenDia.total;
   const ticketsHoy = resumenDia.tickets;
   /* El menú que se dibuja: los grupos del rubro, con los módulos que el
@@ -1784,11 +1791,16 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
      Las secciones sin nombre —comercio, gastronomía— siguen desplegando
      sus módulos como una lista plana, igual que siempre. */
-  const items = useMemo(() => grupos.flatMap((g) => (
-    g.nombre && g.modulos.length
-      ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
-      : g.modulos
-  )), [grupos]);
+  /* Un grupo con `rotulo` (0138) no es una sección con pestañas: es un
+     título con sus módulos abajo, cada uno en su renglón. Lo de
+     Administración (`abajo`) va al final también en el celular. */
+  const comoRenglones = (g) => (g.nombre && !g.rotulo && g.modulos.length
+    ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
+    : g.modulos);
+  const items = useMemo(() => [
+    ...grupos.filter((g) => !g.abajo).flatMap(comoRenglones),
+    ...grupos.filter((g) => g.abajo).flatMap(comoRenglones),
+  ], [grupos]);
 
   const seccion = grupos.find((g) => g.modulos.some((m) => m.k === tab)) || null;
   const moduloActual = seccion ? seccion.modulos.find((m) => m.k === tab) : null;
@@ -1835,6 +1847,33 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      con un producto de ejemplo. No se abre la caja y no se guarda nada:
      el cobro de la muestra solo avisa. Con la caja abierta, el de verdad. */
   const muestraVenta = !caja.abierta && (recorrido === "general" || recorrido === "primera-venta");
+
+  /* LA CAJA NO FRENA LA PRIMERA VENTA (08/10)
+
+     Abrir la caja era el primer obstáculo del que arranca: "No se puede
+     cobrar sin caja abierta" antes de cobrar nada. Vendi la abre sola y
+     Nehuen lo quiso para Genez. Con la caja cerrada se ve la pantalla de
+     cobro igual, y la caja se abre sola con el primer producto que entra
+     al ticket, en segundo plano: cuando se llega a cobrar ya está.
+
+     El fondo es el que ya se proponía al abrir a mano: el fijo de Ajustes
+     o lo que quedó en el cajón al último cierre. Sin ninguno de los dos,
+     cero: inventar los $50.000 de la apertura a mano descuadraría el
+     arqueo. Se apaga en Ajustes → Cobros, para quien prefiere contar el
+     cajón antes de arrancar; con varias cajas sin elegir, se sigue
+     eligiendo primero. */
+  const abreSola = ajustes.abrirCajaSola !== false && !!cajaId && !caja.abierta;
+  const ultimoCierre = (caja.cierres || [])[0] || null;
+  const fondoSolo = ajustes.fondoCaja != null ? Math.round(Number(ajustes.fondoCaja) || 0)
+    : ultimoCierre && ultimoCierre.fondo != null ? Math.round(Number(ultimoCierre.fondo) || 0) : 0;
+  const [abrirAMano, setAbrirAMano] = useState(false);
+  const abriendoSola = useRef(false);
+  const abrirSola = async () => {
+    if (caja.abierta || abriendoSola.current) return;
+    abriendoSola.current = true;
+    try { await abrirCajaDelDia(fondoSolo, `La caja se abrió sola con ${money(fondoSolo)} de fondo.`); }
+    finally { abriendoSola.current = false; }
+  };
   const cobrarMuestra = () => { toast("Es una muestra del recorrido: no se guardó ninguna venta.", "ok"); return null; };
 
   const terminarBienvenida = (destino) => {
@@ -1940,8 +1979,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 Modo muestra del recorrido: la caja no está abierta y nada de lo que se haga acá se guarda.
               </div>
             )}
-            {caja.abierta || muestraVenta ? (
+            {abreSola && !muestraVenta && !abrirAMano && (
+              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-texto-suave bg-superficie-2 border border-borde rounded-xl px-3 py-2">
+                <span className="flex-1">La caja está cerrada: se abre sola con <span className="f-m text-texto">{money(fondoSolo)}</span> de fondo cuando cargues el primer producto.</span>
+                <button onClick={() => setAbrirAMano(true)} className="text-xs font-semibold text-acento hover:underline">Abrirla a mano con otro monto</button>
+              </div>
+            )}
+            {caja.abierta || muestraVenta || (abreSola && !abrirAMano) ? (
               <POS productos={productos} setProductos={setProductos} cobrar={muestraVenta ? cobrarMuestra : cobrar} ajustes={ajustes} muestra={muestraVenta}
+                alPrimerProducto={abreSola && !muestraVenta ? abrirSola : null}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
                 descuentoMax={descuentoMaxDe(sesion, ajustes)}
@@ -2056,12 +2102,14 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               <kbd className="solo-teclado f-m text-[10px] border border-borde rounded px-1 py-0.5 ml-auto text-texto-tenue">F10</kbd>
             </button>
           )}
-          {/* Un grupo sin nombre se dibuja como lista pelada: así se ve el
-              menú de un comercio o un bar, igual que antes de que esto
-              fuera configurable. El rótulo aparece solo donde el rubro lo
-              definió. */}
-          <nav className="mt-3 space-y-0.5">
-            {grupos.map((g) => {
+          {/* Un grupo sin nombre se dibuja como lista pelada; uno con
+              `rotulo` (0138), con un título chico arriba de sus módulos;
+              uno con nombre y sin rótulo, como un renglón con pestañas
+              (servicios). Lo marcado `abajo` —Administración— va al pie,
+              lejos de lo de todos los días: es lo que se toca una vez por
+              mes, y mezclado entre Productos y Caja estorbaba (07/10). */}
+          {(() => {
+            const dibujar = (g) => {
               const fila = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors";
 
               /* Sección que va a existir y todavía no: se ve, no se toca. */
@@ -2074,16 +2122,17 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 );
               }
 
-              /* La sección con nombre es el renglón, tenga los módulos que
-                 tenga; los de adentro se eligen con las pestañas de
-                 arriba. Queda activa mientras se esté en cualquiera de
-                 ellos. */
-              const visibles = g.nombre
-                ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
-                : g.modulos;
+              /* La sección con nombre y sin rótulo es el renglón, tenga
+                 los módulos que tenga; los de adentro se eligen con las
+                 pestañas de arriba. Queda activa mientras se esté en
+                 cualquiera de ellos. */
+              const visibles = comoRenglones(g);
 
               return (
-                <div key={g.clave}>
+                <div key={g.clave} className={g.rotulo ? "pt-3 first:pt-0" : ""}>
+                  {g.rotulo && (
+                    <div className="px-2.5 pb-1 text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">{g.nombre}</div>
+                  )}
                   <div className="space-y-0.5">
                     {visibles.map((n) => {
                       const Icono = iconoDe(n.i);
@@ -2104,9 +2153,19 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                   </div>
                 </div>
               );
-            })}
-          </nav>
-          <div className="mt-auto px-2.5 py-3 border-t border-borde">
+            };
+            const arriba = grupos.filter((g) => !g.abajo);
+            const abajo = grupos.filter((g) => g.abajo);
+            return (
+              <>
+                <nav className="mt-3 space-y-0.5 min-h-0 overflow-y-auto">{arriba.map(dibujar)}</nav>
+                {abajo.length > 0 && (
+                  <nav className="mt-auto pt-3 border-t border-borde space-y-0.5">{abajo.map(dibujar)}</nav>
+                )}
+              </>
+            );
+          })()}
+          <div className={`${grupos.some((g) => g.abajo) ? "mt-3" : "mt-auto"} px-2.5 py-3 border-t border-borde`}>
             <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Caja</div>
             <div className={`text-sm font-semibold ${caja.abierta ? "text-bien" : "text-texto-tenue"}`}>{caja.abierta ? "Abierta" : "Cerrada"}</div>
             {/* Qué caja es esta computadora (y en qué local, con más de uno).
@@ -2116,6 +2175,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               {[((cajas || []).find((c) => c.id === cajaId) || {}).nombre || "Sin caja elegida",
                 lugar.varias ? (sucursales.find((s) => s.id === sucursalActual) || {}).nombre : null].filter(Boolean).join(" · ")}
             </div>
+            {puedeInstalar && (
+              <button onClick={async () => { if (await instalar()) toast("Listo: Genez quedó instalado en esta computadora."); }}
+                className="mt-2.5 -mx-1 w-[calc(100%+0.5rem)] flex items-center gap-2 px-1 py-1.5 rounded-lg text-xs font-medium text-texto-suave hover:text-texto hover:bg-superficie-2 transition-colors">
+                <MonitorDown size={14} className="text-texto-tenue" /> Instalar en la computadora
+              </button>
+            )}
           </div>
         </aside>
 

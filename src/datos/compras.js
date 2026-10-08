@@ -22,12 +22,17 @@
                    comercio que no vacía el estante antes de reponer
                    (sanitarios, #75) — mezclar el lote viejo con el
                    nuevo sin perder de vista lo que costó cada uno.
-     - false/nada → no toca el costo. */
+     - false/nada → no toca el costo.
+
+   Y `precio`, si viene, es el precio de venta nuevo que se puso en la
+   misma carga (para no perder margen cuando sube el costo). Hasta el
+   08/10 la pantalla lo cambiaba y no se mandaba: se veía bien hasta
+   refrescar y volvía el precio viejo. */
 
 import { supabase } from "./supabase.js";
 import { ajustarStock, guardarProducto } from "./items.js";
 
-/* lineas: [{ itemId, descripcion, cantidad, costoUnitario, actualizarCosto }] */
+/* lineas: [{ itemId, descripcion, cantidad, costoUnitario, actualizarCosto, precio? }] */
 export async function registrarCompra({ empresaId, proveedorId, sucursalId, comprobante, lineas }) {
   if (!empresaId) throw new Error("registrarCompra necesita la empresa.");
   if (!lineas || !lineas.length) throw new Error("La compra no tiene líneas.");
@@ -89,7 +94,13 @@ export async function registrarCompra({ empresaId, proveedorId, sucursalId, comp
       tipo: "compra", motivo: comprobante ? `Compra ${comprobante}` : "Compra",
       operacionId: op.id,
     });
-    if (nuevoCosto != null) await guardarProducto(l.itemId, { costo: nuevoCosto });
+    const nuevoPrecio = Number(l.precio) > 0 ? Number(l.precio) : null;
+    if (nuevoCosto != null || nuevoPrecio != null) {
+      await guardarProducto(l.itemId, {
+        ...(nuevoCosto != null ? { costo: nuevoCosto } : {}),
+        ...(nuevoPrecio != null ? { precio: nuevoPrecio } : {}),
+      });
+    }
   }
 
   return op.id;

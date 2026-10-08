@@ -194,6 +194,14 @@ export function FondoDeCaja({ ajustes, setAjustes }) {
         </label>
         {fijo && <p className="text-xs text-texto-tenue">Se propone abrir con {money(ajustes.fondoCaja || 0)}.</p>}
       </div>
+      <label className="flex items-start gap-2 mt-4 text-sm">
+        <input type="checkbox" className="mt-1" checked={ajustes.abrirCajaSola !== false}
+          onChange={(e) => setAjustes({ ...ajustes, abrirCajaSola: e.target.checked })} />
+        <span>
+          <b className="font-semibold">Abrir la caja sola con la primera venta</b>
+          <span className="block text-texto-suave">Con ese fondo, apenas se carga el primer producto. Apagalo si preferís contar el cajón antes de arrancar.</span>
+        </span>
+      </label>
     </Card>
   );
 }
@@ -254,6 +262,17 @@ export function PreciosYStock({ ajustes, setAjustes }) {
           <option value="100">A $100</option>
         </select>
         <span className="block text-xs text-texto-tenue mt-1">Es con lo que arranca la actualización de precios en Productos; ahí se puede cambiar cada vez.</span>
+      </label>
+      <label className="block mt-4">
+        <Rotulo>Redondear el total cuando se cobra en efectivo</Rotulo>
+        <select value={String(ajustes.redondeoEfectivo || 0)} onChange={(e) => setAjustes({ ...ajustes, redondeoEfectivo: Number(e.target.value) })}
+          className={`${inputCls} max-w-xs`}>
+          <option value="0">No redondear</option>
+          <option value="10">Para abajo, a $10</option>
+          <option value="50">Para abajo, a $50</option>
+          <option value="100">Para abajo, a $100</option>
+        </select>
+        <span className="block text-xs text-texto-tenue mt-1">Siempre a favor del cliente: con $7.380 y a $100 se cobran $7.300. La diferencia sale en el ticket como redondeo. Con tarjeta, QR o transferencia se cobra el total exacto.</span>
       </label>
       <div className="mt-4">
         <Rotulo>Si se vende un producto sin stock</Rotulo>

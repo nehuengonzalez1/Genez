@@ -242,9 +242,54 @@ function CajaDelDia({ caja, movCaja, cerrarCaja, abrirCaja, toast, ajustes, empr
    cierre "cuadraría" sin que nadie haya contado nada. Mercado Pago y las
    tarjetas arrancan en lo esperado, que es lo que se corrige si el
    resumen de Mercado Pago o el cierre del posnet dicen otra cosa. */
+/* Los billetes que circulan (08/10). Para contar el cajón sin calculadora:
+   cuántos de cada uno, y el total va solo al efectivo contado. Ventario lo
+   tiene y en el cierre de un sábado es lo que más tiempo lleva. */
+const BILLETES = [20000, 10000, 2000, 1000, 500, 200, 100, 50, 20, 10];
+
+/* Si algo no cuadra, por qué (08/10, como en Ventario). Obligatorio: una
+   diferencia sin explicación es la que nadie revisa después. Va en la nota
+   del cierre ("Diferencia: …"), que ya se guarda y se ve en el historial:
+   no hizo falta tocar la base. */
+const MOTIVOS_DIFERENCIA = [
+  "Error de conteo", "Vuelto mal dado", "Venta sin cobrar o sin cargar",
+  "Retiro sin registrar", "Cobrado con otro medio", "Otro",
+];
+
+function ContarBilletes({ onTotal }) {
+  const [cant, setCant] = useState({});
+  const [monedas, setMonedas] = useState("");
+  const total = BILLETES.reduce((s, b) => s + b * (Number(cant[b]) || 0), 0) + (Number(monedas) || 0);
+  useEffect(() => { onTotal(total); }, [total]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="col-span-3 border border-borde rounded-lg p-3 bg-superficie-2">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {BILLETES.map((b) => (
+          <label key={b} className="text-xs">
+            <span className="block text-texto-tenue f-m mb-0.5">{money(b)}</span>
+            <input value={cant[b] || ""} inputMode="numeric" placeholder="0"
+              onChange={(e) => setCant((c) => ({ ...c, [b]: e.target.value.replace(/\D/g, "") }))}
+              className={`${inputCls} !py-1 text-right f-m`} />
+          </label>
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-3 mt-2">
+        <label className="text-xs flex items-center gap-2">
+          <span className="text-texto-tenue">Monedas ($)</span>
+          <input value={monedas} inputMode="numeric" placeholder="0" onChange={(e) => setMonedas(e.target.value.replace(/\D/g, ""))}
+            className={`${inputCls} !py-1 !w-24 text-right f-m`} />
+        </label>
+        <span className="text-sm">Total <span className="f-m font-semibold">{money(total)}</span></span>
+      </div>
+    </div>
+  );
+}
+
 function CierreCaja({ caja, porMedio, efectivoEsperado, cerrarCaja, onCerrar }) {
   const otros = porMedio.filter((m) => m.k !== "efectivo" && (m.neto !== 0 || m.activo !== false));
   const [contado, setContado] = useState("");
+  const [contando, setContando] = useState(false);
+  const [motivo, setMotivo] = useState(null);
   const [dicen, setDicen] = useState(() => Object.fromEntries(otros.map((m) => [m.k, String(Math.max(0, Math.round(m.neto)))])));
   const [fondo, setFondo] = useState(String(Math.round(caja.saldoInicial || 0)));
   const [notas, setNotas] = useState("");
@@ -257,6 +302,9 @@ function CierreCaja({ caja, porMedio, efectivoEsperado, cerrarCaja, onCerrar }) 
     ...otros.map((m) => ({ k: m.k, n: m.n, esperado: m.neto, declarado: dicen[m.k] === "" ? null : Number(dicen[m.k]), medio: m })),
   ];
   const fondoMal = efectivo !== null && (fondoN > efectivo);
+  const hayDiferencia = filas.some((f) => f.declarado !== null && Math.round(f.declarado - f.esperado) !== 0);
+  /* "Otro" necesita que se cuente qué pasó; los demás se explican solos. */
+  const faltaMotivo = hayDiferencia && (!motivo || (motivo === "Otro" && !notas.trim()));
 
   /* Lo que pasa a la caja grande, por cuenta: el efectivo menos el fondo,
      y cada medio a la suya menos su comisión estimada. */
@@ -270,7 +318,10 @@ function CierreCaja({ caja, porMedio, efectivoEsperado, cerrarCaja, onCerrar }) 
     setGuardando(true);
     const declarado = { efectivo };
     for (const f of filas.slice(1)) if (f.declarado !== null) declarado[f.k] = f.declarado;
-    const ok = await cerrarCaja({ declarado, fondo: fondoN, notas: notas.trim() || null });
+    const nota = hayDiferencia && motivo
+      ? [`Diferencia: ${motivo === "Otro" ? "otro motivo" : motivo.toLowerCase()}`, notas.trim()].filter(Boolean).join(" · ")
+      : notas.trim();
+    const ok = await cerrarCaja({ declarado, fondo: fondoN, notas: nota || null });
     setGuardando(false);
     if (ok) onCerrar();
   };
@@ -298,13 +349,22 @@ function CierreCaja({ caja, porMedio, efectivoEsperado, cerrarCaja, onCerrar }) 
                   {dif === 0 && <span className="block text-xs text-bien">Cuadra</span>}
                 </span>
                 <span className="f-m text-right text-texto-suave">{money(f.esperado)}</span>
-                <input value={f.k === "efectivo" ? contado : dicen[f.k]} autoFocus={f.k === "efectivo"}
-                  placeholder={f.k === "efectivo" ? "Contado" : "0"}
-                  onChange={(e) => {
-                    const v = e.target.value.replace(/\D/g, "");
-                    if (f.k === "efectivo") setContado(v); else setDicen((d) => ({ ...d, [f.k]: v }));
-                  }}
-                  className={inputCls} />
+                <div>
+                  <input value={f.k === "efectivo" ? contado : dicen[f.k]} autoFocus={f.k === "efectivo"}
+                    placeholder={f.k === "efectivo" ? "Contado" : "0"} readOnly={f.k === "efectivo" && contando}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "");
+                      if (f.k === "efectivo") setContado(v); else setDicen((d) => ({ ...d, [f.k]: v }));
+                    }}
+                    className={inputCls} />
+                  {f.k === "efectivo" && (
+                    <button type="button" onClick={() => setContando((c) => !c)}
+                      className="block ml-auto text-[11px] font-semibold text-acento hover:underline mt-0.5">
+                      {contando ? "Escribir el total" : "Contar billetes"}
+                    </button>
+                  )}
+                </div>
+                {f.k === "efectivo" && contando && <ContarBilletes onTotal={(t) => setContado(t ? String(t) : "")} />}
               </React.Fragment>
             );
           })}
@@ -324,6 +384,21 @@ function CierreCaja({ caja, porMedio, efectivoEsperado, cerrarCaja, onCerrar }) 
         </div>
         {fondoMal && <p className="text-xs text-mal mt-2">El fondo no puede ser más que el efectivo contado.</p>}
 
+        {hayDiferencia && (
+          <div className="mt-4">
+            <div className="text-xs text-texto-suave mb-1.5">¿Por qué no cuadra? <span className="text-mal">Hace falta para cerrar.</span></div>
+            <div className="flex flex-wrap gap-1.5">
+              {MOTIVOS_DIFERENCIA.map((m) => (
+                <button key={m} type="button" onClick={() => setMotivo(m)}
+                  className={`text-xs rounded-full border px-2.5 py-1 ${motivo === m ? "border-acento bg-acento-suave text-texto font-semibold" : "border-borde text-texto-suave hover:border-borde-fuerte"}`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+            {motivo === "Otro" && !notas.trim() && <p className="text-xs text-ojo mt-1.5">Contá qué pasó en la nota.</p>}
+          </div>
+        )}
+
         <div className="border border-borde rounded-lg p-4 mt-5">
           <div className="text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold mb-2">Pasa a la caja grande</div>
           {["efectivo", "mp", "banco"].map((c) => (
@@ -337,7 +412,7 @@ function CierreCaja({ caja, porMedio, efectivoEsperado, cerrarCaja, onCerrar }) 
 
         <div className="flex justify-end gap-2 mt-6">
           <Boton variant="quiet" onClick={onCerrar}>Cancelar</Boton>
-          <Boton variant="dark" onClick={confirmar} disabled={guardando || efectivo === null || fondoMal}>
+          <Boton variant="dark" onClick={confirmar} disabled={guardando || efectivo === null || fondoMal || faltaMotivo}>
             {guardando ? "Cerrando…" : "Cerrar caja"}
           </Boton>
         </div>

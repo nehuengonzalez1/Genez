@@ -6,7 +6,7 @@
       "nombre": "Comercio",
       "menu": [
         {
-          "clave": "todo",
+          "clave": "inicio",
           "nombre": null,
           "modulos": [
             {
@@ -14,12 +14,19 @@
               "i": "panel",
               "k": "inicio",
               "n": "Inicio"
-            },
+            }
+          ]
+        },
+        {
+          "clave": "ventas",
+          "nombre": "Ventas",
+          "rotulo": true,
+          "modulos": [
             {
-              "d": "Preparación con pistola y control de faltantes",
-              "i": "planilla",
-              "k": "pedidos",
-              "n": "Pedidos"
+              "d": "Ingresos, egresos y arqueo del día",
+              "i": "billetera",
+              "k": "caja",
+              "n": "Caja"
             },
             {
               "d": "Para emitir facturas A, B o C según corresponda",
@@ -34,11 +41,24 @@
               "n": "Cuenta corriente"
             },
             {
-              "d": "Quién trabaja, qué hace cada uno y cuándo está",
-              "i": "equipo",
-              "k": "equipo",
-              "n": "Equipo"
+              "d": "Preparación con pistola y control de faltantes",
+              "i": "planilla",
+              "k": "pedidos",
+              "n": "Pedidos"
             },
+            {
+              "d": "Cotizar sin vender, convertir cuando el cliente confirma",
+              "i": "presupuesto",
+              "k": "presupuestos",
+              "n": "Presupuestos"
+            }
+          ]
+        },
+        {
+          "clave": "mercaderia",
+          "nombre": "Mercadería",
+          "rotulo": true,
+          "modulos": [
             {
               "d": "Costos, precios y margen de todo tu catálogo",
               "i": "caja",
@@ -56,13 +76,14 @@
               "i": "camion",
               "k": "compras",
               "n": "Compras"
-            },
-            {
-              "d": "Ingresos, egresos y arqueo del día",
-              "i": "billetera",
-              "k": "caja",
-              "n": "Caja"
-            },
+            }
+          ]
+        },
+        {
+          "clave": "numeros",
+          "nombre": "Números",
+          "rotulo": true,
+          "modulos": [
             {
               "d": "Qué se vende, qué deja plata y qué cambió",
               "i": "barras",
@@ -74,12 +95,20 @@
               "i": "chispas",
               "k": "asistente",
               "n": "Asistente"
-            },
+            }
+          ]
+        },
+        {
+          "clave": "administracion",
+          "nombre": "Administración",
+          "rotulo": true,
+          "abajo": true,
+          "modulos": [
             {
-              "d": "Configuración del negocio y del sistema",
-              "i": "tuerca",
-              "k": "ajustes",
-              "n": "Ajustes"
+              "d": "Quién trabaja, qué hace cada uno y cuándo está",
+              "i": "equipo",
+              "k": "equipo",
+              "n": "Equipo"
             },
             {
               "d": "Qué puede hacer cada rol, y quién cambió qué",
@@ -88,10 +117,10 @@
               "n": "Permisos"
             },
             {
-              "d": "Cotizar sin vender, convertir cuando el cliente confirma",
-              "i": "presupuesto",
-              "k": "presupuestos",
-              "n": "Presupuestos"
+              "d": "Configuración del negocio y del sistema",
+              "i": "tuerca",
+              "k": "ajustes",
+              "n": "Ajustes"
             }
           ]
         }
@@ -218,7 +247,7 @@
       "nombre": "Gastronomía",
       "menu": [
         {
-          "clave": "todo",
+          "clave": "inicio",
           "nombre": null,
           "modulos": [
             {
@@ -226,7 +255,14 @@
               "i": "panel",
               "k": "inicio",
               "n": "Inicio"
-            },
+            }
+          ]
+        },
+        {
+          "clave": "ventas",
+          "nombre": "Ventas",
+          "rotulo": true,
+          "modulos": [
             {
               "d": "Qué mesa está ocupada, qué lleva y cuánto hace que espera",
               "i": "cubiertos",
@@ -240,6 +276,12 @@
               "n": "Cocina"
             },
             {
+              "d": "Ingresos, egresos y arqueo del día",
+              "i": "billetera",
+              "k": "caja",
+              "n": "Caja"
+            },
+            {
               "d": "Para emitir facturas A, B o C según corresponda",
               "i": "gente",
               "k": "clientes",
@@ -250,13 +292,14 @@
               "i": "cuaderno",
               "k": "cuentas",
               "n": "Cuenta corriente"
-            },
-            {
-              "d": "Quién trabaja, qué hace cada uno y cuándo está",
-              "i": "equipo",
-              "k": "equipo",
-              "n": "Equipo"
-            },
+            }
+          ]
+        },
+        {
+          "clave": "mercaderia",
+          "nombre": "Mercadería",
+          "rotulo": true,
+          "modulos": [
             {
               "d": "Costos, precios y margen de todo tu catálogo",
               "i": "caja",
@@ -274,13 +317,14 @@
               "i": "camion",
               "k": "compras",
               "n": "Compras"
-            },
-            {
-              "d": "Ingresos, egresos y arqueo del día",
-              "i": "billetera",
-              "k": "caja",
-              "n": "Caja"
-            },
+            }
+          ]
+        },
+        {
+          "clave": "numeros",
+          "nombre": "Números",
+          "rotulo": true,
+          "modulos": [
             {
               "d": "Qué se vende, qué deja plata y qué cambió",
               "i": "barras",
@@ -292,6 +336,20 @@
               "i": "chispas",
               "k": "asistente",
               "n": "Asistente"
+            }
+          ]
+        },
+        {
+          "clave": "administracion",
+          "nombre": "Administración",
+          "rotulo": true,
+          "abajo": true,
+          "modulos": [
+            {
+              "d": "Quién trabaja, qué hace cada uno y cuándo está",
+              "i": "equipo",
+              "k": "equipo",
+              "n": "Equipo"
             },
             {
               "d": "Configuración del negocio y del sistema",
@@ -553,9 +611,8 @@
           ]
         },
         {
-          "i": "tuerca",
-          "clave": "config",
-          "nombre": "Configuración",
+          "clave": "administracion",
+          "nombre": "Administración",
           "modulos": [
             {
               "d": "Configuración del negocio y del sistema",
@@ -569,7 +626,9 @@
               "k": "permisos",
               "n": "Permisos"
             }
-          ]
+          ],
+          "rotulo": true,
+          "abajo": true
         }
       ],
       "voces": {
