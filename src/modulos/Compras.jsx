@@ -6,7 +6,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   ScanLine, Camera, Upload, FileImage, Plus, X, Check, Trash2,
   Loader2, ChevronLeft, ChevronRight, Barcode, Bike, PackageCheck,
-  Phone, MessageCircle, Boxes, Search, ArrowRight, Store, Minus, Printer
+  Phone, MessageCircle, Boxes, Search, ArrowRight, Store, Minus, Printer, Percent
 } from "lucide-react";
 import { uid, fdatel } from "../datos/generador.js";
 import {
@@ -29,6 +29,10 @@ const Cam = Camera;
 /* Mismo cálculo que el modo "ppp" de registrarCompra(), para que la
    actualización optimista de la UI muestre el mismo costo que va a
    quedar guardado, sin esperar a releer. */
+/* El margen sobre el precio, o 0 si no hay precio: sin esto, un producto
+   sin precio cargado daba NaN y el "mantener" sugería NaN. */
+const margenDe = (p) => (Number(p.precio) > 0 ? (Number(p.precio) - Number(p.costo || 0)) / Number(p.precio) : 0);
+
 const ppp = (stockPrevio, costoPrevio, cantidad, costoNuevo) => {
   const total = stockPrevio + cantidad;
   return total > 0 ? Math.round(((stockPrevio * costoPrevio + cantidad * costoNuevo) / total) * 100) / 100 : costoNuevo;
@@ -51,7 +55,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
     setLineas((ls) => {
       const i = ls.findIndex((l) => l.pid === p.id);
       if (i >= 0 && origen === "pistola") return ls.map((l, j) => (j === i ? { ...l, cant: +(l.cant + cant).toFixed(2) } : l));
-      const margen = (p.precio - p.costo) / p.precio;
+      const margen = margenDe(p);
       const costo = costoLeido != null ? Math.round(costoLeido) : p.costo;
       return [...ls, {
         uid: uid(), pid: p.id, nombre: p.nombre, barcode: p.barcode, unidad: p.unidad,
@@ -81,7 +85,17 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
   const altaTodos = () => setLineas((ls) => ls.map((x) => (!x.pid && !x.crear
     ? { ...x, crear: { nombre: (x.desc || "").replace(/\s+/g, " ").trim(), precio: "", barcode: "", categoria: "" } } : x)));
   const quitar = (u) => setLineas((ls) => ls.filter((l) => l.uid !== u));
+  /* El precio que mantiene el margen que tenía, sobre el costo de esta
+     compra (el de reposición: lo que va a costar volver a comprarlo), y
+     redondeado a la decena. */
   const sugerido = (l) => Math.round(Number(l.costo) / (1 - l.margenAnterior) / 10) * 10;
+  /* Los que pierden margen con esta compra y todavía no se ajustaron:
+     arriba de la tabla se corrigen todos de una vez (el "Mantener 60 %"
+     de Ventario, pero sin ir renglón por renglón). */
+  const pierdeMargen = (l) => l.pid && l.margenAnterior > 0 && Number(l.precio) > 0 && Number(l.costo) > 0
+    && (Number(l.precio) - Number(l.costo)) / Number(l.precio) < l.margenAnterior - 0.005;
+  const conMargenEnBaja = lineas.filter(pierdeMargen);
+  const mantenerTodos = () => setLineas((ls) => ls.map((l) => (pierdeMargen(l) ? { ...l, precio: sugerido(l) } : l)));
 
   const total = lineas.reduce((s2, l) => s2 + Number(l.cant) * Number(l.costo), 0);
   const sinResolver = lineas.filter((l) => !l.pid && !l.crear).length;
@@ -134,7 +148,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
         const cant = Number(it.cantidad) || 1;
         const costo = it.costoUnitario != null ? Math.round(Number(it.costoUnitario)) : null;
         if (p && conf >= 0.5) {
-          const margen = (p.precio - p.costo) / p.precio;
+          const margen = margenDe(p);
           return { uid: uid(), pid: p.id, nombre: p.nombre, barcode: p.barcode, unidad: p.unidad,
             cant, costo: costo != null ? costo : p.costo, costoAnterior: p.costo, precioAnterior: p.precio,
             precio: p.precio, margenAnterior: margen, origen: "foto", desc: it.descripcion, conf };
@@ -179,6 +193,8 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
           cantidad: l.cant,
           costoUnitario: l.costo,
           actualizarCosto: "ppp",
+          /* Solo si se cambió en esta carga: al alta ya se le puso el suyo. */
+          ...(l.pid && Number(l.precio) > 0 && Number(l.precio) !== Number(l.precioAnterior) ? { precio: Number(l.precio) } : {}),
         })),
       });
     } catch (e) {
@@ -206,7 +222,9 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
 
     if (pagado) movCaja({ tipo: "egreso", medio: "efectivo", monto: total, detalle: `Compra ${comprobante || "s/nro"} · ${prov}` });
     const incompletas = altas.filter((l) => !Number(l.crear.precio)).length;
-    const partes = [`${validas.length} productos ingresados por ${money(total)}`];
+    const repreciados = validas.filter((l) => l.pid && Number(l.precio) > 0 && Number(l.precio) !== Number(l.precioAnterior)).length;
+    const partes = [`${validas.length} ${validas.length === 1 ? "producto ingresado" : "productos ingresados"} por ${money(total)}`];
+    if (repreciados) partes.push(`${repreciados} ${repreciados === 1 ? "precio actualizado" : "precios actualizados"}`);
     if (altas.length) partes.push(`${altas.length} dados de alta`);
     if (incompletas) partes.push(`${incompletas} sin precio de venta`);
     toast(partes.join(" · ") + ".", incompletas ? "mal" : "ok");
@@ -267,6 +285,16 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
                 No se aplica nada hasta que confirmes.
               </span>
               <Boton size="sm" onClick={altaTodos}><Plus size={14} /> Dar de alta los {sinResolver}</Boton>
+            </div>
+          )}
+          {conMargenEnBaja.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-mal bg-mal-suave border border-mal rounded-xl p-3">
+              <span className="flex-1">
+                {conMargenEnBaja.length === 1
+                  ? <><strong>{conMargenEnBaja[0].nombre}</strong> subió de costo y con el precio de hoy gana menos: {pct(conMargenEnBaja[0].margenAnterior, 0)} → {pct((Number(conMargenEnBaja[0].precio) - Number(conMargenEnBaja[0].costo)) / Number(conMargenEnBaja[0].precio), 0)}.</>
+                  : <>{conMargenEnBaja.length} productos subieron de costo y con el precio de hoy ganan menos que antes.</>}
+              </span>
+              <Boton size="sm" onClick={mantenerTodos}><Percent size={14} /> {conMargenEnBaja.length === 1 ? "Mantener el margen" : `Mantener el margen en los ${conMargenEnBaja.length}`}</Boton>
             </div>
           )}
           {porCrear.length > 0 && (
@@ -368,14 +396,18 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
                       <td className="py-2 text-right">
                         <input value={l.precio} onChange={(e) => set(l.uid, "precio", e.target.value.replace(/\D/g, ""))}
                           className="f-m w-24 text-right border border-borde rounded-lg px-2 py-1 outline-none focus:border-acento" />
-                        {sug !== Number(l.precio) && (
-                          <button onClick={() => set(l.uid, "precio", sug)} className="block ml-auto text-[10px] font-semibold text-acento hover:underline mt-0.5">
-                            poner {money(sug)}
+                        {l.margenAnterior > 0 && sug !== Number(l.precio) && (
+                          <button onClick={() => set(l.uid, "precio", sug)} className="block ml-auto text-[10px] font-semibold text-acento hover:underline mt-0.5"
+                            title="El precio que deja el mismo margen que antes, sobre el costo de esta compra">
+                            mantener {pct(l.margenAnterior, 0)}: {money(sug)}
                           </button>
+                        )}
+                        {Number(l.precio) !== Number(l.precioAnterior) && (
+                          <div className="text-[10px] text-texto-tenue">antes {money(l.precioAnterior)}</div>
                         )}
                       </td>
                       <td className="py-2 text-right f-m text-xs">
-                        <span className="text-texto-tenue">{pct(l.margenAnterior, 0)}</span>
+                        <span className="text-texto-tenue">{l.margenAnterior > 0 ? pct(l.margenAnterior, 0) : "—"}</span>
                         <span className="text-texto-tenue mx-1">→</span>
                         <span className={mNuevo < l.margenAnterior - 0.005 ? "text-mal font-semibold" : "text-bien"}>{pct(mNuevo, 0)}</span>
                       </td>
@@ -415,8 +447,7 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
             {candidatos.map((p) => (
               <li key={p.id}>
                 <button className="w-full text-left px-3 py-2 hover:bg-superficie-2" onClick={() => {
-                  const l = lineas.find((x) => x.uid === buscando);
-                  const margen = (p.precio - p.costo) / p.precio;
+                  const margen = margenDe(p);
                   setLineas((ls) => ls.map((x) => (x.uid === buscando ? {
                     ...x, pid: p.id, nombre: p.nombre, barcode: p.barcode, unidad: p.unidad,
                     costo: x.costo != null ? x.costo : p.costo, costoAnterior: p.costo,
