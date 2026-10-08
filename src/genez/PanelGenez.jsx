@@ -1784,11 +1784,16 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
      Las secciones sin nombre —comercio, gastronomía— siguen desplegando
      sus módulos como una lista plana, igual que siempre. */
-  const items = useMemo(() => grupos.flatMap((g) => (
-    g.nombre && g.modulos.length
-      ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
-      : g.modulos
-  )), [grupos]);
+  /* Un grupo con `rotulo` (0138) no es una sección con pestañas: es un
+     título con sus módulos abajo, cada uno en su renglón. Lo de
+     Administración (`abajo`) va al final también en el celular. */
+  const comoRenglones = (g) => (g.nombre && !g.rotulo && g.modulos.length
+    ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
+    : g.modulos);
+  const items = useMemo(() => [
+    ...grupos.filter((g) => !g.abajo).flatMap(comoRenglones),
+    ...grupos.filter((g) => g.abajo).flatMap(comoRenglones),
+  ], [grupos]);
 
   const seccion = grupos.find((g) => g.modulos.some((m) => m.k === tab)) || null;
   const moduloActual = seccion ? seccion.modulos.find((m) => m.k === tab) : null;
@@ -2056,12 +2061,14 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               <kbd className="solo-teclado f-m text-[10px] border border-borde rounded px-1 py-0.5 ml-auto text-texto-tenue">F10</kbd>
             </button>
           )}
-          {/* Un grupo sin nombre se dibuja como lista pelada: así se ve el
-              menú de un comercio o un bar, igual que antes de que esto
-              fuera configurable. El rótulo aparece solo donde el rubro lo
-              definió. */}
-          <nav className="mt-3 space-y-0.5">
-            {grupos.map((g) => {
+          {/* Un grupo sin nombre se dibuja como lista pelada; uno con
+              `rotulo` (0138), con un título chico arriba de sus módulos;
+              uno con nombre y sin rótulo, como un renglón con pestañas
+              (servicios). Lo marcado `abajo` —Administración— va al pie,
+              lejos de lo de todos los días: es lo que se toca una vez por
+              mes, y mezclado entre Productos y Caja estorbaba (07/10). */}
+          {(() => {
+            const dibujar = (g) => {
               const fila = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors";
 
               /* Sección que va a existir y todavía no: se ve, no se toca. */
@@ -2074,16 +2081,17 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 );
               }
 
-              /* La sección con nombre es el renglón, tenga los módulos que
-                 tenga; los de adentro se eligen con las pestañas de
-                 arriba. Queda activa mientras se esté en cualquiera de
-                 ellos. */
-              const visibles = g.nombre
-                ? [{ ...g.modulos[0], n: g.nombre, i: g.i || g.modulos[0].i, claves: g.modulos.map((m) => m.k) }]
-                : g.modulos;
+              /* La sección con nombre y sin rótulo es el renglón, tenga
+                 los módulos que tenga; los de adentro se eligen con las
+                 pestañas de arriba. Queda activa mientras se esté en
+                 cualquiera de ellos. */
+              const visibles = comoRenglones(g);
 
               return (
-                <div key={g.clave}>
+                <div key={g.clave} className={g.rotulo ? "pt-3 first:pt-0" : ""}>
+                  {g.rotulo && (
+                    <div className="px-2.5 pb-1 text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">{g.nombre}</div>
+                  )}
                   <div className="space-y-0.5">
                     {visibles.map((n) => {
                       const Icono = iconoDe(n.i);
@@ -2104,9 +2112,19 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                   </div>
                 </div>
               );
-            })}
-          </nav>
-          <div className="mt-auto px-2.5 py-3 border-t border-borde">
+            };
+            const arriba = grupos.filter((g) => !g.abajo);
+            const abajo = grupos.filter((g) => g.abajo);
+            return (
+              <>
+                <nav className="mt-3 space-y-0.5 min-h-0 overflow-y-auto">{arriba.map(dibujar)}</nav>
+                {abajo.length > 0 && (
+                  <nav className="mt-auto pt-3 border-t border-borde space-y-0.5">{abajo.map(dibujar)}</nav>
+                )}
+              </>
+            );
+          })()}
+          <div className={`${grupos.some((g) => g.abajo) ? "mt-3" : "mt-auto"} px-2.5 py-3 border-t border-borde`}>
             <div className="text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Caja</div>
             <div className={`text-sm font-semibold ${caja.abierta ? "text-bien" : "text-texto-tenue"}`}>{caja.abierta ? "Abierta" : "Cerrada"}</div>
             {/* Qué caja es esta computadora (y en qué local, con más de uno).
