@@ -8,7 +8,7 @@ import {
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft,
   ArrowRight, Store, CalendarDays, CircleHelp, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
-  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X, ShieldCheck, UserCog, MonitorDown
+  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X, ShieldCheck, UserCog, CreditCard, SlidersHorizontal, MonitorDown
 } from "lucide-react";
 import { MarcoEntrada, CabezaEntrada, PieEntrada, CampoEntrada } from "./Entrada.jsx";
 import { uid, fdatel } from "../datos/generador.js";
@@ -73,6 +73,8 @@ import { Comunicaciones } from "../modulos/Comunicaciones.jsx";
 import { Permisos } from "../modulos/Permisos.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
+import { PanelAdministracion } from "../modulos/PanelAdministracion.jsx";
+import { MiPlan } from "../modulos/MiPlan.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
    14. APP
@@ -789,6 +791,8 @@ const ICONOS = {
   // El menú los usa desde 0031 (equipo) y 0045 (escudo) y no estaban acá:
   // Equipo y Permisos caían los dos en la tienda y se veían iguales.
   escudo: ShieldCheck, equipo: UserCog,
+  // El panel de administración y el plan (0139).
+  admin: SlidersHorizontal, tarjeta: CreditCard,
 };
 const iconoDe = (n) => ICONOS[n] || Store;
 
@@ -873,6 +877,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
 
   const puedeVer = (k) => {
     if (k === "inicio") return true;
+    /* El panel de administración y el plan (0139) no se contratan: son
+       puertas. El panel se ve si hay algo que administrar adentro; el plan,
+       con Ajustes (cambiarlo o darlo de baja lo puede solo el dueño, y eso
+       lo controlan MiPlan y el servidor). */
+    if (k === "administracion") return ["equipo", "permisos", "ajustes"].some((m) => modulos.includes(m));
+    if (k === "plan") return modulos.includes("ajustes");
     // La cocina viaja con el salón: no se contrata sola, se prende o no.
     if (k === "cocina") return !!config.cocinaEnPantalla && modulos.includes("comandas");
     // El mostrador tampoco se contrata solo: es la otra cara del salón.
@@ -1806,14 +1816,24 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const moduloActual = seccion ? seccion.modulos.find((m) => m.k === tab) : null;
   /* El título es el de la sección y la bajada la del módulo: así el
      encabezado y las pestañas dicen cosas distintas y no se repiten. */
+  /* Equipo y Permisos viven adentro del panel de administración (0139) y no
+     en el menú: su título no sale de ahí. Se vuelve al panel desde el
+     encabezado. */
+  const DENTRO_DEL_PANEL = {
+    equipo: { n: "Equipo", d: "Quién trabaja, qué hace cada uno y cuándo está" },
+    permisos: { n: "Permisos", d: "Qué puede hacer cada rol, y quién cambió qué" },
+    plan: { n: "Mi plan", d: "El plan que tenés, cuánto pagás, cambiarlo o darlo de baja" },
+  };
+  const delPanel = !moduloActual && DENTRO_DEL_PANEL[tab] ? DENTRO_DEL_PANEL[tab] : null;
   /* Solo una sección de servicios (con nombre y sin rótulo) es una pantalla
      con pestañas y título propio. Un grupo con rótulo (0138) es un título
      en el menú y nada más: cada módulo conserva su título y no hay pestañas.
      Hasta el 08/10 se aplicaba la regla de servicios a todos, y Productos
      se titulaba "Mercadería", con Stock y Compras de pestañas arriba. */
   const conPestanas = !!(seccion && seccion.nombre && !seccion.rotulo);
-  const titulo = conPestanas ? seccion.nombre : moduloActual ? moduloActual.n : "";
-  const bajada = moduloActual ? moduloActual.d : "";
+  const titulo = conPestanas ? seccion.nombre : moduloActual ? moduloActual.n : delPanel ? delPanel.n : "";
+  const bajada = moduloActual ? moduloActual.d : delPanel ? delPanel.d : "";
+  const volverAlPanel = ["equipo", "permisos", "plan", "ajustes"].includes(tab) && puedeVer("administracion") && tab !== "administracion";
   const pestanas = conPestanas && seccion.modulos.length > 1 ? seccion.modulos : null;
   const alertasAltas = ins.filter((i) => i.sev === "alta").length;
 
@@ -2269,6 +2289,11 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           <AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} />
           <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div className="min-w-0">
+              {volverAlPanel && (
+                <button onClick={() => ir("administracion")} className="flex items-center gap-1 text-xs font-semibold text-texto-tenue hover:text-texto mb-0.5">
+                  <ChevronLeft size={14} /> Panel de administración
+                </button>
+              )}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <h1 className="f-d text-xl md:text-2xl">{titulo}</h1>
                 <BotonAyuda k={tab} rubro={rubroClave} />
@@ -2333,6 +2358,8 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               clientes={clientes} guardarCliente={guardarClienteEn} ajustes={ajustes} toast={toast} sesionId={caja.sesionId} />
           )}
           {tab === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
+          {tab === "administracion" && <PanelAdministracion puedeVer={puedeVer} ir={ir} negocio={ajustes.negocio} />}
+          {tab === "plan" && <div className="max-w-2xl"><MiPlan toast={toast} /></div>}
           {tab === "agenda" && <Agenda empresaId={empresaId} sucursalId={null} permisos={permisos} clientes={clientes} toast={toast} ir={ir} />}
           {tab === "servicios" && <Servicios empresaId={empresaId} permisos={permisos} toast={toast} />}
           {tab === "finanzas" && (

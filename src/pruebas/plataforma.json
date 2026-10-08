@@ -105,16 +105,16 @@
           "abajo": true,
           "modulos": [
             {
-              "d": "Quién trabaja, qué hace cada uno y cuándo está",
-              "i": "equipo",
-              "k": "equipo",
-              "n": "Equipo"
+              "k": "administracion",
+              "n": "Panel de administración",
+              "i": "admin",
+              "d": "Equipo, permisos, tu plan y la configuración, en un solo lugar"
             },
             {
-              "d": "Qué puede hacer cada rol, y quién cambió qué",
-              "i": "escudo",
-              "k": "permisos",
-              "n": "Permisos"
+              "k": "plan",
+              "n": "Mi plan",
+              "i": "tarjeta",
+              "d": "El plan que tenés, cuánto pagás, cambiarlo o darlo de baja"
             },
             {
               "d": "Configuración del negocio y del sistema",
@@ -346,10 +346,16 @@
           "abajo": true,
           "modulos": [
             {
-              "d": "Quién trabaja, qué hace cada uno y cuándo está",
-              "i": "equipo",
-              "k": "equipo",
-              "n": "Equipo"
+              "k": "administracion",
+              "n": "Panel de administración",
+              "i": "admin",
+              "d": "Equipo, permisos, tu plan y la configuración, en un solo lugar"
+            },
+            {
+              "k": "plan",
+              "n": "Mi plan",
+              "i": "tarjeta",
+              "d": "El plan que tenés, cuánto pagás, cambiarlo o darlo de baja"
             },
             {
               "d": "Configuración del negocio y del sistema",
@@ -615,16 +621,22 @@
           "nombre": "Administración",
           "modulos": [
             {
+              "k": "administracion",
+              "n": "Panel de administración",
+              "i": "admin",
+              "d": "Equipo, permisos, tu plan y la configuración, en un solo lugar"
+            },
+            {
+              "k": "plan",
+              "n": "Mi plan",
+              "i": "tarjeta",
+              "d": "El plan que tenés, cuánto pagás, cambiarlo o darlo de baja"
+            },
+            {
               "d": "Configuración del negocio y del sistema",
               "i": "tuerca",
               "k": "ajustes",
               "n": "Ajustes"
-            },
-            {
-              "d": "Qué puede hacer cada rol, y quién cambió qué",
-              "i": "escudo",
-              "k": "permisos",
-              "n": "Permisos"
             }
           ],
           "rotulo": true,
