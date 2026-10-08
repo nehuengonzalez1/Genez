@@ -1806,9 +1806,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const moduloActual = seccion ? seccion.modulos.find((m) => m.k === tab) : null;
   /* El título es el de la sección y la bajada la del módulo: así el
      encabezado y las pestañas dicen cosas distintas y no se repiten. */
-  const titulo = seccion && seccion.nombre ? seccion.nombre : moduloActual ? moduloActual.n : "";
+  /* Solo una sección de servicios (con nombre y sin rótulo) es una pantalla
+     con pestañas y título propio. Un grupo con rótulo (0138) es un título
+     en el menú y nada más: cada módulo conserva su título y no hay pestañas.
+     Hasta el 08/10 se aplicaba la regla de servicios a todos, y Productos
+     se titulaba "Mercadería", con Stock y Compras de pestañas arriba. */
+  const conPestanas = !!(seccion && seccion.nombre && !seccion.rotulo);
+  const titulo = conPestanas ? seccion.nombre : moduloActual ? moduloActual.n : "";
   const bajada = moduloActual ? moduloActual.d : "";
-  const pestanas = seccion && seccion.nombre && seccion.modulos.length > 1 ? seccion.modulos : null;
+  const pestanas = conPestanas && seccion.modulos.length > 1 ? seccion.modulos : null;
   const alertasAltas = ins.filter((i) => i.sev === "alta").length;
 
   useEffect(() => {
