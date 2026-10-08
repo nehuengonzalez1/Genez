@@ -759,6 +759,23 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
      que un código de barras ya está usado. */
   const vendibles = useMemo(() => productos.filter((p) => p.activo !== false), [productos]);
 
+  /* LOS MÁS VENDIDOS, A UN TOQUE (08/10)
+
+     Vendi los muestra debajo del carrito con un atajo cada uno, y en un
+     kiosco es lo que más se cobra: la gaseosa, los cigarrillos, el pan, que
+     muchas veces no se escanean. Salen solos de lo vendido en los últimos
+     30 días (`u30`): no hay nada que configurar, y un comercio que recién
+     empieza no ve una fila vacía. Con precio, o de precio abierto (abre su
+     cuadro igual que siempre).
+
+     El atajo es Alt + número y no Alt + letra como en Vendi: en Chrome,
+     Alt+E y Alt+F abren el menú del navegador. Los números solos ya son la
+     cantidad del último producto, así que van con Alt. */
+  const masVendidos = useMemo(() => vendibles
+    .filter((p) => (p.u30 || 0) > 0 && (p.precio > 0 || p.precioAbierto))
+    .sort((a, b) => (b.u30 || 0) - (a.u30 || 0))
+    .slice(0, 8), [vendibles]);
+
   const res = useMemo(() => {
     if (verTodo && q.trim().length < 2) return [...vendibles].sort((a, b) => (b.u30 || 0) - (a.u30 || 0)).slice(0, 60);
     if (q.trim().length < 2) return [];
@@ -1165,6 +1182,14 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
       if (ayuda) { if (e.key === "Escape") { e.preventDefault(); setAyuda(false); } return; }
 
       if (paso === "carga") {
+        /* Alt + 1 a 8: los más vendidos. Por `code` y no por `key`: con
+           Alt, algunos teclados devuelven otro carácter para el número. */
+        if (e.altKey && !e.ctrlKey && /^(Digit|Numpad)[1-8]$/.test(e.code || "")) {
+          e.preventDefault();
+          const p = masVendidos[Number(e.code.slice(-1)) - 1];
+          if (p) { add(p); setQ(""); }
+          return;
+        }
         if (e.key === "F2") { e.preventDefault(); return irAPago(); }
         if (e.key === "F4") {
           e.preventDefault();
@@ -1243,7 +1268,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId, masVendidos]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -1460,6 +1485,25 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           </>
           )}
         </Card>
+
+        {masVendidos.length > 0 && (
+          <div>
+            <div className="px-1 mb-1.5 text-[10px] uppercase tracking-widest text-texto-tenue font-semibold">Los más vendidos</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {masVendidos.map((p, i) => (
+                <button key={p.id} onClick={() => { add(p); setQ(""); inp.current && inp.current.focus(); }}
+                  title={`Agregar ${p.nombre} (Alt+${i + 1})`}
+                  className="flex items-center gap-2 text-left rounded-xl border border-borde bg-superficie hover:border-acento hover:bg-acento-suave px-2.5 py-2 min-w-0">
+                  <span className="solo-teclado hidden md:inline"><Tecla>{`Alt ${i + 1}`}</Tecla></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-medium text-texto truncate">{p.nombre}</span>
+                    <span className="block f-m text-[11px] text-texto-tenue">{p.precioAbierto ? "precio abierto" : money(p.precio)}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {activo && !cantidadPendiente && (
           <p className="text-xs text-texto-tenue px-1 -mt-1">
