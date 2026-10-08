@@ -8,7 +8,7 @@ import {
   Sparkles, Settings, Plus, Check, AlertTriangle, ChevronLeft,
   ArrowRight, Store, CalendarDays, CircleHelp, ClipboardList, Users, Sun, Moon, LogOut, ZapOff,
   Eye, EyeOff, Mail, KeyRound, UtensilsCrossed, ChefHat, ShoppingBag,
-  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X, ShieldCheck, UserCog
+  Heart, MessageSquare, FileText, NotebookPen, Lock, MoreHorizontal, X, ShieldCheck, UserCog, MonitorDown
 } from "lucide-react";
 import { MarcoEntrada, CabezaEntrada, PieEntrada, CampoEntrada } from "./Entrada.jsx";
 import { uid, fdatel } from "../datos/generador.js";
@@ -45,6 +45,7 @@ import { Recorrido, RecorridoCtx } from "../ayuda/Recorrido.jsx";
 import { recorridosDe, recorridoGeneral } from "../ayuda/recorridos.js";
 /* El logo vive en src/ui/Logo.jsx: lo comparte con la landing. */
 import { LogoGenez } from "../ui/Logo.jsx";
+import { useInstalar } from "../ui/instalar.js";
 import { useLogos } from "../ui/logos.js";
 import { POS, FormProducto } from "../modulos/Vender.jsx";
 import { ParaElContador } from "../modulos/ParaElContador.jsx";
@@ -1752,6 +1753,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     else { beep(false, ajustes.sonido); setAltaProd({ barcode: cod }); }
   }, true);
 
+  /* Instalar el sistema como aplicación (08/10): el botón aparece solo
+     si el navegador lo ofrece y todavía no está instalado. */
+  const { puede: puedeInstalar, instalar } = useInstalar();
   const ventasHoy = resumenDia.total;
   const ticketsHoy = resumenDia.tickets;
   /* El menú que se dibuja: los grupos del rubro, con los módulos que el
@@ -2116,6 +2120,12 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               {[((cajas || []).find((c) => c.id === cajaId) || {}).nombre || "Sin caja elegida",
                 lugar.varias ? (sucursales.find((s) => s.id === sucursalActual) || {}).nombre : null].filter(Boolean).join(" · ")}
             </div>
+            {puedeInstalar && (
+              <button onClick={async () => { if (await instalar()) toast("Listo: Genez quedó instalado en esta computadora."); }}
+                className="mt-2.5 -mx-1 w-[calc(100%+0.5rem)] flex items-center gap-2 px-1 py-1.5 rounded-lg text-xs font-medium text-texto-suave hover:text-texto hover:bg-superficie-2 transition-colors">
+                <MonitorDown size={14} className="text-texto-tenue" /> Instalar en la computadora
+              </button>
+            )}
           </div>
         </aside>
 
