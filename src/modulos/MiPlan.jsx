@@ -24,6 +24,7 @@ import { miCuenta, cambiarPlan, darDeBaja } from "../datos/autoservicio.js";
 import { Contratar } from "../genez/Prueba.jsx";
 
 const NOMBRE = { start: "Simple", pro: "Pro", empresa: "Empresa", medida: "A medida", completo: "A medida" };
+export const NOMBRE_PLAN = NOMBRE;
 const QUE_TRAE = {
   start: "Un usuario y un local. Sin factura electrónica.",
   pro: "Factura electrónica ARCA, varios usuarios y sucursales.",

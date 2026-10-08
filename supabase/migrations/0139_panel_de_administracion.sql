@@ -1,21 +1,25 @@
 /* ============================================================
-   0139 · ADMINISTRACIÓN: PANEL, MI PLAN Y AJUSTES
+   0139 · ADMINISTRACIÓN: UN SOLO LUGAR
    ============================================================
 
-   La 0138 juntó Equipo, Permisos y Ajustes al pie del menú. Nehuen pidió
-   lo que tiene Vendi (08/10): una sección Administración con tres
-   entradas —el panel de administración, la suscripción y la
-   configuración— y no los módulos sueltos.
+   La 0138 juntó Equipo, Permisos y Ajustes al pie del menú, cada uno en
+   su renglón. Nehuen comparó con Vendi y Ventario (08/10) y eligió la
+   forma de Ventario: un solo lugar con todo lo que se administra, con su
+   propio menú adentro —Datos del negocio, Cobros y facturas, Precios y
+   stock, Clientes, Equipos, Equipo, Permisos, Mi plan, Mi cuenta—.
 
    Queda así, en los tres rubros:
-     Administración: Panel de administración · Mi plan · Ajustes
-   Equipo y Permisos pasan a estar adentro del panel (una tarjeta cada
-   uno). En servicios, Equipo sigue además en "Clientes y equipo", como
-   estaba.
+     Administración: Administración
+   Ajustes, Equipo y Permisos salen del menú y se abren adentro. En
+   servicios, Equipo sigue además en "Clientes y equipo", como estaba.
 
-   `administracion` y `plan` no son módulos que se contraten: son puertas.
-   El navegador decide si se ven (el panel, si hay algo que administrar
-   adentro; el plan, con Ajustes). No cambia qué puede hacer cada uno.
+   `administracion` no es un módulo que se contrate: es una puerta. El
+   navegador la muestra si hay algo que administrar adentro. No cambia
+   qué puede hacer cada uno: cada sección de adentro sigue pidiendo su
+   módulo (ajustes, equipo, permisos).
+
+   Se aplica DESPUÉS de publicar el código: el de antes no conoce
+   `administracion` y el menú se quedaría sin Ajustes.
 
    Si el menú pierde o gana algo que no sea lo de arriba, falla.
    ============================================================ */
@@ -28,15 +32,11 @@ language sql immutable as $$
   from jsonb_array_elements(p_menu) g, jsonb_array_elements(g -> 'modulos') m
 $$;
 
-/* El de Ajustes se toma del menú tal como está (texto, ícono, bajada). */
 update rubros r set menu = (
   select jsonb_agg(
     case when g ->> 'clave' = 'administracion' then g || jsonb_build_object('modulos', jsonb_build_array(
-      jsonb_build_object('k', 'administracion', 'n', 'Panel de administración', 'i', 'admin',
-        'd', 'Equipo, permisos, tu plan y la configuración, en un solo lugar'),
-      jsonb_build_object('k', 'plan', 'n', 'Mi plan', 'i', 'tarjeta',
-        'd', 'El plan que tenés, cuánto pagás, cambiarlo o darlo de baja'),
-      (select m from jsonb_array_elements(g -> 'modulos') m where m ->> 'k' = 'ajustes')
+      jsonb_build_object('k', 'administracion', 'n', 'Administración', 'i', 'admin',
+        'd', 'Tu negocio, cómo se vende, tu gente y tu cuenta, en un solo lugar')
     ))
     else g end
     order by o)
@@ -50,14 +50,14 @@ declare
   esperado text[];
 begin
   for r in select a.clave, a.menu as antes, n.menu as despues from menu_antes a join rubros n using (clave) loop
-    /* Lo que tiene que quedar: lo de antes, sin Equipo ni Permisos en
-       Administración (Equipo puede seguir en otra sección), más las dos
-       puertas nuevas. */
+    /* Lo que tiene que quedar: lo de antes, sin nada del grupo
+       Administración (Equipo puede seguir en otra sección), más la puerta
+       nueva. */
     select coalesce(array_agg(k order by k), '{}') into esperado from (
       select m ->> 'k' as k
         from jsonb_array_elements(r.antes) g, jsonb_array_elements(g -> 'modulos') m
-       where not (g ->> 'clave' = 'administracion' and m ->> 'k' in ('equipo', 'permisos'))
-      union all select 'administracion' union all select 'plan'
+       where g ->> 'clave' is distinct from 'administracion'
+      union all select 'administracion'
     ) x;
     if pg_temp.claves(r.despues) <> esperado then
       raise exception 'El menú de % no quedó como se esperaba: %, y tenía que ser %',

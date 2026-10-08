@@ -75,7 +75,10 @@ const APARTADOS = [
 ];
 const APARTADO_GUARDADO = "genez.ajustes.apartado";
 
-export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro, facturacion = { puede: false }, empresaId, recargarConexion, alCambiarCajas, sucursales = [], alCambiarSucursales }) {
+/* `apartado` (08/10): desde Administración se abre un apartado fijo, sin
+   las pestañas (el menú es el de Administración). `sinPlan`: Mi plan tiene
+   su propia sección allá; en Mi cuenta queda la contraseña y los datos. */
+export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = {}, toast, mp, setMp, simularCobro, facturacion = { puede: false }, empresaId, recargarConexion, alCambiarCajas, sucursales = [], alCambiarSucursales, apartado = null, sinPlan = false }) {
   const f = ajustes.fiscal || FISCAL_INICIAL;
   const setFiscal = (cambios) => setAjustes({ ...ajustes, fiscal: { ...f, ...cambios } });
   const bal = ajustes.balanza || BALANZA_INICIAL;
@@ -93,16 +96,16 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
     setSeccion(k);
     try { localStorage.setItem(APARTADO_GUARDADO, k); } catch { /* sin guardar */ }
   };
-  const ver = (k) => seccion === k;
+  const ver = (k) => (apartado || seccion) === k;
   return (
     <div className="max-w-2xl space-y-4">
       {/* Por apartado (06/10): eran diecisiete tarjetas una abajo de la otra y no
           se sabía dónde estaba cada cosa. "Mi cuenta" es el nombre que usan los
           términos ("Ajustes → Mi cuenta"); si se cambia, se cambia allá también. */}
-      <Tabs items={APARTADOS} value={seccion} onChange={elegirSeccion} />
+      {!apartado && <Tabs items={APARTADOS} value={seccion} onChange={elegirSeccion} />}
 
       {ver("plan") && (<>
-      <MiPlan toast={toast} />
+      {!sinPlan && <MiPlan toast={toast} />}
       <MiContrasena toast={toast} />
       <DescargarDatos empresaId={empresaId} productos={productos} toast={toast} />
       </>)}

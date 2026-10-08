@@ -200,15 +200,26 @@ export const GUIAS = {
     consejos: ["Cada plan tiene un tope de preguntas por mes."],
   },
 
+  administracion: {
+    titulo: "Administración",
+    para: "Todo lo que se administra, en un solo lugar y con su propio menú: tu negocio, cómo se vende, tu gente y tu cuenta.",
+    pasos: [
+      { t: "Mirá el resumen", d: "Dice qué falta completar para que el ticket y la factura salgan con tus datos. Tocando cada cosa vas a donde se carga." },
+      { t: "Elegí una sección", d: "Datos del negocio, Cobros y facturas, Precios y stock, Clientes, Equipos (la impresora), Equipo, Permisos, Mi plan y Mi cuenta." },
+      { t: "Tu gente", d: "En Equipo, quién trabaja y con qué acceso; en Permisos, qué puede hacer cada rol." },
+    ],
+    consejos: ["Lo que no te toca no aparece: un cajero no ve Permisos ni Mi plan."],
+  },
+
   ajustes: {
     titulo: "Ajustes",
-    para: "La configuración del negocio y del sistema, repartida en pestañas: Negocio, Cobros y facturas, Equipos, Precios y stock, Clientes y Mi cuenta.",
+    para: "La configuración del negocio y del sistema, en las secciones de Administración: Datos del negocio, Cobros y facturas, Precios y stock, Clientes, Equipos y Mi cuenta.",
     pasos: [
       { t: "Los datos del negocio", d: "Nombre, logo, contacto, horarios, los datos fiscales y los objetivos del mes. Lo que cargues sale en el ticket." },
       { t: "Cómo te pagan", d: "Los medios de pago con su comisión, Mercado Pago (pegando tu Access Token) y la factura electrónica de ARCA." },
       { t: "La impresora y el ticket", d: "El ancho del papel (58 u 80 mm), qué dice el ticket, la comandera y los sonidos." },
       { t: "Precios y descuentos", d: "Listas de precios, redondeo y hasta cuánto puede descontar cada rol." },
-      { t: "Tu cuenta", d: "En Mi cuenta: tu contraseña, tu plan y la descarga de todos tus datos." },
+      { t: "Tu cuenta", d: "En Mi cuenta: tu contraseña y la descarga de todos tus datos. El plan está en Mi plan." },
     ],
     consejos: ["Después de elegir el ancho del papel, imprimí un ticket de prueba desde el cobro."],
   },

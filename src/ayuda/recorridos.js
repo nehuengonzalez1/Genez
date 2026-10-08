@@ -228,7 +228,7 @@ export const PANTALLAS = {
      menú de la computadora o el del celular; la caja cerrada o abierta).
      El que no está se saltea sin mostrarse. */
   inicio: [
-    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Está agrupado por tema: lo que vendés, la mercadería y los números. Equipo, permisos y ajustes están abajo de todo, en Administración. Ahora te mostramos las principales." },
+    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Está agrupado por tema: lo que vendés, la mercadería y los números. Abajo de todo, Administración: tus datos, tu gente, tu plan y la configuración, en un solo lugar. Ahora te mostramos las principales." },
     /* En el celular el menú está abajo: las primeras secciones y "Más". */
     { en: B(/^Más$/), alternativa: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. Ahora te mostramos las principales." },
     { en: Algo(/^Lo que tenés que saber$/i), opcional: true, t: "Lo que tenés que saber", d: "El sistema mira tus datos y te avisa lo importante: lo que se está por acabar, los costos que subieron, los márgenes que bajaron." },
@@ -237,7 +237,7 @@ export const PANTALLAS = {
   /* El inicio de un negocio de servicios es otro tablero: el día de la
      agenda y las acciones rápidas. */
   inicioServicios: [
-    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Cada sección hace una cosa: agenda, clientes, servicios, finanzas. Ajustes y permisos están abajo de todo, en Administración. Ahora te mostramos las principales." },
+    { en: Css("aside nav"), alternativa: true, t: "El menú", d: "Cada sección hace una cosa: agenda, clientes, servicios, finanzas. Abajo de todo, Administración: tus datos, tu gente, tu plan y la configuración, en un solo lugar. Ahora te mostramos las principales." },
     { en: B(/^Más$/), alternativa: true, t: "El menú", d: "Abajo están las secciones, y en Más, el resto. Ahora te mostramos las principales." },
     { en: Algo(/^Acciones rápidas$/i), opcional: true, t: "Tu día", d: "Los turnos de hoy, lo que falta confirmar y las acciones rápidas: un turno nuevo sin entrar a la agenda." },
     { en: Css("button[aria-label='Ayuda']"), opcional: true, t: "La ayuda", d: "Todas las guías y los paso a paso, con un buscador y nuestro WhatsApp." },
@@ -318,13 +318,22 @@ export const PANTALLAS = {
     { en: Entrada("Escribí tu pregunta"), opcional: true, t: "Preguntale a tu negocio", d: "\"¿Qué me conviene reponer?\", \"¿por qué bajó el margen?\": responde mirando tus datos." },
     AYUDA_ACA,
   ],
+  /* Ajustes, Equipo, Permisos y Mi plan viven adentro de Administración
+     (0139), con su propio menú: los pasos señalan las secciones de ese
+     menú, que existen en la computadora y en el celular. */
   ajustes: [
-    { en: Pestana("Negocio"), opcional: true, t: "Tu negocio", d: "Nombre, logo, contacto, datos fiscales y objetivos del mes." },
-    { en: Pestana("Cobros y facturas"), opcional: true, t: "Cobros y facturas", d: "Medios de pago y comisiones, Mercado Pago y factura electrónica." },
-    { en: Pestana("Equipos"), opcional: true, t: "Equipos", d: "La impresora, el ticket, la comandera y los sonidos." },
-    { en: Pestana("Precios y stock"), opcional: true, t: "Precios y stock", d: "Listas de precios, redondeo y descuentos por rol." },
-    { en: Pestana("Mi cuenta"), opcional: true, t: "Mi cuenta", d: "Tu contraseña, tu plan y la descarga de tus datos." },
-    AYUDA_ACA,
+    { en: Css("[data-seccion='negocio']"), opcional: true, t: "Tu negocio", d: "Nombre, logo, contacto, datos fiscales y objetivos del mes." },
+    { en: Css("[data-seccion='cobros']"), opcional: true, t: "Cobros y facturas", d: "Medios de pago y comisiones, la caja, Mercado Pago y factura electrónica." },
+    { en: Css("[data-seccion='precios']"), opcional: true, t: "Precios y stock", d: "Listas de precios, redondeo y descuentos por rol." },
+    { en: Css("[data-seccion='equipos']"), opcional: true, t: "Equipos", d: "La impresora, el ticket, la comandera y los sonidos." },
+    { en: Css("[data-seccion='cuenta']"), opcional: true, t: "Mi cuenta", d: "Tu contraseña y la descarga de tus datos." },
+  ],
+  administracion: [
+    { en: Css("[data-seccion='resumen']"), opcional: true, t: "Todo en un lugar", d: "Tu negocio, cómo se vende, tu gente y tu cuenta: cada cosa en su sección de este menú." },
+    { en: Algo(/^Estado de la configuración$/i), opcional: true, t: "Qué falta", d: "Lo que falta para que el ticket y la factura salgan con tus datos. Tocando cada uno vas a donde se completa." },
+    { en: Css("[data-seccion='cobros']"), opcional: true, t: "Cómo se vende", d: "Cobros y facturas, precios y stock, los puntos de los clientes y la impresora." },
+    { en: Css("[data-seccion='equipo']"), opcional: true, t: "Tu gente", d: "Quién trabaja con vos, con qué acceso, y qué puede hacer cada rol." },
+    { en: Css("[data-seccion='plan']"), opcional: true, t: "Tu plan", d: "Lo que pagás, cambiarlo o darlo de baja." },
   ],
   comandas: [
     { t: "El salón", d: "El plano con las mesas: libres, ocupadas y cuánto hace que esperan. Tocá una para abrir o seguir su pedido." },
@@ -391,9 +400,9 @@ export const recorridoPorId = (id) => (id && id.startsWith("pantalla-") ? pantal
    ============================================================ */
 
 const ORDEN = {
-  minimercado: ["inicio", "cobro", "productos", "stock", "compras", "caja", "clientes", "cuentas", "reportes", "ajustes"],
-  gastronomia: ["inicio", "comanda", "cocina", "productos", "stock", "caja", "reportes", "ajustes"],
-  servicios: ["inicio", "agenda", "clientes", "servicios", "ventas", "finanzas", "informes", "ajustes"],
+  minimercado: ["inicio", "cobro", "productos", "stock", "compras", "caja", "clientes", "cuentas", "reportes", "administracion", "ajustes"],
+  gastronomia: ["inicio", "comanda", "cocina", "productos", "stock", "caja", "reportes", "administracion", "ajustes"],
+  servicios: ["inicio", "agenda", "clientes", "servicios", "ventas", "finanzas", "informes", "administracion", "ajustes"],
 };
 
 /* `menu`: las secciones del comercio, [{ k, n }]. `vende`: "cobro",

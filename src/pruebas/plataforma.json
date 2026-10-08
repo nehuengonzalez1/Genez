@@ -106,21 +106,9 @@
           "modulos": [
             {
               "k": "administracion",
-              "n": "Panel de administración",
+              "n": "Administración",
               "i": "admin",
-              "d": "Equipo, permisos, tu plan y la configuración, en un solo lugar"
-            },
-            {
-              "k": "plan",
-              "n": "Mi plan",
-              "i": "tarjeta",
-              "d": "El plan que tenés, cuánto pagás, cambiarlo o darlo de baja"
-            },
-            {
-              "d": "Configuración del negocio y del sistema",
-              "i": "tuerca",
-              "k": "ajustes",
-              "n": "Ajustes"
+              "d": "Tu negocio, cómo se vende, tu gente y tu cuenta, en un solo lugar"
             }
           ]
         }
@@ -347,21 +335,9 @@
           "modulos": [
             {
               "k": "administracion",
-              "n": "Panel de administración",
+              "n": "Administración",
               "i": "admin",
-              "d": "Equipo, permisos, tu plan y la configuración, en un solo lugar"
-            },
-            {
-              "k": "plan",
-              "n": "Mi plan",
-              "i": "tarjeta",
-              "d": "El plan que tenés, cuánto pagás, cambiarlo o darlo de baja"
-            },
-            {
-              "d": "Configuración del negocio y del sistema",
-              "i": "tuerca",
-              "k": "ajustes",
-              "n": "Ajustes"
+              "d": "Tu negocio, cómo se vende, tu gente y tu cuenta, en un solo lugar"
             }
           ]
         }
@@ -622,21 +598,9 @@
           "modulos": [
             {
               "k": "administracion",
-              "n": "Panel de administración",
+              "n": "Administración",
               "i": "admin",
-              "d": "Equipo, permisos, tu plan y la configuración, en un solo lugar"
-            },
-            {
-              "k": "plan",
-              "n": "Mi plan",
-              "i": "tarjeta",
-              "d": "El plan que tenés, cuánto pagás, cambiarlo o darlo de baja"
-            },
-            {
-              "d": "Configuración del negocio y del sistema",
-              "i": "tuerca",
-              "k": "ajustes",
-              "n": "Ajustes"
+              "d": "Tu negocio, cómo se vende, tu gente y tu cuenta, en un solo lugar"
             }
           ],
           "rotulo": true,

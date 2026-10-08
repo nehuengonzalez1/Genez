@@ -73,8 +73,8 @@ import { Comunicaciones } from "../modulos/Comunicaciones.jsx";
 import { Permisos } from "../modulos/Permisos.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
-import { PanelAdministracion } from "../modulos/PanelAdministracion.jsx";
-import { MiPlan } from "../modulos/MiPlan.jsx";
+import { CentroAdministracion, ResumenAdministracion, SECCIONES_ADMIN } from "../modulos/PanelAdministracion.jsx";
+import { MiPlan, NOMBRE_PLAN } from "../modulos/MiPlan.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
    14. APP
@@ -796,6 +796,9 @@ const ICONOS = {
 };
 const iconoDe = (n) => ICONOS[n] || Store;
 
+/* Las pantallas que viven adentro de Administración (0139). */
+const TABS_ADMIN = ["administracion", "ajustes", "equipo", "permisos", "plan"];
+
 /* El respaldo, para cuando el rubro no carga: sin conexión, o un comercio
    con un rubro que nadie dio de alta. Sin esto una consulta fallida deja a
    alguien sin manera de moverse por el sistema.
@@ -912,6 +915,25 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     entradaPedida || entradaPorDefecto;
   const [vista, setVista] = useState(entrada);
   const [tab, setTab] = useState("inicio");
+  /* ADMINISTRACIÓN (08/10): Ajustes, Equipo, Permisos y Mi plan se ven
+     adentro de un solo lugar, con su propio menú. Las pestañas viejas
+     siguen siendo direcciones válidas (los recorridos y los primeros
+     pasos van a "ajustes" o a "equipo"): todas abren Administración en la
+     sección que corresponde. */
+  const [admSec, setAdmSec] = useState("resumen");
+  useEffect(() => {
+    if (tab === "administracion") setAdmSec("resumen");
+    else if (tab === "equipo" || tab === "permisos" || tab === "plan") setAdmSec(tab);
+    else if (tab === "ajustes") {
+      let a = "negocio";
+      try {
+        const g = localStorage.getItem("genez.ajustes.apartado");
+        if (["negocio", "cobros", "equipos", "precios", "clientes"].includes(g)) a = g;
+        else if (g === "plan") a = "cuenta";
+      } catch { /* arranca en Datos del negocio */ }
+      setAdmSec(a);
+    }
+  }, [tab]);
   const [masAbierto, setMasAbierto] = useState(false);
   /* Si Genez le saca al comercio el módulo de la pantalla en la que
      alguien está parado, el menú ya no lo muestra pero la pantalla seguía
@@ -1778,7 +1800,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const grupos = useMemo(() => {
     const base = rubro && rubro.grupos.length ? rubro.grupos : MENU_POR_DEFECTO;
     return base
-      .map((g) => ({ ...g, modulos: (g.modulos || []).filter((m) => puedeVer(m.k)) }))
+      /* Administración (0139) es un renglón para cinco pantallas: queda
+         marcado en cualquiera de ellas. */
+      .map((g) => ({ ...g, modulos: (g.modulos || []).filter((m) => puedeVer(m.k)).map((m) => (m.k === "administracion" ? { ...m, claves: TABS_ADMIN } : m)) }))
       /* Una sección se queda si tiene algo que mostrar, o si está marcada
          como próxima: esas se dibujan apagadas para que se vea a dónde va
          el sistema. Lo que el comercio simplemente no contrató desaparece,
@@ -1816,24 +1840,17 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   const moduloActual = seccion ? seccion.modulos.find((m) => m.k === tab) : null;
   /* El título es el de la sección y la bajada la del módulo: así el
      encabezado y las pestañas dicen cosas distintas y no se repiten. */
-  /* Equipo y Permisos viven adentro del panel de administración (0139) y no
-     en el menú: su título no sale de ahí. Se vuelve al panel desde el
-     encabezado. */
-  const DENTRO_DEL_PANEL = {
-    equipo: { n: "Equipo", d: "Quién trabaja, qué hace cada uno y cuándo está" },
-    permisos: { n: "Permisos", d: "Qué puede hacer cada rol, y quién cambió qué" },
-    plan: { n: "Mi plan", d: "El plan que tenés, cuánto pagás, cambiarlo o darlo de baja" },
-  };
-  const delPanel = !moduloActual && DENTRO_DEL_PANEL[tab] ? DENTRO_DEL_PANEL[tab] : null;
   /* Solo una sección de servicios (con nombre y sin rótulo) es una pantalla
      con pestañas y título propio. Un grupo con rótulo (0138) es un título
      en el menú y nada más: cada módulo conserva su título y no hay pestañas.
      Hasta el 08/10 se aplicaba la regla de servicios a todos, y Productos
      se titulaba "Mercadería", con Stock y Compras de pestañas arriba. */
   const conPestanas = !!(seccion && seccion.nombre && !seccion.rotulo);
-  const titulo = conPestanas ? seccion.nombre : moduloActual ? moduloActual.n : delPanel ? delPanel.n : "";
-  const bajada = moduloActual ? moduloActual.d : delPanel ? delPanel.d : "";
-  const volverAlPanel = ["equipo", "permisos", "plan", "ajustes"].includes(tab) && puedeVer("administracion") && tab !== "administracion";
+  /* En servicios, Equipo es una pestaña de "Clientes y equipo" y se queda
+     ahí: Administración se abre solo desde su propio renglón. */
+  const enAdmin = TABS_ADMIN.includes(tab) && !conPestanas;
+  const titulo = conPestanas ? seccion.nombre : moduloActual ? moduloActual.n : enAdmin ? "Administración" : "";
+  const bajada = moduloActual ? moduloActual.d : "";
   const pestanas = conPestanas && seccion.modulos.length > 1 ? seccion.modulos : null;
   const alertasAltas = ins.filter((i) => i.sev === "alta").length;
 
@@ -2288,18 +2305,16 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
         <main className="flex-1 min-w-0 p-4 md:p-6 pb-24 md:pb-8">
           <AvisoDePrueba comercio={sesion.comercio} comoAdmin={!!sesion.comoAdmin} />
           <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
+            {/* En Administración el título lo pone su propio encabezado. */}
+            {enAdmin ? <div className="min-w-0"><BotonAyuda k={admSec === "resumen" ? "administracion" : admSec === "equipo" || admSec === "permisos" ? admSec : "ajustes"} rubro={rubroClave} /></div> : (
             <div className="min-w-0">
-              {volverAlPanel && (
-                <button onClick={() => ir("administracion")} className="flex items-center gap-1 text-xs font-semibold text-texto-tenue hover:text-texto mb-0.5">
-                  <ChevronLeft size={14} /> Panel de administración
-                </button>
-              )}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <h1 className="f-d text-xl md:text-2xl">{titulo}</h1>
                 <BotonAyuda k={tab} rubro={rubroClave} />
               </div>
               <p className="text-sm text-texto-suave">{bajada}</p>
             </div>
+            )}
             <div className="flex items-center gap-2 text-xs text-texto-suave">
               <CalendarDays size={14} /> {fdatel(new Date())}
               <span className="text-texto-tenue">·</span>
@@ -2357,9 +2372,30 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             <Presupuestos empresaId={empresaId} sucursalId={null} productos={productos} setProductos={setProductos}
               clientes={clientes} guardarCliente={guardarClienteEn} ajustes={ajustes} toast={toast} sesionId={caja.sesionId} />
           )}
-          {tab === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
-          {tab === "administracion" && <PanelAdministracion puedeVer={puedeVer} ir={ir} negocio={ajustes.negocio} />}
-          {tab === "plan" && <div className="max-w-2xl"><MiPlan toast={toast} /></div>}
+          {tab === "equipo" && !enAdmin && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
+          {enAdmin && (() => {
+            const secciones = SECCIONES_ADMIN.filter((x) => puedeVer(x.puerta));
+            const actual = secciones.some((x) => x.k === admSec) ? admSec : (secciones[0] || {}).k;
+            const plan = NOMBRE_PLAN[sesion.comercio.plan] || null;
+            const deAjustes = ["negocio", "cobros", "precios", "clientes", "equipos", "cuenta"].includes(actual);
+            return (
+              <CentroAdministracion negocio={ajustes.negocio} plan={plan} secciones={secciones} actual={actual} onElegir={setAdmSec}>
+                {actual === "resumen" && <ResumenAdministracion ajustes={ajustes} secciones={secciones} onElegir={setAdmSec} plan={plan} pruebaHasta={sesion.comercio.pruebaHasta} />}
+                {deAjustes && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion}
+                  empresaId={empresaId} recargarConexion={recargarConexion} alCambiarCajas={leerCajas}
+                  sucursales={sucursales} alCambiarSucursales={async () => { await leerSucursales(); await leerCajas(); }}
+                  apartado={actual === "cuenta" ? "plan" : actual} sinPlan />}
+                {actual === "plan" && <div className="max-w-2xl"><MiPlan toast={toast} /></div>}
+                {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
+                {actual === "permisos" && (
+                  <Permisos empresaId={empresaId}
+                    modulosComercio={(sesion.comercio && sesion.comercio.modulos) || []}
+                    catalogoModulos={MODULOS.filter((m) => !m.base)}
+                    miRol={sesion.rol} esPlataforma={esPlataforma} toast={toast} />
+                )}
+              </CentroAdministracion>
+            );
+          })()}
           {tab === "agenda" && <Agenda empresaId={empresaId} sucursalId={null} permisos={permisos} clientes={clientes} toast={toast} ir={ir} />}
           {tab === "servicios" && <Servicios empresaId={empresaId} permisos={permisos} toast={toast} />}
           {tab === "finanzas" && (
@@ -2428,12 +2464,6 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
             <Comunicaciones empresaId={empresaId} rubro={rubro}
               ajustes={ajustes} setAjustes={setAjustes} toast={toast} />
           )}
-          {tab === "permisos" && (
-            <Permisos empresaId={empresaId}
-              modulosComercio={(sesion.comercio && sesion.comercio.modulos) || []}
-              catalogoModulos={MODULOS.filter((m) => !m.base)}
-              miRol={sesion.rol} esPlataforma={esPlataforma} toast={toast} />
-          )}
           {tab === "cuentas" && (
             <CuentasCorrientes empresaId={empresaId} clientes={clientes} permisos={permisos} caja={caja} ajustes={ajustes} toast={toast}
               alMoverCaja={async () => { try { setCaja(await leerCaja()); } catch { /* se ve al refrescar */ } }}
@@ -2441,9 +2471,6 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
               alCambiarClientes={() => cargarClientes(empresaId).then(setClientes).catch(() => {})} />
           )}
           {tab === "asistente" && <Asistente k={k} ins={ins} ir={ir} negocio={ajustes.negocio} />}
-          {tab === "ajustes" && <Ajustes ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} provs={provs} toast={toast} mp={mp} setMp={setMp} simularCobro={simularCobro} facturacion={facturacion}
-            empresaId={empresaId} recargarConexion={recargarConexion} alCambiarCajas={leerCajas}
-            sucursales={sucursales} alCambiarSucursales={async () => { await leerSucursales(); await leerCajas(); }} />}
           </Barrera>
         </main>
       </div>
