@@ -21,7 +21,7 @@ import { ConexionArca } from "./ConexionArca.jsx";
 import { ImpresionDirecta } from "./ImpresionDirecta.jsx";
 import { ConexionMercadoPago } from "./ConexionMercadoPago.jsx";
 import { MiPlan } from "./MiPlan.jsx";
-import { DatosDelComercio, ObjetivosConfig, TicketDelComercio, Sonidos, FondoDeCaja, DescuentosPorRol, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
+import { DatosDelComercio, ObjetivosConfig, Sonidos, FondoDeCaja, DescuentosPorRol, PreciosYStock, MiContrasena, DescargarDatos } from "./AjustesDelComercio.jsx";
 import { useLogos } from "../ui/logos.js";
 import { reglaDePuntos, valorDePuntos } from "../utils/puntos.js";
 
@@ -341,8 +341,9 @@ export function Ajustes({ ajustes, setAjustes, productos, setProductos, provs = 
       {empresaId && <ConexionArca empresaId={empresaId} toast={toast} alCambiar={recargarConexion} />}
       </>)}
 
+      {/* Lo que sale en el ticket se eligió acá hasta el 08/10; ahora es su
+          propia sección de Administración, con la vista previa. */}
       {ver("equipos") && (<>
-      <TicketDelComercio ajustes={ajustes} setAjustes={setAjustes} />
       <Sonidos ajustes={ajustes} setAjustes={setAjustes} />
       <ImpresionDirecta ajustes={ajustes} toast={toast} />
 

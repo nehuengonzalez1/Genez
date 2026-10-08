@@ -75,6 +75,8 @@ import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
 import { CentroAdministracion, ResumenAdministracion, SECCIONES_ADMIN } from "../modulos/PanelAdministracion.jsx";
 import { ModulosVisibles } from "../modulos/ModulosVisibles.jsx";
+import { DisenoTicket } from "../modulos/DisenoTicket.jsx";
+import { prepararLogoTicket } from "../ui/logoTicket.js";
 import { MiPlan, NOMBRE_PLAN } from "../modulos/MiPlan.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
@@ -1149,6 +1151,14 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
   useEffect(() => {
     if (!puedeVer(tab)) setTab("inicio");
   }, [ocultosClave]);
+  /* El logo del ticket se arma apenas el comercio lo prende o lo cambia,
+     y queda listo para cuando se imprima: imprimir no puede esperar a
+     cargar una imagen (ver logoTicket.js). */
+  const logoEnTicket = !!(ajustes.ticket && ajustes.ticket.logo);
+  const marcaClave = JSON.stringify(ajustes.marca || {});
+  useEffect(() => {
+    if (logoEnTicket) prepararLogoTicket(ajustes.marca).catch(() => {});
+  }, [logoEnTicket, marcaClave]);
   useEffect(() => {
     if (primerAjuste.current) { primerAjuste.current = false; return; }
     const t = setTimeout(() => {
@@ -1594,6 +1604,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
          el papel lo diga con su nombre. */
       redondeo: redondeo || 0,
       cliente: cliente || null, sincronizada: null,
+      /* Quién cobró, para el "ATENDIO" del ticket si el comercio lo pide
+         (08/10). Solo en el papel de esta sesión: la venta guardada no
+         lo trae, y un ticket reimpreso sale sin ese renglón. */
+      cajero: sesion.nombre || null,
       /* Para el papel (0112): el canje, y lo que suma. Lo que suma lo
          calcula la base igual; acá es para que el cliente lo lea. */
       descPuntos: puntos, puntosSumados,
@@ -2412,6 +2426,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                       .map((g) => ({ ...g, modulos: (g.modulos || []).filter((m) => m.k !== "inicio" && m.k !== "administracion" && permitido(m.k)) }))
                       .filter((g) => g.modulos.length)} />
                 )}
+                {actual === "ticket" && <DisenoTicket ajustes={ajustes} setAjustes={setAjustes} productos={productos} quien={sesion.nombre} toast={toast} onIr={setAdmSec} />}
                 {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
                 {actual === "permisos" && (
                   <Permisos empresaId={empresaId}

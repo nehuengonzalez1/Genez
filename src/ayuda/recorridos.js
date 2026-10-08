@@ -325,7 +325,8 @@ export const PANTALLAS = {
     { en: Css("[data-seccion='negocio']"), opcional: true, t: "Tu negocio", d: "Nombre, logo, contacto, datos fiscales y objetivos del mes." },
     { en: Css("[data-seccion='cobros']"), opcional: true, t: "Cobros y facturas", d: "Medios de pago y comisiones, la caja, Mercado Pago y factura electrónica." },
     { en: Css("[data-seccion='precios']"), opcional: true, t: "Precios y stock", d: "Listas de precios, redondeo y descuentos por rol." },
-    { en: Css("[data-seccion='equipos']"), opcional: true, t: "Equipos", d: "La impresora, el ticket, la comandera y los sonidos." },
+    { en: Css("[data-seccion='ticket']"), opcional: true, t: "Ticket y factura", d: "Qué sale en el papel: el logo, tus datos, un mensaje, un QR. Lo ves mientras lo elegís." },
+    { en: Css("[data-seccion='equipos']"), opcional: true, t: "Equipos", d: "La impresora, la comandera, la balanza y los sonidos." },
     { en: Css("[data-seccion='cuenta']"), opcional: true, t: "Mi cuenta", d: "Tu contraseña y la descarga de tus datos." },
   ],
   administracion: [
