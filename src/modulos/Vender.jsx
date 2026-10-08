@@ -6,7 +6,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Barcode, ScanLine, Camera as Cam, CameraOff, Zap, ZapOff, Loader2,
   Minus, Plus, Trash2, Printer, FileText, MessageCircle, Mail, QrCode,
-  ArrowRight, Check, X, Percent, Users, Search, History
+  ArrowRight, Check, X, Percent, Users, Search, History, PauseCircle, Tag
 } from "lucide-react";
 import { uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
@@ -682,10 +682,95 @@ function CobroQr({ monto, referencia, cajaMp, empresaId, sonido, onPagado, onVol
   );
 }
 
+/* VENTAS EN ESPERA (08/10)
+
+   El de adelante se olvidó algo y va a buscarlo, o paga con una
+   transferencia que no llega: hasta ahora había que anular el ticket o
+   tener a toda la fila esperando. Ventario lo resuelve con "poner en
+   espera" y Nehuen lo pidió para Genez.
+
+   Se guarda el ticket tal como está (renglones, descuento, cliente, si va
+   con factura) y el total de ese momento, para mostrarlo en la ficha. Va
+   a la memoria del navegador y no a la base: es trabajo en curso de esta
+   caja, como el ticket que se está armando, y no tiene por qué verlo otra
+   computadora. Pero no se pierde con un refresco ni con un corte de luz,
+   que es justo cuando más se necesita. Por comercio, para que el modo
+   "entrando como" de la plataforma no mezcle tickets de dos negocios. */
+const MAX_EN_ESPERA = 6;
+const claveEspera = (empresaId) => `genez:en-espera:${empresaId || "local"}`;
+function leerEspera(empresaId) {
+  try { const v = JSON.parse(localStorage.getItem(claveEspera(empresaId)) || "[]"); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function guardarEspera(empresaId, lista) {
+  try { localStorage.setItem(claveEspera(empresaId), JSON.stringify(lista)); } catch { /* sin espacio: queda en memoria */ }
+}
+
 const ATAJOS = [
-  ["F2", "Cobrar"], ["F3", "Últimas ventas"], ["F4", "Descuento"], ["F7", "Quitar último"], ["F8", "Anular venta"],
-  ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
+  ["F2", "Cobrar"], ["F3", "Últimas ventas"], ["F4", "Descuento"], ["F6", "Venta en espera"], ["F7", "Quitar último"], ["F8", "Anular venta"],
+  ["F9", "Salón"], ["F10", "Panel"], ["Alt P", "Consultar precio"], ["F1", "Ayuda"],
 ];
+
+/* CONSULTAR UN PRECIO SIN TOCAR EL TICKET (08/10)
+
+   "¿Cuánto sale esto?" mientras se está cobrando a otro: hasta ahora había
+   que escanearlo (y entraba al ticket) o salir a Productos. Acá se escanea
+   o se escribe y se ve el precio, las listas y el stock; no se agrega nada.
+   Mientras está abierto, el lector escribe en su buscador y no en el del
+   ticket. */
+function ConsultarPrecio({ productos, ajustes, onCerrar }) {
+  const [q, setQ] = useState("");
+  const [visto, setVisto] = useState(null);
+  const norm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const activos = productos.filter((p) => p.activo !== false);
+  const t = q.trim();
+  const res = t.length >= 2
+    ? (activos.find((p) => p.barcode === t) ? [activos.find((p) => p.barcode === t)]
+      : activos.filter((p) => norm(p.nombre).includes(norm(t)) || (p.sku || "").toLowerCase().includes(t.toLowerCase())).slice(0, 8))
+    : [];
+  const elegir = (p) => { setVisto(p); setQ(""); };
+  const listas = (ajustes.listas || []).filter((l) => visto && visto.precios && visto.precios[l.id] > 0);
+  return (
+    <Modal open onClose={onCerrar} ancho="max-w-md">
+      <div className="p-5">
+        <h3 className="f-d text-lg flex items-center gap-2"><Tag size={18} className="text-acento" /> Consultar un precio</h3>
+        <p className="text-xs text-texto-tenue mt-0.5">Escaneá o escribí el nombre. No se agrega al ticket.</p>
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Código o nombre"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && res.length) { e.preventDefault(); elegir(res[0]); }
+            if (e.key === "Enter" && !res.length && t.length >= 6) { e.preventDefault(); setVisto({ noEsta: t }); setQ(""); }
+          }}
+          className="f-m w-full border border-borde rounded-xl px-3 py-2 text-sm mt-3 outline-none focus:border-acento bg-superficie" />
+        {res.length > 0 && (
+          <ul className="mt-2 border border-borde rounded-xl divide-y divide-borde max-h-60 overflow-auto">
+            {res.map((p) => (
+              <li key={p.id}>
+                <button onClick={() => elegir(p)} className="w-full text-left px-3 py-2 hover:bg-superficie-2 flex items-center gap-3">
+                  <span className="flex-1 min-w-0 text-sm truncate">{p.nombre}</span>
+                  <span className="f-m text-sm font-semibold">{p.precio ? money(p.precio) : "sin precio"}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {visto && visto.noEsta && (
+          <div className="mt-4 text-sm text-ojo bg-ojo-suave border border-ojo rounded-xl p-3">El código <span className="f-m">{visto.noEsta}</span> no está en el catálogo.</div>
+        )}
+        {visto && !visto.noEsta && (
+          <div className="mt-4 border border-borde rounded-xl p-4">
+            <div className="text-sm text-texto-suave">{visto.nombre}</div>
+            <div className="f-d text-3xl mt-1">{visto.precioAbierto ? "Precio abierto" : visto.precio ? money(visto.precio) : "Sin precio"}</div>
+            {listas.map((l) => (
+              <div key={l.id} className="flex justify-between text-sm mt-1"><span className="text-texto-suave">{l.nombre}</span><span className="f-m">{money(visto.precios[l.id])}</span></div>
+            ))}
+            <div className="f-m text-xs text-texto-tenue mt-2">{visto.barcode || "sin código"} · stock {formatoCantidad(visto.unidad, visto.stock)}</div>
+          </div>
+        )}
+        <div className="flex justify-end mt-4"><Boton variant="quiet" onClick={onCerrar}>Volver al ticket <Tecla>Esc</Tecla></Boton></div>
+      </div>
+    </Modal>
+  );
+}
 
 /* `descuentoMax` (06/10): el tope de descuento del rol de quien cobra, en
    porcentaje, o null sin tope (el dueño, la plataforma, o un rol al que no
@@ -734,6 +819,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [ultimo, setUltimo] = useState(null);
   const [camara, setCamara] = useState(false);
   const [verTodo, setVerTodo] = useState(false);
+  const [consultando, setConsultando] = useState(false);
   const inp = useRef(null);
   const inpMonto = useRef(null);
   const inpMix = useRef(null);
@@ -833,7 +919,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     const p = vendibles.find((x) => x.barcode === cod);
     if (p) { add(p); beep(true, ajustes.sonido); }
     else { beep(false, ajustes.sonido); setAlta({ barcode: cod }); }
-  }, enCarga && !alta && !camara && !precioAbierto);
+  }, enCarga && !alta && !camara && !precioAbierto && !consultando);
 
   useEffect(() => {
     if (!pendiente) return;
@@ -1151,14 +1237,91 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     setTicket(null); setVerTicket(false); setPaso("carga");
   };
 
+  /* ---- Ventas en espera (ver MAX_EN_ESPERA) ---- */
+  const [enEspera, setEnEspera] = useState(() => (muestra ? [] : leerEspera(empresaId)));
+  const cambiarEspera = (f) => setEnEspera((l) => { const n = f(l); guardarEspera(empresaId, n); return n; });
+  const fotoDelTicket = () => ({
+    id: uid(), hora: new Date().toISOString(), cart, desc, cliente, fiscal,
+    total: totalFinal, articulos: cart.reduce((s, l) => s + (l.precioAbierto ? 1 : Number(l.qty) || 0), 0),
+  });
+  const vaciarTicket = () => {
+    setCart([]); setDesc(SIN_DESC); setCliente(null); setCanje(0); setUltimo(null); setQ(""); setPagos([]); setMontoMix(""); setRecibe("");
+    setFiscal(arrancaFactura); setPaso("carga");
+  };
+  /* Se puede en medio del cobro también: el que paga sigue trayendo
+     cosas, o se fue a buscar la tarjeta, y hay que atender al de atrás.
+     Lo que se había empezado a cobrar se descarta (no se cobró nada) y el
+     ticket queda en espera entero. Con un QR esperando no: el pago puede
+     estar llegando. */
+  const ponerEnEspera = () => {
+    if (muestra || !cart.length) return;
+    if (paso === "qr") return toast("Hay un cobro con QR esperando: terminalo o cancelalo antes.", "mal");
+    if (paso === "fin") return;
+    if (enEspera.length >= MAX_EN_ESPERA) return toast(`Ya hay ${MAX_EN_ESPERA} ventas en espera: cobrá o anulá alguna antes.`, "mal");
+    const f = fotoDelTicket();
+    cambiarEspera((l) => [...l, f]);
+    vaciarTicket();
+    toast(`Venta de ${money(f.total)} en espera. Se retoma tocándola arriba del ticket o con F6.`);
+  };
+  /* Si hay otra venta a medias, se intercambian: la de ahora pasa a
+     espera y no se pierde ninguna. */
+  const retomar = (id) => {
+    const e = enEspera.find((x) => x.id === id);
+    if (!e) return;
+    if (paso === "qr") return toast("Hay un cobro con QR esperando: terminalo o cancelalo antes.", "mal");
+    const actual = cart.length ? fotoDelTicket() : null;
+    cambiarEspera((l) => [...l.filter((x) => x.id !== id), ...(actual ? [actual] : [])]);
+    vaciarTicket();
+    setCart(e.cart || []); setDesc(e.desc || SIN_DESC); setCliente(e.cliente || null); setFiscal(e.fiscal != null ? e.fiscal : arrancaFactura);
+    if (actual) toast(`La venta de ${money(actual.total)} quedó en espera.`);
+  };
+  const descartarEspera = (id) => cambiarEspera((l) => l.filter((x) => x.id !== id));
+
+  /* EL TICKET EN CURSO NO SE PIERDE (08/10)
+
+     Al ir al panel la caja se desarma y el ticket a medias se perdía:
+     Nehuen lo vio vendiendo. Se guarda en la memoria del navegador
+     mientras se arma y se recupera al volver (también después de un
+     refresco o un corte de luz). Se borra cuando la venta se cobra o se
+     queda vacía. El modo muestra del recorrido no guarda nada. */
+  const claveTicket = `genez:ticket-en-curso:${empresaId || "local"}`;
+  useEffect(() => {
+    if (muestra) return;
+    try {
+      const t = JSON.parse(localStorage.getItem(claveTicket) || "null");
+      if (t && Array.isArray(t.cart) && t.cart.length) {
+        setCart(t.cart); setDesc(t.desc || SIN_DESC); setCliente(t.cliente || null);
+        if (t.fiscal != null) setFiscal(t.fiscal);
+      }
+    } catch { /* sin memoria del navegador: arranca vacío, como antes */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (muestra) return;
+    try {
+      if (paso === "fin" || !cart.length) localStorage.removeItem(claveTicket);
+      else localStorage.setItem(claveTicket, JSON.stringify({ cart, desc, cliente, fiscal }));
+    } catch { /* sin lugar: queda solo en pantalla */ }
+  }, [cart, desc, cliente, fiscal, paso]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- Teclado ----
   useEffect(() => {
     const h = (e) => {
       /* Con las últimas ventas abiertas, las teclas son de esa ventana
          (1 a 5 imprime, Esc cierra); F3 la vuelve a cerrar. */
       if (ultimas) { if (e.key === "F3") { e.preventDefault(); setUltimas(false); } return; }
-      if (alta || camara || buscarCliente) return;
+      if (alta || camara || buscarCliente || consultando) return;
       if (e.key === "F1") { e.preventDefault(); return setAyuda((a) => !a); }
+      /* Consultar un precio: desde cualquier paso, sin tocar el ticket. */
+      if (e.altKey && e.code === "KeyP") { e.preventDefault(); return setConsultando(true); }
+      /* F6 en cualquier paso salvo con la venta ya cobrada: con algo en
+         el ticket lo pone en espera; vacío, retoma la que hace más que
+         espera. */
+      if (e.key === "F6" && paso !== "fin") {
+        e.preventDefault();
+        if (cart.length) return ponerEnEspera();
+        if (enEspera.length) return retomar(enEspera[0].id);
+        return;
+      }
       /* F3 desde cualquier paso: el cliente vuelve a pedir el papel
          también mientras se está cobrando al siguiente. */
       if (e.key === "F3" && empresaId) { e.preventDefault(); return setUltimas(true); }
@@ -1243,7 +1406,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId, enEspera, desc, consultando]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -1313,6 +1476,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
               title="Buscar tocando, para lo que no tiene código de barras">
               <Search size={16} className={verTodo ? "" : "text-acento-vivo"} /> <span className="hidden sm:inline">Catálogo</span>
             </button>
+            <button onClick={() => setConsultando(true)}
+              className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/10 active:bg-superficie/20 border border-borde-fuerte rounded-xl px-2.5 py-2"
+              title="Consultar un precio sin agregarlo al ticket (Alt+P)">
+              <Tag size={16} className="text-acento-vivo" /> <span className="hidden sm:inline">Precio</span>
+            </button>
             <button onClick={() => setCamara(true)}
               className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-texto bg-superficie/10 active:bg-superficie/20 border border-borde-fuerte rounded-xl px-2.5 py-2"
               title="Leer con la cámara">
@@ -1369,6 +1537,28 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             </ul>
           )}
         </Card>
+
+        {!muestra && (cart.length > 0 || enEspera.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={ponerEnEspera} disabled={!cart.length || paso === "qr" || paso === "fin"}
+              title="Guardar este ticket para atender al que sigue"
+              className="flex items-center gap-1.5 text-xs font-semibold border border-borde rounded-xl px-2.5 py-2 text-texto-suave hover:text-texto hover:border-borde-fuerte disabled:opacity-40 disabled:pointer-events-none">
+              <PauseCircle size={15} className="text-acento-vivo" /> Poner en espera <Tecla>F6</Tecla>
+            </button>
+            {enEspera.map((e) => (
+              <span key={e.id} className="inline-flex items-stretch rounded-xl border border-acento/50 bg-acento-suave overflow-hidden">
+                <button onClick={() => retomar(e.id)} title="Retomar esta venta"
+                  className="flex items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-acento-suave">
+                  <span className="f-m text-texto-tenue">{new Date(e.hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+                  <span className="text-texto">{e.cliente ? e.cliente.razonSocial : `${formatoCantidad("un", e.articulos)} art.`}</span>
+                  <span className="f-m font-semibold text-texto">{money(e.total)}</span>
+                </button>
+                <button onClick={() => descartarEspera(e.id)} title="Descartar esta venta en espera" aria-label="Descartar esta venta en espera"
+                  className="px-1.5 border-l border-acento/30 text-texto-tenue hover:text-mal"><X size={13} /></button>
+              </span>
+            ))}
+          </div>
+        )}
 
         <Card className="overflow-hidden">
           {cart.length === 0 ? <Vacio>El ticket está vacío. Escaneá el primer producto.</Vacio> : (
@@ -1891,6 +2081,11 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           add(p, qty, importe);
           beep(true, ajustes.sonido);
         }} />
+
+      {consultando && (
+        <ConsultarPrecio productos={productos} ajustes={ajustes}
+          onCerrar={() => { setConsultando(false); inp.current && inp.current.focus(); }} />
+      )}
 
       {ultimas && (
         <UltimasVentas empresaId={empresaId} ajustes={ajustes} toast={toast}
