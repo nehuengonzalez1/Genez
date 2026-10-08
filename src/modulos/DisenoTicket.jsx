@@ -149,7 +149,7 @@ export function DisenoTicket({ ajustes, setAjustes, productos, quien, toast, onI
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1fr_minmax(320px,380px)] gap-5 items-start">
       <div className="space-y-5 min-w-0">
-        <Bloque titulo="Arriba" d="El encabezado: lo primero que se lee.">
+        <Bloque titulo="Arriba" d="El encabezado: quién sos y cómo encontrarte.">
           <Opcion n="Logo" prendido={op.logo} onCambiar={() => set("logo", !op.logo)} apagado={sinLogo && !op.logo}
             d={sinLogo
               ? "Todavía no cargaste tu logo."
@@ -169,25 +169,12 @@ export function DisenoTicket({ ajustes, setAjustes, productos, quien, toast, onI
               ))}
             </div>
           </Opcion>
-          <Opcion n="Dirección" d="El domicilio de los datos fiscales. En la factura va siempre." prendido={op.domicilio} onCambiar={() => set("domicilio", !op.domicilio)} />
           <Opcion n="Una frase debajo del nombre" d="Hasta 2 renglones: lo que hacen, desde cuándo, un lema.">
             <textarea value={op.lema} onChange={(e) => set("lema", e.target.value.split("\n").slice(0, 2).join("\n"))}
               rows={2} maxLength={90} placeholder={"Almacén de barrio desde 1998"} className={`${inputCls} resize-none mt-2`} />
           </Opcion>
-        </Bloque>
-
-        <Bloque titulo="En el medio" d="Los datos de la venta. Los productos, los importes y cómo se pagó van siempre.">
-          <Opcion n="Quién atendió" d="El nombre de quien cobró, debajo del número." prendido={op.cajero} onCambiar={() => set("cajero", !op.cajero)} />
-          <Opcion n="El cliente" d="Si se eligió uno al cobrar. En la factura va siempre, con sus datos." prendido={op.cliente} onCambiar={() => set("cliente", !op.cliente)} />
-          <Opcion n="Cantidad de productos" d={'El "3 items" del final.'} prendido={op.cantidad} onCambiar={() => set("cantidad", !op.cantidad)} />
-        </Bloque>
-
-        <Bloque titulo="Abajo" d="El cierre: cómo los encuentran y qué querés que hagan.">
-          <Opcion n="Mensaje" d={'Hasta 4 renglones. Vacío, dice "Gracias por su compra".'}>
-            <textarea value={op.pie} onChange={(e) => set("pie", e.target.value.split("\n").slice(0, 4).join("\n"))}
-              rows={3} maxLength={200} placeholder={"Gracias por su compra\nCambios dentro de los 30 días con este ticket"} className={`${inputCls} resize-none mt-2`} />
-          </Opcion>
-          <Opcion n="Cómo contactarte" d="Los datos de Datos del negocio. Elegí cuáles salen." prendido={op.contacto} onCambiar={() => set("contacto", !op.contacto)}>
+          <Opcion n="Dirección" d="El domicilio de los datos fiscales. En la factura va siempre." prendido={op.domicilio} onCambiar={() => set("domicilio", !op.domicilio)} />
+          <Opcion n="Cómo contactarte" d="Debajo de la dirección. Son los de Datos del negocio: elegí cuáles salen." prendido={op.contacto} onCambiar={() => set("contacto", !op.contacto)}>
             {op.contacto && (
               <div className="mt-3 grid sm:grid-cols-2 gap-x-4 gap-y-2">
                 {[["telefono", "Teléfono", c.telefono], ["whatsapp", "WhatsApp", c.whatsapp], ["instagram", "Instagram", c.instagram], ["email", "Mail", c.email], ["horarios", "Horarios", c.horarios]].map(([k, n, v]) => (
@@ -198,6 +185,19 @@ export function DisenoTicket({ ajustes, setAjustes, productos, quien, toast, onI
                 ))}
               </div>
             )}
+          </Opcion>
+        </Bloque>
+
+        <Bloque titulo="En el medio" d="Los datos de la venta. Los productos, los importes y cómo se pagó van siempre.">
+          <Opcion n="Quién atendió" d="El nombre de quien cobró, debajo del número." prendido={op.cajero} onCambiar={() => set("cajero", !op.cajero)} />
+          <Opcion n="El cliente" d="Si se eligió uno al cobrar. En la factura va siempre, con sus datos." prendido={op.cliente} onCambiar={() => set("cliente", !op.cliente)} />
+          <Opcion n="Cantidad de productos" d={'El "3 items" del final.'} prendido={op.cantidad} onCambiar={() => set("cantidad", !op.cantidad)} />
+        </Bloque>
+
+        <Bloque titulo="Abajo" d="El cierre: lo que querés decirles y a dónde querés que vayan.">
+          <Opcion n="Mensaje" d={'Hasta 4 renglones. Vacío, dice "Gracias por su compra".'}>
+            <textarea value={op.pie} onChange={(e) => set("pie", e.target.value.split("\n").slice(0, 4).join("\n"))}
+              rows={3} maxLength={200} placeholder={"Gracias por su compra\nCambios dentro de los 30 días con este ticket"} className={`${inputCls} resize-none mt-2`} />
           </Opcion>
           <Opcion n="Un QR tuyo" d="Para que te sigan, te escriban o te califiquen. Solo en el ticket: en la factura va el de ARCA." prendido={op.qr} onCambiar={() => set("qr", !op.qr)}>
             {op.qr && (
