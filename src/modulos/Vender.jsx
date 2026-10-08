@@ -6,7 +6,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Barcode, ScanLine, Camera as Cam, CameraOff, Zap, ZapOff, Loader2,
   Minus, Plus, Trash2, Printer, FileText, MessageCircle, Mail, QrCode,
-  ArrowRight, Check, X, Percent, Users, Search, History
+  ArrowRight, Check, X, Percent, Users, Search, History, PauseCircle
 } from "lucide-react";
 import { uid } from "../datos/generador.js";
 import { saldoDe } from "../datos/cuentas.js";
@@ -682,8 +682,32 @@ function CobroQr({ monto, referencia, cajaMp, empresaId, sonido, onPagado, onVol
   );
 }
 
+/* VENTAS EN ESPERA (08/10)
+
+   El de adelante se olvidó algo y va a buscarlo, o paga con una
+   transferencia que no llega: hasta ahora había que anular el ticket o
+   tener a toda la fila esperando. Ventario lo resuelve con "poner en
+   espera" y Nehuen lo pidió para Genez.
+
+   Se guarda el ticket tal como está (renglones, descuento, cliente, si va
+   con factura) y el total de ese momento, para mostrarlo en la ficha. Va
+   a la memoria del navegador y no a la base: es trabajo en curso de esta
+   caja, como el ticket que se está armando, y no tiene por qué verlo otra
+   computadora. Pero no se pierde con un refresco ni con un corte de luz,
+   que es justo cuando más se necesita. Por comercio, para que el modo
+   "entrando como" de la plataforma no mezcle tickets de dos negocios. */
+const MAX_EN_ESPERA = 6;
+const claveEspera = (empresaId) => `genez:en-espera:${empresaId || "local"}`;
+function leerEspera(empresaId) {
+  try { const v = JSON.parse(localStorage.getItem(claveEspera(empresaId)) || "[]"); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function guardarEspera(empresaId, lista) {
+  try { localStorage.setItem(claveEspera(empresaId), JSON.stringify(lista)); } catch { /* sin espacio: queda en memoria */ }
+}
+
 const ATAJOS = [
-  ["F2", "Cobrar"], ["F3", "Últimas ventas"], ["F4", "Descuento"], ["F7", "Quitar último"], ["F8", "Anular venta"],
+  ["F2", "Cobrar"], ["F3", "Últimas ventas"], ["F4", "Descuento"], ["F6", "Venta en espera"], ["F7", "Quitar último"], ["F8", "Anular venta"],
   ["F9", "Salón"], ["F10", "Panel"], ["F1", "Ayuda"],
 ];
 
@@ -1151,6 +1175,38 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     setTicket(null); setVerTicket(false); setPaso("carga");
   };
 
+  /* ---- Ventas en espera (ver MAX_EN_ESPERA) ---- */
+  const [enEspera, setEnEspera] = useState(() => (muestra ? [] : leerEspera(empresaId)));
+  const cambiarEspera = (f) => setEnEspera((l) => { const n = f(l); guardarEspera(empresaId, n); return n; });
+  const fotoDelTicket = () => ({
+    id: uid(), hora: new Date().toISOString(), cart, desc, cliente, fiscal,
+    total: totalFinal, articulos: cart.reduce((s, l) => s + (l.precioAbierto ? 1 : Number(l.qty) || 0), 0),
+  });
+  const vaciarTicket = () => {
+    setCart([]); setDesc(SIN_DESC); setCliente(null); setCanje(0); setUltimo(null); setQ(""); setPagos([]); setMontoMix(""); setRecibe("");
+    setFiscal(arrancaFactura); setPaso("carga");
+  };
+  const ponerEnEspera = () => {
+    if (muestra || !cart.length) return;
+    if (enEspera.length >= MAX_EN_ESPERA) return toast(`Ya hay ${MAX_EN_ESPERA} ventas en espera: cobrá o anulá alguna antes.`, "mal");
+    const f = fotoDelTicket();
+    cambiarEspera((l) => [...l, f]);
+    vaciarTicket();
+    toast(`Venta de ${money(f.total)} en espera. Se retoma tocándola arriba del ticket o con F6.`);
+  };
+  /* Si hay otra venta a medias, se intercambian: la de ahora pasa a
+     espera y no se pierde ninguna. */
+  const retomar = (id) => {
+    const e = enEspera.find((x) => x.id === id);
+    if (!e) return;
+    const actual = cart.length ? fotoDelTicket() : null;
+    cambiarEspera((l) => [...l.filter((x) => x.id !== id), ...(actual ? [actual] : [])]);
+    vaciarTicket();
+    setCart(e.cart || []); setDesc(e.desc || SIN_DESC); setCliente(e.cliente || null); setFiscal(e.fiscal != null ? e.fiscal : arrancaFactura);
+    if (actual) toast(`La venta de ${money(actual.total)} quedó en espera.`);
+  };
+  const descartarEspera = (id) => cambiarEspera((l) => l.filter((x) => x.id !== id));
+
   // ---- Teclado ----
   useEffect(() => {
     const h = (e) => {
@@ -1173,6 +1229,14 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             const i = d.modo === "pct" ? DESC_RAPIDOS.indexOf(d.valor) : -1;
             return { modo: "pct", valor: DESC_RAPIDOS[(i + 1) % DESC_RAPIDOS.length] };
           });
+        }
+        /* F6: con algo en el ticket lo pone en espera; vacío, retoma la
+           que hace más que espera. */
+        if (e.key === "F6") {
+          e.preventDefault();
+          if (cart.length) return ponerEnEspera();
+          if (enEspera.length) return retomar(enEspera[0].id);
+          return;
         }
         if (e.key === "F7") { e.preventDefault(); return setCart((c) => c.slice(0, -1)); }
         if (e.key === "F8") {
@@ -1243,7 +1307,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId, enEspera, desc]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -1369,6 +1433,28 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
             </ul>
           )}
         </Card>
+
+        {!muestra && (cart.length > 0 || enEspera.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={ponerEnEspera} disabled={!cart.length}
+              title="Guardar este ticket para atender al que sigue"
+              className="flex items-center gap-1.5 text-xs font-semibold border border-borde rounded-xl px-2.5 py-2 text-texto-suave hover:text-texto hover:border-borde-fuerte disabled:opacity-40 disabled:pointer-events-none">
+              <PauseCircle size={15} className="text-acento-vivo" /> Poner en espera <Tecla>F6</Tecla>
+            </button>
+            {enEspera.map((e) => (
+              <span key={e.id} className="inline-flex items-stretch rounded-xl border border-acento/50 bg-acento-suave overflow-hidden">
+                <button onClick={() => retomar(e.id)} title="Retomar esta venta"
+                  className="flex items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-acento-suave">
+                  <span className="f-m text-texto-tenue">{new Date(e.hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+                  <span className="text-texto">{e.cliente ? e.cliente.razonSocial : `${formatoCantidad("un", e.articulos)} art.`}</span>
+                  <span className="f-m font-semibold text-texto">{money(e.total)}</span>
+                </button>
+                <button onClick={() => descartarEspera(e.id)} title="Descartar esta venta en espera" aria-label="Descartar esta venta en espera"
+                  className="px-1.5 border-l border-acento/30 text-texto-tenue hover:text-mal"><X size={13} /></button>
+              </span>
+            ))}
+          </div>
+        )}
 
         <Card className="overflow-hidden">
           {cart.length === 0 ? <Vacio>El ticket está vacío. Escaneá el primer producto.</Vacio> : (
