@@ -58,18 +58,36 @@ function qrComoImagen({ n, celdas }, mm) {
   return [new Uint8Array(cab), imagen];
 }
 
+/* El logo (08/10): el mapa de `logoTicket.js` ya está a la resolución
+   del cabezal, así que va punto por punto, sin escalar. */
+function logoComoImagen({ w, h, bits }) {
+  const bytesPorFila = Math.ceil(w / 8);
+  const imagen = new Uint8Array(bytesPorFila * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (bits[y * w + x]) imagen[y * bytesPorFila + (x >> 3)] |= 0x80 >> (x & 7);
+  }
+  const cab = [GS, 0x76, 0x30, 0x00, bytesPorFila & 0xff, bytesPorFila >> 8, h & 0xff, h >> 8];
+  return [new Uint8Array(cab), imagen];
+}
+
 /**
  * @param lineas  los renglones de `armarLineas`
  * @param mm      58 u 80
  * @param celdas  el QR como { n, celdas } de `celdasQR`, o null
  * @param cortar  cortar el papel al final (las que no tienen cortador lo ignoran)
+ * @param logo    el mapa del logo, o null
  */
-export function armarEscPos({ lineas, mm = 58, celdas = null, cortar = true }) {
+export function armarEscPos({ lineas, mm = 58, celdas = null, cortar = true, logo = null }) {
   const partes = [];
   const cmd = (...b) => partes.push(new Uint8Array(b));
 
   cmd(ESC, 0x40);            // reinicio: sin restos de un ticket anterior
   cmd(ESC, 0x45, 1);         // negrita: el papel térmico no imprime grises
+  if (logo) {
+    cmd(ESC, 0x61, 1);       // el logo, centrado
+    partes.push(...logoComoImagen(logo));
+    cmd(0x0a);
+  }
   cmd(ESC, 0x61, 0);         // alineado a la izquierda: el centrado ya viene en el texto
   for (const l of lineas) { partes.push(aBytes(l)); cmd(0x0a); }
 

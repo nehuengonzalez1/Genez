@@ -124,33 +124,7 @@ export function ObjetivosConfig({ ajustes, setAjustes }) {
   );
 }
 
-/* ---------- Equipos: el pie del ticket y los sonidos ---------- */
-
-export function TicketDelComercio({ ajustes, setAjustes }) {
-  const t = ajustes.ticket || {};
-  const c = ajustes.contacto || {};
-  const set = (k, v) => setAjustes({ ...ajustes, ticket: { ...t, [k]: v } });
-  const hayContacto = !!(c.telefono || c.whatsapp || c.instagram);
-  return (
-    <Card className="p-5">
-      <h3 className="f-d text-lg">Ticket</h3>
-      <p className="text-sm text-texto-suave mt-1">
-        Lo que sale al final de cada ticket. Vacío, dice "Gracias por su compra".
-      </p>
-      <label className="block mt-4">
-        <Rotulo>Texto del pie (hasta 4 renglones)</Rotulo>
-        <textarea value={t.pie || ""} onChange={(e) => set("pie", e.target.value.split("\n").slice(0, 4).join("\n"))}
-          rows={3} maxLength={200} placeholder={"Gracias por su compra\nCambios dentro de los 30 días con este ticket"}
-          className={`${inputCls} resize-none`} />
-      </label>
-      <label className={`flex items-center gap-2 text-sm mt-3 ${hayContacto ? "" : "opacity-60"}`}>
-        <input type="checkbox" checked={t.contacto !== false} onChange={(e) => set("contacto", e.target.checked)} disabled={!hayContacto} />
-        Imprimir el teléfono, el WhatsApp y el Instagram del comercio
-        {!hayContacto && <span className="text-texto-tenue">(cargalos en Negocio → Tu comercio)</span>}
-      </label>
-    </Card>
-  );
-}
+/* ---------- Equipos: los sonidos ---------- */
 
 export function Sonidos({ ajustes, setAjustes }) {
   return (

@@ -24,6 +24,8 @@
    térmico no imprime grises, y un trazo fino sale cortado.
    ============================================================ */
 
+import { tramosDe } from "./logoTicket.js";
+
 const PT_POR_MM = 72 / 25.4;
 
 /* Courier es de las 14 fuentes que todo lector de PDF trae, y con
@@ -60,7 +62,7 @@ const n2 = (v) => (Math.round(v * 100) / 100).toString();
  * @param qrMM      lado del QR impreso
  * @returns Uint8Array con el PDF
  */
-export function armarPdfTicket({ lineas, mm, util, celdas = null, qrMM = 30 }) {
+export function armarPdfTicket({ lineas, mm, util, celdas = null, qrMM = 30, logo = null }) {
   const columnas = lineas.reduce((m, l) => Math.max(m, String(l).length), 0) || (mm === 58 ? 32 : 48);
   /* Courier avanza 0,6 em por carácter: la línea más larga tiene que
      entrar justa en lo que imprime el cabezal. Mismo cálculo que el
@@ -75,14 +77,18 @@ export function armarPdfTicket({ lineas, mm, util, celdas = null, qrMM = 30 }) {
   const pieQR = celdas ? 4 * PT_POR_MM : 0;
   /* Los 2 mm de más son para que la última línea no quede al filo del
      corte, igual que en el de HTML. */
-  const altoPt = margen + altoTexto + margen + ladoQR + pieQR + 2 * PT_POR_MM;
+  /* El logo (08/10), arriba de todo: un punto del mapa es un punto del
+     cabezal, 1/8 de mm. */
+  const puntoPt = PT_POR_MM / 8;
+  const altoLogo = logo ? logo.h * puntoPt + 1.5 * PT_POR_MM : 0;
+  const altoPt = margen + altoLogo + altoTexto + margen + ladoQR + pieQR + 2 * PT_POR_MM;
 
   /* El PDF cuenta de abajo para arriba: el primer renglón va arriba. */
   const partes = [];
   partes.push("BT");
   partes.push(`/F1 ${n2(cuerpo)} Tf`);
   partes.push(`${n2(interlineado)} TL`);
-  partes.push(`0 ${n2(altoPt - margen - cuerpo)} Td`);
+  partes.push(`0 ${n2(altoPt - margen - altoLogo - cuerpo)} Td`);
   for (const l of lineas) partes.push(`(${aWinAnsi(l)}) Tj T*`);
   partes.push("ET");
 
@@ -90,7 +96,7 @@ export function armarPdfTicket({ lineas, mm, util, celdas = null, qrMM = 30 }) {
     const { n, celdas: negras } = celdas;
     const modulo = ladoQR / n;
     const x0 = (util * PT_POR_MM - ladoQR) / 2;
-    const yArriba = altoPt - margen - altoTexto - margen;
+    const yArriba = altoPt - margen - altoLogo - altoTexto - margen;
     partes.push("0 g");
     /* Los módulos negros seguidos de una misma fila van en un solo
        rectángulo: menos operaciones y ninguna rendija blanca entre ellos. */
@@ -109,6 +115,15 @@ export function armarPdfTicket({ lineas, mm, util, celdas = null, qrMM = 30 }) {
         else { tramo(); desde = hasta = xs[i]; }
       }
       tramo();
+    }
+  }
+
+  if (logo) {
+    const x0 = (util * PT_POR_MM - logo.w * puntoPt) / 2;
+    const yArriba = altoPt - margen;
+    partes.push("0 g");
+    for (const [x, y, l] of tramosDe(logo)) {
+      partes.push(`${n2(x0 + x * puntoPt)} ${n2(yArriba - (y + 1) * puntoPt)} ${n2(l * puntoPt)} ${n2(puntoPt)} re f`);
     }
   }
 

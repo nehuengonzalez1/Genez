@@ -27,7 +27,7 @@ import {
   ALICUOTAS, claveAlicuota, alicuotaDe
 } from "../utils/helpers.js";
 import {
-  beep, useScanHandler, ticketVenta, imprimirTicket, qrDeFactura, esperaCAE,
+  beep, useScanHandler, ticketVenta, imprimirTicket, qrDelTicket, logoDelTicket, esperaCAE,
   Vacio, Modal, Boton, Card, Comandera
 } from "../ui/Base.jsx";
 import { FormCliente } from "./Clientes.jsx";
@@ -2119,7 +2119,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
         <Modal open onClose={() => setVerTicket(false)} ancho="max-w-md">
           <div className="p-5">
             <div className="bg-superficie-2 rounded-xl p-3 overflow-auto">
-              <Comandera lineas={ticketVenta(tk, ajustes, W)} ancho={ajustes.ancho} qr={tk.fiscal ? qrDeFactura(tk.factura) : null} className="py-2 shadow-sm" />
+              <Comandera lineas={ticketVenta(tk, ajustes, W)} ancho={ajustes.ancho} qr={qrDelTicket(tk, ajustes)} logo={logoDelTicket(ajustes)} className="py-2 shadow-sm" />
             </div>
             <div className="grid grid-cols-2 gap-1.5 mt-3 no-print">
               <Boton variant="ghost" disabled={esperaCAE(tk)} onClick={() => imprimirTicket(tk, ajustes, toast)}><Printer size={15} /> Imprimir</Boton>
@@ -2206,7 +2206,7 @@ export function TicketModal({ t, onClose, ajustes, toast }) {
         </div>
         <div className="bg-superficie-2 rounded-xl p-3 mt-4 overflow-auto">
           <Comandera lineas={ticketVenta(t, ajustes, W)} ancho={ajustes.ancho}
-            qr={t.fiscal ? qrDeFactura(t.factura) : null} className="py-2 shadow-sm" />
+            qr={qrDelTicket(t, ajustes)} logo={logoDelTicket(ajustes)} className="py-2 shadow-sm" />
         </div>
         <div className="grid grid-cols-4 gap-1.5 mt-4 no-print">
           {acciones.map((a) => (

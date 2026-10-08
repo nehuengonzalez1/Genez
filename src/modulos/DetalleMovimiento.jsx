@@ -24,7 +24,7 @@ import { money, hora, medioPorK, mediosDe, FISCAL_INICIAL, MEDIO_CUENTA_CORRIENT
 import { fdatel } from "../datos/generador.js";
 import { cargarVenta, cargarDevuelto, registrarDevolucion, registrarNotaDebito, corregirMedioPago } from "../datos/ventas.js";
 import { cargarTicketDeVenta } from "../datos/arca.js";
-import { Modal, Boton, Sello, Comandera, ticketVenta, qrDeFactura, imprimirTicket, armarLineas, imprimirComandera } from "../ui/Base.jsx";
+import { Modal, Boton, Sello, Comandera, ticketVenta, qrDelTicket, logoDelTicket, imprimirTicket, armarLineas, imprimirComandera } from "../ui/Base.jsx";
 
 const numeroFactura = (f) => `${f.letra} ${String(f.puntoVenta).padStart(5, "0")}-${String(f.numero).padStart(8, "0")}`;
 /* `nf` redondea a entero, y 0,4 kg de queso salía como "0". */
@@ -189,7 +189,7 @@ function DetalleVenta({ v, t, ajustes, toast, onCerrar, empresaId, caja, permiso
       {verPapel ? (
         <div className="bg-superficie-2 rounded-lg p-3 mt-5 overflow-auto">
           <Comandera lineas={ticketVenta(papel, ajustes, anchoDe(ajustes))} ancho={ajustes.ancho}
-            qr={papel.fiscal && papel.factura ? qrDeFactura(papel.factura) : null} className="py-2" />
+            qr={qrDelTicket(papel, ajustes)} logo={logoDelTicket(ajustes)} className="py-2" />
         </div>
       ) : (
         <>
