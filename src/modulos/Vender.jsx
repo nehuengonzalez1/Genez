@@ -709,8 +709,12 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [desc, setDesc] = useState(SIN_DESC);
   const [medioSel, setMedioSel] = useState(0);
   const [recibe, setRecibe] = useState("");
-  const [pagos, setPagos] = useState([]);
-  const [montoMix, setMontoMix] = useState("");
+  /* El pago combinado (08/10, como el modo rápido de Vendi): una casilla
+     por medio, todas a la vista, en vez de agregar un pago por vez. Lo que
+     se cobra sale de lo que hay escrito en las casillas. `setPagos([])`
+     sigue siendo "empezar de cero" para los que ya lo llamaban. */
+  const [montos, setMontos] = useState({});
+  const setPagos = () => setMontos({});
   const [ticket, setTicket] = useState(null);
   /* Va acá arriba y no junto a su saldo: el precio de cada renglón ya lo
      usa (lista del cliente), y leerlo antes de declararlo deja la pantalla
@@ -719,7 +723,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   /* Con una venta a medio cargar o a medio cobrar, la página no se
      actualiza sola (src/ui/actualizacion.js): se perdería el carrito. Con
      la venta ya cobrada ("fin") sí: la venta está guardada. */
-  useOcupado(paso !== "fin" && (cart.length > 0 || pagos.length > 0));
+  useOcupado(paso !== "fin" && (cart.length > 0 || Object.values(montos).some((v) => Number(v) > 0)));
   /* El ticket que se muestra, con la factura si ARCA ya la autorizó. El
      CAE llega después del cobro —a veces mucho después—, así que no se
      guarda en `ticket`: se mira cada vez en lo que va llegando. */
@@ -736,12 +740,14 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const [verTodo, setVerTodo] = useState(false);
   const inp = useRef(null);
   const inpMonto = useRef(null);
-  const inpMix = useRef(null);
+  const casillasRef = useRef({});
 
   const enCarga = paso === "carga";
   useEffect(() => { if (enCarga && inp.current) inp.current.focus(); }, [enCarga, cart.length, ticket]);
   useEffect(() => { if (paso === "monto" && inpMonto.current) inpMonto.current.focus(); }, [paso]);
-  useEffect(() => { if (paso === "mixto" && inpMix.current) inpMix.current.focus(); }, [paso, pagos.length]);
+  /* Al abrir el combinado, el cursor en el efectivo: es por donde empieza
+     casi siempre ("me das 5.000 y el resto con tarjeta"). */
+  useEffect(() => { if (paso === "mixto" && casillasRef.current.efectivo) casillasRef.current.efectivo.focus(); }, [paso]);
 
   const norm = (t) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   /* "Ver todo" es para el mostrador sin pistola: la mayor\u00eda de estos
@@ -1017,32 +1023,41 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
 
   const irAPago = () => {
     if (!cart.length) return;
-    setMedioSel(0); setRecibe(""); setPagos([]); setMontoMix("");
+    setMedioSel(0); setRecibe(""); setPagos([]);
     setFiscal(arrancaFactura); setCliente(null);
     setPaso("pago");
   };
 
   // ---- Pago combinado ----
-  const cubierto = pagos.reduce((s2, p) => s2 + p.monto, 0);
+  const montoDe = (k) => Number(montos[k]) || 0;
+  const cubierto = medios.reduce((s2, m) => s2 + montoDe(m.k), 0);
   const falta = Math.max(0, total - cubierto);
-  const vueltoMix = pagos.reduce((s2, p) => s2 + (p.exceso || 0), 0);
-  const efectivoEntregado = pagos.filter((p) => p.medio === "efectivo").reduce((s2, p) => s2 + p.monto + (p.exceso || 0), 0);
+  const sobra = Math.max(0, cubierto - total);
+  /* Solo el efectivo puede pasarse: lo que sobra es el vuelto. Con tarjeta
+     o transferencia se cobra exacto. */
+  const efectivoEntregado = montoDe("efectivo");
+  const vueltoMix = Math.min(sobra, efectivoEntregado);
+  const sobraSinEfectivo = sobra - vueltoMix;
+  const pagos = medios.filter((m) => montoDe(m.k) > 0).map((m) => ({
+    medio: m.k, monto: m.k === "efectivo" ? montoDe(m.k) - vueltoMix : montoDe(m.k),
+  })).filter((p) => p.monto > 0);
 
-  const agregarPago = () => {
-    const m = medios[medioSel];
-    const entrada = Number(montoMix) || falta;
-    if (entrada <= 0 || falta <= 0) return;
-    const aplicado = Math.min(entrada, falta);
-    const exceso = m.k === "efectivo" ? Math.max(0, entrada - falta) : 0;
-    if (m.k !== "efectivo" && entrada > falta) return toast("Con tarjeta o transferencia no puede sobrar: cobrá el importe exacto.", "mal");
-    setPagos((ps) => [...ps, { medio: m.k, monto: aplicado, exceso }]);
-    setMontoMix("");
-    beep(true, ajustes.sonido);
+  /* "+" en una casilla: se lleva lo que falta (lo que no cubren las otras). */
+  const completarCasilla = (k) => {
+    const resto = total - (cubierto - montoDe(k));
+    setMontos((ms) => ({ ...ms, [k]: String(Math.max(0, resto)) }));
+  };
+  const moverCasilla = (desde, paso_) => {
+    const i = medios.findIndex((m) => m.k === desde);
+    const m = medios[(i + paso_ + medios.length) % medios.length];
+    if (m && casillasRef.current[m.k]) casillasRef.current[m.k].focus();
   };
 
   const finalizarMixto = () => {
-    if (cubierto < total) return toast(`Todavía faltan ${money(falta)}.`, "mal");
-    finalizar(pagos[0].medio, efectivoEntregado || null, pagos.map((p) => ({ medio: p.medio, monto: p.monto })), vueltoMix);
+    if (falta > 0) return toast(`Todavía faltan ${money(falta)}.`, "mal");
+    if (sobraSinEfectivo > 0) return toast("Con tarjeta, QR o transferencia no puede sobrar: lo que se pasa del total tiene que ser efectivo.", "mal");
+    if (!pagos.length) return;
+    finalizar(pagos[0].medio, efectivoEntregado || null, pagos, vueltoMix);
   };
 
   /* Con "extra.antesDeCobrar" hace todas las verificaciones y la cuenta
@@ -1147,7 +1162,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   };
 
   const nuevaVenta = () => {
-    setCart([]); setDesc(SIN_DESC); setRecibe(""); setMedioSel(0); setPagos([]); setMontoMix(""); setUltimo(null); setCliente(null);
+    setCart([]); setDesc(SIN_DESC); setRecibe(""); setMedioSel(0); setPagos([]); setUltimo(null); setCliente(null);
     setTicket(null); setVerTicket(false); setPaso("carga");
   };
 
@@ -1194,7 +1209,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
         if (e.key === "Escape") return setPaso("carga");
         if (e.key === "ArrowDown") return setMedioSel((i) => (i + 1) % medios.length);
         if (e.key === "ArrowUp") return setMedioSel((i) => (i - 1 + medios.length) % medios.length);
-        if (e.key === "6" || e.key.toLowerCase() === "c") { setMedioSel(0); setMontoMix(""); return setPaso("mixto"); }
+        if (e.key === "6" || e.key.toLowerCase() === "c") { setMedioSel(0); setPagos([]); return setPaso("mixto"); }
         if (/^[1-9]$/.test(e.key) && Number(e.key) <= medios.length) {
           const i = Number(e.key) - 1;
           setMedioSel(i);
@@ -1220,14 +1235,15 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
 
       if (paso === "mixto") {
         if (e.key === "Escape") { e.preventDefault(); setPagos([]); return setPaso("pago"); }
-        if (e.key === "ArrowDown") { e.preventDefault(); return setMedioSel((i) => (i + 1) % medios.length); }
-        if (e.key === "ArrowUp") { e.preventDefault(); return setMedioSel((i) => (i - 1 + medios.length) % medios.length); }
-        if (e.key === "Delete") { e.preventDefault(); return setPagos((ps) => ps.slice(0, -1)); }
-        if (e.key === "Enter") {
+        /* Alt + número: a la casilla de ese medio (los números solos son
+           el importe que se está escribiendo). */
+        if (e.altKey && /^(Digit|Numpad)[1-9]$/.test(e.code || "")) {
           e.preventDefault();
-          if (falta <= 0) return finalizarMixto();
-          return agregarPago();
+          const m = medios[Number(e.code.slice(-1)) - 1];
+          if (m && casillasRef.current[m.k]) casillasRef.current[m.k].focus();
+          return;
         }
+        if (e.key === "Enter") { e.preventDefault(); return finalizarMixto(); }
         return;
       }
 
@@ -1243,7 +1259,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [paso, cart, medioSel, recibe, total, ayuda, pagos, montoMix, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId]);
+  }, [paso, cart, medioSel, recibe, total, ayuda, montos, falta, alta, camara, fiscal, totalFinal, cliente, buscarCliente, permisos, tk, ultimas, empresaId]);
 
   const activo = ultimo && cart.find((l) => l.pid === ultimo.pid) ? ultimo : null;
   const cantidadPendiente = activo && esCantidad(q) && q.trim() !== "";
@@ -1672,7 +1688,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
                 </li>
               ))}
             </ul>
-            <button onClick={() => { setMedioSel(0); setMontoMix(""); setPaso("mixto"); }}
+            <button onClick={() => { setMedioSel(0); setPagos([]); setPaso("mixto"); }}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed border-borde-fuerte hover:bg-superficie-2 text-left mt-1.5">
               <Tecla>6</Tecla>
               <span className="font-semibold flex-1">Pago combinado</span>
@@ -1756,54 +1772,40 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           </div>
 
           <div className="p-5">
-            {pagos.length > 0 && (
-              <ul className="mb-4 border border-borde rounded-xl divide-y divide-borde">
-                {pagos.map((p, i) => (
-                  <li key={i} className="flex items-center gap-3 px-3 py-2 text-sm">
-                    <Check size={14} className="text-bien shrink-0" />
-                    <span className="flex-1">{medioPorK(ajustes, p.medio).n}</span>
-                    <span className="f-m">{money(p.monto)}</span>
-                    {p.exceso > 0 && <span className="f-m text-[11px] text-texto-tenue">+{money(p.exceso)} vuelto</span>}
-                    <button onClick={() => setPagos((ps) => ps.filter((_, j) => j !== i))} className="text-texto-tenue hover:text-mal"><Trash2 size={14} /></button>
-                  </li>
-                ))}
-              </ul>
+            <div className="space-y-1.5">
+              {medios.map((m, i) => (
+                <label key={m.k} className={`flex items-center gap-3 px-3 py-1.5 rounded-xl border ${montoDe(m.k) > 0 ? "border-acento bg-acento-suave" : "border-borde"}`}>
+                  <span className="solo-teclado"><Tecla>{`Alt ${i + 1}`}</Tecla></span>
+                  <span className="flex-1 text-sm font-semibold">{m.n}</span>
+                  <span className="text-texto-tenue">$</span>
+                  <input ref={(el) => { casillasRef.current[m.k] = el; }} value={montos[m.k] || ""} inputMode="numeric" placeholder="0"
+                    onChange={(e) => setMontos((ms) => ({ ...ms, [m.k]: e.target.value.replace(/\D/g, "") }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "+") { e.preventDefault(); completarCasilla(m.k); }
+                      else if (e.key === "ArrowDown") { e.preventDefault(); moverCasilla(m.k, 1); }
+                      else if (e.key === "ArrowUp") { e.preventDefault(); moverCasilla(m.k, -1); }
+                    }}
+                    className="f-m w-32 text-right text-lg border border-borde rounded-lg px-2 py-1 bg-superficie outline-none focus:border-acento" />
+                  <button type="button" onClick={() => completarCasilla(m.k)} title="Que esta casilla se lleve lo que falta (+)"
+                    className="f-m text-xs font-bold w-7 h-7 rounded-lg border border-borde text-texto-suave hover:border-acento hover:text-acento">+</button>
+                </label>
+              ))}
+            </div>
+            <p className="solo-teclado text-xs text-texto-tenue mt-2 flex items-center gap-1.5 flex-wrap">
+              <Tecla>+</Tecla> la casilla se lleva lo que falta · <Tecla>↑</Tecla><Tecla>↓</Tecla> o <Tecla>Alt</Tecla>+número para moverse · <Tecla>Enter</Tecla> cobrar
+            </p>
+            {vueltoMix > 0 && (
+              <div className="bg-bien-suave rounded-xl p-3 text-center mt-3">
+                <div className="text-[11px] uppercase tracking-widest font-bold text-texto-suave">Vuelto</div>
+                <div className="f-d text-3xl text-bien">{money(vueltoMix)}</div>
+              </div>
             )}
-
-            {falta > 0 ? (
-              <>
-                <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Con qué paga esta parte?</div>
-                <div className="grid grid-cols-2 gap-1.5 mt-2">
-                  {medios.map((m, i) => (
-                    <button key={m.k} onClick={() => setMedioSel(i)}
-                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left text-sm font-semibold ${i === medioSel ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
-                      <Tecla>{i + 1}</Tecla> {m.n}
-                    </button>
-                  ))}
-                </div>
-                <label className="block text-[11px] uppercase tracking-widest text-texto-tenue font-bold mt-4">Importe</label>
-                <input ref={inpMix} value={montoMix} onChange={(e) => setMontoMix(e.target.value.replace(/\D/g, ""))}
-                  placeholder={`${money(falta)} (todo lo que falta)`}
-                  className="f-m w-full text-right text-2xl border-2 border-borde rounded-xl px-4 py-2.5 mt-1 outline-none focus:border-acento" />
-                <p className="text-xs text-texto-tenue mt-2 flex items-center gap-1.5 flex-wrap">
-                  <span className="solo-teclado"><Tecla>↑</Tecla><Tecla>↓</Tecla> medio · <Tecla>Enter</Tecla> agregar · <Tecla>Supr</Tecla> borrar el último · </span>
-                  vacío toma {money(falta)}
-                </p>
-                <Boton size="lg" className="w-full mt-3" onClick={agregarPago}>
-                  Agregar {money(Number(montoMix) || falta)} en {medios[medioSel].n} <Tecla>Enter</Tecla>
-                </Boton>
-              </>
-            ) : (
-              <>
-                {vueltoMix > 0 && (
-                  <div className="bg-bien-suave rounded-xl p-3 text-center mb-3">
-                    <div className="text-[11px] uppercase tracking-widest font-bold text-texto-suave">Vuelto</div>
-                    <div className="f-d text-3xl text-bien">{money(vueltoMix)}</div>
-                  </div>
-                )}
-                <Boton size="lg" className="w-full" onClick={finalizarMixto}>Confirmar cobro <Tecla>Enter</Tecla></Boton>
-              </>
+            {sobraSinEfectivo > 0 && (
+              <p className="text-xs text-mal mt-2">Se pasa del total por {money(sobraSinEfectivo)} y no es efectivo: con tarjeta, QR o transferencia se cobra exacto.</p>
             )}
+            <Boton size="lg" className="w-full mt-3" onClick={finalizarMixto} disabled={falta > 0 || sobraSinEfectivo > 0}>
+              {falta > 0 ? `Faltan ${money(falta)}` : "Confirmar cobro"} <Tecla>Enter</Tecla>
+            </Boton>
           </div>
         </Overlay>
       )}
