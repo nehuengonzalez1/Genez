@@ -34,7 +34,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  slugDelDominio, cargarMarca, cargarModulos,
+  slugDelDominio, cargarMarca, cargarPresencia, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
   cargarEsperas, salirDeEspera, cargarPagos, guardarMisDatos,
   cargarAvisos, marcarAvisosVistos,
@@ -50,6 +50,7 @@ import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Avisos, Cuenta, MisDa
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 import { aplicarTema, alCambiarElTema } from "./tema.js";
+import { Vidriera } from "./Vidriera.jsx";
 
 /* ------------------------------------------------------------
    LA ENTRADA · pantallas 1, 2 y 3 de la maqueta
@@ -145,7 +146,7 @@ function Lema({ texto }) {
   );
 }
 
-function Bienvenida({ marca, onIngresar, onCrear }) {
+function Bienvenida({ marca, presencia, onIngresar, onCrear }) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* La portada es del comercio. Sin una cargada no se deja un hueco
@@ -165,7 +166,11 @@ function Bienvenida({ marca, onIngresar, onCrear }) {
           <p className="text-sm text-texto-suave mt-4 leading-relaxed">{marca.bajada}</p>
         )}
 
-        <div className="mt-9 space-y-3">
+        {/* La vidriera (0140): si el comercio publicó su información, la
+            página sirve aunque no tengas cuenta. Entrar queda abajo. */}
+        {presencia && <div className="mt-8"><Vidriera nombre={marca.nombre} presencia={presencia} /></div>}
+
+        <div className={`${presencia ? "mt-8 pt-6 border-t border-borde" : "mt-9"} space-y-3`}>
           <Boton onClick={onIngresar}>Ingresar</Boton>
 
           {/* "Crear cuenta" solo donde el comercio abrió el registro. De
@@ -692,6 +697,15 @@ export default function App() {
     return () => { vigente = false; };
   }, [slug]);
 
+  /* La vidriera, aparte de la marca: si tarda o falla, la bienvenida ya
+     está dibujada y se le suma cuando llega. */
+  const [presencia, setPresencia] = useState(null);
+  useEffect(() => {
+    let vigente = true;
+    cargarPresencia(slug).then((p) => { if (vigente) setPresencia(p); });
+    return () => { vigente = false; };
+  }, [slug]);
+
   useEffect(() => {
     let vigente = true;
     cargarClienta()
@@ -852,7 +866,7 @@ export default function App() {
     }
     return entrando
       ? <Ingresar marca={marca} onEntro={setClienta} onVolver={() => setEntrando(false)} />
-      : <Bienvenida marca={marca}
+      : <Bienvenida marca={marca} presencia={presencia}
           onIngresar={() => setEntrando(true)}
           onCrear={() => setEntrando("registro")} />;
   }

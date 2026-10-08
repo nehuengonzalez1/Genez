@@ -74,6 +74,7 @@ import { Permisos } from "../modulos/Permisos.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
 import { CentroAdministracion, ResumenAdministracion, SECCIONES_ADMIN } from "../modulos/PanelAdministracion.jsx";
+import { PresenciaOnline } from "../modulos/PresenciaOnline.jsx";
 import { MiPlan, NOMBRE_PLAN } from "../modulos/MiPlan.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
@@ -2386,6 +2387,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                   sucursales={sucursales} alCambiarSucursales={async () => { await leerSucursales(); await leerCajas(); }}
                   apartado={actual === "cuenta" ? "plan" : actual} sinPlan />}
                 {actual === "plan" && <div className="max-w-2xl"><MiPlan toast={toast} /></div>}
+                {actual === "presencia" && <PresenciaOnline ajustes={ajustes} setAjustes={setAjustes} slug={sesion.comercio.slug} toast={toast} onIr={setAdmSec} />}
                 {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
                 {actual === "permisos" && (
                   <Permisos empresaId={empresaId}
