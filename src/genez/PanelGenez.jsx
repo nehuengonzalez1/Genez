@@ -2385,7 +2385,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                   empresaId={empresaId} recargarConexion={recargarConexion} alCambiarCajas={leerCajas}
                   sucursales={sucursales} alCambiarSucursales={async () => { await leerSucursales(); await leerCajas(); }}
                   apartado={actual === "cuenta" ? "plan" : actual} sinPlan />}
-                {actual === "plan" && <div className="max-w-2xl"><MiPlan toast={toast} /></div>}
+                {actual === "plan" && <div className="max-w-4xl"><MiPlan toast={toast} /></div>}
                 {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
                 {actual === "permisos" && (
                   <Permisos empresaId={empresaId}
