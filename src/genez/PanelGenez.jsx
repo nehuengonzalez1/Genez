@@ -1447,7 +1447,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const abrirCajaDelDia = async (montoInicial) => {
+  const abrirCajaDelDia = async (montoInicial, aviso = "Caja abierta.") => {
     try {
       if (!cajaId) { toast("Elegí primero qué caja es esta computadora.", "mal"); return; }
       await abrirCajaEnBase({ empresaId, cajaId, sucursalId: null, montoInicial });
@@ -1455,7 +1455,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
          abierta desde otro equipo, `abrirCaja` devuelve esa y sus movimientos
          tienen que aparecer igual. */
       setCaja(await leerCaja());
-      toast("Caja abierta.");
+      toast(aviso);
     } catch (e) {
       toast(e.message || "No se pudo abrir la caja.", "mal");
     }
@@ -1847,6 +1847,33 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      con un producto de ejemplo. No se abre la caja y no se guarda nada:
      el cobro de la muestra solo avisa. Con la caja abierta, el de verdad. */
   const muestraVenta = !caja.abierta && (recorrido === "general" || recorrido === "primera-venta");
+
+  /* LA CAJA NO FRENA LA PRIMERA VENTA (08/10)
+
+     Abrir la caja era el primer obstáculo del que arranca: "No se puede
+     cobrar sin caja abierta" antes de cobrar nada. Vendi la abre sola y
+     Nehuen lo quiso para Genez. Con la caja cerrada se ve la pantalla de
+     cobro igual, y la caja se abre sola con el primer producto que entra
+     al ticket, en segundo plano: cuando se llega a cobrar ya está.
+
+     El fondo es el que ya se proponía al abrir a mano: el fijo de Ajustes
+     o lo que quedó en el cajón al último cierre. Sin ninguno de los dos,
+     cero: inventar los $50.000 de la apertura a mano descuadraría el
+     arqueo. Se apaga en Ajustes → Cobros, para quien prefiere contar el
+     cajón antes de arrancar; con varias cajas sin elegir, se sigue
+     eligiendo primero. */
+  const abreSola = ajustes.abrirCajaSola !== false && !!cajaId && !caja.abierta;
+  const ultimoCierre = (caja.cierres || [])[0] || null;
+  const fondoSolo = ajustes.fondoCaja != null ? Math.round(Number(ajustes.fondoCaja) || 0)
+    : ultimoCierre && ultimoCierre.fondo != null ? Math.round(Number(ultimoCierre.fondo) || 0) : 0;
+  const [abrirAMano, setAbrirAMano] = useState(false);
+  const abriendoSola = useRef(false);
+  const abrirSola = async () => {
+    if (caja.abierta || abriendoSola.current) return;
+    abriendoSola.current = true;
+    try { await abrirCajaDelDia(fondoSolo, `La caja se abrió sola con ${money(fondoSolo)} de fondo.`); }
+    finally { abriendoSola.current = false; }
+  };
   const cobrarMuestra = () => { toast("Es una muestra del recorrido: no se guardó ninguna venta.", "ok"); return null; };
 
   const terminarBienvenida = (destino) => {
@@ -1952,8 +1979,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                 Modo muestra del recorrido: la caja no está abierta y nada de lo que se haga acá se guarda.
               </div>
             )}
-            {caja.abierta || muestraVenta ? (
+            {abreSola && !muestraVenta && !abrirAMano && (
+              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-texto-suave bg-superficie-2 border border-borde rounded-xl px-3 py-2">
+                <span className="flex-1">La caja está cerrada: se abre sola con <span className="f-m text-texto">{money(fondoSolo)}</span> de fondo cuando cargues el primer producto.</span>
+                <button onClick={() => setAbrirAMano(true)} className="text-xs font-semibold text-acento hover:underline">Abrirla a mano con otro monto</button>
+              </div>
+            )}
+            {caja.abierta || muestraVenta || (abreSola && !abrirAMano) ? (
               <POS productos={productos} setProductos={setProductos} cobrar={muestraVenta ? cobrarMuestra : cobrar} ajustes={ajustes} muestra={muestraVenta}
+                alPrimerProducto={abreSola && !muestraVenta ? abrirSola : null}
                 toast={toast} ir={ir} pendiente={pendientePOS} setPendiente={setPendientePOS}
                 aPanel={() => { setVista("panel"); setTab("inicio"); }} clientes={clientes} guardarCliente={guardarClienteEn} permisos={permisos}
                 descuentoMax={descuentoMaxDe(sesion, ajustes)}

@@ -194,6 +194,14 @@ export function FondoDeCaja({ ajustes, setAjustes }) {
         </label>
         {fijo && <p className="text-xs text-texto-tenue">Se propone abrir con {money(ajustes.fondoCaja || 0)}.</p>}
       </div>
+      <label className="flex items-start gap-2 mt-4 text-sm">
+        <input type="checkbox" className="mt-1" checked={ajustes.abrirCajaSola !== false}
+          onChange={(e) => setAjustes({ ...ajustes, abrirCajaSola: e.target.checked })} />
+        <span>
+          <b className="font-semibold">Abrir la caja sola con la primera venta</b>
+          <span className="block text-texto-suave">Con ese fondo, apenas se carga el primer producto. Apagalo si preferís contar el cajón antes de arrancar.</span>
+        </span>
+      </label>
     </Card>
   );
 }
