@@ -2272,7 +2272,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
           {tab === "ventas" && <Ventas empresaId={empresaId} sucursalId={null} clientes={clientes} ajustes={ajustes} caja={caja} permisos={permisos} toast={toast} ir={ir} />}
           {tab === "productos" && (cargandoProductos
             ? <Vacio>Cargando catálogo…</Vacio>
-            : <Productos key={foco || "todos"} productos={productos} empresaId={empresaId}
+            : <Productos key={foco || "todos"} productos={productos} empresaId={empresaId} lugar={lugar}
                 actualizarProducto={actualizarProducto} agregarProducto={agregarProducto}
                 borrarProducto={borrarProducto}
                 toast={toast} focoInicial={foco} provs={provs} ajustes={ajustes}
