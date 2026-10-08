@@ -13,7 +13,9 @@
 
    Los comercios de antes de los planes (Super 25, Bar Rivadavia…) no se
    dieron de alta solos y no tienen suscripción: su plan se acordó con
-   Genez y se cambia hablando.
+   Genez. Desde el 08/10 igual pueden pasar solos a Simple o a Pro: es
+   contratar la suscripción, como cualquiera. Lo único que se habla es A
+   medida.
 
    CÓMO SE VE (08/10)
    ------------------
@@ -27,10 +29,16 @@
    "Pasar a Pro" abre la confirmación con el precio y desde cuándo, y con
    un toque más queda. Lo que cada comercio puede hacer con ese botón
    depende de cómo contrató:
-     - con suscripción: se cambia acá, contra Mercado Pago;
-     - en la prueba o sin suscripción: se contrata ese plan;
-     - de antes de los planes: arma el WhatsApp a Genez con el pedido.
-   A medida se habla siempre: no tiene precio fijo.
+     - con suscripción: se cambia en el momento, sin que nadie lo
+       apruebe. El servidor cambia el monto en Mercado Pago, el plan y los
+       módulos (api/_mi_plan.js). Solo pasar de mensual a anual (o al
+       revés) pide autorizar en MP, porque MP no cambia la frecuencia de
+       una suscripción: lo autoriza el mismo comercio;
+     - en la prueba, sin suscripción o de antes de los planes: se
+       contrata ese plan, también solo.
+   Nehuen (08/10): "entre el Simple y el Pro que sea autoservicio; el que
+   tiene que hablar conmigo es el que quiere un plan a medida". A medida
+   es lo único que va por WhatsApp: no tiene precio fijo.
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
@@ -112,7 +120,10 @@ export function MiPlan({ toast }) {
   const vigente = s && s.estado !== "pendiente" && s.estado !== "cancelada";
   const enPrueba = !vigente && cuenta.pruebaHasta && cuenta.pruebaHasta >= hoy;
   /* Cómo se cambia el plan de este comercio (ver arriba). */
-  const modo = vigente ? "suscripcion" : !cuenta.autoservicio && !s ? "acordado" : "contratar";
+  const modo = vigente ? "suscripcion" : "contratar";
+  /* De antes de los planes: el plan se acordó con Genez y se cobra por
+     fuera. Puede pasar solo a Simple o a Pro igual (es contratar). */
+  const acordado = !vigente && !cuenta.autoservicio && !s;
   const actual = vigente ? s.plan : cuenta.plan;
 
   const precio = (k) => (tarifas && tarifas.planes ? tarifas.planes[k] : null);
@@ -130,7 +141,7 @@ export function MiPlan({ toast }) {
     ? (s.pagoFallidoDesde ? ["Cobro rechazado", "text-ojo"] : s.estado === "pausada" ? ["Pausada", "text-ojo"] : ["Activa", "text-bien"])
     : s && s.estado === "cancelada" ? ["Dada de baja", "text-texto-tenue"]
     : enPrueba ? ["Prueba gratis", "text-acento"]
-    : modo === "acordado" ? ["Acordado con Genez", "text-texto-suave"]
+    : acordado ? ["Acordado con Genez", "text-texto-suave"]
     : ["Sin contratar", "text-ojo"];
 
   const abrir = (k) => {
@@ -172,15 +183,14 @@ export function MiPlan({ toast }) {
   const accion = (k) => {
     if (k === actual || (esMedida(k) && esMedida(actual))) return null;
     if (!esDueno) return null;
-    const pedido = `Hola, soy de ${cuenta.nombre}. ${esMedida(k) ? "Quiero armar un plan a medida." : `Quiero pasar al plan ${NOMBRE[k]}.`}`;
-    if (esMedida(k) || modo === "acordado") {
-      const href = whatsappA(whatsapp, pedido);
+    if (esMedida(k)) {
+      const href = whatsappA(whatsapp, `Hola, soy de ${cuenta.nombre}. Quiero armar un plan a medida.`);
       return href
         ? <a href={href} target="_blank" rel="noopener noreferrer" data-plan-accion={k}
             className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-borde bg-superficie px-4 py-2.5 text-sm font-semibold hover:bg-superficie-2">
-            <MessageCircle size={15} /> {esMedida(k) ? "Hablemos" : "Pedir el cambio"}
+            <MessageCircle size={15} /> Hablemos
           </a>
-        : <p className="mt-4 text-xs text-texto-tenue text-center">Escribinos para cambiarlo.</p>;
+        : <p className="mt-4 text-xs text-texto-tenue text-center">Escribinos para armarlo.</p>;
     }
     return (
       <button type="button" data-plan-accion={k} onClick={() => abrir(k)}
@@ -230,7 +240,7 @@ export function MiPlan({ toast }) {
               {cuenta.pruebaHasta && cuenta.pruebaHasta >= hoy ? `, usás el sistema hasta el ${fecha(cuenta.pruebaHasta)}` : ""}
             </Fila>
           )}
-          {modo === "acordado" && <Fila etiqueta="Cómo se paga">Lo acordaste con Genez</Fila>}
+          {acordado && <Fila etiqueta="Cómo se paga">Lo acordaste con Genez</Fila>}
         </div>
 
         {!esDueno && <p className="text-sm text-texto-tenue mt-4">El plan lo cambia o lo da de baja el dueño del comercio.</p>}
@@ -267,7 +277,10 @@ export function MiPlan({ toast }) {
           })}
         </div>
         {modo === "suscripcion" && esDueno && (
-          <p className="text-xs text-texto-tenue mt-3">Al cambiar no se cobran diferencias por los días que faltan: el precio nuevo arranca en el próximo cobro.</p>
+          <p className="text-xs text-texto-tenue mt-3">El cambio es en el momento: el plan nuevo rige ya, y su precio se cobra desde el próximo cobro, sin diferencias por los días que faltan.</p>
+        )}
+        {acordado && esDueno && (
+          <p className="text-xs text-texto-tenue mt-3">Pasar a Simple o a Pro es contratarlo con Mercado Pago, sin esperar a nadie. Desde ahí se cobra solo.</p>
         )}
       </div>
 
@@ -306,7 +319,8 @@ export function MiPlan({ toast }) {
                   Pasás de <b>{NOMBRE[s.plan]}</b> a <b>{NOMBRE[plan]}</b>: <span className="f-m">{nuevoMonto != null ? money(nuevoMonto) : "—"}</span> por {periodo === "anual" ? "año" : "mes"}
                   {s.proximoCobro ? `, desde el cobro del ${fecha(s.proximoCobro)}` : ""}.
                 </p>
-                <p className="text-texto-suave">No se cobran diferencias por los días que faltan.</p>
+                {!otroPeriodo && <p className="text-texto-suave">Es en el momento: el plan y el menú cambian ya, y Mercado Pago cobra el precio nuevo desde el próximo cobro. No se cobran diferencias por los días que faltan.</p>}
+                {otroPeriodo && <p className="text-texto-suave">No se cobran diferencias por los días que faltan.</p>}
                 {otroPeriodo && (
                   <p className="text-texto-suave">Cambiar a {periodo === "anual" ? "anual" : "mensual"} arma una suscripción nueva: Mercado Pago te va a pedir que la autorices. Hasta entonces sigue la de ahora.</p>
                 )}
