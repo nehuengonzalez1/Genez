@@ -774,6 +774,10 @@ export function ticketVenta(t, ajustes, W) {
   /* La frase va pegada al nombre, antes que los datos fiscales. */
   for (const v of renglonesDe(op.lema, 2)) b.push({ t: "c", v: v.toUpperCase() });
   if (t.fiscal || op.domicilio) b.push({ t: "c", v: f.domicilio || "" });
+  /* El contacto va arriba, debajo de la dirección, como en cualquier
+     ticket (Nehuen, 08/10): es lo que se busca en el papel para volver a
+     llamar. Hasta ese día salía al pie. */
+  b.push(...contactoDelTicket(ajustes));
   /* Con más de una sucursal (0108), en cuál se compró: el domicilio de
      arriba es el fiscal, y el cliente que vuelve a cambiar algo tiene que
      saber a qué local ir. */
@@ -961,8 +965,9 @@ export function ticketVenta(t, ajustes, W) {
 
 /* LO QUE SALE EN EL TICKET (08/10)
    Lo eligió el comercio en Administración → Ticket y factura. De fábrica
-   sale todo como salía antes de que existiera la elección: un comercio
-   que no entra a esa pantalla no ve ningún cambio en el papel. */
+   sale lo mismo que antes de que existiera la elección, con una sola
+   diferencia: el teléfono y el Instagram van arriba, debajo de la
+   dirección, y no al pie (Nehuen, 08/10). */
 export const TICKET_DE_FABRICA = {
   logo: false, nombre: "fiscal", domicilio: true, lema: "",
   cajero: false, cliente: false, cantidad: true,
@@ -972,27 +977,28 @@ export const TICKET_DE_FABRICA = {
 export const opcionesTicket = (ajustes) => ({ ...TICKET_DE_FABRICA, ...((ajustes && ajustes.ticket) || {}) });
 const renglonesDe = (texto, max) => String(texto || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, max);
 
-/* El pie (06/10, Ajustes → Equipos → Ticket): el texto del comercio, o
-   "Gracias por su compra" si no puso nada, y su teléfono e Instagram si
-   los cargó. Antes era siempre la misma frase, escrita acá. */
+/* El pie (06/10): el texto del comercio, o "Gracias por su compra" si no
+   puso nada. El teléfono y las redes iban acá hasta el 08/10; ahora van
+   arriba (`contactoDelTicket`). */
 export function pieDelTicket(ajustes) {
   const t = opcionesTicket(ajustes);
-  const c = (ajustes && ajustes.contacto) || {};
   const renglones = renglonesDe(t.pie, 4);
-  const b = (renglones.length ? renglones : ["GRACIAS POR SU COMPRA"]).map((v) => ({ t: "c", v: v.toUpperCase() }));
-  /* Cada dato, si el comercio lo eligió (08/10) y lo tiene cargado. */
-  if (t.contacto !== false) {
-    const datos = [
-      t.telefono && c.telefono && `TEL ${c.telefono}`,
-      t.whatsapp && c.whatsapp && (c.whatsapp !== c.telefono || !t.telefono) && `WHATSAPP ${c.whatsapp}`,
-      t.instagram && c.instagram && `@${String(c.instagram).trim().replace(/^@/, "")}`,
-      t.email && c.email && String(c.email).trim(),
-      t.horarios && c.horarios && String(c.horarios).trim().toUpperCase(),
-    ].filter(Boolean);
-    if (datos.length) b.push({ t: "b" });
-    for (const v of datos) b.push({ t: "c", v });
-  }
-  return b;
+  return (renglones.length ? renglones : ["GRACIAS POR SU COMPRA"]).map((v) => ({ t: "c", v: v.toUpperCase() }));
+}
+
+/* El contacto del encabezado: cada dato, si el comercio lo eligió (08/10)
+   y lo tiene cargado. */
+export function contactoDelTicket(ajustes) {
+  const t = opcionesTicket(ajustes);
+  const c = (ajustes && ajustes.contacto) || {};
+  if (t.contacto === false) return [];
+  return [
+    t.telefono && c.telefono && `TEL ${c.telefono}`,
+    t.whatsapp && c.whatsapp && (c.whatsapp !== c.telefono || !t.telefono) && `WHATSAPP ${c.whatsapp}`,
+    t.instagram && c.instagram && `@${String(c.instagram).trim().replace(/^@/, "")}`,
+    t.email && c.email && String(c.email).trim(),
+    t.horarios && c.horarios && String(c.horarios).trim().toUpperCase(),
+  ].filter(Boolean).map((v) => ({ t: "c", v }));
 }
 
 /* --- Pre cuenta --------------------------------------------------------
