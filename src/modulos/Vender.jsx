@@ -1292,7 +1292,7 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
   const cambiarEspera = (f) => setEnEspera((l) => { const n = f(l); guardarEspera(empresaId, n); return n; });
   const fotoDelTicket = () => ({
     id: uid(), hora: new Date().toISOString(), cart, desc, cliente, fiscal,
-    total: totalFinal, articulos: cart.reduce((s, l) => s + (l.precioAbierto ? 1 : Number(l.qty) || 0), 0),
+    total, articulos: cart.reduce((s, l) => s + (l.precioAbierto ? 1 : Number(l.qty) || 0), 0),
   });
   const vaciarTicket = () => {
     setCart([]); setDesc(SIN_DESC); setCliente(null); setCanje(0); setUltimo(null); setQ(""); setPagos([]); setRecibe("");
