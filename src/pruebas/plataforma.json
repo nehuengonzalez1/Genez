@@ -105,22 +105,10 @@
           "abajo": true,
           "modulos": [
             {
-              "d": "Quién trabaja, qué hace cada uno y cuándo está",
-              "i": "equipo",
-              "k": "equipo",
-              "n": "Equipo"
-            },
-            {
-              "d": "Qué puede hacer cada rol, y quién cambió qué",
-              "i": "escudo",
-              "k": "permisos",
-              "n": "Permisos"
-            },
-            {
-              "d": "Configuración del negocio y del sistema",
-              "i": "tuerca",
-              "k": "ajustes",
-              "n": "Ajustes"
+              "k": "administracion",
+              "n": "Administración",
+              "i": "admin",
+              "d": "Tu negocio, cómo se vende, tu gente y tu cuenta, en un solo lugar"
             }
           ]
         }
@@ -346,16 +334,10 @@
           "abajo": true,
           "modulos": [
             {
-              "d": "Quién trabaja, qué hace cada uno y cuándo está",
-              "i": "equipo",
-              "k": "equipo",
-              "n": "Equipo"
-            },
-            {
-              "d": "Configuración del negocio y del sistema",
-              "i": "tuerca",
-              "k": "ajustes",
-              "n": "Ajustes"
+              "k": "administracion",
+              "n": "Administración",
+              "i": "admin",
+              "d": "Tu negocio, cómo se vende, tu gente y tu cuenta, en un solo lugar"
             }
           ]
         }
@@ -615,16 +597,10 @@
           "nombre": "Administración",
           "modulos": [
             {
-              "d": "Configuración del negocio y del sistema",
-              "i": "tuerca",
-              "k": "ajustes",
-              "n": "Ajustes"
-            },
-            {
-              "d": "Qué puede hacer cada rol, y quién cambió qué",
-              "i": "escudo",
-              "k": "permisos",
-              "n": "Permisos"
+              "k": "administracion",
+              "n": "Administración",
+              "i": "admin",
+              "d": "Tu negocio, cómo se vende, tu gente y tu cuenta, en un solo lugar"
             }
           ],
           "rotulo": true,
