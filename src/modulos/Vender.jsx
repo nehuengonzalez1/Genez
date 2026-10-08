@@ -2209,6 +2209,16 @@ export function FormProducto({ abierto, inicial, productos, provs, ajustes0, onG
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Campo label="Stock actual">
             <input value={d.stock || ""} onChange={(e) => set("stock", e.target.value.replace(/[^\d.]/g, ""))} className={`${inputCls} f-m text-right`} />
+            {/* Stock en negativo: se vendió más de lo que se cargó. Antes de
+                cargar lo que hay, se lo lleva a cero (08/10, Nehuen); al
+                guardar entra como ajuste, igual que cualquier corrección
+                de stock desde la ficha. */}
+            {Number(d.stock) < 0 && (
+              <button type="button" onClick={() => set("stock", "0")}
+                className="mt-1 text-[11px] font-semibold text-acento hover:underline">
+                Está en negativo: ponerlo en 0
+              </button>
+            )}
           </Campo>
           <Campo label="Stock mínimo">
             <input value={d.stockMin || ""} onChange={(e) => set("stockMin", e.target.value.replace(/[^\d.]/g, ""))} className={`${inputCls} f-m text-right`} />
