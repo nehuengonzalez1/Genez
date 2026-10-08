@@ -14,9 +14,27 @@
    Los comercios de antes de los planes (Super 25, Bar Rivadavia…) no se
    dieron de alta solos y no tienen suscripción: su plan se acordó con
    Genez y se cambia hablando.
+
+   CÓMO SE VE (08/10)
+   ------------------
+   Nehuen: "que te diga qué plan tenés contratado y que te dé la opción de
+   cambiar a otro de una manera rápida". Antes eran renglones y, abajo,
+   un selector de plan que había que elegir y después confirmar con otro
+   botón; a un comercio de antes le decía solo "escribinos".
+
+   Ahora arriba va el plan que tenés, grande, con su estado y lo que
+   pagás. Abajo, los planes uno al lado del otro, cada uno con su botón:
+   "Pasar a Pro" abre la confirmación con el precio y desde cuándo, y con
+   un toque más queda. Lo que cada comercio puede hacer con ese botón
+   depende de cómo contrató:
+     - con suscripción: se cambia acá, contra Mercado Pago;
+     - en la prueba o sin suscripción: se contrata ese plan;
+     - de antes de los planes: arma el WhatsApp a Genez con el pedido.
+   A medida se habla siempre: no tiene precio fijo.
    ============================================================ */
 
 import React, { useEffect, useState } from "react";
+import { Check, MessageCircle, ArrowRight } from "lucide-react";
 import { Card, Boton, Modal } from "../ui/Base.jsx";
 import { money } from "../utils/helpers.js";
 import { cargarTarifasPublicas } from "../datos/tarifas.js";
@@ -29,6 +47,14 @@ const QUE_TRAE = {
   start: "Un usuario y un local. Sin factura electrónica.",
   pro: "Factura electrónica ARCA, varios usuarios y sucursales.",
 };
+/* Lo que se muestra de cada plan en su tarjeta. */
+const PLANES = [
+  { k: "start", trae: ["Un usuario y un local", "Lo esencial para vender y cobrar", "Sin factura electrónica"] },
+  { k: "pro", trae: ["Factura electrónica ARCA", "Varios usuarios y sucursales", "Asistente con IA"] },
+  { k: "medida", trae: ["Los módulos que necesites", "Las sucursales que tengas", "Un precio armado para vos"] },
+];
+const esMedida = (k) => k === "medida" || k === "completo" || k === "empresa";
+const rotulo = "text-[11px] uppercase tracking-[0.1em] font-bold";
 const hoyEnBuenosAires = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
 
 /* AAAA-MM-DD (+ días) a "12/10/2026". Como texto: como Date cae al día
@@ -42,12 +68,14 @@ function fecha(f, mas = 0) {
 
 function Fila({ etiqueta, children }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-borde last:border-0">
+    <div className="flex items-baseline justify-between gap-3 py-2 border-b border-borde last:border-0">
       <span className="text-sm text-texto-suave">{etiqueta}</span>
       <span className="text-sm text-right">{children}</span>
     </div>
   );
 }
+
+const whatsappA = (numero, texto) => (numero ? `https://wa.me/${numero}?text=${encodeURIComponent(texto)}` : null);
 
 export function MiPlan({ toast }) {
   const [cuenta, setCuenta] = useState(null);
@@ -59,6 +87,8 @@ export function MiPlan({ toast }) {
   const [error, setError] = useState(null);
   const [baja, setBaja] = useState(false);
   const [codigo, setCodigo] = useState(null);
+  /* El plan al que se quiere pasar: abre la confirmación (o el contratar). */
+  const [pasarA, setPasarA] = useState(null);
 
   const leer = () => miCuenta()
     .then((c) => {
@@ -73,59 +103,41 @@ export function MiPlan({ toast }) {
     cargarTarifasPublicas().then(setTarifas).catch(() => setTarifas(false));
   }, []);
 
-  if (estado === "cargando") return <Card className="p-5"><h3 className="f-d text-lg">Mi plan</h3><p className="text-sm text-texto-tenue mt-2">Cargando…</p></Card>;
+  if (estado === "cargando") return <Card className="p-6"><div className={`${rotulo} text-texto-tenue`}>Tu plan</div><p className="text-sm text-texto-tenue mt-2">Cargando…</p></Card>;
   if (estado === "error" || !cuenta) return null;
 
   const s = cuenta.suscripcion;
   const esDueno = cuenta.miRol === "dueno";
   const hoy = cuenta.hoy || hoyEnBuenosAires();
+  const vigente = s && s.estado !== "pendiente" && s.estado !== "cancelada";
+  const enPrueba = !vigente && cuenta.pruebaHasta && cuenta.pruebaHasta >= hoy;
+  /* Cómo se cambia el plan de este comercio (ver arriba). */
+  const modo = vigente ? "suscripcion" : !cuenta.autoservicio && !s ? "acordado" : "contratar";
+  const actual = vigente ? s.plan : cuenta.plan;
 
-  /* Los de antes de los planes. */
-  if (!cuenta.autoservicio && !s) {
-    return (
-      <Card className="p-5">
-        <h3 className="f-d text-lg">Mi plan</h3>
-        <p className="text-sm text-texto-suave mt-2">
-          Tu plan ({NOMBRE[cuenta.plan] || cuenta.plan}) lo acordaste con Genez. Para cambiarlo o darlo de baja, escribinos.
-        </p>
-      </Card>
-    );
-  }
-
-  /* Sin suscripción vigente: la prueba, una pendiente o una baja. */
-  if (!s || s.estado === "pendiente" || s.estado === "cancelada") {
-    const enPrueba = cuenta.pruebaHasta && cuenta.pruebaHasta >= hoy;
-    return (
-      <Card className="p-5">
-        <h3 className="f-d text-lg">Mi plan</h3>
-        {s && s.estado === "cancelada" ? (
-          <div className="text-sm text-texto-suave mt-2 space-y-1">
-            <p>
-              Tu suscripción está dada de baja{s.bajaCodigo ? <> (código de baja <span className="f-m text-texto select-all">{s.bajaCodigo}</span>)</> : null}.
-              {cuenta.pruebaHasta && cuenta.pruebaHasta >= hoy ? ` Seguís usando el sistema hasta el ${fecha(cuenta.pruebaHasta)}.` : ""}
-            </p>
-            <p>Tus datos quedan guardados 90 días. Podés volver a contratar cuando quieras.</p>
-          </div>
-        ) : enPrueba ? (
-          <p className="text-sm text-texto-suave mt-2">Estás en la prueba gratis de Pro hasta el {fecha(cuenta.pruebaHasta)}.</p>
-        ) : null}
-        {esDueno ? (
-          <div className="mt-4 pt-4 border-t border-borde"><Contratar cuenta={cuenta} /></div>
-        ) : (
-          <p className="text-sm text-texto-tenue mt-3">El plan lo contrata el dueño del comercio.</p>
-        )}
-      </Card>
-    );
-  }
-
-  /* Una suscripción vigente. */
   const precio = (k) => (tarifas && tarifas.planes ? tarifas.planes[k] : null);
   const meses = (tarifas && tarifas.anualMeses) || 12;
-  const igual = plan === s.plan && periodo === s.periodo;
+  const whatsapp = tarifas && tarifas.whatsapp;
+
+  const igual = vigente && plan === s.plan && periodo === s.periodo;
   const nuevoMonto = precio(plan) == null ? null : precio(plan) * (periodo === "anual" ? meses : 1);
-  const otroPeriodo = periodo !== s.periodo;
-  const congeladoHasta = s.proximoAjuste && s.proximoAjuste > hoy ? s.proximoAjuste : null;
-  const puedeArrepentirse = s.autorizadaEn && (Date.now() - new Date(s.autorizadaEn).getTime()) < 10 * 86400000;
+  const otroPeriodo = vigente && periodo !== s.periodo;
+  const congeladoHasta = vigente && s.proximoAjuste && s.proximoAjuste > hoy ? s.proximoAjuste : null;
+  const puedeArrepentirse = vigente && s.autorizadaEn && (Date.now() - new Date(s.autorizadaEn).getTime()) < 10 * 86400000;
+
+  /* El estado, en una palabra y un color. */
+  const sello = vigente
+    ? (s.pagoFallidoDesde ? ["Cobro rechazado", "text-ojo"] : s.estado === "pausada" ? ["Pausada", "text-ojo"] : ["Activa", "text-bien"])
+    : s && s.estado === "cancelada" ? ["Dada de baja", "text-texto-tenue"]
+    : enPrueba ? ["Prueba gratis", "text-acento"]
+    : modo === "acordado" ? ["Acordado con Genez", "text-texto-suave"]
+    : ["Sin contratar", "text-ojo"];
+
+  const abrir = (k) => {
+    setError(null);
+    if (modo === "suscripcion") { setPlan(k); setPeriodo(s.periodo); }
+    setPasarA(k);
+  };
 
   const cambiar = async () => {
     setError(null);
@@ -156,84 +168,163 @@ export function MiPlan({ toast }) {
     }
   };
 
+  /* El botón de cada tarjeta. */
+  const accion = (k) => {
+    if (k === actual || (esMedida(k) && esMedida(actual))) return null;
+    if (!esDueno) return null;
+    const pedido = `Hola, soy de ${cuenta.nombre}. ${esMedida(k) ? "Quiero armar un plan a medida." : `Quiero pasar al plan ${NOMBRE[k]}.`}`;
+    if (esMedida(k) || modo === "acordado") {
+      const href = whatsappA(whatsapp, pedido);
+      return href
+        ? <a href={href} target="_blank" rel="noopener noreferrer" data-plan-accion={k}
+            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-borde bg-superficie px-4 py-2.5 text-sm font-semibold hover:bg-superficie-2">
+            <MessageCircle size={15} /> {esMedida(k) ? "Hablemos" : "Pedir el cambio"}
+          </a>
+        : <p className="mt-4 text-xs text-texto-tenue text-center">Escribinos para cambiarlo.</p>;
+    }
+    return (
+      <button type="button" data-plan-accion={k} onClick={() => abrir(k)}
+        className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-acento text-sobre-acento px-4 py-2.5 text-sm font-semibold hover:bg-acento-vivo">
+        {modo === "suscripcion" ? `Pasar a ${NOMBRE[k]}` : `Elegir ${NOMBRE[k]}`} <ArrowRight size={15} />
+      </button>
+    );
+  };
+
   return (
-    <Card className="p-5">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 className="f-d text-lg">Mi plan</h3>
-        <span className={`text-[11px] uppercase tracking-widest font-bold ${s.estado === "activa" && !s.pagoFallidoDesde ? "text-bien" : "text-ojo"}`}>
-          {s.pagoFallidoDesde ? "Cobro rechazado" : s.estado === "pausada" ? "Pausada" : "Activa"}
-        </span>
-      </div>
-
-      <div className="mt-3">
-        <Fila etiqueta="Plan"><b>{NOMBRE[s.plan]}</b>, {s.periodo === "anual" ? "anual" : "mensual"}</Fila>
-        <Fila etiqueta="Precio"><span className="f-m">{money(s.monto)}</span> / {s.periodo === "anual" ? "año" : "mes"}</Fila>
-        {s.proximoCobro && <Fila etiqueta="Próximo cobro">{fecha(s.proximoCobro)}</Fila>}
-        {congeladoHasta && <Fila etiqueta="Precio congelado hasta">{fecha(congeladoHasta, -1)}</Fila>}
-        {s.montoAnterior && s.ajustadoEn && (
-          <Fila etiqueta="Último ajuste por inflación">{fecha(s.ajustadoEn)}: antes <span className="f-m">{money(s.montoAnterior)}</span></Fila>
-        )}
-        {s.cambio && (
-          <Fila etiqueta="Cambio pendiente">
-            {NOMBRE[s.cambio.plan]} {s.cambio.periodo}, <span className="f-m">{money(s.cambio.monto)}</span>: falta autorizarlo en Mercado Pago
-          </Fila>
-        )}
-      </div>
-
-      {!esDueno ? (
-        <p className="text-sm text-texto-tenue mt-4">El plan lo cambia o lo da de baja el dueño del comercio.</p>
-      ) : (
-        <>
-          <div className="mt-5 text-[11px] uppercase tracking-widest text-texto-suave font-bold">Cambiar de plan</div>
-          <div className="grid sm:grid-cols-2 gap-2 mt-2">
-            {["start", "pro"].map((k) => (
-              <button key={k} type="button" onClick={() => setPlan(k)}
-                className={`text-left rounded-xl border p-3.5 transition-colors ${plan === k ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-semibold">{NOMBRE[k]}{k === s.plan ? <span className="text-xs text-texto-tenue font-normal"> · el tuyo</span> : null}</span>
-                  <span className="f-m text-sm">{precio(k) != null ? `${money(precio(k))} / mes` : tarifas === null ? "…" : "Consultar"}</span>
-                </div>
-                <div className="text-xs text-texto-suave mt-1">{QUE_TRAE[k]}</div>
-              </button>
-            ))}
+    <div className="space-y-5">
+      {/* EL PLAN QUE TENÉS */}
+      <Card className="p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className={`${rotulo} text-texto-tenue`}>Tu plan</div>
+            <div className="flex items-baseline gap-3 mt-1">
+              <span className="f-d text-3xl" data-plan-actual={actual}>{NOMBRE[actual] || actual || "—"}</span>
+              <span className={`${rotulo} ${sello[1]}`}>{sello[0]}</span>
+            </div>
+            {!esMedida(actual) && QUE_TRAE[actual] && <p className="text-sm text-texto-suave mt-1.5">{QUE_TRAE[actual]}</p>}
           </div>
-          <div className="flex flex-wrap gap-2 mt-3">
-            {[["mensual", "Por mes"], ["anual", `Por año: pagás ${meses} meses`]].map(([k, n]) => (
-              <button key={k} type="button" onClick={() => setPeriodo(k)}
-                className={`text-sm font-semibold rounded-full border px-3.5 py-1.5 ${periodo === k ? "bg-superficie-3 text-texto border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
-                {n}
-              </button>
-            ))}
-          </div>
-
-          {!igual && (
-            <div className="mt-3 rounded-xl border border-borde p-3.5 text-sm space-y-1.5">
-              <p>
-                Pasás a <b>{NOMBRE[plan]}</b>, {periodo}: <span className="f-m">{nuevoMonto != null ? money(nuevoMonto) : "—"}</span> / {periodo === "anual" ? "año" : "mes"}
-                {s.proximoCobro ? `, desde el cobro del ${fecha(s.proximoCobro)}` : ""}. No se cobran diferencias por los días que faltan.
-              </p>
-              {otroPeriodo && (
-                <p className="text-texto-suave">Cambiar a {periodo === "anual" ? "anual" : "mensual"} arma una suscripción nueva: Mercado Pago te va a pedir que la autorices. Hasta entonces sigue la de ahora.</p>
-              )}
-              {plan === "start" && s.plan !== "start" && (
-                <p className="text-texto-suave">Simple es para una sola persona y un local: los demás usuarios se dan de baja y no hay factura electrónica.</p>
-              )}
+          {vigente && (
+            <div className="text-right">
+              <div className="f-m text-2xl font-semibold">{money(s.monto)}</div>
+              <div className="text-xs text-texto-tenue">por {s.periodo === "anual" ? "año" : "mes"}</div>
             </div>
           )}
-          {error && <p className="text-sm text-mal mt-3" role="alert">{error}</p>}
-          <div className="flex flex-wrap items-center gap-3 mt-4">
-            <Boton onClick={cambiar} disabled={igual || ocupado || nuevoMonto == null}>
-              {ocupado ? "Cambiando…" : otroPeriodo ? "Seguir en Mercado Pago" : "Cambiar de plan"}
-            </Boton>
-            <Boton variant="quiet" onClick={() => { setError(null); setCodigo(null); setBaja(true); }}>Dar de baja</Boton>
-          </div>
-          {puedeArrepentirse && (
-            <p className="text-xs text-texto-tenue mt-3">
+        </div>
+
+        <div className="mt-4">
+          {vigente && s.proximoCobro && <Fila etiqueta="Próximo cobro">{fecha(s.proximoCobro)}</Fila>}
+          {vigente && <Fila etiqueta="Se paga">{s.periodo === "anual" ? "Una vez por año" : "Todos los meses"}, con Mercado Pago</Fila>}
+          {congeladoHasta && <Fila etiqueta="Precio congelado hasta">{fecha(congeladoHasta, -1)}</Fila>}
+          {vigente && s.montoAnterior && s.ajustadoEn && (
+            <Fila etiqueta="Último ajuste por inflación">{fecha(s.ajustadoEn)}: antes <span className="f-m">{money(s.montoAnterior)}</span></Fila>
+          )}
+          {vigente && s.cambio && (
+            <Fila etiqueta="Cambio pendiente">
+              {NOMBRE[s.cambio.plan]} {s.cambio.periodo}, <span className="f-m">{money(s.cambio.monto)}</span>: falta autorizarlo en Mercado Pago
+            </Fila>
+          )}
+          {enPrueba && <Fila etiqueta="Prueba gratis">hasta el {fecha(cuenta.pruebaHasta)}</Fila>}
+          {s && s.estado === "cancelada" && (
+            <Fila etiqueta="Baja">
+              {s.bajaCodigo ? <>código <span className="f-m text-texto select-all">{s.bajaCodigo}</span></> : "hecha"}
+              {cuenta.pruebaHasta && cuenta.pruebaHasta >= hoy ? `, usás el sistema hasta el ${fecha(cuenta.pruebaHasta)}` : ""}
+            </Fila>
+          )}
+          {modo === "acordado" && <Fila etiqueta="Cómo se paga">Lo acordaste con Genez</Fila>}
+        </div>
+
+        {!esDueno && <p className="text-sm text-texto-tenue mt-4">El plan lo cambia o lo da de baja el dueño del comercio.</p>}
+        {s && s.estado === "cancelada" && <p className="text-sm text-texto-suave mt-4">Tus datos quedan guardados 90 días. Podés volver a contratar cuando quieras.</p>}
+      </Card>
+
+      {/* LOS PLANES, PARA CAMBIAR */}
+      <div>
+        <div className={`${rotulo} text-texto-tenue mb-3`}>{modo === "contratar" ? "Elegí tu plan" : "Cambiar de plan"}</div>
+        <div className="grid md:grid-cols-3 gap-3">
+          {PLANES.map((p) => {
+            const tuyo = p.k === actual || (esMedida(p.k) && esMedida(actual));
+            return (
+              <Card key={p.k} className={`p-5 flex flex-col ${tuyo ? "border-acento" : ""}`}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="f-d text-lg">{NOMBRE[p.k]}</span>
+                  {tuyo && <span className={`${rotulo} text-acento`}>El tuyo</span>}
+                </div>
+                <div className="mt-1">
+                  {esMedida(p.k)
+                    ? <span className="text-sm text-texto-suave">Precio a convenir</span>
+                    : precio(p.k) != null
+                      ? <><span className="f-m text-xl font-semibold">{money(precio(p.k))}</span> <span className="text-xs text-texto-tenue">/ mes</span></>
+                      : <span className="text-sm text-texto-tenue">{tarifas === null ? "…" : "Consultar"}</span>}
+                </div>
+                <ul className="mt-3 space-y-1.5 flex-1">
+                  {p.trae.map((t) => (
+                    <li key={t} className="flex items-start gap-2 text-sm text-texto-suave"><Check size={14} className="text-acento shrink-0 mt-0.5" /> {t}</li>
+                  ))}
+                </ul>
+                {tuyo ? <div className="mt-4 text-center text-xs text-texto-tenue py-2.5">Es el que tenés</div> : accion(p.k)}
+              </Card>
+            );
+          })}
+        </div>
+        {modo === "suscripcion" && esDueno && (
+          <p className="text-xs text-texto-tenue mt-3">Al cambiar no se cobran diferencias por los días que faltan: el precio nuevo arranca en el próximo cobro.</p>
+        )}
+      </div>
+
+      {modo === "suscripcion" && esDueno && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-borde pt-4">
+          {puedeArrepentirse ? (
+            <p className="text-xs text-texto-tenue">
               Contrataste hace menos de 10 días: si te arrepentiste, te devolvemos todo desde el <a href="/arrepentimiento" target="_blank" rel="noreferrer" className="text-acento hover:underline">botón de arrepentimiento</a>.
             </p>
-          )}
-        </>
+          ) : <span />}
+          <Boton variant="quiet" onClick={() => { setError(null); setCodigo(null); setBaja(true); }}>Dar de baja</Boton>
+        </div>
       )}
+
+      {/* PASAR A OTRO PLAN: la confirmación, o el contratar si no hay suscripción. */}
+      <Modal open={!!pasarA} onClose={() => !ocupado && setPasarA(null)}>
+        <div className="p-5 md:p-6">
+          {pasarA && modo === "contratar" ? (
+            <>
+              <div className="f-d text-lg mb-4">Contratar {NOMBRE[pasarA]}</div>
+              <Contratar cuenta={{ ...cuenta, planElegido: pasarA }} />
+            </>
+          ) : pasarA ? (
+            <>
+              <div className="f-d text-lg">Pasar a {NOMBRE[pasarA]}</div>
+              <div className="flex flex-wrap gap-2 mt-4">
+                {[["mensual", "Por mes"], ["anual", `Por año: pagás ${meses} meses`]].map(([k, n]) => (
+                  <button key={k} type="button" onClick={() => setPeriodo(k)}
+                    className={`text-sm font-semibold rounded-full border px-3.5 py-1.5 ${periodo === k ? "bg-superficie-3 text-texto border-superficie-3" : "border-borde text-texto-suave hover:bg-superficie-2"}`}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 rounded-xl border border-borde p-4 text-sm space-y-2">
+                <p>
+                  Pasás de <b>{NOMBRE[s.plan]}</b> a <b>{NOMBRE[plan]}</b>: <span className="f-m">{nuevoMonto != null ? money(nuevoMonto) : "—"}</span> por {periodo === "anual" ? "año" : "mes"}
+                  {s.proximoCobro ? `, desde el cobro del ${fecha(s.proximoCobro)}` : ""}.
+                </p>
+                <p className="text-texto-suave">No se cobran diferencias por los días que faltan.</p>
+                {otroPeriodo && (
+                  <p className="text-texto-suave">Cambiar a {periodo === "anual" ? "anual" : "mensual"} arma una suscripción nueva: Mercado Pago te va a pedir que la autorices. Hasta entonces sigue la de ahora.</p>
+                )}
+                {plan === "start" && s.plan !== "start" && (
+                  <p className="text-texto-suave">Simple es para una sola persona y un local: los demás usuarios se dan de baja y no hay factura electrónica.</p>
+                )}
+              </div>
+              {error && <p className="text-sm text-mal mt-3" role="alert">{error}</p>}
+              <div className="flex justify-end gap-2 mt-5">
+                <Boton variant="quiet" onClick={() => setPasarA(null)} disabled={ocupado}>Cancelar</Boton>
+                <Boton onClick={cambiar} disabled={igual || ocupado || nuevoMonto == null}>
+                  {ocupado ? "Cambiando…" : otroPeriodo ? "Seguir en Mercado Pago" : `Pasar a ${NOMBRE[plan]}`}
+                </Boton>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </Modal>
 
       <Modal open={baja} onClose={() => !ocupado && setBaja(false)}>
         <div className="p-5 md:p-6">
@@ -252,7 +343,7 @@ export function MiPlan({ toast }) {
               <div className="f-d text-lg">¿Dar de baja Genez?</div>
               <p className="text-sm text-texto-suave mt-2">
                 Se cancela la suscripción en Mercado Pago y no se cobra nada más.
-                {s.proximoCobro ? ` Seguís usando el sistema hasta el ${fecha(s.proximoCobro, -1)}, el último día que pagaste.` : ""}
+                {s && s.proximoCobro ? ` Seguís usando el sistema hasta el ${fecha(s.proximoCobro, -1)}, el último día que pagaste.` : ""}
                 {" "}Tus datos quedan guardados 90 días por si volvés; después se borran.
               </p>
               {error && <p className="text-sm text-mal mt-3" role="alert">{error}</p>}
@@ -264,6 +355,6 @@ export function MiPlan({ toast }) {
           )}
         </div>
       </Modal>
-    </Card>
+    </div>
   );
 }
