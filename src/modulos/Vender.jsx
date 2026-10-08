@@ -693,7 +693,7 @@ const ATAJOS = [
    el permiso de descontar, lo controla la pantalla y no la base. */
 export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendiente, setPendiente, aPanel, clientes, guardarCliente, permisos, descuentoMax = null,
   facturacion = { puede: false }, facturas = {}, pedirCAEs, empresaId = null, caja = null, recargarCaja = null, agregarProducto = null, promos = [], cajaMp = null,
-  muestra = false }) {
+  muestra = false, alPrimerProducto = null }) {
   const [paso, setPaso] = useState("carga");     // carga → pago → (monto | qr) → fin
   /* Los puntos del cliente elegido y cuántos se usan en esta venta (0112). */
   const [puntosCliente, setPuntosCliente] = useState(null);
@@ -720,6 +720,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
      actualiza sola (src/ui/actualizacion.js): se perdería el carrito. Con
      la venta ya cobrada ("fin") sí: la venta está guardada. */
   useOcupado(paso !== "fin" && (cart.length > 0 || pagos.length > 0));
+  /* Con la caja cerrada y "abrir sola" prendido (Sistema), el primer
+     producto que entra la abre. */
+  useEffect(() => { if (cart.length > 0 && alPrimerProducto) alPrimerProducto(); }, [cart.length > 0, !!alPrimerProducto]); // eslint-disable-line react-hooks/exhaustive-deps
   /* El ticket que se muestra, con la factura si ARCA ya la autorizó. El
      CAE llega después del cobro —a veces mucho después—, así que no se
      guarda en `ticket`: se mira cada vez en lo que va llegando. */
