@@ -173,7 +173,7 @@ export function DisenoTicket({ ajustes, setAjustes, productos, quien, toast, onI
             <textarea value={op.lema} onChange={(e) => set("lema", e.target.value.split("\n").slice(0, 2).join("\n"))}
               rows={2} maxLength={90} placeholder={"Almacén de barrio desde 1998"} className={`${inputCls} resize-none mt-2`} />
           </Opcion>
-          <Opcion n="Dirección" d="El domicilio de los datos fiscales. En la factura va siempre." prendido={op.domicilio} onCambiar={() => set("domicilio", !op.domicilio)} />
+          <Opcion n="Dirección" d="La de los datos fiscales, o si no la del local. En la factura va siempre la fiscal." prendido={op.domicilio} onCambiar={() => set("domicilio", !op.domicilio)} />
           <Opcion n="Cómo contactarte" d="Debajo de la dirección. Son los de Datos del negocio: elegí cuáles salen." prendido={op.contacto} onCambiar={() => set("contacto", !op.contacto)}>
             {op.contacto && (
               <div className="mt-3 grid sm:grid-cols-2 gap-x-4 gap-y-2">
