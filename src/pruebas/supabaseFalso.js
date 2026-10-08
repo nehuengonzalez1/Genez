@@ -786,7 +786,7 @@ const FUNCIONES = {
 };
 
 function rpc(nombre, params = {}) {
-  registro.push({ rpc: nombre });
+  registro.push({ rpc: nombre, params });
   const fn = FUNCIONES[nombre];
   /* Una función que falla en la base devuelve el error, no revienta: acá igual. */
   let data = null, error = null;
