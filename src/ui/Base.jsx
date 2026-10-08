@@ -773,7 +773,11 @@ export function ticketVenta(t, ajustes, W) {
   const b = [{ t: "c", v: String(nombre || "").toUpperCase() }];
   /* La frase va pegada al nombre, antes que los datos fiscales. */
   for (const v of renglonesDe(op.lema, 2)) b.push({ t: "c", v: v.toUpperCase() });
-  if (t.fiscal || op.domicilio) b.push({ t: "c", v: f.domicilio || "" });
+  /* En un ticket, si no cargó el domicilio fiscal, la dirección del local
+     (Datos del negocio): antes quedaba el renglón en blanco. En la factura
+     va el fiscal, que es el que pide ARCA. */
+  const direccion = f.domicilio || (!t.fiscal && ajustes.contacto && ajustes.contacto.direccion) || "";
+  if (t.fiscal || op.domicilio) b.push({ t: "c", v: direccion });
   /* El contacto va arriba, debajo de la dirección, como en cualquier
      ticket (Nehuen, 08/10): es lo que se busca en el papel para volver a
      llamar. Hasta ese día salía al pie. */
