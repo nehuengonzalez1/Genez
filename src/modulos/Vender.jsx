@@ -1103,7 +1103,18 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
      recargo se calcula sobre lo que se cobra de verdad. */
   const promoMedio = descuentoPorMedio(promos, medio && medio.k, total);
   const rec = conRecargo(total - (promoMedio ? promoMedio.monto : 0), medio);
-  const totalFinal = rec.total;
+  /* REDONDEO DEL EFECTIVO (08/10, como en Ventario)
+
+     Con los billetes que circulan, cobrar $7.380 es buscar monedas que no
+     hay. El comercio elige en Ajustes → Precios y stock redondear a $10,
+     $50 o $100 cuando se cobra en efectivo. Siempre hacia abajo, a favor
+     del cliente: nadie discute que le cobren menos. Con tarjeta, QR o
+     transferencia se cobra exacto, y un pago combinado tampoco se redondea
+     (no hay un solo medio al que aplicarlo). La diferencia va como
+     descuento con su nombre en el ticket, así la caja cuadra. */
+  const pasoRedondeo = Number(ajustes.redondeoEfectivo) || 0;
+  const redondeoDe = (monto, k) => (pasoRedondeo > 1 && k === "efectivo" ? monto - Math.floor(monto / pasoRedondeo) * pasoRedondeo : 0);
+  const totalFinal = rec.total - redondeoDe(rec.total, medio && medio.k);
   // El vuelto se calcula sobre el total con recargo, así que va después.
   const vuelto = recibe ? Number(recibe) - totalFinal : 0;
 
@@ -1211,9 +1222,13 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
     }
     const descPromo = pm ? { nombre: pm.promo.nombre, monto: pm.monto } : null;
     if (extra.antesDeCobrar) return extra.antesDeCobrar(r.total);
-    const t = cobrar({ items, sub, desc: descMonto + (pm ? pm.monto : 0), total: r.total, medio: k, ganancia: ganancia - (pm ? pm.monto : 0) + r.recargo,
+    /* El redondeo del efectivo (ver redondeoDe): solo con un medio. */
+    const red = listaPagos ? 0 : redondeoDe(r.total, k);
+    const cobrado = r.total - red;
+    const t = cobrar({ items, sub, desc: descMonto + (pm ? pm.monto : 0) + red, total: cobrado, medio: k, ganancia: ganancia - (pm ? pm.monto : 0) + r.recargo - red,
+      redondeo: red,
       puntos: puntosUsados && cliente ? { usados: puntosUsados, monto: montoCanje } : null,
-      puntosSumados: cliente ? puntosGanados(r.total, regla) : 0,
+      puntosSumados: cliente ? puntosGanados(cobrado, regla) : 0,
       recibe: recibido || null, pagos: listaPagos, recargo: r.recargo, recargoNombre: r.recargo ? m.n : "",
       fiscal: fiscal && facturacion.puede, cliente, descPromo, mp: extra.mp || null,
       promos: pm ? [...promoCalc.aplicadas, { id: pm.promo.id, nombre: pm.promo.nombre, descuento: pm.monto }] : promoCalc.aplicadas });
@@ -1946,6 +1961,9 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
           <div className="bg-superficie-3 text-texto px-6 py-4">
             <div className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">Efectivo · total</div>
             <div className="f-d text-4xl mt-0.5">{money(totalFinal)}</div>
+            {totalFinal !== rec.total && (
+              <div className="text-xs text-texto-suave mt-1">Redondeado de {money(rec.total)} (−{money(rec.total - totalFinal)})</div>
+            )}
           </div>
           <div className="p-5">
             <label className="text-[11px] uppercase tracking-widest text-texto-tenue font-bold">¿Con cuánto paga?</label>

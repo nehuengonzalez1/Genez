@@ -1476,7 +1476,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }
   };
 
-  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null, mp = null, puntos = null, puntosSumados = 0 }) => {
+  const cobrar = ({ items, sub, desc, total, medio, ganancia, recibe, pagos, recargo, recargoNombre, fiscal, cliente, promos = [], descPromo = null, mp = null, puntos = null, puntosSumados = 0, redondeo = 0 }) => {
     /* El POS ya no se monta con la caja cerrada, pero no es el único que
        cobra: los pedidos preparados entran por acá también. La condición
        se verifica en el único lugar por el que pasan todos, así que un
@@ -1538,6 +1538,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
       /* El descuento por medio de pago (0103), aparte del manual en el
          papel: el cliente tiene que ver por qué pagó menos. */
       descPromo,
+      /* El redondeo del efectivo: va dentro de `desc`, y aparte para que
+         el papel lo diga con su nombre. */
+      redondeo: redondeo || 0,
       cliente: cliente || null, sincronizada: null,
       /* Para el papel (0112): el canje, y lo que suma. Lo que suma lo
          calcula la base igual; acá es para que el cliente lo lea. */

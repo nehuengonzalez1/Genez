@@ -851,10 +851,12 @@ export function ticketVenta(t, ajustes, W) {
     /* El de medio de pago (0103) va con su nombre; el resto es el manual. */
     const porMedio = t.descPromo ? Number(t.descPromo.monto) || 0 : 0;
     const porPuntos = t.descPuntos ? Number(t.descPuntos.monto) || 0 : 0;
-    if (t.desc - porMedio - porPuntos > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc - porMedio - porPuntos) });
+    const porRedondeo = Number(t.redondeo) || 0;
+    if (t.desc - porMedio - porPuntos - porRedondeo > 0) b.push({ t: "lr", a: "DESCUENTO", b: "-" + money(t.desc - porMedio - porPuntos - porRedondeo) });
     if (porPuntos > 0) b.push({ t: "lr", a: `CANJE ${t.descPuntos.usados} PUNTOS`, b: "-" + money(porPuntos) });
     if (porMedio > 0) b.push({ t: "lr", a: `PROMO ${String(t.descPromo.nombre || "").toUpperCase()}`.slice(0, W - 12), b: "-" + money(porMedio) });
     if (t.recargo > 0) b.push({ t: "lr", a: `RECARGO ${t.recargoNombre || ""}`.trim(), b: "+" + money(t.recargo) });
+    if (porRedondeo > 0) b.push({ t: "lr", a: "REDONDEO", b: "-" + money(porRedondeo) });
   }
   b.push({ t: "sep", c: "=" });
   b.push({ t: "lr", a: "TOTAL", b: discrimina ? "$" + nf2.format(t.total) : money(t.total) });

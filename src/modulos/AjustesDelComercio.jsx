@@ -255,6 +255,17 @@ export function PreciosYStock({ ajustes, setAjustes }) {
         </select>
         <span className="block text-xs text-texto-tenue mt-1">Es con lo que arranca la actualización de precios en Productos; ahí se puede cambiar cada vez.</span>
       </label>
+      <label className="block mt-4">
+        <Rotulo>Redondear el total cuando se cobra en efectivo</Rotulo>
+        <select value={String(ajustes.redondeoEfectivo || 0)} onChange={(e) => setAjustes({ ...ajustes, redondeoEfectivo: Number(e.target.value) })}
+          className={`${inputCls} max-w-xs`}>
+          <option value="0">No redondear</option>
+          <option value="10">Para abajo, a $10</option>
+          <option value="50">Para abajo, a $50</option>
+          <option value="100">Para abajo, a $100</option>
+        </select>
+        <span className="block text-xs text-texto-tenue mt-1">Siempre a favor del cliente: con $7.380 y a $100 se cobran $7.300. La diferencia sale en el ticket como redondeo. Con tarjeta, QR o transferencia se cobra el total exacto.</span>
+      </label>
       <div className="mt-4">
         <Rotulo>Si se vende un producto sin stock</Rotulo>
         <div className="space-y-2 text-sm">
