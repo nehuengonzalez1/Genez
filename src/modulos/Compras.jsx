@@ -11,7 +11,7 @@ import {
 import { uid, fdatel } from "../datos/generador.js";
 import {
   money, moneyk, nf, pct, hora, esCantidad, aNumero,
-  precioAplicado, mediosDe, productoNuevo, faltantesProveedor
+  precioAplicado, mediosDe, productoNuevo, faltantesProveedor, formatoCantidad
 } from "../utils/helpers.js";
 import {
   useScanHandler, beep, Comandera, Kpi, Card, Modal, Boton, Vacio, Tabs,
@@ -22,6 +22,7 @@ import { EscanerCamara, TicketModal, FormProveedor } from "./Vender.jsx";
 import { palabras, emparejar } from "./Stock.jsx";
 import { registrarCompra, crearOrden, cerrarOrden, registrarRecepcion } from "../datos/compras.js";
 import { crearProducto } from "../datos/items.js";
+import { guardarConteo } from "../datos/sucursales.js";
 
 // Camera importada como Cam para los usos que la usan con ese nombre
 const Cam = Camera;
@@ -177,6 +178,12 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
     setGuardando(true);
     let creados = {};
     try {
+      /* Los que venían en negativo y se marcaron "empezar de 0": primero
+         el ajuste a cero, después la compra. Así el costo promedio también
+         arranca de cero (un stock negativo lo deformaba). */
+      for (const l of validas.filter((x) => x.pid && x.aCero)) {
+        await guardarConteo({ itemId: l.pid, real: 0, sucursalId, motivo: "Stock negativo puesto en 0 antes de una compra" });
+      }
       for (const l of altas) {
         creados[l.uid] = await crearProducto(empresaId, {
           nombre: l.crear.nombre, costo: l.costo, precio: l.crear.precio,
@@ -207,11 +214,12 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
       return acc.map((p) => {
         const l = validas.find((x) => (x.pid || creados[x.uid]?.id) === p.id);
         if (!l) return p;
-        const costo = ppp(p.stock, p.costo, Number(l.cant), Number(l.costo));
+        const previo = l.aCero ? 0 : p.stock;
+        const costo = ppp(previo, p.costo, Number(l.cant), Number(l.costo));
         const precio = Number(l.pid ? l.precio : l.crear.precio) || p.precio;
         return {
           ...p,
-          stock: +(p.stock + Number(l.cant)).toFixed(3),
+          stock: +(previo + Number(l.cant)).toFixed(3),
           costo, precio,
           costoReposicion: Number(l.costo),
           costoReposicionFecha: new Date(),
@@ -382,6 +390,22 @@ export function CargarCompra({ empresaId, productos, setProductos, movCaja, toas
                     <tr key={l.uid} className="hover:bg-superficie-2">
                       <td className="py-2 pr-2">
                         <div className="font-medium">{l.nombre}</div>
+                        {/* Stock en negativo: lo que entra se descontaría de ese
+                            negativo. "Empezar de 0" lo lleva a cero antes de
+                            sumar (08/10, Nehuen). */}
+                        {(() => {
+                          const p = productos.find((x) => x.id === l.pid);
+                          if (!p || !(p.stock < 0)) return null;
+                          return (
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px]">
+                              <span className="text-mal">stock {formatoCantidad(p.unidad, p.stock)}</span>
+                              <button type="button" onClick={() => set(l.uid, "aCero", !l.aCero)}
+                                className={`font-semibold rounded px-1.5 py-0.5 border ${l.aCero ? "border-acento bg-acento-suave text-texto" : "border-borde text-acento hover:border-acento"}`}>
+                                {l.aCero ? `empieza de 0 · queda en ${formatoCantidad(p.unidad, Number(l.cant) || 0)}` : "empezar de 0"}
+                              </button>
+                            </div>
+                          );
+                        })()}
                         {l.origen === "foto" && <div className="text-[10px] text-texto-tenue">Remito: {l.desc} · coincidencia {pct(l.conf, 0)}</div>}
                       </td>
                       <td className="py-2 text-right">
