@@ -12,12 +12,13 @@ import { NumeroDiferido, TextoDiferido, Campo, inputCls } from "../ui/Campos.jsx
 import { leerPlanilla, analizarPlanilla, exportarCatalogo, FormProducto } from "./Vender.jsx";
 import { cargarRecetas, cargarReceta, guardarReceta, producirLote } from "../datos/recetas.js";
 import { usoDelProducto } from "../datos/items.js";
+import { guardarConteo, guardarConteoLote } from "../datos/sucursales.js";
 import { Etiquetas } from "./Etiquetas.jsx";
 import { EtiquetasGondola } from "./EtiquetasGondola.jsx";
 import { ListaProveedor } from "./ListaProveedor.jsx";
 import { Promociones } from "./Promociones.jsx";
 
-export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId, promos = [], recargarPromos = null, puedePromos = false }) {
+export function Productos({ productos, actualizarProducto, agregarProducto, borrarProducto, toast, focoInicial, provs, ajustes, empresaId, lugar = { actual: null }, promos = [], recargarPromos = null, puedePromos = false }) {
   const [alta, setAlta] = useState(null);
   /* Catálogo o códigos de barras: una pestaña y no una ventana, para que
      los códigos generados queden a la vista cuando se los quiera buscar. */
@@ -789,10 +790,27 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
           };
           setPlanilla(null);
 
+          /* El stock de la planilla entra como conteo (0109), igual que en
+             Stock → Conteo de inventario: la base asienta la diferencia
+             contra lo que hay. Antes la vista previa mostraba "stock 10 →
+             20" y al aplicar no pasaba nada, porque el stock no se escribe
+             con el producto. Va primero: el guardado de abajo relee cada
+             producto de la vista y así ya trae el stock nuevo. */
+          const conteos = cambios
+            .filter(({ dif }) => dif.some((x) => x.campo === "stock"))
+            .map(({ p, dif }) => ({ itemId: p.id, real: dif.find((x) => x.campo === "stock").ahora }));
+          if (conteos.length) {
+            try {
+              await guardarConteoLote(conteos, { sucursalId: lugar.actual || null, motivo: "Planilla importada" });
+            } catch (e) {
+              toast(e.message || "No se pudo cargar el stock de la planilla.", "mal");
+            }
+          }
+
           /* Una fila de la planilla es un guardado en la base: van todas
              juntas, pero cada una responde por su cuenta y una que falle no
-             se lleva puestas a las demás. El stock queda afuera a propósito:
-             no se pisa, se mueve con un ajuste de inventario. */
+             se lleva puestas a las demás. El stock no va acá: ya se asentó
+             arriba como conteo. */
           await Promise.all(cambios.map(({ p, datos: f }) => {
             const tomar = (col, actual) => (String(f[col] ?? "").trim() === "" ? actual : (num(f[col]) ?? actual));
             return actualizarProducto(p.id, {
@@ -852,8 +870,26 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
         }} />
 
       <FormProducto abierto={!!alta} inicial={alta} productos={productos} provs={provs} ajustes0={ajustes} onClose={() => setAlta(null)}
-        onGuardar={(d, faltan) => {
+        onGuardar={async (d, faltan) => {
           if (d.id) {
+            /* El stock se puede corregir desde la ficha, pero no se escribe
+               con el producto: `guardarProducto` lo deja afuera, porque el
+               stock es la suma de sus movimientos. Hasta el 08/10 se perdía
+               en silencio y avisaba "Producto actualizado" con el stock
+               viejo (Super 25). Ahora entra como un conteo, el mismo de
+               Stock: la base asienta la diferencia y queda en el historial.
+               Va antes del guardado, que relee el producto con el stock nuevo. */
+            const antes = Number(alta && alta.stock) || 0;
+            const ahora = String(d.stock ?? "").trim() === "" ? 0 : Number(d.stock);
+            let stockMsg = "";
+            if (!isNaN(ahora) && ahora !== antes) {
+              try {
+                await guardarConteo({ itemId: d.id, real: ahora, sucursalId: lugar.actual || null, motivo: "Corregido desde la ficha del producto" });
+                stockMsg = ` Stock: ${formatoCantidad(d.unidad, antes)} → ${formatoCantidad(d.unidad, ahora)}.`;
+              } catch (e) {
+                toast(e.message || "No se pudo cambiar el stock.", "mal");
+              }
+            }
             /* Los campos se enumeran uno por uno a propósito —el formulario
                trae cosas calculadas que no son columnas—, así que un campo
                nuevo hay que sumarlo también acá o se guarda en silencio
@@ -867,7 +903,7 @@ export function Productos({ productos, actualizarProducto, agregarProducto, borr
               iva: d.iva == null || d.iva === "" ? 21 : Number(d.iva), ivaCondicion: d.ivaCondicion || "gravado",
               descripcion: d.descripcion || null, imagen: d.imagen || null,
               precios: Object.fromEntries(Object.entries(d.precios || {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)])),
-            }, faltan.length ? `Guardado. Todavía falta ${faltan.join(", ")}.` : "Producto actualizado.");
+            }, (faltan.length ? `Guardado. Todavía falta ${faltan.join(", ")}.` : "Producto actualizado.") + stockMsg);
           } else {
             agregarProducto(d, faltan.length ? `${d.nombre} creado. Falta ${faltan.join(", ")}.` : `${d.nombre} creado.`);
           }
