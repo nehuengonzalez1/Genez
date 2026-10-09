@@ -115,5 +115,23 @@ export function presenciaDesdeConfig(ajustes) {
     pagos: Array.isArray(p.pagos) ? p.pagos : null,
     entrega: e && typeof e === "object" ? { retiro: !!e.retiro, envio: !!e.envio, zona: String(e.zona || "").trim().slice(0, 120) || null } : null,
     contacto,
+    /* La base además deja pasar solo fotos del bucket público; acá no se
+       mira, porque en la pantalla de pruebas las fotos son blobs. */
+    galeria: (Array.isArray(p.galeria) ? p.galeria : []).map((g) => g && g.url).filter(Boolean).slice(0, 8),
+    video: videoEmbebido(p.video) ? String(p.video).trim().slice(0, 200) : null,
   };
+}
+
+/* Un link de YouTube o Vimeo, a la dirección que se puede embeber. Lo
+   que no se reconoce devuelve null y no se muestra: la página no embebe
+   cualquier cosa que alguien pegue. youtube-nocookie para no dejarle
+   cookies de Google a quien solo quiere ver el horario. */
+export function videoEmbebido(url) {
+  const u = String(url || "").trim();
+  let m = u.match(/^https:\/\/(?:www\.|m\.)?youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)([\w-]{6,})/i)
+    || u.match(/^https:\/\/youtu\.be\/([\w-]{6,})/i);
+  if (m) return { tipo: "youtube", src: `https://www.youtube-nocookie.com/embed/${m[1]}`, vertical: /\/shorts\//i.test(u) };
+  m = u.match(/^https:\/\/(?:www\.)?vimeo\.com\/(\d+)/i);
+  if (m) return { tipo: "vimeo", src: `https://player.vimeo.com/video/${m[1]}`, vertical: false };
+  return null;
 }

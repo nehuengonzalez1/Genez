@@ -24,12 +24,15 @@
    ============================================================ */
 
 import React, { useRef, useState } from "react";
-import { Copy, ExternalLink, Download, ImagePlus, Trash2, Plus, X, Globe } from "lucide-react";
-import { Card, Boton, CodigoQR } from "../ui/Base.jsx";
+import { Copy, ExternalLink, Download, ImagePlus, Trash2, Plus, X, Monitor, ChevronLeft, ChevronRight } from "lucide-react";
+import { Card, Boton, CodigoQR, Modal } from "../ui/Base.jsx";
 import { inputCls } from "../ui/Campos.jsx";
 import { useLogos } from "../ui/logos.js";
-import { Vidriera } from "../cliente/Vidriera.jsx";
-import { DIAS, presenciaDesdeConfig } from "../cliente/vidriera.js";
+import { PaginaComercio } from "../cliente/PaginaComercio.jsx";
+import { DIAS, presenciaDesdeConfig, videoEmbebido } from "../cliente/vidriera.js";
+import { subirFotoPublica, borrarFotoPublica } from "../datos/presencia.js";
+
+const FOTOS_MAX = 8;
 
 const rotulo = "text-[11px] uppercase tracking-[0.1em] font-bold text-texto-tenue";
 
@@ -107,7 +110,7 @@ function bajarQR(contenedor, nombre) {
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(datos)}`;
 }
 
-export function PresenciaOnline({ ajustes, setAjustes, slug, toast, onIr }) {
+export function PresenciaOnline({ ajustes, setAjustes, slug, empresaId, toast, onIr }) {
   const marca = ajustes.marca || {};
   const contacto = ajustes.contacto || {};
   const pub = ajustes.publico || {};
@@ -123,7 +126,56 @@ export function PresenciaOnline({ ajustes, setAjustes, slug, toast, onIr }) {
   const logos = useLogos(marca);
 
   const url = slug ? `https://${slug}.genez.com.ar` : null;
-  const presencia = presenciaDesdeConfig(ajustes);
+  /* La vista previa muestra lo publicado. Sin publicar, igual se ve cómo
+     quedaría, con un cartel que lo dice: si no, no habría forma de armar
+     la página antes de mostrarla. */
+  const presencia = presenciaDesdeConfig({ ...ajustes, publico: { ...pub, publicada: true } });
+  const [verPc, setVerPc] = useState(false);
+  const fotosRef = useRef(null);
+  const [subiendoFotos, setSubiendoFotos] = useState(false);
+  const galeria = pub.galeria || [];
+
+  /* Se suben de a una y se agregan al terminar todas: si se guardara
+     después de cada una, el debounce de los ajustes podría pisar una con
+     la anterior. */
+  async function subirFotos(e) {
+    const archivos = [...(e.target.files || [])].slice(0, FOTOS_MAX - galeria.length);
+    e.target.value = "";
+    if (!archivos.length) return;
+    setSubiendoFotos(true);
+    const nuevas = [];
+    for (const a of archivos) {
+      try { nuevas.push(await subirFotoPublica(empresaId, a)); }
+      catch (err) { toast && toast(err.message, "mal"); }
+    }
+    /* Sobre los ajustes del momento y no sobre los de cuando empezó la
+       subida: mientras suben se puede seguir escribiendo (el video, la
+       frase), y con los de antes eso se perdía. */
+    if (nuevas.length) {
+      setAjustes((a) => {
+        const p = a.publico || {};
+        return { ...a, publico: { ...p, galeria: [...(p.galeria || []), ...nuevas].slice(0, FOTOS_MAX) } };
+      });
+    }
+    setSubiendoFotos(false);
+  }
+  const sacarFoto = (i) => {
+    borrarFotoPublica(galeria[i].ruta);
+    setPub("galeria", galeria.filter((_, j) => j !== i));
+  };
+  const moverFoto = (i, d) => {
+    const j = i + d;
+    if (j < 0 || j >= galeria.length) return;
+    const g = [...galeria];
+    [g[i], g[j]] = [g[j], g[i]];
+    setPub("galeria", g);
+  };
+  const videoMal = pub.video && String(pub.video).trim() && !videoEmbebido(pub.video);
+
+  /* La marca como la arma marca_de para la página. */
+  const oscuro = marca.tema === "oscuro";
+  const marcaPagina = { nombre: ajustes.negocio, logo: (oscuro ? logos.paraOscuro : logos.paraClaro) || null, lema: marca.lema || "", bajada: marca.bajada || "", portada: marca.portada || null };
+  const pieFalso = <div className="rounded-lg bg-acento text-sobre-acento text-center text-sm font-bold py-2.5">Ingresar</div>;
 
   const setFranjas = (dia, franjas) => setPub("horarios", { ...horarios, [dia]: franjas });
   const copiarATodos = (dia) => {
@@ -215,6 +267,37 @@ export function PresenciaOnline({ ajustes, setAjustes, slug, toast, onIr }) {
           </div>
         </Bloque>
 
+        <Bloque titulo="Fotos y video" d={`Hasta ${FOTOS_MAX} fotos: el local, lo que vendés, tu equipo. Y un video de YouTube o Vimeo. En computadora van al lado de tu información; en el celular, debajo.`}>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+            {galeria.map((g, i) => (
+              <div key={g.ruta || g.url} data-foto-galeria={i} className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-borde bg-superficie-2">
+                <img src={g.url} alt="" className="w-full h-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 flex justify-between p-1 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <span className="flex gap-1">
+                    <button type="button" aria-label="Mover a la izquierda" onClick={() => moverFoto(i, -1)} disabled={i === 0} className="p-1 rounded bg-black/50 text-white disabled:opacity-30"><ChevronLeft size={13} /></button>
+                    <button type="button" aria-label="Mover a la derecha" onClick={() => moverFoto(i, 1)} disabled={i === galeria.length - 1} className="p-1 rounded bg-black/50 text-white disabled:opacity-30"><ChevronRight size={13} /></button>
+                  </span>
+                  <button type="button" aria-label="Sacar la foto" onClick={() => sacarFoto(i)} className="p-1 rounded bg-black/50 text-white"><Trash2 size={13} /></button>
+                </div>
+              </div>
+            ))}
+            {galeria.length < FOTOS_MAX && (
+              <button type="button" onClick={() => fotosRef.current && fotosRef.current.click()} disabled={subiendoFotos || !empresaId}
+                className="aspect-[4/3] rounded-lg border border-dashed border-borde flex flex-col items-center justify-center gap-1 text-xs text-texto-tenue hover:bg-superficie-2 hover:text-texto disabled:opacity-50">
+                <ImagePlus size={18} /> {subiendoFotos ? "Subiendo…" : "Agregar fotos"}
+              </button>
+            )}
+          </div>
+          <input ref={fotosRef} type="file" accept="image/*" multiple className="hidden" onChange={subirFotos} />
+          <label className="block mt-4">
+            <span className="text-xs font-semibold text-texto-suave">Video</span>
+            <input value={pub.video || ""} onChange={(e) => setPub("video", e.target.value.slice(0, 200))} placeholder="https://www.youtube.com/watch?v=…" className={inputCls} />
+            {videoMal
+              ? <span className="block text-xs text-mal mt-1">Tiene que ser un link de YouTube o Vimeo. Instagram y TikTok no dejan mostrar sus videos en otra página.</span>
+              : <span className="block text-xs text-texto-tenue mt-1">Copiá el link del video desde YouTube o Vimeo (también sirven los cortos de YouTube).</span>}
+          </label>
+        </Bloque>
+
         <Bloque titulo="Horarios" d="Con esto la página dice sola si estás abierto ahora. Hasta dos franjas por día; una que termina después de medianoche también va.">
           <ul className="divide-y divide-borde">
             {DIAS.map((d) => {
@@ -296,32 +379,35 @@ export function PresenciaOnline({ ajustes, setAjustes, slug, toast, onIr }) {
         </Bloque>
       </div>
 
-      {/* El teléfono: la página como la va a ver la gente. */}
+      {/* El teléfono: la página como la va a ver la gente. Es el mismo
+          componente que dibuja la página de verdad (PaginaComercio). */}
       <div className="xl:sticky xl:top-4">
-        <div className={rotulo}>Así se ve</div>
-        <div className={`mt-3 mx-auto w-full max-w-[340px] rounded-[28px] border-[6px] border-superficie-3 overflow-hidden shadow-sm ${marca.tema === "oscuro" ? "" : "tema-claro"}`}>
-          <div className="bg-fondo text-texto h-[640px] overflow-y-auto">
-            {marca.portada && <div className="h-36 overflow-hidden"><img src={marca.portada} alt="" className="w-full h-full object-cover" /></div>}
-            <div className="px-5 py-6">
-              <div className="flex items-center gap-3">
-                {(marca.tema === "oscuro" ? logos.paraOscuro : logos.paraClaro)
-                  ? <img src={marca.tema === "oscuro" ? logos.paraOscuro : logos.paraClaro} alt="" className="h-10 max-w-[120px] object-contain" />
-                  : <span className="w-10 h-10 rounded-lg bg-superficie-2 flex items-center justify-center"><Globe size={18} className="text-texto-tenue" /></span>}
-                <div className="f-d text-lg leading-tight">{ajustes.negocio}</div>
-              </div>
-              {marca.lema && <div className="f-d text-xl mt-5 leading-snug">{marca.lema}</div>}
-              {marca.bajada && <p className="text-sm text-texto-suave mt-2 leading-relaxed">{marca.bajada}</p>}
-              {presencia
-                ? <div className="mt-6"><Vidriera nombre={ajustes.negocio} presencia={presencia} enlaces={false} /></div>
-                : <p className="mt-6 text-xs text-texto-tenue border border-dashed border-borde rounded-lg p-3">Sin publicar: la gente ve solo esto y el botón para entrar.</p>}
-              <div className="mt-7 pt-5 border-t border-borde">
-                <div className="rounded-lg bg-acento text-sobre-acento text-center text-sm font-bold py-2.5">Ingresar</div>
-              </div>
-            </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className={rotulo}>Así se ve</div>
+          <button type="button" onClick={() => setVerPc(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-acento hover:underline"><Monitor size={14} /> Ver en computadora</button>
+        </div>
+        {!pub.publicada && <p className="mt-2 text-xs text-texto-tenue">Sin publicar: así va a quedar cuando la publiques. Hoy se ve solo tu nombre y tu logo.</p>}
+        <div className={`mt-3 mx-auto w-full max-w-[340px] rounded-[28px] border-[6px] border-superficie-3 overflow-hidden shadow-sm ${oscuro ? "" : "tema-claro"}`}>
+          <div className="h-[640px] overflow-y-auto bg-fondo">
+            <PaginaComercio marca={marcaPagina} presencia={presencia} modo="celular" enlaces={false} pie={pieFalso} />
           </div>
         </div>
         {onIr && <button type="button" onClick={() => onIr("negocio")} className="mt-3 w-full text-xs text-texto-tenue hover:text-texto underline">Cambiar el logo o el nombre en Datos del negocio</button>}
       </div>
+
+      {/* La de computadora, en grande: una pantalla de 1280 achicada para
+          que entre entera a lo ancho. */}
+      <Modal open={verPc} onClose={() => setVerPc(false)} ancho="max-w-[1100px]">
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-borde">
+          <div className="text-sm font-semibold flex items-center gap-2"><Monitor size={16} /> En una computadora</div>
+          <button type="button" aria-label="Cerrar" onClick={() => setVerPc(false)} className="p-1.5 rounded-md hover:bg-superficie-2"><X size={18} /></button>
+        </div>
+        <div className={`bg-fondo ${oscuro ? "" : "tema-claro"}`}>
+          <div style={{ width: 1280, zoom: 0.84 }}>
+            <PaginaComercio marca={marcaPagina} presencia={presencia} modo="computadora" enlaces={false} pie={pieFalso} />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
