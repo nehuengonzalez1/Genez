@@ -2428,7 +2428,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                       .filter((g) => g.modulos.length)} />
                 )}
                 {actual === "ticket" && <DisenoTicket ajustes={ajustes} setAjustes={setAjustes} productos={productos} quien={sesion.nombre} toast={toast} onIr={setAdmSec} />}
-                {actual === "presencia" && <PresenciaOnline ajustes={ajustes} setAjustes={setAjustes} slug={sesion.comercio.slug} toast={toast} onIr={setAdmSec} />}
+                {actual === "presencia" && <PresenciaOnline ajustes={ajustes} setAjustes={setAjustes} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} />}
                 {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
                 {actual === "permisos" && (
                   <Permisos empresaId={empresaId}

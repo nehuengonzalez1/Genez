@@ -220,6 +220,10 @@ export function armarDatos(rubro, sesion = "comercio") {
           mostrar: { direccion: true, telefono: true, whatsapp: true, instagram: true, email: false },
           pagos: ["Efectivo", "Débito", "QR / Mercado Pago"],
           entrega: { retiro: true, envio: true, zona: "Hasta 15 cuadras" },
+          /* Fotos de color liso con su nombre, para ver la galería sin subir nada. */
+          galeria: [["#b45309", "El local"], ["#0f766e", "Góndolas"], ["#1d4ed8", "El equipo"], ["#7c3aed", "Ofertas"], ["#be123c", "Fiambrería"]].map(([c, t]) => ({
+            url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="${c}"/><text x="60" y="330" font-family="Arial" font-size="72" font-weight="700" fill="#fff">${t}</text></svg>`)}`, ruta: null })),
+          video: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         },
       }),
       ...((typeof location !== "undefined" && new URLSearchParams(location.search).get("tope"))

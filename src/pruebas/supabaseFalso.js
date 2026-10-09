@@ -811,6 +811,7 @@ function rpc(nombre, params = {}) {
   return b;
 }
 
+const archivosDePrueba = new Map();
 const sesion = { access_token: "falso", user: USUARIO };
 
 /* ?sesion=ninguna: arranca sin sesión, para ver el login. Cualquier correo
@@ -838,12 +839,18 @@ export const supabase = {
     resetPasswordForEmail: async () => ({ error: null }),
     updateUser: async () => ({ data: { user: USUARIO }, error: null }),
   },
+  /* Los archivos quedan en memoria, como un blob: así la galería de
+     Presencia online (0140) se ve con las fotos que se suben. */
   storage: {
     from: () => ({
-      upload: async (ruta) => { registro.push({ subir: ruta }); return { data: { path: ruta }, error: null }; },
+      upload: async (ruta, archivo) => {
+        registro.push({ subir: ruta });
+        try { archivosDePrueba.set(ruta, URL.createObjectURL(archivo)); } catch { /* sin blob, sin vista */ }
+        return { data: { path: ruta }, error: null };
+      },
       createSignedUrl: async (ruta) => ({ data: { signedUrl: `data:text/plain,archivo de prueba: ${encodeURIComponent(ruta)}` }, error: null }),
-      getPublicUrl: () => ({ data: { publicUrl: "" } }),
-      remove: async () => ({ error: null }),
+      getPublicUrl: (ruta) => ({ data: { publicUrl: archivosDePrueba.get(ruta) || "" } }),
+      remove: async (rutas) => { for (const r of rutas || []) archivosDePrueba.delete(r); registro.push({ borrar: rutas }); return { error: null }; },
     }),
   },
 };
