@@ -712,6 +712,17 @@ export default function App() {
     return () => { vigente = false; };
   }, [slug]);
 
+  /* El título de la pestaña es el nombre del comercio (09/10, Nehuen): es
+     lo que se lee en la pestaña, en el historial y al guardarla. Decía
+     "Tus turnos" para todos, aunque fuera un súper. Con el sitio (0141)
+     lo pone el sitio, página por página: React corre este efecto después
+     de los de adentro, y si no se corriera lo pisaría. Va abajo de
+     `sitio`: la lista de dependencias se evalúa en el render, y nombrar
+     una constante declarada más abajo deja la pantalla en negro (29/09). */
+  useEffect(() => {
+    if (marca && marca.nombre && !sitio) document.title = marca.nombre;
+  }, [marca && marca.nombre, !!sitio]);
+
   useEffect(() => {
     let vigente = true;
     cargarClienta()
