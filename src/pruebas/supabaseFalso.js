@@ -18,6 +18,7 @@
 
 import { armarDatos, USUARIO } from "./datos.js";
 import { normTel } from "../utils/importarProspectos.js";
+import { presenciaDesdeConfig } from "../cliente/vidriera.js";
 
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 const datos = armarDatos(params.get("rubro") || "minimercado", params.get("sesion") || "comercio");
@@ -528,6 +529,18 @@ function convertir({ p_oportunidad, p_datos = {} }) {
 const palabras = (t) => [...new Set(String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length >= 4))];
 
 const FUNCIONES = {
+  /* La página pública del comercio (0052, 0140): cliente.html?c=comercio-de-prueba&sesion=ninguna. */
+  marca_de: ({ p_slug }) => {
+    const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);
+    if (!e) return [];
+    const m = (e.config && e.config.marca) || {};
+    return [{ slug: e.slug, nombre: e.nombre, rubro: e.rubro, tema: m.tema || "auto", lema: m.lema || "", bajada: m.bajada || "",
+      logo: m.logo || m.logoParaClaro || m.logoParaOscuro || null, portada: m.portada || null, autoregistro: false }];
+  },
+  presencia_de: ({ p_slug }) => {
+    const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);
+    return e ? presenciaDesdeConfig(e.config || {}) : null;
+  },
   interno_convertir_en_cliente: convertir,
   /* 0123, en chico: los informes cuentan lo que hay en las tablas de
      mentira, sin mirar fechas (la prueba de verdad es la de la base). */
@@ -798,6 +811,7 @@ function rpc(nombre, params = {}) {
   return b;
 }
 
+const archivosDePrueba = new Map();
 const sesion = { access_token: "falso", user: USUARIO };
 
 /* ?sesion=ninguna: arranca sin sesión, para ver el login. Cualquier correo
@@ -825,12 +839,18 @@ export const supabase = {
     resetPasswordForEmail: async () => ({ error: null }),
     updateUser: async () => ({ data: { user: USUARIO }, error: null }),
   },
+  /* Los archivos quedan en memoria, como un blob: así la galería de
+     Presencia online (0140) se ve con las fotos que se suben. */
   storage: {
     from: () => ({
-      upload: async (ruta) => { registro.push({ subir: ruta }); return { data: { path: ruta }, error: null }; },
+      upload: async (ruta, archivo) => {
+        registro.push({ subir: ruta });
+        try { archivosDePrueba.set(ruta, URL.createObjectURL(archivo)); } catch { /* sin blob, sin vista */ }
+        return { data: { path: ruta }, error: null };
+      },
       createSignedUrl: async (ruta) => ({ data: { signedUrl: `data:text/plain,archivo de prueba: ${encodeURIComponent(ruta)}` }, error: null }),
-      getPublicUrl: () => ({ data: { publicUrl: "" } }),
-      remove: async () => ({ error: null }),
+      getPublicUrl: (ruta) => ({ data: { publicUrl: archivosDePrueba.get(ruta) || "" } }),
+      remove: async (rutas) => { for (const r of rutas || []) archivosDePrueba.delete(r); registro.push({ borrar: rutas }); return { error: null }; },
     }),
   },
 };

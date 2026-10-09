@@ -30,6 +30,8 @@ function aComercio(fila) {
     pruebaHasta: fila.prueba_hasta || null,
     /* Para el onboarding (0137): los primeros pasos son de un comercio nuevo. */
     creadaEn: fila.creada_en || null,
+    /* Su dirección pública, slug.genez.com.ar (Presencia online, 0140). */
+    slug: fila.slug || null,
     alta: d ? `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : "",
     usuarios: (fila.perfiles || []).map((p) => ({
       id: p.id,
@@ -45,7 +47,7 @@ function aComercio(fila) {
 }
 
 const SELECT_EMPRESA = `
-  id, nombre, rubro, plan, modulos, config, activa, creada_en, prueba_hasta,
+  id, nombre, rubro, plan, modulos, config, activa, creada_en, prueba_hasta, slug,
   perfiles ( id, nombre, rol, activo, email )
 `;
 

@@ -121,6 +121,17 @@ export async function cargarMarca(slug) {
   return marca;
 }
 
+/* Lo que el comercio publicó en su página (0140): horarios, contacto,
+   pagos, entrega, un aviso. Sin sesión, como la marca. Null si no
+   publicó nada, y entonces la bienvenida queda como siempre. Un error no
+   corta nada: la página sin la vidriera sigue sirviendo para entrar. */
+export async function cargarPresencia(slug) {
+  if (!slug) return null;
+  const { data, error } = await supabase.rpc("presencia_de", { p_slug: slug });
+  if (error || !data) return null;
+  return data;
+}
+
 /* Qué muestra la app de este comercio. Sale de cruzar el catálogo de
    plataforma con lo que el comercio contrató y no apagó, así que la
    navegación se dibuja y no se decide en el código. */

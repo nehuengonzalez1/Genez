@@ -208,6 +208,24 @@ export function armarDatos(rubro, sesion = "comercio") {
     /* ?tope=10: el descuento máximo de los roles que no son dueño (06/10),
        para probarlo con ?rol=encargado, que no entra a Ajustes. */
     config: { negocio: "Comercio de prueba", fiscal: { condicion: "MONOTRIBUTO", razonSocial: "Comercio de prueba" },
+      /* La página pública (0140), ya publicada, salvo en un comercio nuevo
+         (?nuevo=1), que arranca sin nada como en la realidad. */
+      ...((typeof location !== "undefined" && new URLSearchParams(location.search).get("nuevo")) ? {} : {
+        contacto: { telefono: "11 4444-5555", whatsapp: "11 5555-6666", instagram: "comerciodeprueba", direccion: "Av. Rivadavia 1234, CABA", email: "hola@comerciodeprueba.com" },
+        marca: { lema: "El almacén del barrio", bajada: "Todo lo de todos los días, a dos cuadras de tu casa." },
+        publico: {
+          publicada: true,
+          horarios: Object.fromEntries(["lun", "mar", "mie", "jue", "vie"].map((k) => [k, [{ d: "08:00", h: "13:00" }, { d: "16:30", h: "21:00" }]])
+            .concat([["sab", [{ d: "09:00", h: "14:00" }]], ["dom", []]])),
+          mostrar: { direccion: true, telefono: true, whatsapp: true, instagram: true, email: false },
+          pagos: ["Efectivo", "Débito", "QR / Mercado Pago"],
+          entrega: { retiro: true, envio: true, zona: "Hasta 15 cuadras" },
+          /* Fotos de color liso con su nombre, para ver la galería sin subir nada. */
+          galeria: [["#b45309", "El local"], ["#0f766e", "Góndolas"], ["#1d4ed8", "El equipo"], ["#7c3aed", "Ofertas"], ["#be123c", "Fiambrería"]].map(([c, t]) => ({
+            url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="${c}"/><text x="60" y="330" font-family="Arial" font-size="72" font-weight="700" fill="#fff">${t}</text></svg>`)}`, ruta: null })),
+          video: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        },
+      }),
       ...((typeof location !== "undefined" && new URLSearchParams(location.search).get("tope"))
         ? { descuentoMax: Object.fromEntries(["encargado", "cajero", "repositor"].map((k) => [k, Number(new URLSearchParams(location.search).get("tope"))])) } : {}) },
     /* ?nuevo=1: un comercio recién creado, para ver la bienvenida y los

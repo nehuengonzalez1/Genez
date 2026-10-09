@@ -34,7 +34,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  slugDelDominio, cargarMarca, cargarModulos,
+  slugDelDominio, cargarMarca, cargarPresencia, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
   cargarEsperas, salirDeEspera, cargarPagos, guardarMisDatos,
   cargarAvisos, marcarAvisosVistos,
@@ -50,6 +50,7 @@ import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Avisos, Cuenta, MisDa
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 import { aplicarTema, alCambiarElTema } from "./tema.js";
+import { PaginaComercio, useModoPagina } from "./PaginaComercio.jsx";
 
 /* ------------------------------------------------------------
    LA ENTRADA · pantallas 1, 2 y 3 de la maqueta
@@ -145,7 +146,33 @@ function Lema({ texto }) {
   );
 }
 
-function Bienvenida({ marca, onIngresar, onCrear }) {
+function Bienvenida({ marca, presencia, onIngresar, onCrear }) {
+  const modo = useModoPagina();
+  const entrar = (
+    <>
+      <div className="space-y-3">
+        <Boton onClick={onIngresar}>Ingresar</Boton>
+        {/* "Crear cuenta" solo donde el comercio abrió el registro. De
+            fábrica está cerrado, así que para la mayoría este botón no
+            existe y abajo queda la frase de siempre: la cuenta se pide
+            en el local. Ver 0065. */}
+        {marca.autoregistro && <Boton variante="linea" onClick={onCrear}>Crear cuenta</Boton>}
+      </div>
+      {!marca.autoregistro && (
+        <p className="text-[13px] text-texto-suave mt-5 text-center leading-relaxed">
+          ¿Todavía no tenés cuenta? Pedísela a {marca.nombre} y te la damos de alta.
+        </p>
+      )}
+    </>
+  );
+
+  /* Con la página publicada (0140), la bienvenida es la página del
+     comercio: en el celular una columna, en la computadora dos. Entrar
+     queda al pie de la tarjeta. */
+  if (presencia) {
+    return <div className="min-h-screen"><PaginaComercio marca={marca} presencia={presencia} modo={modo} pie={entrar} /></div>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* La portada es del comercio. Sin una cargada no se deja un hueco
@@ -165,23 +192,7 @@ function Bienvenida({ marca, onIngresar, onCrear }) {
           <p className="text-sm text-texto-suave mt-4 leading-relaxed">{marca.bajada}</p>
         )}
 
-        <div className="mt-9 space-y-3">
-          <Boton onClick={onIngresar}>Ingresar</Boton>
-
-          {/* "Crear cuenta" solo donde el comercio abrió el registro. De
-              fábrica está cerrado, así que para la mayoría este botón no
-              existe y abajo queda la frase de siempre: la cuenta se pide
-              en el local. Ver 0065. */}
-          {marca.autoregistro && (
-            <Boton variante="linea" onClick={onCrear}>Crear cuenta</Boton>
-          )}
-        </div>
-
-        {!marca.autoregistro && (
-          <p className="text-[13px] text-texto-suave mt-6 text-center leading-relaxed">
-            ¿Todavía no tenés cuenta? Pedísela a {marca.nombre} y te la damos de alta.
-          </p>
-        )}
+        <div className="mt-9">{entrar}</div>
       </div>
     </div>
   );
@@ -692,6 +703,15 @@ export default function App() {
     return () => { vigente = false; };
   }, [slug]);
 
+  /* La vidriera, aparte de la marca: si tarda o falla, la bienvenida ya
+     está dibujada y se le suma cuando llega. */
+  const [presencia, setPresencia] = useState(null);
+  useEffect(() => {
+    let vigente = true;
+    cargarPresencia(slug).then((p) => { if (vigente) setPresencia(p); });
+    return () => { vigente = false; };
+  }, [slug]);
+
   useEffect(() => {
     let vigente = true;
     cargarClienta()
@@ -852,7 +872,7 @@ export default function App() {
     }
     return entrando
       ? <Ingresar marca={marca} onEntro={setClienta} onVolver={() => setEntrando(false)} />
-      : <Bienvenida marca={marca}
+      : <Bienvenida marca={marca} presencia={presencia}
           onIngresar={() => setEntrando(true)}
           onCrear={() => setEntrando("registro")} />;
   }

@@ -217,7 +217,8 @@ export const GUIAS = {
     pasos: [
       { t: "Los datos del negocio", d: "Nombre, logo, contacto, horarios, los datos fiscales y los objetivos del mes. Lo que cargues sale en el ticket." },
       { t: "Cómo te pagan", d: "Los medios de pago con su comisión, Mercado Pago (pegando tu Access Token) y la factura electrónica de ARCA." },
-      { t: "La impresora y el ticket", d: "El ancho del papel (58 u 80 mm), qué dice el ticket, la comandera y los sonidos." },
+      { t: "La impresora", d: "En Equipos: el ancho del papel (58 u 80 mm), la comandera y los sonidos." },
+      { t: "El ticket y la factura", d: "En Ticket y factura: el logo, tus datos, un mensaje y un QR, viendo cómo sale mientras lo elegís." },
       { t: "Precios y descuentos", d: "Listas de precios, redondeo y hasta cuánto puede descontar cada rol." },
       { t: "Tu cuenta", d: "En Mi cuenta: tu contraseña y la descarga de todos tus datos. El plan está en Mi plan." },
     ],

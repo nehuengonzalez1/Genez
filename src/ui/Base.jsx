@@ -8,6 +8,7 @@ import QRCode from "qrcode";
 import { armarPdfTicket, imprimirPdf } from "./ticketPdf.js";
 import { armarEscPos } from "./escpos.js";
 import { impresoraElegida, imprimirDirecto } from "./agenteImpresion.js";
+import { logoTicket, svgLogo, tramosDe, PUNTOS_POR_MM } from "./logoTicket.js";
 import { fdatel } from "../datos/generador.js";
 import { pct, money, nf, nf2, moneyk, FISCAL_INICIAL, letraComprobante, discriminaIVA, condicionLegal, medioPorK } from "../utils/helpers.js";
 import { LEYENDA_MONOTRIBUTO, LEYENDA_RETENCION, LEYENDA_CBU } from "../utils/fiscal.js";
@@ -337,25 +338,27 @@ export const utilDe = (mm) => Math.min(mm, Math.max(40, utilPropio || UTIL_MM[mm
    reinició y no arrancó, se desenchufó la impresora—, se abre la ventana
    de siempre y se avisa: un ticket que no sale es peor que uno con
    ventana. */
-export function imprimirComandera(lineas, ancho, qrSemilla, toast) {
+/* `logo`: el mapa de puntos de `logoTicket.js`, o null. Va arriba de
+   todo en las tres formas de imprimir (08/10). */
+export function imprimirComandera(lineas, ancho, qrSemilla, toast, logo = null) {
   const impresora = impresoraElegida();
   if (impresora) {
     let bytes = null;
     try {
-      bytes = armarEscPos({ lineas, mm: ancho === 58 ? 58 : 80, celdas: qrSemilla ? celdasQR(qrSemilla) : null });
+      bytes = armarEscPos({ lineas, mm: ancho === 58 ? 58 : 80, celdas: qrSemilla ? celdasQR(qrSemilla) : null, logo });
     } catch (e) { /* se imprime con la ventana */ }
     if (bytes) {
       imprimirDirecto(impresora, bytes).catch((e) => {
         toast && toast(`No salió por la impresión directa (${e.message || "el programa no contesta"}). Se abre la ventana.`, "mal");
-        imprimirConVentana(lineas, ancho, qrSemilla, toast);
+        imprimirConVentana(lineas, ancho, qrSemilla, toast, logo);
       });
       return;
     }
   }
-  imprimirConVentana(lineas, ancho, qrSemilla, toast);
+  imprimirConVentana(lineas, ancho, qrSemilla, toast, logo);
 }
 
-function imprimirConVentana(lineas, ancho, qrSemilla, toast) {
+function imprimirConVentana(lineas, ancho, qrSemilla, toast, logo = null) {
   const mm = ancho === 58 ? 58 : 80;
   if (!comoPagina) {
     try {
@@ -363,23 +366,25 @@ function imprimirConVentana(lineas, ancho, qrSemilla, toast) {
         lineas, mm, util: utilDe(mm),
         celdas: qrSemilla ? celdasQR(qrSemilla) : null,
         qrMM: mm === 58 ? 30 : 34,
+        logo,
       });
-      imprimirPdf(bytes).catch(() => imprimirComoPagina(lineas, ancho, qrSemilla, toast));
+      imprimirPdf(bytes).catch(() => imprimirComoPagina(lineas, ancho, qrSemilla, toast, logo));
       return;
     } catch (e) {
       /* sigue abajo, como página */
     }
   }
-  imprimirComoPagina(lineas, ancho, qrSemilla, toast);
+  imprimirComoPagina(lineas, ancho, qrSemilla, toast, logo);
 }
 
-function imprimirComoPagina(lineas, ancho, qrSemilla, toast) {
+function imprimirComoPagina(lineas, ancho, qrSemilla, toast, logo = null) {
   try {
     const mm = ancho === 58 ? 58 : 80;
     const cuerpo = escaparHTML(lineas.join("\n"));
     const qr = qrSemilla
       ? `<div class="qr">${svgQR(qrSemilla, mm === 58 ? 30 : 34)}</div>`
       : "";
+    const marcaArriba = logo ? `<div class="logo">${svgLogo(logo)}</div>` : "";
     /* El `@page` no va acá: se inyecta al cargar, con el alto ya medido.
        Ver el comentario del iframe, abajo. */
     /* EL PAPEL NO SE IMPRIME ENTERO
@@ -425,7 +430,9 @@ function imprimirComoPagina(lineas, ancho, qrSemilla, toast) {
       #medida { position: absolute; visibility: hidden; top: 0; left: 0; }
       .qr { text-align: center; padding-bottom: 4mm; }
       .qr svg { display: inline-block; }
-    </style></head><body><pre id="medida">${"0".repeat(columnas)}</pre><pre id="ticket">${cuerpo}</pre>${qr}</body></html>`;
+      .logo { text-align: center; padding-top: ${mm === 58 ? "1.5mm" : "2mm"}; line-height: 0; }
+      .logo svg { display: inline-block; }
+    </style></head><body><pre id="medida">${"0".repeat(columnas)}</pre>${marcaArriba}<pre id="ticket">${cuerpo}</pre>${qr}</body></html>`;
 
     const marco = document.createElement("iframe");
     marco.setAttribute("aria-hidden", "true");
@@ -682,8 +689,20 @@ export function imprimirTicket(t, ajustes, toast) {
     return;
   }
   const W = ajustes.ancho === 58 ? 32 : 48;
-  imprimirComandera(ticketVenta(t, ajustes, W), ajustes.ancho, t.fiscal ? qrDeFactura(t.factura) : null, toast);
+  imprimirComandera(ticketVenta(t, ajustes, W), ajustes.ancho, qrDelTicket(t, ajustes), toast, logoDelTicket(ajustes));
 }
+
+/* El QR de abajo: en una factura, el de ARCA, que es obligatorio y no se
+   cambia; en un ticket, el que eligió el comercio (su Instagram, su
+   tienda, que lo califiquen), si eligió uno. */
+export function qrDelTicket(t, ajustes) {
+  if (t.fiscal) return t.factura ? qrDeFactura(t.factura) : null;
+  const op = opcionesTicket(ajustes);
+  return op.qr && String(op.qrUrl || "").trim() ? String(op.qrUrl).trim() : null;
+}
+
+/* El logo, si el comercio lo prendió y ya está armado (ver logoTicket.js). */
+export const logoDelTicket = (ajustes) => (opcionesTicket(ajustes).logo ? logoTicket(ajustes.ancho) : null);
 
 export function CodigoQR({ semilla, size = 84 }) {
 
@@ -702,10 +721,18 @@ export function svgQR(semilla, mm) {
   return `<svg viewBox="0 0 ${n} ${n}" width="${mm}mm" height="${mm}mm" shape-rendering="crispEdges" fill="#000" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
 }
 
-export function Comandera({ lineas, ancho, qr, className = "" }) {
+export function Comandera({ lineas, ancho, qr, logo = null, className = "" }) {
   const mm = ancho === 58 ? 58 : 80;
   return (
     <div className={`bg-papel text-tinta mx-auto ${className}`} style={{ width: `${mm}mm`, maxWidth: "100%" }}>
+      {/* El mismo mapa de puntos que va a la impresora, al mismo tamaño. */}
+      {logo && (
+        <div className="flex justify-center pt-1 pb-0.5">
+          <svg viewBox={`0 0 ${logo.w} ${logo.h}`} width={`${logo.w / PUNTOS_POR_MM}mm`} height={`${logo.h / PUNTOS_POR_MM}mm`} shapeRendering="crispEdges" fill="currentColor" style={{ maxWidth: "100%" }}>
+            {tramosDe(logo).map(([x, y, l]) => <rect key={`${x}-${y}`} x={x} y={y} width={l} height="1" />)}
+          </svg>
+        </div>
+      )}
       <pre className="f-m whitespace-pre leading-[1.35] m-0" style={{ fontSize: ancho === 58 ? "9.5px" : "10.5px" }}>
         {lineas.join("\n")}
       </pre>
@@ -737,10 +764,24 @@ export function ticketVenta(t, ajustes, W) {
   const renglonesSinIva = discrimina && t.items.every((l) => l.ivaCondicion && l.iva != null && !isNaN(Number(l.iva)));
   const marca = (l) => (l.ivaCondicion === "exento" ? "EX" : l.ivaCondicion === "no_gravado" ? "NG" : `${String(Number(l.iva)).replace(".", ",")}%`);
 
-  const b = [
-    { t: "c", v: (f.nombreFactura || f.razonSocial || ajustes.negocio).toUpperCase() },
-    { t: "c", v: f.domicilio || "" },
-  ];
+  /* Lo que eligió el comercio (Administración → Ticket y factura). En
+     una factura, el nombre fiscal y el domicilio van siempre: los pide
+     ARCA, y ahí la elección no corre. */
+  const op = opcionesTicket(ajustes);
+  const nombreFiscal = f.nombreFactura || f.razonSocial || ajustes.negocio;
+  const nombre = !t.fiscal && op.nombre === "comercio" ? ajustes.negocio || nombreFiscal : nombreFiscal;
+  const b = [{ t: "c", v: String(nombre || "").toUpperCase() }];
+  /* La frase va pegada al nombre, antes que los datos fiscales. */
+  for (const v of renglonesDe(op.lema, 2)) b.push({ t: "c", v: v.toUpperCase() });
+  /* En un ticket, si no cargó el domicilio fiscal, la dirección del local
+     (Datos del negocio): antes quedaba el renglón en blanco. En la factura
+     va el fiscal, que es el que pide ARCA. */
+  const direccion = f.domicilio || (!t.fiscal && ajustes.contacto && ajustes.contacto.direccion) || "";
+  if (t.fiscal || op.domicilio) b.push({ t: "c", v: direccion });
+  /* El contacto va arriba, debajo de la dirección, como en cualquier
+     ticket (Nehuen, 08/10): es lo que se busca en el papel para volver a
+     llamar. Hasta ese día salía al pie. */
+  b.push(...contactoDelTicket(ajustes));
   /* Con más de una sucursal (0108), en cuál se compró: el domicilio de
      arriba es el fiscal, y el cliente que vuelve a cambiar algo tiene que
      saber a qué local ir. */
@@ -786,6 +827,11 @@ export function ticketVenta(t, ajustes, W) {
   } else {
     b.push({ t: "lr", a: `Nro ${t.nro}`, b: `${t.fecha || fdatel(new Date())} ${t.hora}` });
   }
+  /* Quién cobró: los tickets de antes del 08/10 no lo guardaban, y ahí
+     el renglón no sale. */
+  if (op.cajero && t.cajero) b.push({ t: "w", v: `ATENDIO: ${t.cajero}`.toUpperCase() });
+  /* En la factura el cliente sale siempre, abajo, con sus datos. */
+  if (!t.fiscal && op.cliente && cli) b.push({ t: "w", v: `CLIENTE: ${cli.razonSocial || cli.nombre || ""}`.toUpperCase() });
   /* A qué comprobante corresponde una nota o una devolución: ARCA lo pide
      en la nota, y en el papel es lo que se mira para saber qué se anuló. */
   if (t.origen) {
@@ -910,27 +956,53 @@ export function ticketVenta(t, ajustes, W) {
     b.push({ t: "w", v: LEYENDA_MONOTRIBUTO.toUpperCase() });
   }
   b.push({ t: "b" });
-  b.push({ t: "c", v: `${t.items.length} items` });
+  if (op.cantidad) b.push({ t: "c", v: `${t.items.length} items` });
   b.push(...pieDelTicket(ajustes));
+  /* El texto que va arriba del QR propio ("Seguinos", "Pedí online"). En
+     la factura el QR es el de ARCA y este no sale. */
+  if (!t.fiscal && qrDelTicket(t, ajustes) && String(op.qrTexto || "").trim()) {
+    b.push({ t: "b" });
+    b.push({ t: "c", v: String(op.qrTexto).trim().toUpperCase() });
+  }
   return armarLineas(W, b);
 }
 
-/* El pie (06/10, Ajustes → Equipos → Ticket): el texto del comercio, o
-   "Gracias por su compra" si no puso nada, y su teléfono e Instagram si
-   los cargó. Antes era siempre la misma frase, escrita acá. */
+/* LO QUE SALE EN EL TICKET (08/10)
+   Lo eligió el comercio en Administración → Ticket y factura. De fábrica
+   sale lo mismo que antes de que existiera la elección, con una sola
+   diferencia: el teléfono y el Instagram van arriba, debajo de la
+   dirección, y no al pie (Nehuen, 08/10). */
+export const TICKET_DE_FABRICA = {
+  logo: false, nombre: "fiscal", domicilio: true, lema: "",
+  cajero: false, cliente: false, cantidad: true,
+  pie: "", contacto: true, telefono: true, whatsapp: true, instagram: true, email: false, horarios: false,
+  qr: false, qrUrl: "", qrTexto: "",
+};
+export const opcionesTicket = (ajustes) => ({ ...TICKET_DE_FABRICA, ...((ajustes && ajustes.ticket) || {}) });
+const renglonesDe = (texto, max) => String(texto || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, max);
+
+/* El pie (06/10): el texto del comercio, o "Gracias por su compra" si no
+   puso nada. El teléfono y las redes iban acá hasta el 08/10; ahora van
+   arriba (`contactoDelTicket`). */
 export function pieDelTicket(ajustes) {
-  const t = (ajustes && ajustes.ticket) || {};
+  const t = opcionesTicket(ajustes);
+  const renglones = renglonesDe(t.pie, 4);
+  return (renglones.length ? renglones : ["GRACIAS POR SU COMPRA"]).map((v) => ({ t: "c", v: v.toUpperCase() }));
+}
+
+/* El contacto del encabezado: cada dato, si el comercio lo eligió (08/10)
+   y lo tiene cargado. */
+export function contactoDelTicket(ajustes) {
+  const t = opcionesTicket(ajustes);
   const c = (ajustes && ajustes.contacto) || {};
-  const renglones = String(t.pie || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 4);
-  const b = (renglones.length ? renglones : ["GRACIAS POR SU COMPRA"]).map((v) => ({ t: "c", v: v.toUpperCase() }));
-  if (t.contacto !== false) {
-    const tel = [c.telefono && `TEL ${c.telefono}`, c.whatsapp && c.whatsapp !== c.telefono && `WHATSAPP ${c.whatsapp}`].filter(Boolean);
-    const ig = c.instagram ? `@${String(c.instagram).trim().replace(/^@/, "")}` : null;
-    if (tel.length || ig) b.push({ t: "b" });
-    for (const v of tel) b.push({ t: "c", v });
-    if (ig) b.push({ t: "c", v: ig });
-  }
-  return b;
+  if (t.contacto === false) return [];
+  return [
+    t.telefono && c.telefono && `TEL ${c.telefono}`,
+    t.whatsapp && c.whatsapp && (c.whatsapp !== c.telefono || !t.telefono) && `WHATSAPP ${c.whatsapp}`,
+    t.instagram && c.instagram && `@${String(c.instagram).trim().replace(/^@/, "")}`,
+    t.email && c.email && String(c.email).trim(),
+    t.horarios && c.horarios && String(c.horarios).trim().toUpperCase(),
+  ].filter(Boolean).map((v) => ({ t: "c", v }));
 }
 
 /* --- Pre cuenta --------------------------------------------------------

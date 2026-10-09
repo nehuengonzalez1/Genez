@@ -74,6 +74,10 @@ import { Permisos } from "../modulos/Permisos.jsx";
 import { Asistente } from "../modulos/Asistente.jsx";
 import { Ajustes, FichaRapida, AvisoCobro } from "../modulos/Ajustes.jsx";
 import { CentroAdministracion, ResumenAdministracion, SECCIONES_ADMIN } from "../modulos/PanelAdministracion.jsx";
+import { ModulosVisibles } from "../modulos/ModulosVisibles.jsx";
+import { DisenoTicket } from "../modulos/DisenoTicket.jsx";
+import { prepararLogoTicket } from "../ui/logoTicket.js";
+import { PresenciaOnline } from "../modulos/PresenciaOnline.jsx";
 import { MiPlan, NOMBRE_PLAN } from "../modulos/MiPlan.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
@@ -878,7 +882,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      plato— hay que ir a la fuente. */
   const config = (sesion.comercio && sesion.comercio.config) || {};
 
-  const puedeVer = (k) => {
+  /* Lo que el comercio contrató y el rol habilita. `puedeVer`, abajo, le
+     saca además lo que el comercio eligió ocultar. */
+  const permitido = (k) => {
     if (k === "inicio") return true;
     /* El panel de administración y el plan (0139) no se contratan: son
        puertas. El panel se ve si hay algo que administrar adentro; el plan,
@@ -891,6 +897,17 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     // El mostrador tampoco se contrata solo: es la otra cara del salón.
     return modulos.includes(k);
   };
+  /* MÓDULOS OCULTOS (08/10): el comercio puede sacar del menú un módulo
+     que contrató y no usa (Administración → Módulos). Es preferencia de
+     pantalla, no permiso. Los base y la pantalla con la que se vende no
+     se ocultan.
+     Lee `ajustes` y `vender`, que se declaran más abajo: se puede porque
+     recién se la llama cuando se arma el menú o desde un efecto, nunca
+     antes de esas líneas. Llamarla más arriba sería la pantalla en negro
+     del 29/09. */
+  const fijosDelMenu = () => [...MODULOS_BASE, vender].filter(Boolean);
+  const oculto = (k) => (ajustes.modulosOcultos || []).includes(k) && !fijosDelMenu().includes(k);
+  const puedeVer = (k) => !oculto(k) && permitido(k);
   /* Con qué pantalla arranca el sistema lo decide cómo vende el negocio.
      Un bar que abre en el mostrador del súper no entiende qué está
      mirando: su pantalla de todos los días es el salón. */
@@ -1129,6 +1146,20 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
      Se guarda desde un efecto y no adentro del setter porque React puede
      llamar al setter dos veces por render, y eso serían dos escrituras
      por cada tecla. */
+  /* Si se oculta el módulo de la pantalla en la que se está parado, se
+     vuelve al Inicio, igual que cuando Genez lo da de baja. */
+  const ocultosClave = (ajustes.modulosOcultos || []).join(",");
+  useEffect(() => {
+    if (!puedeVer(tab)) setTab("inicio");
+  }, [ocultosClave]);
+  /* El logo del ticket se arma apenas el comercio lo prende o lo cambia,
+     y queda listo para cuando se imprima: imprimir no puede esperar a
+     cargar una imagen (ver logoTicket.js). */
+  const logoEnTicket = !!(ajustes.ticket && ajustes.ticket.logo);
+  const marcaClave = JSON.stringify(ajustes.marca || {});
+  useEffect(() => {
+    if (logoEnTicket) prepararLogoTicket(ajustes.marca).catch(() => {});
+  }, [logoEnTicket, marcaClave]);
   useEffect(() => {
     if (primerAjuste.current) { primerAjuste.current = false; return; }
     const t = setTimeout(() => {
@@ -1574,6 +1605,10 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
          el papel lo diga con su nombre. */
       redondeo: redondeo || 0,
       cliente: cliente || null, sincronizada: null,
+      /* Quién cobró, para el "ATENDIO" del ticket si el comercio lo pide
+         (08/10). Solo en el papel de esta sesión: la venta guardada no
+         lo trae, y un ticket reimpreso sale sin ese renglón. */
+      cajero: sesion.nombre || null,
       /* Para el papel (0112): el canje, y lo que suma. Lo que suma lo
          calcula la base igual; acá es para que el cliente lo lea. */
       descPuntos: puntos, puntosSumados,
@@ -1808,7 +1843,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
          el sistema. Lo que el comercio simplemente no contrató desaparece,
          como siempre — un módulo no contratado no lo ve ni el dueño. */
       .filter((g) => g.modulos.length > 0 || g.proximo);
-  }, [rubro, modulos, config.cocinaEnPantalla]);
+  }, [rubro, modulos, config.cocinaEnPantalla, (ajustes.modulosOcultos || []).join(",")]);
 
   /* Una sección con un solo módulo se dibuja con el nombre de la sección y
      no con el del módulo: "Clientes y equipo" es un renglón, no un rótulo
@@ -2385,7 +2420,15 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                   empresaId={empresaId} recargarConexion={recargarConexion} alCambiarCajas={leerCajas}
                   sucursales={sucursales} alCambiarSucursales={async () => { await leerSucursales(); await leerCajas(); }}
                   apartado={actual === "cuenta" ? "plan" : actual} sinPlan />}
-                {actual === "plan" && <div className="max-w-2xl"><MiPlan toast={toast} /></div>}
+                {actual === "plan" && <div className="max-w-4xl"><MiPlan toast={toast} /></div>}
+                {actual === "modulos" && (
+                  <ModulosVisibles ajustes={ajustes} setAjustes={setAjustes} fijos={fijosDelMenu()}
+                    grupos={(rubro && rubro.grupos.length ? rubro.grupos : MENU_POR_DEFECTO)
+                      .map((g) => ({ ...g, modulos: (g.modulos || []).filter((m) => m.k !== "inicio" && m.k !== "administracion" && permitido(m.k)) }))
+                      .filter((g) => g.modulos.length)} />
+                )}
+                {actual === "ticket" && <DisenoTicket ajustes={ajustes} setAjustes={setAjustes} productos={productos} quien={sesion.nombre} toast={toast} onIr={setAdmSec} />}
+                {actual === "presencia" && <PresenciaOnline ajustes={ajustes} setAjustes={setAjustes} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} />}
                 {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
                 {actual === "permisos" && (
                   <Permisos empresaId={empresaId}

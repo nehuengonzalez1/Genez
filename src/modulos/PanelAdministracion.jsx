@@ -21,8 +21,8 @@
 
 import React from "react";
 import {
-  LayoutDashboard, Store, Receipt, Tags, Users, Printer, UserCog, ShieldCheck, CreditCard, KeyRound,
-  ChevronRight, Check, ArrowRight,
+  LayoutDashboard, Store, Receipt, ReceiptText, Tags, Users, Printer, UserCog, ShieldCheck, CreditCard, KeyRound,
+  ChevronRight, Check, ArrowRight, Eye, Globe,
 } from "lucide-react";
 import { Card } from "../ui/Base.jsx";
 
@@ -31,10 +31,13 @@ import { Card } from "../ui/Base.jsx";
 export const SECCIONES_ADMIN = [
   { grupo: "Tu negocio", k: "resumen", n: "Resumen", d: "Qué está listo y qué falta", i: LayoutDashboard, puerta: "administracion" },
   { grupo: "Tu negocio", k: "negocio", n: "Datos del negocio", d: "Identidad, contacto, datos fiscales y logo", i: Store, puerta: "ajustes" },
+  { grupo: "Tu negocio", k: "presencia", n: "Presencia online", d: "Tu página: horarios, contacto, redes y cómo se compra", i: Globe, puerta: "ajustes" },
+  { grupo: "Tu negocio", k: "modulos", n: "Módulos", d: "Cuáles se ven en el menú y cuáles ocultás", i: Eye, puerta: "ajustes" },
   { grupo: "Cómo se vende", k: "cobros", n: "Cobros y facturas", d: "Medios de pago, caja, comprobantes y Mercado Pago", i: Receipt, puerta: "ajustes" },
   { grupo: "Cómo se vende", k: "precios", n: "Precios y stock", d: "Listas, redondeos, reposición y margen", i: Tags, puerta: "ajustes" },
   { grupo: "Cómo se vende", k: "clientes", n: "Clientes", d: "Los puntos que suman al comprar", i: Users, puerta: "ajustes" },
-  { grupo: "Cómo se vende", k: "equipos", n: "Equipos", d: "Ticket, impresora, comandera y balanza", i: Printer, puerta: "ajustes" },
+  { grupo: "Cómo se vende", k: "ticket", n: "Ticket y factura", d: "Qué sale en el papel, viéndolo mientras lo elegís", i: ReceiptText, puerta: "ajustes" },
+  { grupo: "Cómo se vende", k: "equipos", n: "Equipos", d: "Impresora, comandera, balanza y sonidos", i: Printer, puerta: "ajustes" },
   { grupo: "Tu gente", k: "equipo", n: "Equipo", d: "Quién trabaja, accesos y horarios", i: UserCog, puerta: "equipo" },
   { grupo: "Tu gente", k: "permisos", n: "Permisos", d: "Qué puede hacer cada rol", i: ShieldCheck, puerta: "permisos" },
   { grupo: "Tu cuenta", k: "plan", n: "Mi plan", d: "Tu suscripción, cambiarla o darla de baja", i: CreditCard, puerta: "plan" },
