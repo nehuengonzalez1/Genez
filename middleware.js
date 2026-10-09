@@ -34,14 +34,22 @@
  * ida a Supabase delante de cada visita a la raíz para contestar algo que
  * la app contesta sola dos décimas después, y con la marca puesta.
  *
- * `matcher` es solo `/`: los assets, `/api/*`, el service worker y
- * `/cliente` salen por donde salían. Un subdominio que pida una ruta que
- * no existe sigue dando 404, como antes.
+ * `matcher` era solo `/` hasta el 09/10. Desde la tienda (0141) es toda
+ * ruta que no sea un archivo, `/api` ni `/assets`: el sitio del comercio
+ * tiene direcciones propias, y una que no existe la contesta el sitio
+ * ("No encontramos esa página") y no un 404 de Vercel.
  */
 
 import { rewrite, next } from "@vercel/functions/middleware";
 
-export const config = { matcher: "/" };
+/* LAS RUTAS DEL SITIO (0141)
+   El sitio del comercio tiene direcciones de verdad (/producto/remera-3f2a91c0,
+   /categoria/ropa, /checkout): una tienda se comparte por producto. Así que
+   cualquier ruta del subdominio va a cliente.html, menos lo que es un archivo
+   (tiene un punto: /assets/x.js, /sw.js, /manifest.webmanifest), /api y
+   /assets. En genez.com.ar no cambia nada: ahí el host corta enseguida.
+   Hasta el 09/10 era solo "/". */
+export const config = { matcher: ["/((?!api/|assets/|.*\\.).*)"] };
 
 /* El dominio de la plataforma, y no un comodín. Sin esto, los dominios de
    Vercel —`genez-algo.vercel.app`, y cada despliegue de vista previa—

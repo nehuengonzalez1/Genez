@@ -37,11 +37,12 @@ function achicar(archivo) {
 
 /* Devuelve { url, ruta }: la dirección pública y dónde quedó, para
    poder borrarla después. */
-export async function subirFotoPublica(empresaId, archivo) {
+/* `carpeta`: "galeria" para la página, "productos" para la tienda (0141). */
+export async function subirFotoPublica(empresaId, archivo, carpeta = "galeria") {
   if (!empresaId) throw new Error("No se sabe de qué comercio es la foto.");
   if (!/^image\//.test(archivo.type || "")) throw new Error("Tiene que ser una imagen.");
   const foto = await achicar(archivo);
-  const ruta = `${empresaId}/galeria/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const ruta = `${empresaId}/${carpeta}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.jpg`;
   const { error } = await supabase.storage.from(BUCKET).upload(ruta, foto, { contentType: "image/jpeg", upsert: false });
   if (error) {
     throw new Error(/row-level|policy|Unauthorized|403/i.test(error.message || "")

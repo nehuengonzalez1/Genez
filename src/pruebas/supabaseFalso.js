@@ -19,6 +19,7 @@
 import { armarDatos, USUARIO } from "./datos.js";
 import { normTel } from "../utils/importarProspectos.js";
 import { presenciaDesdeConfig } from "../cliente/vidriera.js";
+import { sitioDesdeConfig } from "../cliente/sitio/armar.js";
 
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 const datos = armarDatos(params.get("rubro") || "minimercado", params.get("sesion") || "comercio");
@@ -283,6 +284,17 @@ const ANTES = new Map();   // el documento como estaba, para su historial de ver
 const ANTES_SUS = new Map();   // la suscripción como estaba, para su historial
 let numeroCambio = 0;
 const DISPARADORES = {
+  /* items_vista es una vista en la base: lo que se crea o se cambia en items
+     aparece ahí solo. Acá se replica a mano (0141: las variantes se crean
+     desde la tienda y la pantalla las relee de la vista). */
+  items: (op, filas) => {
+    const vista = tablaDe("items_vista");
+    for (const f of filas) {
+      const v = vista.find((x) => x.id === f.id);
+      if (v) Object.assign(v, f);
+      else vista.push({ stock: 0, u30: 0, u30p: 0, vel: 0, ultima_venta: null, stock_cargado: false, costo_prev: f.costo, precio_prev: f.precio, ...f });
+    }
+  },
   /* Los checks de 0115 que la pantalla tiene que ver fallar: resolver sin
      solución y bloquear sin decir qué bloquea. */
   interno_tickets: (op, filas) => {
@@ -536,6 +548,52 @@ const FUNCIONES = {
     const m = (e.config && e.config.marca) || {};
     return [{ slug: e.slug, nombre: e.nombre, rubro: e.rubro, tema: m.tema || "auto", lema: m.lema || "", bajada: m.bajada || "",
       logo: m.logo || m.logoParaClaro || m.logoParaOscuro || null, portada: m.portada || null, autoregistro: false }];
+  },
+  /* La tienda online (0141), en chico: las mismas reglas que importan
+     para ver la pantalla (publicado, agotado, mínimo, envío). */
+  sitio_de: ({ p_slug }) => {
+    const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);
+    if (!e) return null;
+    const vista = tablaDe("items_vista");
+    const productos = tablaDe("items").filter((i) => i.empresa_id === e.id).map((i) => ({
+      id: i.id, nombre: i.nombre, categoria: i.categoria, marca: i.marca, descripcion: i.descripcion, precio: Number(i.precio), unidad: i.unidad,
+      imagen: i.imagen, camposExtra: i.campos_extra || {}, padreId: i.padre_id || null, atributos: i.atributos || null,
+      controlaStock: i.controla_stock !== false, activo: i.activo !== false, stock: (vista.find((v) => v.id === i.id) || i).stock || 0,
+    }));
+    return sitioDesdeConfig({ ...(e.config || {}), negocio: e.nombre }, productos, { conTienda: (e.modulos || []).includes("tienda") });
+  },
+  pedir_en_la_tienda: ({ p_slug, p_pedido }) => {
+    const s = FUNCIONES.sitio_de({ p_slug });
+    if (!s || !s.tienda) throw new Error("Esta tienda no está recibiendo pedidos.");
+    /* Las variantes se piden por su id, como un producto más. */
+    const cat = { config: s.tienda.config, items: s.tienda.items.flatMap((p) => (p.variantes.length
+      ? p.variantes.map((v) => ({ ...v, nombre: `${p.nombre} · ${Object.values(v.atributos).join(" · ")}`, unidad: p.unidad }))
+      : [p])) };
+    const p = p_pedido || {};
+    if (String(p.nombre || "").trim().length < 2) throw new Error("Escribí tu nombre.");
+    const tel = String(p.telefono || "").replace(/\D/g, "");
+    if (tel.length < 8) throw new Error("Escribí un celular con código de área.");
+    const lineas = (p.lineas || []).map((l) => {
+      const i = cat.items.find((x) => x.id === l.item_id);
+      if (!i) throw new Error("Algo del carrito ya no está en la tienda. Actualizá la página.");
+      if (i.agotado) throw new Error(`${i.nombre} se agotó. Sacalo del carrito.`);
+      return { item_id: i.id, nombre: i.nombre, precio: i.precio, cantidad: l.cantidad, unidad: i.unidad };
+    });
+    const sub = lineas.reduce((s, l) => s + Math.round(l.precio * l.cantidad), 0);
+    if (sub < cat.config.minimo) throw new Error(`La compra mínima es de $${cat.config.minimo.toLocaleString("es-AR")}.`);
+    const envio = p.entrega === "envio" && !(cat.config.envioGratisDesde && sub >= cat.config.envioGratisDesde) ? cat.config.costoEnvio : 0;
+    const e = tablaDe("empresas").find((x) => x.slug === p_slug);
+    const numero = tablaDe("pedidos_tienda").filter((x) => x.empresa_id === e.id).reduce((m, x) => Math.max(m, x.numero), 0) + 1;
+    tablaDe("pedidos_tienda").push({ id: uuid(), empresa_id: e.id, numero, estado: "nuevo", nombre: p.nombre, telefono: tel, email: p.email || null, pago: p.pago || "efectivo", entrega: p.entrega, direccion: p.direccion || null, nota: p.nota || null,
+      lineas, subtotal: sub, envio, total: sub + envio, creado_en: new Date().toISOString() });
+    return { numero, total: sub + envio };
+  },
+  estado_pedido_tienda: ({ p_pedido, p_estado, p_venta }) => {
+    const p = tablaDe("pedidos_tienda").find((x) => x.id === p_pedido);
+    if (!p) throw new Error("No encontramos ese pedido.");
+    if (p.estado === "entregado" || p.estado === "cancelado") throw new Error("Ese pedido ya está cerrado.");
+    Object.assign(p, { estado: p_estado, venta_id: p_venta || p.venta_id || null });
+    return null;
   },
   presencia_de: ({ p_slug }) => {
     const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);

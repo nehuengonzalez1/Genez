@@ -47,6 +47,10 @@ export const MODULOS = [
      la prueba —que es Pro— arrancaba sin el asistente: lo vio Nehuen el
      06/10 en el alta real de punta a punta. */
   { k: "asistente", n: "Asistente con IA", d: "Diagnóstico y consultas", nivel: "pro", necesita: [] },
+  /* La tienda online (0141). `oculto`: todavía no sale en la landing ni
+     se ofrece en el alta; la plataforma la prende a mano por comercio
+     hasta que se decida en qué plan entra. */
+  { k: "tienda", n: "Tienda online", d: "Catálogo, carrito y pedidos por internet", nivel: "pro", oculto: true, necesita: ["Fotos de tus productos"] },
 ];
 
 export const MODULOS_BASE = MODULOS.filter((m) => m.base).map((m) => m.k);

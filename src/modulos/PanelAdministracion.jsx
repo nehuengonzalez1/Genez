@@ -22,7 +22,7 @@
 import React from "react";
 import {
   LayoutDashboard, Store, Receipt, ReceiptText, Tags, Users, Printer, UserCog, ShieldCheck, CreditCard, KeyRound,
-  ChevronRight, Check, ArrowRight, Eye, Globe,
+  ChevronRight, Check, ArrowRight, Eye, Globe, ShoppingBag,
 } from "lucide-react";
 import { Card } from "../ui/Base.jsx";
 
@@ -31,7 +31,11 @@ import { Card } from "../ui/Base.jsx";
 export const SECCIONES_ADMIN = [
   { grupo: "Tu negocio", k: "resumen", n: "Resumen", d: "Qué está listo y qué falta", i: LayoutDashboard, puerta: "administracion" },
   { grupo: "Tu negocio", k: "negocio", n: "Datos del negocio", d: "Identidad, contacto, datos fiscales y logo", i: Store, puerta: "ajustes" },
-  { grupo: "Tu negocio", k: "presencia", n: "Presencia online", d: "Tu página: horarios, contacto, redes y cómo se compra", i: Globe, puerta: "ajustes" },
+  /* El sitio del comercio (0141): diseño, productos, envíos y la
+     información del local. Lo ve cualquiera con Ajustes; sin el módulo de
+     tienda es el sitio con la información, sin productos. Hasta el 09/10
+     eran dos secciones, Presencia online y Tienda online. */
+  { grupo: "Tu negocio", k: "tienda", n: "Tienda online", d: "Tu sitio: diseño, productos, envíos, pagos e información", i: ShoppingBag, puerta: "ajustes" },
   { grupo: "Tu negocio", k: "modulos", n: "Módulos", d: "Cuáles se ven en el menú y cuáles ocultás", i: Eye, puerta: "ajustes" },
   { grupo: "Cómo se vende", k: "cobros", n: "Cobros y facturas", d: "Medios de pago, caja, comprobantes y Mercado Pago", i: Receipt, puerta: "ajustes" },
   { grupo: "Cómo se vende", k: "precios", n: "Precios y stock", d: "Listas, redondeos, reposición y margen", i: Tags, puerta: "ajustes" },

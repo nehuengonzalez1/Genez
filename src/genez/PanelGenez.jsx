@@ -77,7 +77,8 @@ import { CentroAdministracion, ResumenAdministracion, SECCIONES_ADMIN } from "..
 import { ModulosVisibles } from "../modulos/ModulosVisibles.jsx";
 import { DisenoTicket } from "../modulos/DisenoTicket.jsx";
 import { prepararLogoTicket } from "../ui/logoTicket.js";
-import { PresenciaOnline } from "../modulos/PresenciaOnline.jsx";
+import { TiendaOnline } from "../modulos/TiendaOnline.jsx";
+import { cargarPedidosTienda, estadoPedidoTienda, aPedidoDePicking, ESTADO_TIENDA } from "../datos/tienda.js";
 import { MiPlan, NOMBRE_PLAN } from "../modulos/MiPlan.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
@@ -892,6 +893,9 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
        lo controlan MiPlan y el servidor). */
     if (k === "administracion") return ["equipo", "permisos", "ajustes"].some((m) => modulos.includes(m));
     if (k === "plan") return modulos.includes("ajustes");
+    /* Los pedidos de la tienda online (0141) se preparan y se cobran en
+       Pedidos: con la tienda, Pedidos se ve aunque no se haya contratado. */
+    if (k === "pedidos") return modulos.includes("pedidos") || modulos.includes("tienda");
     // La cocina viaja con el salón: no se contrata sola, se prende o no.
     if (k === "cocina") return !!config.cocinaEnPantalla && modulos.includes("comandas");
     // El mostrador tampoco se contrata solo: es la otra cara del salón.
@@ -1168,6 +1172,45 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     }, 600);
     return () => clearTimeout(t);
   }, [ajustes, empresaId]);
+
+  /* LOS PEDIDOS DE LA TIENDA ONLINE (0141)
+     Se leen al entrar y cada 30 segundos, y se suman a los de Pedidos.
+     Los nuevos suenan y avisan; los de la primera lectura no, que ya
+     estaban. Cada cambio de estado que se hace en Pedidos (abrirlo,
+     tenerlo listo, cobrarlo, cancelarlo) vuelve a la base. */
+  const conTienda = permitido("tienda");
+  const webVistos = useRef(null);
+  useEffect(() => {
+    if (!conTienda || !empresaId) return;
+    let vivo = true;
+    const leer = () => cargarPedidosTienda(empresaId).then((filas) => {
+      if (!vivo) return;
+      const primera = webVistos.current === null;
+      const antes = webVistos.current || new Set();
+      const nuevos = filas.filter((f) => !antes.has(f.id));
+      webVistos.current = new Set([...antes, ...filas.map((f) => f.id)]);
+      if (!nuevos.length) return;
+      setPedidosCli((ps) => [...nuevos.filter((f) => !ps.some((p) => p.webId === f.id)).map(aPedidoDePicking), ...ps]);
+      if (!primera) {
+        campanita(ajustes.sonido);
+        toast(nuevos.length === 1 ? `Entró un pedido de la tienda: ${nuevos[0].nombre}` : `Entraron ${nuevos.length} pedidos de la tienda`);
+      }
+    }).catch(() => { /* sin conexión: la próxima vuelta */ });
+    leer();
+    const t = setInterval(leer, 30000);
+    return () => { vivo = false; clearInterval(t); };
+  }, [conTienda, empresaId]);
+  const estadosWeb = useRef({});
+  useEffect(() => {
+    for (const p of pedidosCli) {
+      if (!p.webId) continue;
+      const antes = estadosWeb.current[p.webId];
+      estadosWeb.current[p.webId] = p.estado;
+      if (antes === undefined || antes === p.estado) continue;
+      const e = ESTADO_TIENDA[p.estado];
+      if (e) estadoPedidoTienda(p.webId, e, p.ventaId || null).catch((err) => toast(err.message, "mal"));
+    }
+  }, [pedidosCli]);
 
   /* Los proveedores tampoco vienen del generador. Se cargan por comercio
      y, como las pantallas editan el objeto entero con `setProvs`, cada
@@ -2428,7 +2471,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                       .filter((g) => g.modulos.length)} />
                 )}
                 {actual === "ticket" && <DisenoTicket ajustes={ajustes} setAjustes={setAjustes} productos={productos} quien={sesion.nombre} toast={toast} onIr={setAdmSec} />}
-                {actual === "presencia" && <PresenciaOnline ajustes={ajustes} setAjustes={setAjustes} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} />}
+                {actual === "tienda" && <TiendaOnline ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} conTienda={permitido("tienda")} />}
                 {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
                 {actual === "permisos" && (
                   <Permisos empresaId={empresaId}

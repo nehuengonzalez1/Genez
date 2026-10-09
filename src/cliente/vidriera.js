@@ -76,7 +76,7 @@ const soloDigitos = (v) => String(v).replace(/\D/g, "");
 
 /* wa.me pide el número internacional: en Argentina, 549 y el código de
    área sin el 0. Si ya lo cargaron con el 54, se respeta. */
-const numeroWhatsApp = (v) => {
+export const numeroWhatsApp = (v) => {
   const d = soloDigitos(v);
   return d.startsWith("54") ? d : `549${d.replace(/^0/, "")}`;
 };

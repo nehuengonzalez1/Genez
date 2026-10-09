@@ -132,6 +132,24 @@ export async function cargarPresencia(slug) {
   return data;
 }
 
+/* El sitio del comercio (0141): el diseño, la información y la tienda,
+   en una ida. Null si no hay nada publicado. Un error no corta nada: sin
+   sitio, la página queda como la bienvenida de siempre. */
+export async function cargarSitio(slug) {
+  if (!slug) return null;
+  const { data, error } = await supabase.rpc("sitio_de", { p_slug: slug });
+  if (error || !data) return null;
+  return data;
+}
+
+/* El pedido. El precio lo pone la base: acá van solo qué y cuánto. Los
+   errores de la base ya vienen escritos para quien compra. */
+export async function pedirEnLaTienda(slug, pedido) {
+  const { data, error } = await supabase.rpc("pedir_en_la_tienda", { p_slug: slug, p_pedido: pedido });
+  if (error) throw new Error(error.message || "No se pudo mandar el pedido.");
+  return data;
+}
+
 /* Qué muestra la app de este comercio. Sale de cruzar el catálogo de
    plataforma con lo que el comercio contrató y no apagó, así que la
    navegación se dibuja y no se decide en el código. */

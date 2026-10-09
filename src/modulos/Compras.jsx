@@ -6,7 +6,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   ScanLine, Camera, Upload, FileImage, Plus, X, Check, Trash2,
   Loader2, ChevronLeft, ChevronRight, Barcode, Bike, PackageCheck,
-  Phone, MessageCircle, Boxes, Search, ArrowRight, Store, Minus, Printer, Percent
+  Phone, MessageCircle, Boxes, Search, ArrowRight, Store, Minus, Printer, Percent, ShoppingBag
 } from "lucide-react";
 import { uid, fdatel } from "../datos/generador.js";
 import {
@@ -916,8 +916,24 @@ export function Picking({ pedidos, setPedidos, productos, setProductos, cobrar, 
     setAbierto(p.id);
   };
 
-  const chip = { pendiente: "bg-ojo-suave text-ojo border-ojo", preparando: "bg-info-suave text-info border-info", listo: "bg-bien-suave text-bien border-bien", entregado: "bg-superficie-2 text-texto-suave border-borde" };
-  const pend = pedidos.filter((p) => p.estado !== "entregado");
+  const chip = { pendiente: "bg-ojo-suave text-ojo border-ojo", preparando: "bg-info-suave text-info border-info", listo: "bg-bien-suave text-bien border-bien", entregado: "bg-superficie-2 text-texto-suave border-borde", cancelado: "bg-superficie-2 text-texto-tenue border-borde" };
+  const pend = pedidos.filter((p) => p.estado !== "entregado" && p.estado !== "cancelado");
+  /* Un pedido de la tienda online (0141) se puede cancelar —el que pidió
+     no contesta, no hay de algo— y se le avisa al cliente por WhatsApp.
+     Los de la pistola no: no le pertenecen a nadie de afuera. */
+  const cancelar = (p) => {
+    if (!window.confirm(`¿Cancelar el pedido ${p.nro} de ${p.cliente}?`)) return;
+    setPedidos((ps) => ps.map((x) => (x.id === p.id ? { ...x, estado: "cancelado" } : x)));
+    toast(`Pedido ${p.nro} cancelado.`);
+  };
+  const whatsapp = (p) => {
+    const d = String(p.tel || "").replace(/\D/g, "");
+    const num = d.startsWith("54") ? d : `549${d.replace(/^0/, "")}`;
+    const texto = p.estado === "listo"
+      ? `Hola ${p.cliente}, tu pedido ${p.nro} de ${ajustes.negocio || "la tienda"} está listo${p.entrega === "Envío" ? " y sale para tu casa" : " para retirar"}.`
+      : `Hola ${p.cliente}, recibimos tu pedido ${p.nro} en ${ajustes.negocio || "la tienda"}.`;
+    return `https://wa.me/${num}?text=${encodeURIComponent(texto)}`;
+  };
 
   return (
     <div className="space-y-4">
@@ -955,7 +971,7 @@ export function Picking({ pedidos, setPedidos, productos, setProductos, cobrar, 
                     </div>
                     <h3 className="f-d text-base mt-1 truncate">{p.cliente}</h3>
                     <div className="text-xs text-texto-suave flex items-center gap-1.5 mt-0.5">
-                      {p.canal === "Teléfono" ? <Phone size={12} /> : <MessageCircle size={12} />} {p.canal} · {p.hora}
+                      {p.canal === "Teléfono" ? <Phone size={12} /> : p.webId ? <ShoppingBag size={12} /> : <MessageCircle size={12} />} {p.canal} · {p.hora}
                       <span className="text-texto-tenue">·</span>
                       {p.entrega === "Envío" ? <Bike size={12} /> : <Store size={12} />} {p.entrega}
                     </div>
@@ -965,15 +981,29 @@ export function Picking({ pedidos, setPedidos, productos, setProductos, cobrar, 
                     <div className="text-[11px] text-texto-tenue">{p.items.length} productos · {nf.format(Math.round(unid))} u</div>
                   </div>
                 </div>
+                {p.webId && p.entrega === "Envío" && p.dir && <p className="text-xs text-texto-suave mt-2"><Bike size={12} className="inline -mt-0.5" /> {p.dir}</p>}
                 {p.nota && <p className="text-xs text-texto-suave bg-superficie-2 rounded-lg px-2.5 py-1.5 mt-2.5">{p.nota}</p>}
                 {p.estado !== "pendiente" && (
                   <div className="h-1.5 bg-superficie-2 rounded-full mt-3 overflow-hidden">
                     <div className="h-full bg-bien rounded-full" style={{ width: `${(listas / p.items.length) * 100}%` }} />
                   </div>
                 )}
-                <Boton className="w-full mt-3" variant={p.estado === "listo" ? "ghost" : "primary"} onClick={() => setAbierto(p.id)}>
-                  <ScanLine size={15} /> {p.estado === "pendiente" ? "Preparar con pistola" : p.estado === "preparando" ? "Seguir preparando" : "Ver y cobrar"}
-                </Boton>
+                {p.estado !== "cancelado" && p.estado !== "entregado" && (
+                  <Boton className="w-full mt-3" variant={p.estado === "listo" ? "ghost" : "primary"} onClick={() => setAbierto(p.id)}>
+                    <ScanLine size={15} /> {p.estado === "pendiente" ? "Preparar con pistola" : p.estado === "preparando" ? "Seguir preparando" : "Ver y cobrar"}
+                  </Boton>
+                )}
+                {p.webId && p.estado !== "cancelado" && p.estado !== "entregado" && (
+                  <div className="flex gap-2 mt-2">
+                    {p.tel && (
+                      <a href={whatsapp(p)} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-borde px-3 py-2 text-xs font-semibold hover:bg-superficie-2">
+                        <MessageCircle size={14} /> {p.estado === "listo" ? "Avisar que está listo" : "Escribirle"}
+                      </a>
+                    )}
+                    <button type="button" onClick={() => cancelar(p)} className="rounded-xl border border-borde px-3 py-2 text-xs font-semibold text-texto-suave hover:text-mal hover:border-mal">Cancelar</button>
+                  </div>
+                )}
               </Card>
             );
           })}
@@ -1100,7 +1130,11 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
       const p = productos.find((x) => x.id === l.pid);
       return { pid: l.pid, qty: l.preparado, precio: l.unit, costo: p ? p.costo : 0, nombre: l.nombre, unidad: l.unidad, lista: l.lista, listaNombre: l.listaNombre };
     });
-    const t = cobrar({ items: lineas, sub: monto, desc: 0, total: monto, medio,
+    /* El envío de un pedido de la tienda (0141) se cobra como recargo: así
+       sale en el ticket con su nombre y no se mezcla con los productos. */
+    const envio = ped.webId && ped.envio > 0 ? ped.envio : 0;
+    const t = cobrar({ items: lineas, sub: monto, desc: 0, total: monto + envio, medio,
+      ...(envio ? { recargo: envio, recargoNombre: "ENVIO" } : {}),
       ganancia: monto - lineas.reduce((s, l) => s + l.costo * l.qty, 0) });
     /* Sin caja abierta el pedido queda como estaba, listo para cobrarse
        de nuevo cuando se abra. */
@@ -1109,7 +1143,7 @@ export function PrepararPedido({ ped, setPedidos, productos, setProductos, cobra
       const l = lineas.find((x) => x.pid === p.id);
       return l ? { ...p, stock: +(p.stock - l.qty).toFixed(3), ultimaVenta: new Date(), u30: p.u30 + l.qty } : p;
     }));
-    setPedidos((ps) => ps.map((p) => (p.id === ped.id ? { ...p, items, estado: "entregado" } : p)));
+    setPedidos((ps) => ps.map((p) => (p.id === ped.id ? { ...p, items, estado: "entregado", ventaId: t.id } : p)));
     setCerrando(false);
     setTicket(t);
   };
