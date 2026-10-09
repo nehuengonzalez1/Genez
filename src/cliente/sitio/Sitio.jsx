@@ -73,6 +73,7 @@ function SitioAdentro({ sitio, marca, slug, memoria, onPedir, onIngresar }) {
   };
 
   let pagina;
+  let titulo = null;
   const [, base, resto] = ruta.match(/^\/([^/]*)\/?(.*)$/) || [];
   if (base === "producto") {
     /* La dirección es "nombre-del-producto-3f2a91c0": se busca por el
@@ -84,17 +85,28 @@ function SitioAdentro({ sitio, marca, slug, memoria, onPedir, onIngresar }) {
       || items.find((x) => slugDe(x.nombre) === nombre)
       || (id && items.find((x) => String(x.id).startsWith(id)));
     pagina = p ? <PaginaProducto ctx={ctx} p={p} /> : <NoEsta ctx={ctx} />;
-  } else if (base === "productos") pagina = <Catalogo ctx={ctx} titulo="Todos los productos" lista={items} />;
+    titulo = p ? p.nombre : null;
+  } else if (base === "productos") { pagina = <Catalogo ctx={ctx} titulo="Todos los productos" lista={items} />; titulo = "Productos"; }
   else if (base === "categoria") {
     const c = categorias.find((x) => slugDe(x) === resto);
     pagina = c ? <Catalogo ctx={ctx} titulo={c} lista={items.filter((i) => i.categoria === c)} categoria={c} /> : <NoEsta ctx={ctx} />;
+    titulo = c || null;
   } else if (base === "buscar") {
     const q = decodeURIComponent(resto || "");
     pagina = <Catalogo ctx={ctx} titulo={`Resultados para “${q}”`} lista={items.filter((i) => sinAcentos(`${i.nombre} ${i.categoria} ${i.marca || ""}`).includes(sinAcentos(q)))} />;
-  } else if (base === "checkout") pagina = <Checkout ctx={ctx} />;
-  else if (base === "pedido") pagina = <Confirmacion ctx={ctx} numero={resto} />;
-  else if (base === "contacto") pagina = <Contacto ctx={ctx} />;
+    titulo = `Buscar “${q}”`;
+  } else if (base === "checkout") { pagina = <Checkout ctx={ctx} />; titulo = "Finalizar compra"; }
+  else if (base === "pedido") { pagina = <Confirmacion ctx={ctx} numero={resto} />; titulo = `Pedido #${resto}`; }
+  else if (base === "contacto") { pagina = <Contacto ctx={ctx} />; titulo = "Contacto"; }
   else pagina = <Inicio ctx={ctx} />;
+
+  /* El título de la pestaña: "Remera lisa · Super 25", y en el inicio el
+     nombre solo. En la vista previa de la gestión no se toca: le
+     cambiaría el título a la gestión. */
+  const tituloPestana = titulo ? `${titulo} · ${marca.nombre}` : marca.nombre;
+  useEffect(() => {
+    if (!memoria && tituloPestana) document.title = tituloPestana;
+  }, [tituloPestana, memoria]);
 
   return (
     <div ref={raiz} className={`${oscuro ? "tema-noche" : "tema-calido"} bg-fondo text-texto min-h-screen flex flex-col`} style={estilo} data-sitio data-plantilla={d.plantilla}>
