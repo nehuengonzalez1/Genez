@@ -2,28 +2,43 @@
    0141 · TIENDA ONLINE
    ============================================================
 
-   La página del comercio (0140) muestra quién es y cómo encontrarlo. La
-   tienda le suma lo que vende: los productos publicados, un carrito y
-   un pedido que llega al comercio. Es lo que Ventario pone en el centro
-   de su producto y Vendi en su plan más caro; Nehuen lo pidió el 08/10.
+   El sitio del comercio, al nivel de Tienda Nube: una página con su
+   diseño, sus categorías, una página por producto (con fotos y
+   variantes), carrito, checkout y el pedido que llega al comercio.
+   Nehuen, 08/10 y 09/10: "tiene que ser igual a Tienda Nube".
 
-   QUÉ SE DECIDIÓ (08/10, a confirmar por Nehuen)
-   ----------------------------------------------
-   - Comercio y minimercado primero. Gastronomía ya tiene pedidos por
-     canal y la carta QR; su tienda va después, en el centro de pedidos.
-   - Se paga al retirar o al recibir. Mercado Pago online, después: pide
-     que cada comercio conecte su cuenta y el cobro hoy ya existe en la
-     caja.
-   - Es un módulo, `tienda`, que se prende por comercio. En qué plan
-     entra lo decide la plataforma.
+   Reemplaza a "Presencia online" (0140) como pantalla: la información
+   del local (horarios, contacto, aviso) es una parte del sitio, no otro
+   módulo. Lo de 0140 sigue: `presencia_de` lo usa el código que está en
+   producción, y `config.publico` es de donde sale esa información.
+
+   QUÉ SE DECIDIÓ (Nehuen, 09/10)
+   ------------------------------
+   - Para cualquier comercio, con variantes (talle, color) desde el
+     principio.
+   - Se paga al retirar o al recibir (efectivo o transferencia). Mercado
+     Pago online es la fase 2.
+   - El dominio propio queda para después.
+   - Es el módulo `tienda`, que la plataforma prende por comercio. Sin
+     el módulo, el comercio igual tiene su sitio con su información
+     (lo de 0140), sin productos.
+
+   LAS VARIANTES SON PRODUCTOS
+   ---------------------------
+   "Remera lisa" con talles y colores es un producto padre, y cada
+   combinación ("Remera lisa · M · Negro") es un producto más, hijo
+   (`items.padre_id`), con sus atributos (`items.atributos`:
+   {"Talle": "M", "Color": "Negro"}), su precio, su código y su stock.
+   Así la caja, la pistola, el stock y los informes siguen andando sin
+   saber que existen las variantes: venden un producto, como siempre. La
+   tienda los junta bajo el padre.
 
    LOS PRODUCTOS SON LOS DE SIEMPRE
    --------------------------------
    No hay un catálogo de la tienda: se publica un producto de Productos
-   (`items.campos_extra.tienda.publicado`), con su foto (`items.imagen`,
-   de 0023) y, si se quiere, un precio para la web
-   (`campos_extra.tienda.precio`). El precio, el nombre y el stock son
-   los de la caja: lo que se vende en la web es lo que hay.
+   (`campos_extra.tienda.publicado`, en el padre si tiene variantes),
+   con sus fotos (`items.imagen` la principal; `campos_extra.tienda.fotos`
+   las demás), su descripción y, si se quiere, un precio para la web.
 
    EL PEDIDO
    ---------
@@ -37,9 +52,111 @@
    cada uno; 3 pedidos cada 10 minutos por teléfono y 30 por comercio.
 
    Nadie de afuera lee la tabla: el navegador del cliente solo llama a
-   `catalogo_tienda` y `pedir_en_la_tienda`. El comercio la ve por RLS
+   `sitio_de` y `pedir_en_la_tienda`. El comercio la ve por RLS
    (puede_ver) y cambia el estado por `estado_pedido_tienda`.
    ============================================================ */
+
+
+/* ---------- Las variantes ---------- */
+
+alter table items add column if not exists padre_id uuid references items(id) on delete cascade;
+alter table items add column if not exists atributos jsonb;
+create index if not exists items_padre on items (padre_id) where padre_id is not null;
+
+comment on column items.padre_id is
+  'La variante de un producto (0141): "Remera · M · Negro" cuelga de "Remera". Es un producto completo, con su stock y su código.';
+comment on column items.atributos is
+  'Lo que distingue a una variante: {"Talle": "M", "Color": "Negro"}.';
+
+
+/* La gestión lee los productos de `items_vista`: las dos columnas nuevas
+   van al final (es lo único que `create or replace view` deja hacer). El
+   resto es la vista de 0111, igual. */
+create or replace view items_vista with (security_invoker = true) as
+SELECT i.id,
+    i.empresa_id,
+    i.tipo,
+    i.nombre,
+    i.categoria,
+    i.marca,
+    i.sku,
+    i.barcode,
+    i.unidad,
+    i.costo,
+    i.precio,
+    i.precios,
+    i.iva,
+    i.controla_stock,
+    i.stock_min,
+    i.bulto,
+    i.duracion_min,
+    i.campos_extra,
+    i.activo,
+    pr.nombre AS proveedor,
+    i.proveedor_id,
+    COALESCE(st.stock, (0)::numeric) AS stock,
+    st.vence,
+    COALESCE(hc.costo, i.costo) AS costo_prev,
+    COALESCE(hp.precio, i.precio) AS precio_prev,
+    COALESCE(v.u30, (0)::numeric) AS u30,
+    COALESCE(vp.u30, (0)::numeric) AS u30p,
+    round((COALESCE(v.u30, (0)::numeric) / 30.0), 4) AS vel,
+    v.ultima_venta,
+    i.descripcion,
+    i.imagen,
+    uc.costo_reposicion,
+    uc.costo_reposicion_fecha,
+    i.precio_abierto,
+    i.iva_condicion,
+    COALESCE(st.cargado, false) AS stock_cargado,
+    i.padre_id,
+    i.atributos
+   FROM (((((((items i
+     LEFT JOIN proveedores pr ON ((pr.id = i.proveedor_id)))
+     LEFT JOIN ( SELECT movimientos_stock.item_id,
+            sum(movimientos_stock.cantidad) AS stock,
+            bool_or((movimientos_stock.tipo <> ALL (ARRAY['venta'::text, 'devolucion'::text]))) AS cargado,
+            min(movimientos_stock.vence) FILTER (WHERE (movimientos_stock.vence IS NOT NULL)) AS vence
+           FROM movimientos_stock
+          GROUP BY movimientos_stock.item_id) st ON ((st.item_id = i.id)))
+     LEFT JOIN LATERAL ( SELECT h.costo
+           FROM historial_costos h
+          WHERE ((h.item_id = i.id) AND (h.fecha < (now() - '30 days'::interval)))
+          ORDER BY h.fecha DESC
+         LIMIT 1) hc ON (true))
+     LEFT JOIN LATERAL ( SELECT h.precio
+           FROM historial_precios h
+          WHERE ((h.item_id = i.id) AND (h.fecha < (now() - '30 days'::interval)))
+          ORDER BY h.fecha DESC
+         LIMIT 1) hp ON (true))
+     LEFT JOIN ( SELECT l.item_id,
+            sum(
+                CASE
+                    WHEN (o.tipo = 'devolucion'::text) THEN (- l.cantidad)
+                    ELSE l.cantidad
+                END) AS u30,
+            max(o.fecha) FILTER (WHERE (o.tipo <> 'devolucion'::text)) AS ultima_venta
+           FROM (operacion_lineas l
+             JOIN operaciones o ON ((o.id = l.operacion_id)))
+          WHERE ((o.tipo = ANY (ARRAY['venta'::text, 'comanda'::text, 'devolucion'::text])) AND (o.estado = 'confirmada'::text) AND (o.fecha > (now() - '30 days'::interval)))
+          GROUP BY l.item_id) v ON ((v.item_id = i.id)))
+     LEFT JOIN ( SELECT l.item_id,
+            sum(
+                CASE
+                    WHEN (o.tipo = 'devolucion'::text) THEN (- l.cantidad)
+                    ELSE l.cantidad
+                END) AS u30
+           FROM (operacion_lineas l
+             JOIN operaciones o ON ((o.id = l.operacion_id)))
+          WHERE ((o.tipo = ANY (ARRAY['venta'::text, 'comanda'::text, 'devolucion'::text])) AND (o.estado = 'confirmada'::text) AND (o.fecha > (now() - '60 days'::interval)) AND (o.fecha <= (now() - '30 days'::interval)))
+          GROUP BY l.item_id) vp ON ((vp.item_id = i.id)))
+     LEFT JOIN LATERAL ( SELECT l.costo_unitario AS costo_reposicion,
+            o.cerrada_en AS costo_reposicion_fecha
+           FROM (operacion_lineas l
+             JOIN operaciones o ON ((o.id = l.operacion_id)))
+          WHERE ((l.item_id = i.id) AND (o.tipo = 'compra'::text) AND (o.estado = 'confirmada'::text))
+          ORDER BY o.cerrada_en DESC NULLS LAST
+         LIMIT 1) uc ON (true));
 
 
 /* ---------- Los pedidos ---------- */
@@ -51,8 +168,10 @@ create table pedidos_tienda (
   estado         text not null default 'nuevo',
   nombre         text not null,
   telefono       text not null,
+  email          text,
   entrega        text not null default 'retiro',
   direccion      text,
+  pago           text not null default 'efectivo',
   nota           text,
   lineas         jsonb not null,
   subtotal       numeric(14,2) not null,
@@ -63,6 +182,7 @@ create table pedidos_tienda (
   actualizado_en timestamptz not null default now(),
   constraint pedidos_tienda_estado check (estado in ('nuevo', 'confirmado', 'listo', 'entregado', 'cancelado')),
   constraint pedidos_tienda_entrega check (entrega in ('retiro', 'envio')),
+  constraint pedidos_tienda_pago check (pago in ('efectivo', 'transferencia')),
   unique (empresa_id, numero)
 );
 
@@ -91,67 +211,148 @@ as $$
      and 'tienda' = any(e.modulos)
      and coalesce((e.config -> 'tienda' ->> 'activa')::boolean, false)
 $$;
-/* Interna: la usan las dos funciones públicas, no el navegador. Se le
-   saca a anon y authenticated además de public: los default privileges
-   de Supabase se la dan a los dos (ver ARQUITECTURA.md). */
+/* Interna: la usan las funciones públicas, no el navegador. Se le saca
+   a anon y authenticated además de public: los default privileges de
+   Supabase se la dan a los dos (ver ARQUITECTURA.md). */
 revoke all on function tienda_de(text) from public, anon, authenticated;
 
 
-/* ---------- Leer la tienda (pública) ---------- */
+/* ---------- El catálogo ---------- */
 
-/* Solo lo publicado, activo y con precio. Nada de costos. El stock va
-   solo si el comercio eligió mostrarlo; "agotado" va siempre que el
-   producto lleve stock y no tenga, para no vender lo que no hay. */
-create or replace function catalogo_tienda(p_slug text)
+/* Interna. Lo publicado, activo y con precio, con sus variantes. Nada de
+   costos. "agotado" va siempre que lleve stock y no tenga; la cantidad,
+   solo si el comercio eligió mostrarla. */
+create or replace function catalogo_de_empresa(p_empresa uuid, p_mostrar_stock boolean)
 returns jsonb
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  with e as (select * from tienda_de(p_slug)),
-  t as (select coalesce(e.config -> 'tienda', '{}'::jsonb) as c from e)
-  select case when (select id from e) is null then null else jsonb_build_object(
-    'config', (select jsonb_build_object(
-        'minimo',      coalesce((c ->> 'minimo')::numeric, 0),
-        'retiro',      coalesce((c ->> 'retiro')::boolean, true),
-        'envio',       coalesce((c ->> 'envio')::boolean, false),
-        'costoEnvio',  coalesce((c ->> 'costoEnvio')::numeric, 0),
-        'envioGratisDesde', nullif((c ->> 'envioGratisDesde')::numeric, 0),
-        'zona',        nullif(left(coalesce(c ->> 'zona', ''), 120), ''),
-        'mostrarStock', coalesce((c ->> 'mostrarStock')::boolean, false)
-      ) from t),
-    'items', coalesce((
-      select jsonb_agg(jsonb_build_object(
-               'id', i.id,
-               'nombre', i.nombre,
-               'descripcion', i.descripcion,
-               'categoria', coalesce(nullif(i.categoria, ''), 'Otros'),
-               'precio', coalesce(nullif((i.campos_extra -> 'tienda' ->> 'precio')::numeric, 0), i.precio),
-               'unidad', i.unidad,
-               'imagen', i.imagen,
-               'destacado', coalesce((i.campos_extra -> 'tienda' ->> 'destacado')::boolean, false),
-               'agotado', i.controla_stock and coalesce(s.stock, 0) <= 0,
-               'stock', case when coalesce(((select c from t) ->> 'mostrarStock')::boolean, false) and i.controla_stock
-                             then greatest(coalesce(s.stock, 0), 0) end)
-             order by coalesce((i.campos_extra -> 'tienda' ->> 'destacado')::boolean, false) desc, i.categoria, i.nombre)
-        from items i
-        left join lateral (
-          select sum(m.cantidad) as stock from movimientos_stock m
-           where m.item_id = i.id and m.empresa_id = i.empresa_id
-        ) s on true
-       where i.empresa_id = (select id from e) and i.activo and i.precio > 0
-         and i.tipo in ('producto', 'combo')
-         and coalesce((i.campos_extra -> 'tienda' ->> 'publicado')::boolean, false)
-    ), '[]'::jsonb)
-  ) end
+  with st as (
+    select m.item_id, sum(m.cantidad) as stock from movimientos_stock m
+     where m.empresa_id = p_empresa group by m.item_id
+  ),
+  v as (
+    select h.padre_id,
+           jsonb_agg(jsonb_build_object(
+             'id', h.id,
+             'atributos', coalesce(h.atributos, '{}'::jsonb),
+             'precio', coalesce(nullif((h.campos_extra -> 'tienda' ->> 'precio')::numeric, 0), h.precio),
+             'imagen', h.imagen,
+             'agotado', h.controla_stock and coalesce(st.stock, 0) <= 0,
+             'stock', case when p_mostrar_stock and h.controla_stock then greatest(coalesce(st.stock, 0), 0) end)
+             order by h.nombre) as lista
+      from items h left join st on st.item_id = h.id
+     where h.empresa_id = p_empresa and h.padre_id is not null and h.activo and h.precio > 0
+     group by h.padre_id
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', i.id,
+           'nombre', i.nombre,
+           'descripcion', i.descripcion,
+           'categoria', coalesce(nullif(i.categoria, ''), 'Otros'),
+           'marca', nullif(i.marca, ''),
+           'precio', coalesce(nullif((i.campos_extra -> 'tienda' ->> 'precio')::numeric, 0), i.precio),
+           'unidad', i.unidad,
+           'imagen', i.imagen,
+           'fotos', case when jsonb_typeof(i.campos_extra -> 'tienda' -> 'fotos') = 'array'
+                         then i.campos_extra -> 'tienda' -> 'fotos' else '[]'::jsonb end,
+           'destacado', coalesce((i.campos_extra -> 'tienda' ->> 'destacado')::boolean, false),
+           'agotado', case when v.lista is not null
+                           then not exists (select 1 from jsonb_array_elements(v.lista) x where not (x ->> 'agotado')::boolean)
+                           else i.controla_stock and coalesce(st.stock, 0) <= 0 end,
+           'stock', case when v.lista is null and p_mostrar_stock and i.controla_stock then greatest(coalesce(st.stock, 0), 0) end,
+           'variantes', coalesce(v.lista, '[]'::jsonb),
+           'creado', i.creado_en)
+         order by coalesce((i.campos_extra -> 'tienda' ->> 'destacado')::boolean, false) desc, i.categoria, i.nombre), '[]'::jsonb)
+    from items i
+    left join st on st.item_id = i.id
+    left join v on v.padre_id = i.id
+   where i.empresa_id = p_empresa and i.activo and i.padre_id is null
+     and i.tipo in ('producto', 'combo')
+     and coalesce((i.campos_extra -> 'tienda' ->> 'publicado')::boolean, false)
+     and (i.precio > 0 or v.lista is not null)
+$$;
+revoke all on function catalogo_de_empresa(uuid, boolean) from public, anon, authenticated;
+
+
+/* ---------- El sitio entero (público) ---------- */
+
+/* Todo lo que la página necesita, en una ida: el diseño, la información
+   (lo de presencia_de, si está publicada) y la tienda (si el comercio la
+   tiene prendida). Null si no hay nada que mostrar: ni información
+   publicada ni tienda. */
+create or replace function sitio_de(p_slug text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_e      empresas%rowtype;
+  v_info   jsonb;
+  v_tienda jsonb;
+  v_t      jsonb;
+  v_s      jsonb;
+begin
+  select * into v_e from empresas where slug = p_slug and activa;
+  if v_e.id is null then return null; end if;
+
+  v_info := presencia_de(p_slug);
+  if 'tienda' = any(v_e.modulos) and coalesce((v_e.config -> 'tienda' ->> 'activa')::boolean, false) then
+    v_t := coalesce(v_e.config -> 'tienda', '{}'::jsonb);
+    v_tienda := jsonb_build_object(
+      'config', jsonb_build_object(
+        'minimo',      coalesce((v_t ->> 'minimo')::numeric, 0),
+        'retiro',      coalesce((v_t ->> 'retiro')::boolean, true),
+        'envio',       coalesce((v_t ->> 'envio')::boolean, false),
+        'costoEnvio',  coalesce((v_t ->> 'costoEnvio')::numeric, 0),
+        'envioGratisDesde', nullif((v_t ->> 'envioGratisDesde')::numeric, 0),
+        'zona',        nullif(left(coalesce(v_t ->> 'zona', ''), 120), ''),
+        'mostrarStock', coalesce((v_t ->> 'mostrarStock')::boolean, false),
+        'efectivo',    coalesce((v_t ->> 'efectivo')::boolean, true),
+        'transferencia', coalesce((v_t ->> 'transferencia')::boolean, false),
+        'alias',       nullif(left(coalesce(v_t ->> 'alias', ''), 60), ''),
+        'titular',     nullif(left(coalesce(v_t ->> 'titular', ''), 80), '')),
+      'items', catalogo_de_empresa(v_e.id, coalesce((v_t ->> 'mostrarStock')::boolean, false)));
+  end if;
+
+  if v_info is null and v_tienda is null then return null; end if;
+
+  /* El diseño: solo lo que se elige, con valores acotados. Las imágenes
+     de los banners, solo del bucket público (como la galería). */
+  v_s := coalesce(v_e.config -> 'sitio', '{}'::jsonb);
+  return jsonb_build_object(
+    'diseno', jsonb_build_object(
+      'plantilla', case when v_s ->> 'plantilla' in ('clasica', 'moderna', 'minima') then v_s ->> 'plantilla' else 'clasica' end,
+      'color',     case when (v_s ->> 'color') ~ '^#[0-9a-fA-F]{6}$' then v_s ->> 'color' end,
+      'fuente',    case when v_s ->> 'fuente' in ('inter', 'poppins', 'montserrat', 'playfair', 'lora', 'dmsans') then v_s ->> 'fuente' else 'inter' end,
+      'fondo',     case when v_s ->> 'fondo' in ('claro', 'oscuro') then v_s ->> 'fondo' else 'claro' end,
+      'anuncio',   nullif(left(coalesce(v_s ->> 'anuncio', ''), 120), ''),
+      'secciones', case when jsonb_typeof(v_s -> 'secciones') = 'array' then v_s -> 'secciones' end,
+      'banners',   (select coalesce(jsonb_agg(jsonb_build_object(
+                       'url', b ->> 'url',
+                       'titulo', nullif(left(coalesce(b ->> 'titulo', ''), 80), ''),
+                       'texto', nullif(left(coalesce(b ->> 'texto', ''), 160), ''),
+                       'boton', nullif(left(coalesce(b ->> 'boton', ''), 30), ''),
+                       'enlace', nullif(left(coalesce(b ->> 'enlace', ''), 120), '')) order by o), '[]'::jsonb)
+                      from jsonb_array_elements(case when jsonb_typeof(v_s -> 'banners') = 'array' then v_s -> 'banners' else '[]'::jsonb end)
+                           with ordinality as x(b, o)
+                     where o <= 5 and (b ->> 'url') like '%/storage/v1/object/public/publico/%')),
+    'info', v_info,
+    'tienda', v_tienda);
+end;
 $$;
 
 
 /* ---------- Pedir (pública) ---------- */
 
-/* p_pedido: { nombre, telefono, entrega: retiro|envio, direccion, nota,
+/* p_pedido: { nombre, telefono, email, entrega: retiro|envio, direccion,
+               pago: efectivo|transferencia, nota,
                lineas: [{ item_id, cantidad }] }
+   item_id es el producto o, si tiene variantes, la variante elegida.
    Devuelve { numero, total }. */
 create or replace function pedir_en_la_tienda(p_slug text, p_pedido jsonb)
 returns jsonb
@@ -164,7 +365,9 @@ declare
   v_c         jsonb;
   v_nombre    text := left(btrim(coalesce(p_pedido ->> 'nombre', '')), 60);
   v_tel       text := regexp_replace(coalesce(p_pedido ->> 'telefono', ''), '\D', '', 'g');
+  v_email     text := nullif(left(lower(btrim(coalesce(p_pedido ->> 'email', ''))), 120), '');
   v_entrega   text := coalesce(p_pedido ->> 'entrega', 'retiro');
+  v_pago      text := coalesce(p_pedido ->> 'pago', 'efectivo');
   v_dir       text := nullif(left(btrim(coalesce(p_pedido ->> 'direccion', '')), 160), '');
   v_nota      text := nullif(left(btrim(coalesce(p_pedido ->> 'nota', '')), 300), '');
   v_lineas    jsonb := coalesce(p_pedido -> 'lineas', '[]'::jsonb);
@@ -175,8 +378,10 @@ declare
   v_cant      numeric;
   v_precio    numeric;
   v_stock     numeric;
+  v_publicado boolean;
   l           jsonb;
   i           items%rowtype;
+  p           items%rowtype;
 begin
   select * into v_e from tienda_de(p_slug);
   if v_e.id is null then
@@ -186,6 +391,7 @@ begin
 
   if length(v_nombre) < 2 then raise exception 'Escribí tu nombre.' using errcode = 'P0041'; end if;
   if length(v_tel) < 8 or length(v_tel) > 15 then raise exception 'Escribí un celular con código de área.' using errcode = 'P0041'; end if;
+  if v_email is not null and v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Ese mail no parece estar bien.' using errcode = 'P0041'; end if;
   if v_entrega not in ('retiro', 'envio') then raise exception 'Elegí cómo lo recibís.' using errcode = 'P0041'; end if;
   if v_entrega = 'retiro' and not coalesce((v_c ->> 'retiro')::boolean, true) then
     raise exception 'Esta tienda no tiene retiro en el local.' using errcode = 'P0041';
@@ -195,6 +401,11 @@ begin
   end if;
   if v_entrega = 'envio' and coalesce(length(v_dir), 0) < 5 then
     raise exception 'Escribí la dirección para el envío.' using errcode = 'P0041';
+  end if;
+  if v_pago not in ('efectivo', 'transferencia')
+     or (v_pago = 'efectivo' and not coalesce((v_c ->> 'efectivo')::boolean, true))
+     or (v_pago = 'transferencia' and not coalesce((v_c ->> 'transferencia')::boolean, false)) then
+    raise exception 'Elegí cómo vas a pagar.' using errcode = 'P0041';
   end if;
 
   if jsonb_typeof(v_lineas) <> 'array' or jsonb_array_length(v_lineas) = 0 then
@@ -218,9 +429,17 @@ begin
     end if;
     select * into i from items
      where id = nullif(l ->> 'item_id', '')::uuid and empresa_id = v_e.id
-       and activo and precio > 0 and tipo in ('producto', 'combo')
-       and coalesce((campos_extra -> 'tienda' ->> 'publicado')::boolean, false);
-    if i.id is null then
+       and activo and precio > 0 and tipo in ('producto', 'combo');
+    /* Publicado: el producto, o el padre si es una variante. */
+    p := null;
+    if i.padre_id is not null then
+      select * into p from items where id = i.padre_id and activo;
+      v_publicado := coalesce((p.campos_extra -> 'tienda' ->> 'publicado')::boolean, false);
+    else
+      v_publicado := coalesce((i.campos_extra -> 'tienda' ->> 'publicado')::boolean, false)
+                     and not exists (select 1 from items h where h.padre_id = i.id and h.activo);
+    end if;
+    if i.id is null or not v_publicado then
       raise exception 'Algo del carrito ya no está en la tienda. Actualizá la página.' using errcode = 'P0044';
     end if;
     if i.unidad not in ('kg', 'g', 'l', 'm') and v_cant <> trunc(v_cant) then
@@ -235,7 +454,8 @@ begin
     v_precio := coalesce(nullif((i.campos_extra -> 'tienda' ->> 'precio')::numeric, 0), i.precio);
     v_sub := v_sub + round(v_precio * v_cant);
     v_salida := v_salida || jsonb_build_array(jsonb_build_object(
-      'item_id', i.id, 'nombre', i.nombre, 'precio', v_precio, 'cantidad', v_cant, 'unidad', i.unidad, 'barcode', i.barcode));
+      'item_id', i.id, 'nombre', i.nombre, 'precio', v_precio, 'cantidad', v_cant, 'unidad', i.unidad,
+      'barcode', i.barcode, 'atributos', i.atributos));
   end loop;
 
   if v_sub < coalesce((v_c ->> 'minimo')::numeric, 0) then
@@ -254,8 +474,8 @@ begin
   perform 1 from empresas where id = v_e.id for update;
   select coalesce(max(numero), 0) + 1 into v_numero from pedidos_tienda where empresa_id = v_e.id;
 
-  insert into pedidos_tienda (empresa_id, numero, nombre, telefono, entrega, direccion, nota, lineas, subtotal, envio, total)
-  values (v_e.id, v_numero, v_nombre, v_tel, v_entrega, case when v_entrega = 'envio' then v_dir end, v_nota,
+  insert into pedidos_tienda (empresa_id, numero, nombre, telefono, email, entrega, direccion, pago, nota, lineas, subtotal, envio, total)
+  values (v_e.id, v_numero, v_nombre, v_tel, v_email, v_entrega, case when v_entrega = 'envio' then v_dir end, v_pago, v_nota,
           v_salida, v_sub, v_envio, v_sub + v_envio);
 
   return jsonb_build_object('numero', v_numero, 'total', v_sub + v_envio);
@@ -295,9 +515,9 @@ end;
 $$;
 
 
-revoke all on function catalogo_tienda(text) from public;
+revoke all on function sitio_de(text) from public;
 revoke all on function pedir_en_la_tienda(text, jsonb) from public;
 revoke all on function estado_pedido_tienda(uuid, text, uuid) from public, anon;
-grant execute on function catalogo_tienda(text) to anon, authenticated;
+grant execute on function sitio_de(text) to anon, authenticated;
 grant execute on function pedir_en_la_tienda(text, jsonb) to anon, authenticated;
 grant execute on function estado_pedido_tienda(uuid, text, uuid) to authenticated;

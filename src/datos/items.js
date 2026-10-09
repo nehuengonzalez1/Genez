@@ -76,6 +76,10 @@ function aProducto(f, historial) {
        lo que dice el envase, para el precio por kilo o litro de la
        etiqueta de góndola cuando el nombre no lo dice o lo dice mal. */
     camposExtra: f.campos_extra || {},
+    /* Las variantes (0141): "Remera · M" cuelga de "Remera" y es un producto
+       completo. Sin la columna (antes de 0141), ninguno es variante. */
+    padreId: f.padre_id || null,
+    atributos: f.atributos || null,
     activo: f.activo !== false,
     historial: historial || [],
   };
@@ -131,6 +135,8 @@ const COLUMNA = {
   precioAbierto: "precio_abierto",
   /* Se manda entero: quien lo cambia parte del que leyó y le suma lo suyo. */
   camposExtra: "campos_extra",
+  padreId: "padre_id",
+  atributos: "atributos",
   activo: "activo",
 };
 

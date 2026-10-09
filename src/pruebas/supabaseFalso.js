@@ -19,6 +19,7 @@
 import { armarDatos, USUARIO } from "./datos.js";
 import { normTel } from "../utils/importarProspectos.js";
 import { presenciaDesdeConfig } from "../cliente/vidriera.js";
+import { sitioDesdeConfig } from "../cliente/sitio/armar.js";
 
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 const datos = armarDatos(params.get("rubro") || "minimercado", params.get("sesion") || "comercio");
@@ -539,25 +540,24 @@ const FUNCIONES = {
   },
   /* La tienda online (0141), en chico: las mismas reglas que importan
      para ver la pantalla (publicado, agotado, mínimo, envío). */
-  catalogo_tienda: ({ p_slug }) => {
+  sitio_de: ({ p_slug }) => {
     const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);
-    const c = e && e.config && e.config.tienda;
-    if (!e || !(e.modulos || []).includes("tienda") || !c || !c.activa) return null;
+    if (!e) return null;
     const vista = tablaDe("items_vista");
-    return {
-      config: { minimo: c.minimo || 0, retiro: c.retiro !== false, envio: !!c.envio, costoEnvio: c.costoEnvio || 0, envioGratisDesde: c.envioGratisDesde || null, zona: c.zona || null, mostrarStock: !!c.mostrarStock },
-      items: tablaDe("items").filter((i) => i.empresa_id === e.id && i.activo && i.precio > 0 && i.campos_extra && i.campos_extra.tienda && i.campos_extra.tienda.publicado)
-        .map((i) => {
-          const st = (vista.find((v) => v.id === i.id) || {}).stock || 0;
-          return { id: i.id, nombre: i.nombre, descripcion: i.descripcion, categoria: i.categoria || "Otros", precio: Number(i.campos_extra.tienda.precio) || i.precio, unidad: i.unidad,
-            imagen: i.imagen, destacado: !!i.campos_extra.tienda.destacado, agotado: i.controla_stock && st <= 0, stock: c.mostrarStock && i.controla_stock ? Math.max(st, 0) : null };
-        })
-        .sort((a, b) => (b.destacado - a.destacado) || String(a.categoria).localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre)),
-    };
+    const productos = tablaDe("items").filter((i) => i.empresa_id === e.id).map((i) => ({
+      id: i.id, nombre: i.nombre, categoria: i.categoria, marca: i.marca, descripcion: i.descripcion, precio: Number(i.precio), unidad: i.unidad,
+      imagen: i.imagen, camposExtra: i.campos_extra || {}, padreId: i.padre_id || null, atributos: i.atributos || null,
+      controlaStock: i.controla_stock !== false, activo: i.activo !== false, stock: (vista.find((v) => v.id === i.id) || i).stock || 0,
+    }));
+    return sitioDesdeConfig({ ...(e.config || {}), negocio: e.nombre }, productos, { conTienda: (e.modulos || []).includes("tienda") });
   },
   pedir_en_la_tienda: ({ p_slug, p_pedido }) => {
-    const cat = FUNCIONES.catalogo_tienda({ p_slug });
-    if (!cat) throw new Error("Esta tienda no está recibiendo pedidos.");
+    const s = FUNCIONES.sitio_de({ p_slug });
+    if (!s || !s.tienda) throw new Error("Esta tienda no está recibiendo pedidos.");
+    /* Las variantes se piden por su id, como un producto más. */
+    const cat = { config: s.tienda.config, items: s.tienda.items.flatMap((p) => (p.variantes.length
+      ? p.variantes.map((v) => ({ ...v, nombre: `${p.nombre} · ${Object.values(v.atributos).join(" · ")}`, unidad: p.unidad }))
+      : [p])) };
     const p = p_pedido || {};
     if (String(p.nombre || "").trim().length < 2) throw new Error("Escribí tu nombre.");
     const tel = String(p.telefono || "").replace(/\D/g, "");
@@ -573,7 +573,7 @@ const FUNCIONES = {
     const envio = p.entrega === "envio" && !(cat.config.envioGratisDesde && sub >= cat.config.envioGratisDesde) ? cat.config.costoEnvio : 0;
     const e = tablaDe("empresas").find((x) => x.slug === p_slug);
     const numero = tablaDe("pedidos_tienda").filter((x) => x.empresa_id === e.id).reduce((m, x) => Math.max(m, x.numero), 0) + 1;
-    tablaDe("pedidos_tienda").push({ id: uuid(), empresa_id: e.id, numero, estado: "nuevo", nombre: p.nombre, telefono: tel, entrega: p.entrega, direccion: p.direccion || null, nota: p.nota || null,
+    tablaDe("pedidos_tienda").push({ id: uuid(), empresa_id: e.id, numero, estado: "nuevo", nombre: p.nombre, telefono: tel, email: p.email || null, pago: p.pago || "efectivo", entrega: p.entrega, direccion: p.direccion || null, nota: p.nota || null,
       lineas, subtotal: sub, envio, total: sub + envio, creado_en: new Date().toISOString() });
     return { numero, total: sub + envio };
   },

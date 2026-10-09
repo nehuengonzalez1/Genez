@@ -207,6 +207,23 @@ export function armarDatos(rubro, sesion = "comercio") {
     };
   });
 
+  /* Un producto con variantes (0141): la bolsa en dos colores y dos
+     tamaños. Cada variante es un producto más, con su stock. */
+  if (r.clave === "minimercado") {
+    const padre = id();
+    const svg = (c) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="${c}"/><text x="200" y="250" text-anchor="middle" font-family="Arial" font-size="170" font-weight="700" fill="#fff">B</text></svg>`)}`;
+    const base = { empresa_id: EMPRESA, tipo: "producto", categoria: "Bazar", marca: "Prueba", sku: null, barcode: null, unidad: "un", costo: 1500, precios: {}, iva: 21, iva_condicion: "gravado",
+      controla_stock: true, stock_min: 0, bulto: 1, duracion_min: null, activo: true, proveedor: null, proveedor_id: null, vence: null, u30: 0, u30p: 0, vel: 0, ultima_venta: null,
+      costo_reposicion: null, costo_reposicion_fecha: null, precio_abierto: false, stock_cargado: true, creado_en: hace(10), actualizado_en: hace(1) };
+    items.push({ ...base, id: padre, nombre: "Bolsa reutilizable", precio: 2500, costo_prev: 1500, precio_prev: 2500, stock: 0, padre_id: null, atributos: null,
+      descripcion: "Bolsa de tela resistente, lavable. Aguanta hasta 15 kg.", imagen: svg("#15803d"),
+      campos_extra: { tienda: { publicado: true, destacado: true, fotos: [svg("#111827")] } } });
+    [["Verde", "Chica", 2500, 8, "#15803d"], ["Verde", "Grande", 3200, 3, "#15803d"], ["Negro", "Chica", 2500, 0, "#111827"], ["Negro", "Grande", 3200, 5, "#111827"]].forEach(([color, tam, precio, stock, c], j) => {
+      items.push({ ...base, id: id(), nombre: `Bolsa reutilizable · ${color} · ${tam}`, precio, costo_prev: 1500, precio_prev: precio, stock, padre_id: padre,
+        atributos: { Color: color, "Tamaño": tam }, descripcion: null, imagen: svg(c), barcode: `77900000099${j}0`, campos_extra: {} });
+    });
+  }
+
   const empresa = {
     id: EMPRESA, nombre: `Comercio de prueba · ${r.nombre}`, rubro: r.clave, plan: "completo",
     /* ?todo=1: todas las secciones del menú del rubro, para revisar el
@@ -223,7 +240,8 @@ export function armarDatos(rubro, sesion = "comercio") {
       ...((typeof location !== "undefined" && new URLSearchParams(location.search).get("nuevo")) ? {} : {
         contacto: { telefono: "11 4444-5555", whatsapp: "11 5555-6666", instagram: "comerciodeprueba", direccion: "Av. Rivadavia 1234, CABA", email: "hola@comerciodeprueba.com" },
         marca: { lema: "El almacén del barrio", bajada: "Todo lo de todos los días, a dos cuadras de tu casa." },
-        tienda: { activa: true, retiro: true, envio: true, costoEnvio: 800, envioGratisDesde: 25000, zona: "Hasta 15 cuadras", minimo: 3000 },
+        tienda: { activa: true, retiro: true, envio: true, costoEnvio: 800, envioGratisDesde: 25000, zona: "Hasta 15 cuadras", minimo: 3000, efectivo: true, transferencia: true, alias: "comercio.prueba.mp", titular: "Comercio de prueba" },
+        sitio: { plantilla: "moderna", color: "#0f766e", fuente: "poppins", fondo: "claro", anuncio: "Envío gratis desde $25.000 · Retirá sin cargo en el local" },
         publico: {
           publicada: true,
           horarios: Object.fromEntries(["lun", "mar", "mie", "jue", "vie"].map((k) => [k, [{ d: "08:00", h: "13:00" }, { d: "16:30", h: "21:00" }]])

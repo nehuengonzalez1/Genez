@@ -132,11 +132,12 @@ export async function cargarPresencia(slug) {
   return data;
 }
 
-/* La tienda del comercio (0141): lo publicado, sin costos, y cómo se
-   entrega. Null si no tiene tienda o la tiene apagada. */
-export async function cargarTienda(slug) {
+/* El sitio del comercio (0141): el diseño, la información y la tienda,
+   en una ida. Null si no hay nada publicado. Un error no corta nada: sin
+   sitio, la página queda como la bienvenida de siempre. */
+export async function cargarSitio(slug) {
   if (!slug) return null;
-  const { data, error } = await supabase.rpc("catalogo_tienda", { p_slug: slug });
+  const { data, error } = await supabase.rpc("sitio_de", { p_slug: slug });
   if (error || !data) return null;
   return data;
 }

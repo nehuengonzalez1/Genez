@@ -34,7 +34,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  slugDelDominio, cargarMarca, cargarPresencia, cargarTienda, pedirEnLaTienda, cargarModulos,
+  slugDelDominio, cargarMarca, cargarSitio, pedirEnLaTienda, cargarModulos,
   entrarComoCliente, salir, cargarClienta, cargarTurnos, cargarAbonos,
   cargarEsperas, salirDeEspera, cargarPagos, guardarMisDatos,
   cargarAvisos, marcarAvisosVistos,
@@ -50,7 +50,7 @@ import { Inicio, Turnos, Plan, Sesiones, Pagos, Actividad, Avisos, Cuenta, MisDa
 import { Reservar } from "./Reservar.jsx";
 import { DetalleTurno } from "./DetalleTurno.jsx";
 import { aplicarTema, alCambiarElTema } from "./tema.js";
-import { PaginaComercio, useModoPagina } from "./PaginaComercio.jsx";
+import { Sitio } from "./sitio/Sitio.jsx";
 
 /* ------------------------------------------------------------
    LA ENTRADA · pantallas 1, 2 y 3 de la maqueta
@@ -146,8 +146,7 @@ function Lema({ texto }) {
   );
 }
 
-function Bienvenida({ marca, presencia, tienda, onIngresar, onCrear }) {
-  const modo = useModoPagina();
+function Bienvenida({ marca, sitio, onIngresar, onCrear }) {
   const entrar = (
     <>
       <div className="space-y-3">
@@ -166,18 +165,12 @@ function Bienvenida({ marca, presencia, tienda, onIngresar, onCrear }) {
     </>
   );
 
-  /* Con la página publicada (0140), la bienvenida es la página del
-     comercio: en el celular una columna, en la computadora dos. Entrar
-     queda al pie de la tarjeta. */
-  /* Y con la tienda prendida (0141), también: la tienda vive en la misma
-     página, aunque el comercio no haya publicado su información. */
-  if (presencia || tienda) {
-    return (
-      <div className="min-h-screen pb-24">
-        <PaginaComercio marca={marca} presencia={presencia} modo={modo} pie={entrar}
-          tienda={tienda} onPedir={tienda ? (p) => pedirEnLaTienda(marca.slug, p) : null} />
-      </div>
-    );
+  /* Con el sitio publicado (información o tienda, 0141), la bienvenida
+     es el sitio del comercio. Entrar a la cuenta —lo de los turnos— queda
+     en el pie ("Mi cuenta"), como en cualquier tienda. */
+  if (sitio) {
+    return <Sitio sitio={sitio} marca={marca} slug={marca.slug} onIngresar={onIngresar}
+      onPedir={sitio.tienda ? (p) => pedirEnLaTienda(marca.slug, p) : null} />;
   }
 
   return (
@@ -712,12 +705,10 @@ export default function App() {
 
   /* La vidriera, aparte de la marca: si tarda o falla, la bienvenida ya
      está dibujada y se le suma cuando llega. */
-  const [presencia, setPresencia] = useState(null);
-  const [tienda, setTienda] = useState(null);
+  const [sitio, setSitio] = useState(null);
   useEffect(() => {
     let vigente = true;
-    cargarPresencia(slug).then((p) => { if (vigente) setPresencia(p); });
-    cargarTienda(slug).then((t) => { if (vigente) setTienda(t); });
+    cargarSitio(slug).then((s) => { if (vigente) setSitio(s); });
     return () => { vigente = false; };
   }, [slug]);
 
@@ -881,7 +872,7 @@ export default function App() {
     }
     return entrando
       ? <Ingresar marca={marca} onEntro={setClienta} onVolver={() => setEntrando(false)} />
-      : <Bienvenida marca={marca} presencia={presencia} tienda={tienda}
+      : <Bienvenida marca={marca} sitio={sitio}
           onIngresar={() => setEntrando(true)}
           onCrear={() => setEntrando("registro")} />;
   }
