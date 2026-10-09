@@ -132,6 +132,23 @@ export async function cargarPresencia(slug) {
   return data;
 }
 
+/* La tienda del comercio (0141): lo publicado, sin costos, y cómo se
+   entrega. Null si no tiene tienda o la tiene apagada. */
+export async function cargarTienda(slug) {
+  if (!slug) return null;
+  const { data, error } = await supabase.rpc("catalogo_tienda", { p_slug: slug });
+  if (error || !data) return null;
+  return data;
+}
+
+/* El pedido. El precio lo pone la base: acá van solo qué y cuánto. Los
+   errores de la base ya vienen escritos para quien compra. */
+export async function pedirEnLaTienda(slug, pedido) {
+  const { data, error } = await supabase.rpc("pedir_en_la_tienda", { p_slug: slug, p_pedido: pedido });
+  if (error) throw new Error(error.message || "No se pudo mandar el pedido.");
+  return data;
+}
+
 /* Qué muestra la app de este comercio. Sale de cruzar el catálogo de
    plataforma con lo que el comercio contrató y no apagó, así que la
    navegación se dibuja y no se decide en el código. */

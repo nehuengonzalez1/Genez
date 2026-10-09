@@ -191,10 +191,18 @@ export function armarDatos(rubro, sesion = "comercio") {
       id: id(), empresa_id: EMPRESA, tipo: r.clave === "servicios" ? "servicio" : "producto", nombre, categoria, marca: "Prueba",
       sku: null, barcode: r.clave === "minimercado" ? `779000000${String(1000 + i).padStart(4, "0")}` : null,
       unidad: "un", costo, precio, precios: {}, iva: 21, iva_condicion: "gravado", controla_stock: r.clave === "minimercado",
-      stock_min: 0, bulto: 6, duracion_min: r.clave === "servicios" ? 45 : null, campos_extra: {}, activo: true,
+      stock_min: 0, bulto: 6, duracion_min: r.clave === "servicios" ? 45 : null, activo: true,
+      /* La tienda online (0141): en el minimercado, los diez primeros
+         publicados y uno de cada cinco destacado. */
+      campos_extra: r.clave === "minimercado" && i < 10 ? { tienda: { publicado: true, destacado: i % 5 === 0 } } : {},
       proveedor: null, proveedor_id: null, stock: cargado ? [12, 2, 30, 0, 5, 18][i % 6] : -u30, vence: null,
       costo_prev: costo, precio_prev: precio, u30, u30p: u30, vel: +(u30 / 30).toFixed(4), ultima_venta: u30 ? hace(1) : null,
-      descripcion: null, imagen: null, costo_reposicion: null, costo_reposicion_fecha: null, precio_abierto: false,
+      descripcion: null,
+      /* Una foto de mentira (un color con la inicial) para los publicados. */
+      imagen: r.clave === "minimercado" && i < 10
+        ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="${["#b45309", "#0f766e", "#1d4ed8", "#7c3aed", "#be123c"][i % 5]}"/><text x="200" y="250" text-anchor="middle" font-family="Arial" font-size="170" font-weight="700" fill="#fff">${nombre[0]}</text></svg>`)}`
+        : null,
+      costo_reposicion: null, costo_reposicion_fecha: null, precio_abierto: false,
       stock_cargado: cargado, creado_en: hace(60), actualizado_en: hace(2),
     };
   });
@@ -204,7 +212,9 @@ export function armarDatos(rubro, sesion = "comercio") {
     /* ?todo=1: todas las secciones del menú del rubro, para revisar el
        recorrido general entero (servicios de prueba no tiene la agenda). */
     modulos: (typeof location !== "undefined" && new URLSearchParams(location.search).get("todo"))
-      ? [...new Set([...(r.modulos || []), ...(r.menu || []).flatMap((g) => g.modulos.map((m) => m.k))])] : r.modulos || [],
+      ? [...new Set([...(r.modulos || []), ...(r.menu || []).flatMap((g) => g.modulos.map((m) => m.k))])]
+      /* El minimercado de prueba tiene la tienda online (0141). */
+      : [...(r.modulos || []), ...(r.clave === "minimercado" ? ["tienda"] : [])],
     /* ?tope=10: el descuento máximo de los roles que no son dueño (06/10),
        para probarlo con ?rol=encargado, que no entra a Ajustes. */
     config: { negocio: "Comercio de prueba", fiscal: { condicion: "MONOTRIBUTO", razonSocial: "Comercio de prueba" },
@@ -213,6 +223,7 @@ export function armarDatos(rubro, sesion = "comercio") {
       ...((typeof location !== "undefined" && new URLSearchParams(location.search).get("nuevo")) ? {} : {
         contacto: { telefono: "11 4444-5555", whatsapp: "11 5555-6666", instagram: "comerciodeprueba", direccion: "Av. Rivadavia 1234, CABA", email: "hola@comerciodeprueba.com" },
         marca: { lema: "El almacén del barrio", bajada: "Todo lo de todos los días, a dos cuadras de tu casa." },
+        tienda: { activa: true, retiro: true, envio: true, costoEnvio: 800, envioGratisDesde: 25000, zona: "Hasta 15 cuadras", minimo: 3000 },
         publico: {
           publicada: true,
           horarios: Object.fromEntries(["lun", "mar", "mie", "jue", "vie"].map((k) => [k, [{ d: "08:00", h: "13:00" }, { d: "16:30", h: "21:00" }]])
@@ -258,6 +269,17 @@ export function armarDatos(rubro, sesion = "comercio") {
          primeros 6 meses. No son las de producción. */
       tarifas: [{ clave: "plan:start", monto: 29900, texto: null }, { clave: "plan:pro", monto: 59900, texto: null }, { clave: "anual_meses", monto: 10, texto: null }, { clave: "congelado_meses", monto: 6, texto: null }, { clave: "sucursales_incluidas", monto: 2, texto: null }, { clave: "sucursal_extra", monto: 14900, texto: null }, { clave: "base", monto: 52000, texto: null }, { clave: "puesta_en_marcha", monto: null, texto: null }, { clave: "descuento", monto: 50, texto: null }, { clave: "descuento_meses", monto: 6, texto: null }, { clave: "modulo:productos", monto: 12000, texto: null }, { clave: "modulo:reportes", monto: 4000, texto: null }, { clave: "modulo:informes", monto: 4000, texto: null }, { clave: "modulo:agenda", monto: 6000, texto: null }, { clave: "modulo:servicios", monto: 2000, texto: null }, { clave: "modulo:stock", monto: 18000, texto: null }, { clave: "modulo:compras", monto: 16000, texto: null }, { clave: "modulo:clientes", monto: 12000, texto: null }, { clave: "modulo:cuentas", monto: 12000, texto: null }, { clave: "modulo:comandas", monto: 10000, texto: null }, { clave: "modulo:pedidos", monto: 10000, texto: null }, { clave: "modulo:ventas", monto: 32000, texto: null }, { clave: "modulo:comunicaciones", monto: 24000, texto: null }, { clave: "modulo:equipo", monto: 14000, texto: null }, { clave: "modulo:finanzas", monto: 14000, texto: null }, { clave: "modulo:crm", monto: 12000, texto: null }, { clave: "modulo:asistente", monto: 12000, texto: null }, { clave: "modulo:permisos", monto: 10000, texto: null }, { clave: "whatsapp", monto: null, texto: "5491100000000" }, { clave: "medida:base", monto: 60000, texto: null }, { clave: "medida:productos", monto: 14000, texto: null }, { clave: "medida:reportes", monto: 5000, texto: null }, { clave: "medida:informes", monto: 5000, texto: null }, { clave: "medida:agenda", monto: 7000, texto: null }, { clave: "medida:servicios", monto: 3000, texto: null }, { clave: "medida:stock", monto: 22000, texto: null }, { clave: "medida:compras", monto: 19000, texto: null }, { clave: "medida:clientes", monto: 14000, texto: null }, { clave: "medida:cuentas", monto: 14000, texto: null }, { clave: "medida:comandas", monto: 12000, texto: null }, { clave: "medida:pedidos", monto: 12000, texto: null }, { clave: "medida:ventas", monto: 38000, texto: null }, { clave: "medida:comunicaciones", monto: 29000, texto: null }, { clave: "medida:equipo", monto: 17000, texto: null }, { clave: "medida:finanzas", monto: 17000, texto: null }, { clave: "medida:crm", monto: 14000, texto: null }, { clave: "medida:asistente", monto: 14000, texto: null }, { clave: "medida:permisos", monto: 12000, texto: null }],
       roles: [],
+      /* Dos pedidos de la tienda esperando (0141). */
+      pedidos_tienda: r.clave === "minimercado" ? [
+        { id: id(), empresa_id: EMPRESA, numero: 1, estado: "nuevo", nombre: "Lucía Fernández", telefono: "1155550001", entrega: "envio", direccion: "Mitre 456, 2° B", nota: "Tocar timbre 2B",
+          lineas: items.slice(0, 3).map((x, j) => ({ item_id: x.id, nombre: x.nombre, precio: x.precio, cantidad: j + 1, unidad: x.unidad, barcode: x.barcode })),
+          subtotal: items.slice(0, 3).reduce((s, x, j) => s + x.precio * (j + 1), 0), envio: 800,
+          total: items.slice(0, 3).reduce((s, x, j) => s + x.precio * (j + 1), 0) + 800, creado_en: new Date(Date.now() - 25 * 60000).toISOString() },
+        { id: id(), empresa_id: EMPRESA, numero: 2, estado: "nuevo", nombre: "Marcos Díaz", telefono: "1155550002", entrega: "retiro", direccion: null, nota: null,
+          lineas: items.slice(4, 6).map((x) => ({ item_id: x.id, nombre: x.nombre, precio: x.precio, cantidad: 2, unidad: x.unidad, barcode: x.barcode })),
+          subtotal: items.slice(4, 6).reduce((s, x) => s + x.precio * 2, 0), envio: 0,
+          total: items.slice(4, 6).reduce((s, x) => s + x.precio * 2, 0), creado_en: new Date(Date.now() - 8 * 60000).toISOString() },
+      ] : [],
       sucursales: [{ id: SUCURSAL, empresa_id: EMPRESA, nombre: "Principal", domicilio: "Calle de prueba 123", activa: true, creada_en: hace(90) },
         /* ?sucursales=2: una segunda, para ver el comparativo de Informes. */
         ...((typeof location !== "undefined" && new URLSearchParams(location.search).get("sucursales") === "2")

@@ -54,7 +54,7 @@ export function armarModulos({ rubro, respuestas = {}, sacados = [], sumados = [
   const universo = unicos([
     ...MODULOS_BASE,
     ...nucleo,
-    ...((rubro && rubro.modulos && rubro.modulos.length) ? rubro.modulos : MODULOS.map((m) => m.k)),
+    ...((rubro && rubro.modulos && rubro.modulos.length) ? rubro.modulos : MODULOS.filter((m) => !m.oculto).map((m) => m.k)),
     ...preguntas.flatMap((q) => q.modulos || []),
   ]).filter(conocido);
 

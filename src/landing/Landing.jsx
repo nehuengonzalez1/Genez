@@ -515,7 +515,7 @@ function TarjetaModuloNoche({ m, activa }) {
 function QueIncluyeNoche({ claro = false }) {
   const [todos, setTodos] = useState(false);
   const vistos = new Set();
-  const modulos = MODULOS.filter((m) => !vistos.has(m.n) && vistos.add(m.n));
+  const modulos = MODULOS.filter((m) => !m.oculto && !vistos.has(m.n) && vistos.add(m.n));
   return (
     <section id="incluye" className={`qi-seccion ${claro ? "qi-dia" : ""} scroll-mt-20 relative overflow-hidden`}>
       <div className="qi-lienzo">

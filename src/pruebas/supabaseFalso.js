@@ -537,6 +537,53 @@ const FUNCIONES = {
     return [{ slug: e.slug, nombre: e.nombre, rubro: e.rubro, tema: m.tema || "auto", lema: m.lema || "", bajada: m.bajada || "",
       logo: m.logo || m.logoParaClaro || m.logoParaOscuro || null, portada: m.portada || null, autoregistro: false }];
   },
+  /* La tienda online (0141), en chico: las mismas reglas que importan
+     para ver la pantalla (publicado, agotado, mínimo, envío). */
+  catalogo_tienda: ({ p_slug }) => {
+    const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);
+    const c = e && e.config && e.config.tienda;
+    if (!e || !(e.modulos || []).includes("tienda") || !c || !c.activa) return null;
+    const vista = tablaDe("items_vista");
+    return {
+      config: { minimo: c.minimo || 0, retiro: c.retiro !== false, envio: !!c.envio, costoEnvio: c.costoEnvio || 0, envioGratisDesde: c.envioGratisDesde || null, zona: c.zona || null, mostrarStock: !!c.mostrarStock },
+      items: tablaDe("items").filter((i) => i.empresa_id === e.id && i.activo && i.precio > 0 && i.campos_extra && i.campos_extra.tienda && i.campos_extra.tienda.publicado)
+        .map((i) => {
+          const st = (vista.find((v) => v.id === i.id) || {}).stock || 0;
+          return { id: i.id, nombre: i.nombre, descripcion: i.descripcion, categoria: i.categoria || "Otros", precio: Number(i.campos_extra.tienda.precio) || i.precio, unidad: i.unidad,
+            imagen: i.imagen, destacado: !!i.campos_extra.tienda.destacado, agotado: i.controla_stock && st <= 0, stock: c.mostrarStock && i.controla_stock ? Math.max(st, 0) : null };
+        })
+        .sort((a, b) => (b.destacado - a.destacado) || String(a.categoria).localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre)),
+    };
+  },
+  pedir_en_la_tienda: ({ p_slug, p_pedido }) => {
+    const cat = FUNCIONES.catalogo_tienda({ p_slug });
+    if (!cat) throw new Error("Esta tienda no está recibiendo pedidos.");
+    const p = p_pedido || {};
+    if (String(p.nombre || "").trim().length < 2) throw new Error("Escribí tu nombre.");
+    const tel = String(p.telefono || "").replace(/\D/g, "");
+    if (tel.length < 8) throw new Error("Escribí un celular con código de área.");
+    const lineas = (p.lineas || []).map((l) => {
+      const i = cat.items.find((x) => x.id === l.item_id);
+      if (!i) throw new Error("Algo del carrito ya no está en la tienda. Actualizá la página.");
+      if (i.agotado) throw new Error(`${i.nombre} se agotó. Sacalo del carrito.`);
+      return { item_id: i.id, nombre: i.nombre, precio: i.precio, cantidad: l.cantidad, unidad: i.unidad };
+    });
+    const sub = lineas.reduce((s, l) => s + Math.round(l.precio * l.cantidad), 0);
+    if (sub < cat.config.minimo) throw new Error(`La compra mínima es de $${cat.config.minimo.toLocaleString("es-AR")}.`);
+    const envio = p.entrega === "envio" && !(cat.config.envioGratisDesde && sub >= cat.config.envioGratisDesde) ? cat.config.costoEnvio : 0;
+    const e = tablaDe("empresas").find((x) => x.slug === p_slug);
+    const numero = tablaDe("pedidos_tienda").filter((x) => x.empresa_id === e.id).reduce((m, x) => Math.max(m, x.numero), 0) + 1;
+    tablaDe("pedidos_tienda").push({ id: uuid(), empresa_id: e.id, numero, estado: "nuevo", nombre: p.nombre, telefono: tel, entrega: p.entrega, direccion: p.direccion || null, nota: p.nota || null,
+      lineas, subtotal: sub, envio, total: sub + envio, creado_en: new Date().toISOString() });
+    return { numero, total: sub + envio };
+  },
+  estado_pedido_tienda: ({ p_pedido, p_estado, p_venta }) => {
+    const p = tablaDe("pedidos_tienda").find((x) => x.id === p_pedido);
+    if (!p) throw new Error("No encontramos ese pedido.");
+    if (p.estado === "entregado" || p.estado === "cancelado") throw new Error("Ese pedido ya está cerrado.");
+    Object.assign(p, { estado: p_estado, venta_id: p_venta || p.venta_id || null });
+    return null;
+  },
   presencia_de: ({ p_slug }) => {
     const e = tablaDe("empresas").find((x) => x.slug === p_slug && x.activa !== false);
     return e ? presenciaDesdeConfig(e.config || {}) : null;

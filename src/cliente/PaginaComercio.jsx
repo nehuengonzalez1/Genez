@@ -28,7 +28,8 @@
 import React, { useEffect, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Images, PlayCircle } from "lucide-react";
 import { Vidriera } from "./Vidriera.jsx";
-import { videoEmbebido } from "./vidriera.js";
+import { videoEmbebido, numeroWhatsApp } from "./vidriera.js";
+import { Tienda } from "./Tienda.jsx";
 
 const ROTULO = "text-[11px] uppercase tracking-[0.1em] text-texto-tenue font-bold";
 
@@ -134,9 +135,13 @@ function Video({ url, enlaces }) {
 /* `pie`: lo de abajo de la tarjeta (el botón para entrar, en la página
    de verdad). `enlaces`: false en la vista previa, para que nada lleve a
    ningún lado. */
-export function PaginaComercio({ marca, presencia, modo = "celular", enlaces = true, pie = null }) {
+/* `tienda`: el catálogo de catalogo_tienda (0141), o null. `onPedir`:
+   manda el pedido; sin él (vista previa), la tienda se ve pero no vende. */
+export function PaginaComercio({ marca, presencia, modo = "celular", enlaces = true, pie = null, tienda = null, onPedir = null }) {
   const fotos = (presencia && presencia.galeria) || [];
   const video = presencia && presencia.video;
+  const wa = presencia && presencia.contacto && presencia.contacto.whatsapp ? numeroWhatsApp(presencia.contacto.whatsapp) : null;
+  const laTienda = (cols) => <Tienda slug={marca.slug || marca.nombre} tienda={tienda} columnas={cols} onPedir={onPedir} whatsapp={wa} nombre={marca.nombre} />;
 
   if (modo === "computadora") {
     return (
@@ -153,6 +158,7 @@ export function PaginaComercio({ marca, presencia, modo = "celular", enlaces = t
               {marca.lema && <div className="mt-8"><Lema texto={marca.lema} grande /></div>}
               {marca.bajada && <p className="text-base text-texto-suave mt-4 leading-relaxed max-w-2xl">{marca.bajada}</p>}
             </div>
+            {laTienda(3)}
             <Galeria fotos={fotos} columnas={3} enlaces={enlaces} />
             <Video url={video} enlaces={enlaces} />
           </div>
@@ -181,6 +187,7 @@ export function PaginaComercio({ marca, presencia, modo = "celular", enlaces = t
           {marca.bajada && <p className="text-sm text-texto-suave mt-3 leading-relaxed">{marca.bajada}</p>}
         </div>
         <Vidriera nombre={marca.nombre} presencia={presencia} enlaces={enlaces} />
+        {laTienda(2)}
         <Galeria fotos={fotos} columnas={2} enlaces={enlaces} />
         <Video url={video} enlaces={enlaces} />
         {pie && <div className="pt-6 border-t border-borde">{pie}</div>}
