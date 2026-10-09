@@ -18,7 +18,8 @@
  *                               plantilla, sincronizar, estado, registrar, suscribir.
  *                               Y el dueño de un comercio: contratar (0128), cambiarPlan
  *                               y baja (0130). La plataforma: arrepentimiento (0130).
- *                               Cualquiera de un comercio: reportePrueba (0136).
+ *                               Cualquiera de un comercio: reportePrueba (0136) y
+ *                               subdominio (0142: que Vercel tenga su dirección).
  *
  * Lo próximo de Founder que necesite servidor va acá también, como otra
  * `accion`, hasta que el plan cambie.
@@ -48,6 +49,7 @@ import { waitUntil } from "@vercel/functions";
 import { generar, pideUnaPersona, conAviso, errorLegible } from "./_bot.js";
 import { plantillaParaMeta, mensajeDePlantilla, estadoDeMeta, reintentable, textoDeError } from "./_automatizaciones.js";
 import { avisosDePrueba } from "./_pruebas.js";
+import { pedidoDelComercio, revisar as revisarSubdominios } from "./_subdominios.js";
 import { contratar, webhookMP } from "./_suscripcion.js";
 import { cambiarPlan, darDeBaja, pedirArrepentimiento, resolverArrepentimiento, tareasDiarias } from "./_mi_plan.js";
 import { reportesProgramados, mandarmeUnReporte } from "./_reportes.js";
@@ -125,6 +127,9 @@ async function tareaDePruebas(req, res) {
   try { resultado.miPlan = await tareasDiarias(admin); } catch (e) { resultado.miPlan = { error: e.message }; }
   /* Los reportes por mail (0136), también del mismo cron. */
   try { resultado.reportes = await reportesProgramados(admin); } catch (e) { resultado.reportes = { error: e.message }; }
+  /* Los subdominios que falten en Vercel (0142): los de los comercios que
+     no entraron todavía, los que creó la plataforma y los que fallaron. */
+  try { resultado.subdominios = await revisarSubdominios(admin); } catch (e) { resultado.subdominios = { error: e.message }; }
   return res.status(200).json(resultado);
 }
 
@@ -210,6 +215,7 @@ async function accionDeFounder(req, res) {
     case "baja": return darDeBaja(res, db, quien);
     case "arrepentimiento": return resolverArrepentimiento(res, db, quien, cuerpo);
     case "reportePrueba": return mandarmeUnReporte(res, quien, cuerpo);
+    case "subdominio": return pedidoDelComercio(res, db, quien);
     default: return error(res, 400, "Acción desconocida.");
   }
 }

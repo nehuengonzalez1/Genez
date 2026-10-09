@@ -78,7 +78,8 @@ import { ModulosVisibles } from "../modulos/ModulosVisibles.jsx";
 import { DisenoTicket } from "../modulos/DisenoTicket.jsx";
 import { prepararLogoTicket } from "../ui/logoTicket.js";
 import { TiendaOnline } from "../modulos/TiendaOnline.jsx";
-import { cargarPedidosTienda, estadoPedidoTienda, aPedidoDePicking, ESTADO_TIENDA } from "../datos/tienda.js";
+import { cargarPedidosTienda, estadoPedidoTienda, aPedidoDePicking, ESTADO_TIENDA, leerSubdominio, leerSubdominios } from "../datos/tienda.js";
+import { pedirSubdominio } from "../datos/autoservicio.js";
 import { MiPlan, NOMBRE_PLAN } from "../modulos/MiPlan.jsx";
 import { Comandas, Cocina, PantallaComandas } from "../modulos/Comandas.jsx";
 /* ============================================================
@@ -339,6 +340,10 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
   const [creando, setCreando] = useState(false);
   const [errorAlta, setErrorAlta] = useState(null);
   useEffect(() => { cargarRubros().then(setRubros).catch(() => setRubros([])); }, []);
+  /* Los subdominios en Vercel (0142): se agregan solos, pero el plan Hobby
+     deja 50 por proyecto. Acá se ve cuántos van y cuáles fallaron. */
+  const [subdominios, setSubdominios] = useState([]);
+  useEffect(() => { leerSubdominios().then(setSubdominios).catch(() => setSubdominios([])); }, []);
   const c = comercios.find((x) => x.id === abierto) || null;
 
   const actualizar = (id, cambios) => setComercios((cs) => cs.map((x) => (x.id === id ? { ...x, ...cambios } : x)));
@@ -399,6 +404,17 @@ function PanelGenez({ sesion, comercios, setComercios, onEntrarComo, onSalir, te
               <div>
                 <h1 className="f-d text-2xl">Comercios</h1>
                 <p className="text-sm text-texto-tenue">{comercios.length} cuentas · {comercios.filter((x) => x.activo).length} activas</p>
+                {(() => {
+                  const listos = subdominios.filter((x) => x.estado === "listo").length;
+                  const malos = subdominios.filter((x) => x.estado === "error");
+                  return (
+                    <p className={`text-xs mt-0.5 ${listos >= 45 || malos.length ? "text-ojo" : "text-texto-tenue"}`} data-subdominios-plataforma>
+                      Sitios en Vercel: {listos} de 50 (plan Hobby)
+                      {malos.length > 0 && ` · ${malos.length} con problema: ${malos.slice(0, 3).map((m) => `${m.host} (${m.detalle || "sin detalle"})`).join(", ")}`}
+                      {listos >= 45 && " · Pasá a Vercel Pro antes de llegar a 50."}
+                    </p>
+                  );
+                })()}
               </div>
               <button onClick={() => { setAltaComercio(true); setNombreNuevo(""); setRubroNuevo(""); setErrorAlta(null); }}
                 className="flex items-center gap-1.5 bg-acento hover:bg-acento-vivo text-texto font-bold rounded-xl px-3.5 py-2 text-sm">
@@ -1200,6 +1216,24 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
     const t = setInterval(leer, 30000);
     return () => { vivo = false; clearInterval(t); };
   }, [conTienda, empresaId]);
+  /* EL SUBDOMINIO (0142)
+     Al entrar alguien del comercio, si su dirección no está lista en
+     Vercel, se pide. Así un comercio que se dio de alta solo tiene su
+     sitio sin que nadie de Genez toque nada; el cron lo vuelve a intentar
+     todos los días por si esto falla. */
+  const [subdominio, setSubdominio] = useState(null);
+  useEffect(() => {
+    if (!empresaId || !sesion.comercio.slug || sesion.comoAdmin) return;
+    let vivo = true;
+    leerSubdominio(empresaId)
+      .then((s) => {
+        if (vivo) setSubdominio(s);
+        if (s && s.estado === "listo") return;
+        return pedirSubdominio().then((r) => { if (vivo) setSubdominio(r); });
+      })
+      .catch(() => { /* sin servidor (pantalla de pruebas) o sin conexión: el cron lo hace */ });
+    return () => { vivo = false; };
+  }, [empresaId]);
   const estadosWeb = useRef({});
   useEffect(() => {
     for (const p of pedidosCli) {
@@ -2471,7 +2505,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                       .filter((g) => g.modulos.length)} />
                 )}
                 {actual === "ticket" && <DisenoTicket ajustes={ajustes} setAjustes={setAjustes} productos={productos} quien={sesion.nombre} toast={toast} onIr={setAdmSec} />}
-                {actual === "tienda" && <TiendaOnline ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} conTienda={permitido("tienda")} />}
+                {actual === "tienda" && <TiendaOnline ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} conTienda={permitido("tienda")} subdominio={subdominio} />}
                 {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
                 {actual === "permisos" && (
                   <Permisos empresaId={empresaId}

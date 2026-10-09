@@ -134,6 +134,10 @@ export async function alServidor(cuerpo, siFalla) {
 export const cambiarPlan = ({ plan, periodo }) =>
   alServidor({ accion: "cambiarPlan", plan, periodo }, "No se pudo cambiar el plan.");
 
+/* Que Vercel tenga el subdominio del comercio (0142). Devuelve
+   { host, estado, detalle }. Lo pide cualquiera del comercio al entrar. */
+export const pedirSubdominio = () => alServidor({ accion: "subdominio" }, "No se pudo preparar la dirección del sitio.");
+
 /* Devuelve { codigo, hasta }: el código de baja y el último día de uso. */
 export const darDeBaja = () => alServidor({ accion: "baja" }, "No se pudo dar de baja. Escribinos por WhatsApp.");
 

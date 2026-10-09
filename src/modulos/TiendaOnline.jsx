@@ -147,7 +147,7 @@ function VistaPrevia({ ajustes, productos, conTienda, slug }) {
 
 /* ---------- Diseño ---------- */
 
-function Diseno({ ajustes, setAjustes, empresaId, toast, slug }) {
+function Diseno({ ajustes, setAjustes, empresaId, toast, slug, subdominio }) {
   const s = ajustes.sitio || {};
   const set = (k, v) => setAjustes({ ...ajustes, sitio: { ...s, [k]: v } });
   const banners = s.banners || [];
@@ -174,10 +174,20 @@ function Diseno({ ajustes, setAjustes, empresaId, toast, slug }) {
     <div className="space-y-5">
       <Bloque titulo="Tu dirección" d="Donde está tu sitio. Compartila en Instagram, en WhatsApp y en tu Google.">
         {url ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-acento hover:underline"><Globe size={15} /> {url.replace("https://", "")} <ExternalLink size={13} /></a>
-            <span className="text-xs text-texto-tenue rounded-md border border-dashed border-borde px-2 py-1">Dominio propio (tunegocio.com.ar): próximamente</span>
-          </div>
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-acento hover:underline"><Globe size={15} /> {url.replace("https://", "")} <ExternalLink size={13} /></a>
+              {/* Cómo quedó en Vercel (0142): se pide sola al entrar. */}
+              {subdominio && (
+                <span data-subdominio={subdominio.estado} className={`text-[11px] font-bold uppercase tracking-wider rounded px-2 py-0.5 ${subdominio.estado === "listo" ? "bg-bien-suave text-bien" : subdominio.estado === "error" ? "bg-ojo-suave text-ojo" : "bg-superficie-2 text-texto-suave"}`}>
+                  {subdominio.estado === "listo" ? "Lista" : subdominio.estado === "error" ? "Con un problema" : "Preparando"}
+                </span>
+              )}
+            </div>
+            {subdominio && subdominio.estado === "pendiente" && <p className="text-xs text-texto-tenue mt-2">Se está preparando: en unos minutos se puede abrir. No tenés que hacer nada.</p>}
+            {subdominio && subdominio.estado === "error" && <p className="text-xs text-texto-tenue mt-2">No se pudo preparar todavía; se vuelve a intentar solo todos los días. Si sigue así, escribinos.</p>}
+            <p className="text-xs text-texto-tenue mt-2">Dominio propio (tunegocio.com.ar): próximamente.</p>
+          </>
         ) : <p className="text-sm text-texto-suave">Tu comercio todavía no tiene dirección. Escribinos y te la armamos.</p>}
       </Bloque>
 
@@ -565,7 +575,7 @@ const PESTANAS = [
   { k: "info", n: "Información", i: Info },
 ];
 
-export function TiendaOnline({ ajustes, setAjustes, productos, setProductos, slug, empresaId, toast, onIr, conTienda }) {
+export function TiendaOnline({ ajustes, setAjustes, productos, setProductos, slug, empresaId, toast, onIr, conTienda, subdominio = null }) {
   const [pestana, setPestana] = useState("diseno");
   const pes = PESTANAS.find((x) => x.k === pestana);
   return (
@@ -584,7 +594,7 @@ export function TiendaOnline({ ajustes, setAjustes, productos, setProductos, slu
             <div className="f-d text-lg">La tienda no está activada</div>
             <p className="text-sm text-texto-suave mt-2 leading-relaxed">Tu sitio ya muestra la información de tu local. Para vender productos por internet —con carrito, variantes y pedidos— hay que sumar el módulo Tienda online. Escribinos y te lo activamos.</p>
           </Card>
-        ) : pestana === "diseno" ? <Diseno ajustes={ajustes} setAjustes={setAjustes} empresaId={empresaId} toast={toast} slug={slug} />
+        ) : pestana === "diseno" ? <Diseno ajustes={ajustes} setAjustes={setAjustes} empresaId={empresaId} toast={toast} slug={slug} subdominio={subdominio} />
           : pestana === "productos" ? <Productos productos={productos} setProductos={setProductos} empresaId={empresaId} toast={toast} />
           : pestana === "entrega" ? <EnviosYPagos ajustes={ajustes} setAjustes={setAjustes} />
           : <PresenciaOnline ajustes={ajustes} setAjustes={setAjustes} slug={slug} empresaId={empresaId} toast={toast} onIr={onIr} sinVista />}

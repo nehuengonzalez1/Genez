@@ -26,6 +26,19 @@ export async function cargarPedidosTienda(empresaId) {
   return data || [];
 }
 
+/* Cómo quedó el subdominio del comercio en Vercel (0142), o null si nunca
+   se pidió. Lo escribe solo el servidor. */
+export async function leerSubdominio(empresaId) {
+  const { data } = await supabase.from("subdominios").select("host, estado, detalle, actualizado_en").eq("empresa_id", empresaId).maybeSingle();
+  return data || null;
+}
+
+/* Todos, para el panel de la plataforma: cuántos van contra el tope. */
+export async function leerSubdominios() {
+  const { data } = await supabase.from("subdominios").select("empresa_id, host, estado, detalle");
+  return data || [];
+}
+
 export async function estadoPedidoTienda(id, estado, ventaId = null) {
   const { error } = await supabase.rpc("estado_pedido_tienda", { p_pedido: id, p_estado: estado, p_venta: ventaId });
   if (error) throw new Error(error.message || "No se pudo actualizar el pedido de la tienda.");
