@@ -1,5 +1,5 @@
 /* ============================================================
-   PRESENCIA ONLINE (0140)
+   LA INFORMACIÓN DEL LOCAL (0140; desde 0141, una pestaña de Tienda online)
    ============================================================
 
    La página del comercio en internet: `slug.genez.com.ar`. Existía desde
@@ -7,11 +7,15 @@
    descripción, la portada se cargaban a mano en la base— y para un súper
    o un bar mostraba solo el nombre y un botón para entrar.
 
-   Acá el comercio decide qué ve la gente: cómo se ve (portada, frase,
-   colores), cuándo abre, cómo encontrarlo, cómo se compra y un aviso del
-   momento. A la derecha, el teléfono con la página tal como queda: la
-   misma Vidriera que dibuja la página de verdad, con los mismos datos
-   que devuelve `presencia_de` (`presenciaDesdeConfig`).
+   Acá el comercio decide qué ve la gente del local: la portada y la
+   frase, cuándo abre, cómo encontrarlo, cómo se compra, un aviso del
+   momento, fotos y video.
+
+   Hasta el 09/10 era su propia sección, "Presencia online", con su
+   propia vista previa. Nehuen: "¿por qué está en dos módulos?". Ahora es
+   la pestaña Información de Tienda online, y la vista previa es la del
+   sitio entero (TiendaOnline.jsx). El color y el fondo del sitio se
+   eligen en Diseño.
 
    De fábrica no está publicada. Cargar el teléfono para el ticket no lo
    pone en internet: cada dato de contacto se marca para mostrar.
@@ -24,12 +28,10 @@
    ============================================================ */
 
 import React, { useRef, useState } from "react";
-import { Copy, ExternalLink, Download, ImagePlus, Trash2, Plus, X, Monitor, ChevronLeft, ChevronRight } from "lucide-react";
-import { Card, Boton, CodigoQR, Modal } from "../ui/Base.jsx";
+import { Copy, ExternalLink, Download, ImagePlus, Trash2, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Card, Boton, CodigoQR } from "../ui/Base.jsx";
 import { inputCls } from "../ui/Campos.jsx";
-import { useLogos } from "../ui/logos.js";
-import { PaginaComercio } from "../cliente/PaginaComercio.jsx";
-import { DIAS, presenciaDesdeConfig, videoEmbebido } from "../cliente/vidriera.js";
+import { DIAS, videoEmbebido } from "../cliente/vidriera.js";
 import { subirFotoPublica, borrarFotoPublica } from "../datos/presencia.js";
 
 const FOTOS_MAX = 8;
@@ -123,14 +125,8 @@ export function PresenciaOnline({ ajustes, setAjustes, slug, empresaId, toast, o
   const qrRef = useRef(null);
   const archivo = useRef(null);
   const [subiendo, setSubiendo] = useState(false);
-  const logos = useLogos(marca);
 
   const url = slug ? `https://${slug}.genez.com.ar` : null;
-  /* La vista previa muestra lo publicado. Sin publicar, igual se ve cómo
-     quedaría, con un cartel que lo dice: si no, no habría forma de armar
-     la página antes de mostrarla. */
-  const presencia = presenciaDesdeConfig({ ...ajustes, publico: { ...pub, publicada: true } });
-  const [verPc, setVerPc] = useState(false);
   const fotosRef = useRef(null);
   const [subiendoFotos, setSubiendoFotos] = useState(false);
   const galeria = pub.galeria || [];
@@ -172,11 +168,6 @@ export function PresenciaOnline({ ajustes, setAjustes, slug, empresaId, toast, o
   };
   const videoMal = pub.video && String(pub.video).trim() && !videoEmbebido(pub.video);
 
-  /* La marca como la arma marca_de para la página. */
-  const oscuro = marca.tema === "oscuro";
-  const marcaPagina = { nombre: ajustes.negocio, logo: (oscuro ? logos.paraOscuro : logos.paraClaro) || null, lema: marca.lema || "", bajada: marca.bajada || "", portada: marca.portada || null };
-  const pieFalso = <div className="rounded-lg bg-acento text-sobre-acento text-center text-sm font-bold py-2.5">Ingresar</div>;
-
   const setFranjas = (dia, franjas) => setPub("horarios", { ...horarios, [dia]: franjas });
   const copiarATodos = (dia) => {
     const f = horarios[dia] || [];
@@ -208,7 +199,7 @@ export function PresenciaOnline({ ajustes, setAjustes, slug, empresaId, toast, o
   ];
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5 items-start">
+    <div className="grid grid-cols-1 gap-5 items-start">
       <div className="space-y-5 min-w-0">
         <Bloque titulo="Tu página" d="Tu dirección en internet. Compartila en tus redes, en WhatsApp o imprimí el QR para la puerta del local."
           accion={<div className="flex items-center gap-2.5"><span className="text-xs text-texto-suave">{pub.publicada ? "Publicada" : "Sin publicar"}</span><Interruptor prendido={!!pub.publicada} onCambiar={() => setPub("publicada", !pub.publicada)} etiqueta="Publicar mi información" /></div>}>
@@ -255,15 +246,6 @@ export function PresenciaOnline({ ajustes, setAjustes, slug, empresaId, toast, o
               <textarea value={marca.bajada || ""} onChange={(e) => setMarca("bajada", e.target.value.slice(0, 220))} rows={3}
                 placeholder="Todo lo de todos los días, a dos cuadras de tu casa. Desde 1998." className={`${inputCls} resize-none`} />
             </label>
-            <div>
-              <span className="text-xs font-semibold text-texto-suave">Colores</span>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {[["auto", "Los del teléfono"], ["claro", "Claro"], ["oscuro", "Oscuro"]].map(([k, n]) => (
-                  <button key={k} type="button" onClick={() => setMarca("tema", k)}
-                    className={`text-xs font-semibold rounded-md border px-3 py-1.5 ${(marca.tema || "auto") === k || (k === "claro" && marca.tema === "calido") ? "border-acento bg-acento-suave" : "border-borde hover:bg-superficie-2"}`}>{n}</button>
-                ))}
-              </div>
-            </div>
           </div>
         </Bloque>
 
@@ -379,35 +361,6 @@ export function PresenciaOnline({ ajustes, setAjustes, slug, empresaId, toast, o
         </Bloque>
       </div>
 
-      {/* El teléfono: la página como la va a ver la gente. Es el mismo
-          componente que dibuja la página de verdad (PaginaComercio). */}
-      <div className="xl:sticky xl:top-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className={rotulo}>Así se ve</div>
-          <button type="button" onClick={() => setVerPc(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-acento hover:underline"><Monitor size={14} /> Ver en computadora</button>
-        </div>
-        {!pub.publicada && <p className="mt-2 text-xs text-texto-tenue">Sin publicar: así va a quedar cuando la publiques. Hoy se ve solo tu nombre y tu logo.</p>}
-        <div className={`mt-3 mx-auto w-full max-w-[340px] rounded-[28px] border-[6px] border-superficie-3 overflow-hidden shadow-sm ${oscuro ? "" : "tema-claro"}`}>
-          <div className="h-[640px] overflow-y-auto bg-fondo">
-            <PaginaComercio marca={marcaPagina} presencia={presencia} modo="celular" enlaces={false} pie={pieFalso} />
-          </div>
-        </div>
-        {onIr && <button type="button" onClick={() => onIr("negocio")} className="mt-3 w-full text-xs text-texto-tenue hover:text-texto underline">Cambiar el logo o el nombre en Datos del negocio</button>}
-      </div>
-
-      {/* La de computadora, en grande: una pantalla de 1280 achicada para
-          que entre entera a lo ancho. */}
-      <Modal open={verPc} onClose={() => setVerPc(false)} ancho="max-w-[1100px]">
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-borde">
-          <div className="text-sm font-semibold flex items-center gap-2"><Monitor size={16} /> En una computadora</div>
-          <button type="button" aria-label="Cerrar" onClick={() => setVerPc(false)} className="p-1.5 rounded-md hover:bg-superficie-2"><X size={18} /></button>
-        </div>
-        <div className={`bg-fondo ${oscuro ? "" : "tema-claro"}`}>
-          <div style={{ width: 1280, zoom: 0.84 }}>
-            <PaginaComercio marca={marcaPagina} presencia={presencia} modo="computadora" enlaces={false} pie={pieFalso} />
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

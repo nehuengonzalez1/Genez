@@ -94,18 +94,21 @@ export const FUENTES = {
   dmsans: { n: "DM Sans", css: "DM+Sans:wght@400;500;600;700" },
 };
 
-export function usarFuente(k) {
+/* `doc`: el documento donde está dibujado el sitio. En la vista previa de
+   la gestión es el de un iframe, y la letra tiene que cargarse ahí. */
+export function usarFuente(k, doc) {
   useEffect(() => {
     const f = FUENTES[k];
+    const d = doc || document;
     if (!f) return;
     const id = `fuente-${k}`;
-    if (document.getElementById(id)) return;
-    const l = document.createElement("link");
+    if (d.getElementById(id)) return;
+    const l = d.createElement("link");
     l.id = id;
     l.rel = "stylesheet";
     l.href = `https://fonts.googleapis.com/css2?family=${f.css}&display=swap`;
-    document.head.appendChild(l);
-  }, [k]);
+    d.head.appendChild(l);
+  }, [k, doc]);
 }
 
 const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));

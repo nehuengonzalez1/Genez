@@ -332,7 +332,7 @@ export const PANTALLAS = {
   administracion: [
     { en: Css("[data-seccion='resumen']"), opcional: true, t: "Todo en un lugar", d: "Tu negocio, cómo se vende, tu gente y tu cuenta: cada cosa en su sección de este menú." },
     { en: Algo(/^Estado de la configuración$/i), opcional: true, t: "Qué falta", d: "Lo que falta para que el ticket y la factura salgan con tus datos. Tocando cada uno vas a donde se completa." },
-    { en: Css("[data-seccion='presencia']"), opcional: true, t: "Tu página", d: "Lo que ve la gente en internet: si estás abierto, cómo llegar, cómo escribirte y cómo se paga." },
+    { en: Css("[data-seccion='tienda']"), opcional: true, t: "Tu tienda online", d: "Tu sitio en internet: el diseño, los productos que vendés, cómo se entrega y la información del local." },
     { en: Css("[data-seccion='cobros']"), opcional: true, t: "Cómo se vende", d: "Cobros y facturas, precios y stock, los puntos de los clientes y la impresora." },
     { en: Css("[data-seccion='equipo']"), opcional: true, t: "Tu gente", d: "Quién trabaja con vos, con qué acceso, y qué puede hacer cada rol." },
     { en: Css("[data-seccion='plan']"), opcional: true, t: "Tu plan", d: "Lo que pagás, cambiarlo o darlo de baja." },

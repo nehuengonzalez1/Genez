@@ -852,7 +852,13 @@ export function POS({ productos, setProductos, cobrar, ajustes, toast, ir, pendi
      el punto donde el POS resuelve qué producto es, y no en la prop: el
      formulario de alta necesita ver también los dados de baja para avisar
      que un código de barras ya está usado. */
-  const vendibles = useMemo(() => productos.filter((p) => p.activo !== false), [productos]);
+  /* Un producto con variantes (0141, "Remera" con sus talles) no se vende:
+     se vende la variante ("Remera · M"), que es la que tiene stock y
+     código. El padre queda solo como agrupador de la tienda. */
+  const vendibles = useMemo(() => {
+    const padres = new Set(productos.filter((p) => p.padreId && p.activo !== false).map((p) => p.padreId));
+    return productos.filter((p) => p.activo !== false && !padres.has(p.id));
+  }, [productos]);
 
   /* LOS MÁS VENDIDOS, A UN TOQUE (08/10)
 

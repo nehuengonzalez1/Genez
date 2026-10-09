@@ -284,6 +284,17 @@ const ANTES = new Map();   // el documento como estaba, para su historial de ver
 const ANTES_SUS = new Map();   // la suscripción como estaba, para su historial
 let numeroCambio = 0;
 const DISPARADORES = {
+  /* items_vista es una vista en la base: lo que se crea o se cambia en items
+     aparece ahí solo. Acá se replica a mano (0141: las variantes se crean
+     desde la tienda y la pantalla las relee de la vista). */
+  items: (op, filas) => {
+    const vista = tablaDe("items_vista");
+    for (const f of filas) {
+      const v = vista.find((x) => x.id === f.id);
+      if (v) Object.assign(v, f);
+      else vista.push({ stock: 0, u30: 0, u30p: 0, vel: 0, ultima_venta: null, stock_cargado: false, costo_prev: f.costo, precio_prev: f.precio, ...f });
+    }
+  },
   /* Los checks de 0115 que la pantalla tiene que ver fallar: resolver sin
      solución y bloquear sin decir qué bloquea. */
   interno_tickets: (op, filas) => {

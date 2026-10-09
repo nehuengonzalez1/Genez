@@ -29,7 +29,7 @@
    de una computadora, así ve exactamente lo mismo que el cliente.
    ============================================================ */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, ShoppingBag, Menu, X, Plus, Minus, ChevronLeft, ChevronRight, MessageCircle, Phone, MapPin, Mail,
   Instagram, Facebook, Globe, Clock, Store, Truck, Check, Share2, Copy, ImageOff, ArrowRight, Banknote, Landmark,
@@ -56,7 +56,10 @@ export function Sitio({ sitio, marca, slug, memoria = false, onPedir = null, onI
 function SitioAdentro({ sitio, marca, slug, memoria, onPedir, onIngresar }) {
   const d = sitio.diseno || {};
   const oscuro = d.fondo === "oscuro";
-  usarFuente(d.fuente || "inter");
+  const raiz = useRef(null);
+  const [doc, setDoc] = useState(null);
+  useEffect(() => { if (raiz.current) setDoc(raiz.current.ownerDocument); }, []);
+  usarFuente(d.fuente || "inter", doc);
   const { ruta, ir } = useRuta();
   const carrito = useCarrito(slug || marca.slug || "sitio", !memoria);
   const [abierto, setAbierto] = useState(false);
@@ -94,7 +97,7 @@ function SitioAdentro({ sitio, marca, slug, memoria, onPedir, onIngresar }) {
   else pagina = <Inicio ctx={ctx} />;
 
   return (
-    <div className={`${oscuro ? "tema-noche" : "tema-calido"} bg-fondo text-texto min-h-screen flex flex-col`} style={estilo} data-sitio data-plantilla={d.plantilla}>
+    <div ref={raiz} className={`${oscuro ? "tema-noche" : "tema-calido"} bg-fondo text-texto min-h-screen flex flex-col`} style={estilo} data-sitio data-plantilla={d.plantilla}>
       <Encabezado ctx={ctx} />
       <main className="flex-1">{pagina}</main>
       <Pie ctx={ctx} />

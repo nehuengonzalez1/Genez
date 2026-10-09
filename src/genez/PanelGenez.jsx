@@ -77,7 +77,6 @@ import { CentroAdministracion, ResumenAdministracion, SECCIONES_ADMIN } from "..
 import { ModulosVisibles } from "../modulos/ModulosVisibles.jsx";
 import { DisenoTicket } from "../modulos/DisenoTicket.jsx";
 import { prepararLogoTicket } from "../ui/logoTicket.js";
-import { PresenciaOnline } from "../modulos/PresenciaOnline.jsx";
 import { TiendaOnline } from "../modulos/TiendaOnline.jsx";
 import { cargarPedidosTienda, estadoPedidoTienda, aPedidoDePicking, ESTADO_TIENDA } from "../datos/tienda.js";
 import { MiPlan, NOMBRE_PLAN } from "../modulos/MiPlan.jsx";
@@ -2472,8 +2471,7 @@ function Sistema({ sesion, rubro, roles, onSalir, setComercios, tema, setTema })
                       .filter((g) => g.modulos.length)} />
                 )}
                 {actual === "ticket" && <DisenoTicket ajustes={ajustes} setAjustes={setAjustes} productos={productos} quien={sesion.nombre} toast={toast} onIr={setAdmSec} />}
-                {actual === "tienda" && <TiendaOnline ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} />}
-                {actual === "presencia" && <PresenciaOnline ajustes={ajustes} setAjustes={setAjustes} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} />}
+                {actual === "tienda" && <TiendaOnline ajustes={ajustes} setAjustes={setAjustes} productos={productos} setProductos={setProductos} slug={sesion.comercio.slug} empresaId={empresaId} toast={toast} onIr={setAdmSec} conTienda={permitido("tienda")} />}
                 {actual === "equipo" && <Equipo empresaId={empresaId} permisos={permisos} toast={toast} />}
                 {actual === "permisos" && (
                   <Permisos empresaId={empresaId}
